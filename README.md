@@ -1,11 +1,8 @@
-## My Project
+## Smithy Go
 
-TODO: Fill this README out!
+Smithy code generators for Go.
 
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+**WARNING: All interfaces are subject to change.**
 
 ## License
 
