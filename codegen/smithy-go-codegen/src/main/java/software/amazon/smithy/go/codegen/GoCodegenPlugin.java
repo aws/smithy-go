@@ -17,6 +17,8 @@ package software.amazon.smithy.go.codegen;
 
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.build.SmithyBuildPlugin;
+import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.model.Model;
 
 /**
  * Plugin to trigger Go code generation.
@@ -30,5 +32,14 @@ public final class GoCodegenPlugin implements SmithyBuildPlugin {
     @Override
     public void execute(PluginContext context) {
         new CodegenVisitor(context).execute();
+    }
+
+    /**
+     * Creates a Go symbol provider.
+     * @param model The model to generate symbols for.
+     * @return Returns the created provider.
+     */
+    public static SymbolProvider createSymbolProvider(Model model) {
+        return new SymbolVisitor(model);
     }
 }

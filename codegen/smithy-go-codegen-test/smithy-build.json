@@ -3,7 +3,6 @@
     "plugins": {
         "go-codegen": {
             "service": "example.weather#Weather",
-            "targetNamespace": "Weather",
             "module": "weather",
             "moduleVersion": "0.0.1"
         }
