@@ -16,7 +16,6 @@
 package software.amazon.smithy.go.codegen;
 
 import software.amazon.smithy.build.FileManifest;
-import software.amazon.smithy.utils.CodeWriter;
 
 /**
  * Generates a go.mod file for the project.
@@ -30,8 +29,6 @@ final class GoModGenerator {
     private GoModGenerator() {}
 
     static void writeGoMod(GoSettings settings, FileManifest manifest) {
-        CodeWriter writer = new CodeWriter().insertTrailingNewline();
-        writer.write("module $L", settings.getModuleName());
-        manifest.writeFile("go.mod", writer.toString());
+        CodegenUtils.runCommand("go mod init " + settings.getModuleName(), manifest.getBaseDir());
     }
 }
