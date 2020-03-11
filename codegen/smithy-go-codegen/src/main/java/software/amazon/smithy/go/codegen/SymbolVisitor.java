@@ -22,6 +22,7 @@ import software.amazon.smithy.codegen.core.ReservedWords;
 import software.amazon.smithy.codegen.core.ReservedWordsBuilder;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.BigDecimalShape;
 import software.amazon.smithy.model.shapes.BigIntegerShape;
@@ -61,10 +62,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private static final Logger LOGGER = Logger.getLogger(SymbolVisitor.class.getName());
 
     private final Model model;
+    private final String rootModuleName;
     private final ReservedWordSymbolProvider.Escaper escaper;
 
-    SymbolVisitor(Model model) {
+    SymbolVisitor(Model model, String rootModuleName) {
         this.model = model;
+        this.rootModuleName = rootModuleName;
 
         // Load reserved words from a new-line delimited file.
         ReservedWords reservedWords = new ReservedWordsBuilder()
@@ -171,14 +174,18 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol bigIntegerShape(BigIntegerShape shape) {
-        // TODO: add once dependency support is in
-        return createSymbolBuilder(shape, "nil").build();
+        return createBigSymbol(shape, "*big.Int");
     }
 
     @Override
     public Symbol bigDecimalShape(BigDecimalShape shape) {
-        // TODO: add once dependency support is in
-        return createSymbolBuilder(shape, "nil").build();
+        return createBigSymbol(shape, "*big.Float");
+    }
+
+    private Symbol createBigSymbol(Shape shape, String symbolName) {
+        return createSymbolBuilder(shape, symbolName)
+                .addReference(createNamespaceReference(GoDependency.BIG))
+                .build();
     }
 
     @Override
@@ -208,7 +215,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = StringUtils.capitalize(shape.getId().getName());
-        return createSymbolBuilder(shape, name, ".")
+        return createSymbolBuilder(shape, name, rootModuleName)
                 .definitionFile("./api_types.go")
                 .build();
     }
@@ -228,8 +235,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        // TODO: add once dependency support is in
-        return createSymbolBuilder(shape, "nil").build();
+        return createSymbolBuilder(shape, "*time.Time")
+                .addReference(createNamespaceReference(GoDependency.TIME))
+                .build();
     }
 
     private Symbol.Builder createSymbolBuilder(Shape shape, String typeName) {
@@ -237,6 +245,23 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private Symbol.Builder createSymbolBuilder(Shape shape, String typeName, String namespace) {
-        return createSymbolBuilder(shape, typeName).namespace(namespace, "/");
+        return createSymbolBuilder(shape, typeName).namespace(namespace, ".");
+    }
+
+    private SymbolReference createNamespaceReference(GoDependency dependency) {
+        // Go generally imports an entire package under a single name, which defaults to the last
+        // part of the package name path. So we need to create a symbol for that namespace to reference.
+        String namespace = dependency.getDependencies().get(0).getPackageName();
+        Symbol namespaceSymbol = Symbol.builder()
+                // We're not referencing a particular symbol from the namespace, so we leave the name blank.
+                .name("")
+                .putProperty("namespaceSymbol", true)
+                .namespace(namespace, "/")
+                .addDependency(dependency)
+                .build();
+        return SymbolReference.builder()
+                .symbol(namespaceSymbol)
+                .alias(CodegenUtils.getDefaultPackageImportName(namespace))
+                .build();
     }
 }

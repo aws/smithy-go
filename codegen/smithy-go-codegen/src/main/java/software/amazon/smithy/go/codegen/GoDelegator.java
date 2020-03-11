@@ -16,12 +16,16 @@
 package software.amazon.smithy.go.codegen;
 
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -52,6 +56,18 @@ final class GoDelegator {
     }
 
     /**
+     * Gets all of the dependencies that have been registered in writers owned by the
+     * delegator.
+     *
+     * @return Returns all the dependencies.
+     */
+    List<SymbolDependency> getDependencies() {
+        List<SymbolDependency> resolved = new ArrayList<>();
+        writers.values().forEach(s -> resolved.addAll(s.getDependencies()));
+        return resolved;
+    }
+
+    /**
      * Gets a previously created writer or creates a new one if needed.
      *
      * @param shape Shape to create the writer for.
@@ -59,11 +75,11 @@ final class GoDelegator {
      */
     void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
-        String namespace = symbol.getNamespace();
-        if (namespace.equals(".")) {
-            namespace = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
-        }
-        GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), namespace);
+        GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), symbol.getNamespace());
+
+        // Add any needed DECLARE symbols.
+        writer.addImportReferences(symbol, SymbolReference.ContextOption.DECLARE);
+        symbol.getDependencies().forEach(writer::addDependency);
 
         writer.pushState();
         writerConsumer.accept(writer);
