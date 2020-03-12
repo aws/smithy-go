@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Utility methods likely to be needed across packages.
@@ -79,5 +80,18 @@ public final class CodegenUtils {
         } catch (InterruptedException | IOException e) {
             throw new CodegenException(e);
         }
+    }
+
+    /**
+     * Gets the name under which the given package will be exported by default.
+     *
+     * @param packageName The full package name of the exported package.
+     * @return The name a the package will be imported under by default.
+     */
+    public static String getDefaultPackageImportName(String packageName) {
+        if (StringUtils.isBlank(packageName) || !packageName.contains("/")) {
+            return packageName;
+        }
+        return packageName.substring(packageName.lastIndexOf('/') + 1);
     }
 }

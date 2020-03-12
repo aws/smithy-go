@@ -205,7 +205,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = StringUtils.capitalize(shape.getId().getName());
-        return createSymbolBuilder(shape, name, "./types")
+        return createSymbolBuilder(shape, name, ".")
                 .definitionFile("./api_types.go")
                 .build();
     }

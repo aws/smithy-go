@@ -59,7 +59,11 @@ final class GoDelegator {
      */
     void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
-        GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), symbol.getNamespace());
+        String namespace = symbol.getNamespace();
+        if (namespace.equals(".")) {
+            namespace = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
+        }
+        GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), namespace);
 
         writer.pushState();
         writerConsumer.accept(writer);
