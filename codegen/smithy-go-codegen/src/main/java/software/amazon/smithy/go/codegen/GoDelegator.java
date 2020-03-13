@@ -44,7 +44,7 @@ final class GoDelegator {
     }
 
     /**
-     * Writes all pending writers do disk and then clears them out.
+     * Writes all pending writers to disk and then clears them out.
      */
     void flushWriters() {
         writers.forEach((filename, writer) -> fileManifest.writeFile(filename, writer.toString()));

@@ -183,16 +183,19 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol operationShape(OperationShape shape) {
+        // TODO: implement operations
         return createSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol resourceShape(ResourceShape shape) {
+        // TODO: implement resources
         return createSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
+        // TODO: implement clients
         return createSymbolBuilder(shape, "nil").build();
     }
 
@@ -212,6 +215,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol unionShape(UnionShape shape) {
+        // TODO: implement unions
         return createSymbolBuilder(shape, "nil").build();
     }
 
