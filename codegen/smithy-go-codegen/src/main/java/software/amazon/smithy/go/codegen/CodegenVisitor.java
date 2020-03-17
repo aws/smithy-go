@@ -44,7 +44,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final GoDelegator writers;
 
     CodegenVisitor(PluginContext context) {
-        settings = GoSettings.from(context.getModel(), context.getSettings());
+        settings = GoSettings.from(context.getSettings());
         model = context.getModel();
         modelWithoutTraitShapes = context.getModelWithoutTraitShapes();
         service = settings.getService(model);
