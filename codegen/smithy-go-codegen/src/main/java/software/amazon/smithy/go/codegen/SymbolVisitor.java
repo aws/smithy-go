@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.ReservedWordSymbolProvider;
@@ -43,6 +45,7 @@ import software.amazon.smithy.model.shapes.ResourceShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.SetShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.ShortShape;
 import software.amazon.smithy.model.shapes.StringShape;
@@ -50,6 +53,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -66,12 +70,14 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private final Model model;
     private final String rootModuleName;
     private final ReservedWordSymbolProvider.Escaper escaper;
+    private final ReservedWordSymbolProvider.Escaper errorMemberEscaper;
+    private final Map<ShapeId, ReservedWordSymbolProvider.Escaper> structureSpecificMemberEscapers = new HashMap<>();
+
 
     SymbolVisitor(Model model, String rootModuleName) {
         this.model = model;
         this.rootModuleName = rootModuleName;
 
-        // Load reserved words from a new-line delimited file.
         ReservedWords reservedWords = new ReservedWordsBuilder()
                 // Since Go only exports names if the first character is upper case and all
                 // the go reserved words are lower case, it's functionally impossible to conflict,
@@ -80,12 +86,80 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .build();
 
         escaper = ReservedWordSymbolProvider.builder()
-                // TODO: escape reserved member names
-                .nameReservedWords(reservedWords)
+                .nameReservedWords(reserveInterfaces(model))
+                .memberReservedWords(reservedWords)
                 // Only escape words when the symbol has a definition file to
                 // prevent escaping intentional references to built-in types.
                 .escapePredicate((shape, symbol) -> !StringUtils.isEmpty(symbol.getDefinitionFile()))
                 .buildEscaper();
+
+        // Reserved words that only apply to error members.
+        ReservedWords reservedErrorMembers = new ReservedWordsBuilder()
+                .put("ErrorCode", "ErrorCode_")
+                .put("ErrorMessage", "ErrorMessage_")
+                .put("ErrorFault", "ErrorMessage_")
+                .put("Unwrap", "Unwrap_")
+                .put("Error", "Error_")
+                .build();
+
+        errorMemberEscaper = ReservedWordSymbolProvider.builder()
+                .memberReservedWords(ReservedWords.compose(reservedWords, reservedErrorMembers))
+                .escapePredicate((shape, symbol) -> !StringUtils.isEmpty(symbol.getDefinitionFile()))
+                .buildEscaper();
+    }
+
+    /**
+     * Reserves interface names for any structure that supports inheritance.
+     *
+     * <p>For each of these structures, Get* and Has* methods are reserved for their members.
+     *
+     * @param model The model whose inheritable structures should have reserved interfaces.
+     * @return ReservedWords containing all the reserved interface names.
+     */
+    private ReservedWords reserveInterfaces(Model model) {
+        ReservedWordsBuilder builder = new ReservedWordsBuilder();
+        model.shapes(StructureShape.class)
+                .filter(this::supportsInheritance)
+                .forEach(shape -> {
+                    reserveInterfaceMemberAccessors(shape);
+                    String name = getDefaultShapeName(shape) + "Interface";
+                    builder.put(name, escapeWithTrailingUnderscore(name));
+                });
+        return builder.build();
+    }
+
+    private boolean supportsInheritance(Shape shape) {
+        return shape.isStructureShape() && shape.hasTrait(ErrorTrait.class);
+    }
+
+    /**
+     * Reserves Get* and Has* member names for the given structure for use as accessor methods.
+     *
+     * <p>These reservations will only apply to the given structure, not to other structures.
+     *
+     * @param shape The structure shape whose members should be reserved.
+     */
+    private void reserveInterfaceMemberAccessors(StructureShape shape) {
+        ReservedWordsBuilder builder = new ReservedWordsBuilder();
+        for (MemberShape member : shape.getAllMembers().values()) {
+            String name = getDefaultMemberName(member);
+            String getterName = "Get" + name;
+            String haserName = "Has" + name;
+            builder.put(getterName, escapeWithTrailingUnderscore(getterName));
+            builder.put(haserName, escapeWithTrailingUnderscore(haserName));
+        }
+        ReservedWordSymbolProvider.Escaper structureSpecificMemberEscaper = ReservedWordSymbolProvider.builder()
+                .memberReservedWords(builder.build())
+                .buildEscaper();
+        structureSpecificMemberEscapers.put(shape.getId(), structureSpecificMemberEscaper);
+    }
+
+    private String escapeWithTrailingUnderscore(String symbolName) {
+        return symbolName + "_";
+    }
+
+    private String getDefaultShapeName(Shape shape) {
+        return StringUtils.capitalize(shape.getId().getName());
     }
 
     @Override
@@ -97,7 +171,28 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public String toMemberName(MemberShape shape) {
-        return escaper.escapeMemberName(StringUtils.capitalize(shape.getMemberName()));
+        String memberName = escaper.escapeMemberName(getDefaultMemberName(shape));
+
+        // Escape words reserved for the specific container.
+        if (structureSpecificMemberEscapers.containsKey(shape.getContainer())) {
+            memberName = structureSpecificMemberEscapers.get(shape.getContainer()).escapeMemberName(memberName);
+        }
+
+        // Escape words that are only reserved for error members.
+        if (isErrorMember(shape)) {
+            memberName = errorMemberEscaper.escapeMemberName(memberName);
+        }
+        return memberName;
+    }
+
+    private String getDefaultMemberName(MemberShape shape) {
+        return StringUtils.capitalize(shape.getMemberName());
+    }
+
+    private boolean isErrorMember(MemberShape shape) {
+        return model.getShape(shape.getContainer())
+                .map(container -> container.hasTrait(ErrorTrait.ID))
+                .orElse(false);
     }
 
     @Override
@@ -113,7 +208,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         // Right now we just use the shape's name. We could also generate a name, something like
         // MediaTypeApplicationJson based on the media type value. This could lead to name conflicts
         // but potentially reduces duplication.
-        String name = StringUtils.capitalize(shape.getId().getName());
+        String name = getDefaultShapeName(shape);
         return createPointableSymbolBuilder(shape, name, rootModuleName)
                 .putProperty("mediaTypeBaseSymbol", base)
                 .definitionFile("./api_types.go")
@@ -228,7 +323,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
-            String name = StringUtils.capitalize(shape.getId().getName());
+            String name = getDefaultShapeName(shape);
             return createValueSymbolBuilder(shape, name, rootModuleName)
                     .definitionFile("./api_enums.go")
                     .build();
@@ -243,15 +338,20 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol structureShape(StructureShape shape) {
-        String name = StringUtils.capitalize(shape.getId().getName());
-        return createPointableSymbolBuilder(shape, name, rootModuleName)
-                .definitionFile("./api_types.go")
-                .build();
+        String name = getDefaultShapeName(shape);
+        Symbol.Builder builder = createPointableSymbolBuilder(shape, name, rootModuleName);
+        if (shape.hasTrait(ErrorTrait.ID)) {
+            builder.definitionFile("./api_errors.go")
+                    .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"));
+        } else {
+            builder.definitionFile("./api_types.go");
+        }
+        return builder.build();
     }
 
     @Override
     public Symbol unionShape(UnionShape shape) {
-        String name = StringUtils.capitalize(shape.getId().getName());
+        String name = getDefaultShapeName(shape);
         return createPointableSymbolBuilder(shape, name, rootModuleName)
                 .definitionFile("./api_types.go")
                 .build();

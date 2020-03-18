@@ -15,19 +15,24 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Map;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
  * Renders structures.
- *
- * TODO: support errors
  */
 final class StructureGenerator implements Runnable {
+    private static final Map<String, String> STANDARD_ERROR_MEMBERS = MapUtils.of(
+            "ErrorCode", "string",
+            "ErrorMessage", "string",
+            "ErrorFault", "string"
+    );
 
     private final Model model;
     private final SymbolProvider symbolProvider;
@@ -45,6 +50,8 @@ final class StructureGenerator implements Runnable {
     public void run() {
         if (!shape.hasTrait(ErrorTrait.class)) {
             renderStructure();
+        } else {
+            renderErrorStructure();
         }
     }
 
@@ -64,6 +71,89 @@ final class StructureGenerator implements Runnable {
             String memberName = symbolProvider.toMemberName(member);
             writer.writeMemberDocs(model, member);
             writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
+        }
+    }
+
+    /**
+     * Renders an error structure and supporting methods.
+     */
+    private void renderErrorStructure() {
+        Symbol structureSymbol = symbolProvider.toSymbol(shape);
+        String interfaceName = structureSymbol.getName() + "Interface";
+
+        ErrorTrait errorTrait = shape.expectTrait(ErrorTrait.class);
+
+        // Write out the interface for the error
+        writer.writeShapeDocs(shape);
+        writer.openBlock("type $L interface {", "}", interfaceName, () -> {
+            writer.write("smithy.APIError");
+
+            // This non-exported method will be used when inheritance is introduced.
+            writer.write("is$L()", structureSymbol.getName()).write("");
+
+            for (Map.Entry<String, String> errorMember : STANDARD_ERROR_MEMBERS.entrySet()) {
+                writer.write("$L() $L", errorMember.getKey(), errorMember.getValue());
+            }
+            writer.write("");
+
+            for (MemberShape member : shape.getAllMembers().values()) {
+                String memberName = symbolProvider.toMemberName(member);
+                Symbol memberSymbol = symbolProvider.toSymbol(member);
+                String getterName = "Get" + memberName;
+                String haserName = "Has" + memberName;
+
+                writer.writeMemberDocs(model, member);
+                writer.write("$L() $T", getterName, memberSymbol);
+                writer.writeDocs(String.format("%s returns whether %s exists.", haserName, memberName));
+                writer.write("$L() bool", haserName);
+            }
+        }).write("");
+
+        // Write out a struct to hold the error data.
+        writer.writeDocs(String.format(
+                "The concrete implementation for %s. This should not be used directly.", interfaceName));
+        writer.openBlock("type $L struct {", "}", structureSymbol.getName(), () -> {
+            // The message is the only part of the standard APIError interface that isn't known ahead of time.
+            // In order to reduce potential conflicts, we make the struct member non-exported.
+            writer.write("message string").write("");
+            writeMembers();
+        }).write("");
+
+        // write the Error method to satisfy the standard error interface
+        writer.openBlock("func (e *$L) Error() string {", "}", structureSymbol.getName(), () -> {
+            writer.write("return e.ErrorMessage()");
+        });
+
+        // Satisfy the isa function
+        writer.write("func (e *$L) is$L() {}", structureSymbol.getName(), structureSymbol.getName());
+
+        // Write out methods to satisfy the APIError interface. All but the message are known ahead of time,
+        // and for those we just encode the information in the method itself.
+        writer.write("func (e *$L) ErrorMessage() string { return e.message }", structureSymbol.getName());
+        writer.write("func (e *$L) ErrorCode() string { return $S }",
+                structureSymbol.getName(), shape.getId().getName());
+
+        String fault = "smithy.FaultUnknown";
+        if (errorTrait.isClientError()) {
+            fault = "smithy.FaultClient";
+        } else if (errorTrait.isServerError()) {
+            fault = "smithy.FaultServer";
+        }
+        writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
+
+        // Write out methods to satisfy the error's specific interface
+        for (MemberShape member : shape.getAllMembers().values()) {
+            String memberName = symbolProvider.toMemberName(member);
+            Symbol memberSymbol = symbolProvider.toSymbol(member);
+            String getterName = "Get" + memberName;
+            String haserName = "Has" + memberName;
+            writer.openBlock("func (e *$L) $L() $T {", "}",
+                    structureSymbol.getName(), getterName, memberSymbol, () -> {
+                writer.write("return *e.$L", memberName);
+            });
+            writer.openBlock("func (e *$L) $L() bool {", "}", structureSymbol.getName(), haserName, () -> {
+                writer.write("return e.$L != nil", memberName);
+            });
         }
     }
 }
