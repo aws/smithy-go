@@ -1,4 +1,9 @@
 $version: "0.5.0"
+
+metadata suppressions = [{
+    ids: ["UnstableFeature"],
+}]
+
 namespace example.weather
 
 /// Provides weather forecasts.
@@ -58,7 +63,11 @@ structure GetCityOutput {
     coordinates: CityCoordinates,
 
     city: CitySummary,
+
+    metadata: CityMetadata
 }
+
+document CityMetadata
 
 // This structure is nested within GetCityOutput.
 structure CityCoordinates {
