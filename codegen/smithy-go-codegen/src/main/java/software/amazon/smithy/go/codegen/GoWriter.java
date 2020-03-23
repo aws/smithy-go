@@ -34,7 +34,9 @@ import software.amazon.smithy.utils.StringUtils;
 /**
  * Specialized code writer for managing Go dependencies.
  *
- * <p>Use the {@code $T} formatter to refer to {@link Symbol}s.
+ * <p>Use the {@code $T} formatter to refer to {@link Symbol}s without using pointers.
+ *
+ * <p>Use the {@code $P} formatter to refer to {@link Symbol}s using pointers where appropriate.
  */
 public final class GoWriter extends CodeWriter {
 
@@ -50,6 +52,7 @@ public final class GoWriter extends CodeWriter {
         trimTrailingSpaces();
         setIndentText("\t");
         putFormatter('T', new GoSymbolFormatter());
+        putFormatter('P', new PointableGoSymbolFormatter());
     }
 
     /**
@@ -176,7 +179,7 @@ public final class GoWriter extends CodeWriter {
     /**
      * Implements Go symbol formatting for the {@code $T} formatter.
      */
-    private final class GoSymbolFormatter implements BiFunction<Object, String, String> {
+    private class GoSymbolFormatter implements BiFunction<Object, String, String> {
         @Override
         public String apply(Object type, String indent) {
             if (type instanceof Symbol) {
@@ -190,6 +193,34 @@ public final class GoWriter extends CodeWriter {
             } else {
                 throw new CodegenException(
                         "Invalid type provided to $T. Expected a Symbol, but found `" + type + "`");
+            }
+        }
+    }
+
+    /**
+     * Implements Go symbol formatting for the {@code $P} formatter. This is identical to the $T
+     * formatter, except that it will add a * to symbols that can be pointers.
+     */
+    private class PointableGoSymbolFormatter extends GoSymbolFormatter {
+        @Override
+        public String apply(Object type, String indent) {
+            String formatted = super.apply(type, indent);
+            if (isPointer(type)) {
+                formatted = "*" + formatted;
+            }
+            return formatted;
+        }
+
+        private boolean isPointer(Object type) {
+            if (type instanceof Symbol) {
+                Symbol typeSymbol = (Symbol) type;
+                return typeSymbol.getProperty("pointable", Boolean.class).orElse(false);
+            } else if (type instanceof SymbolReference) {
+                SymbolReference typeSymbol = (SymbolReference) type;
+                return typeSymbol.getProperty("pointable", Boolean.class).orElse(false);
+            } else {
+                throw new CodegenException(
+                        "Invalid type provided to $P. Expected a Symbol, but found `" + type + "`");
             }
         }
     }
