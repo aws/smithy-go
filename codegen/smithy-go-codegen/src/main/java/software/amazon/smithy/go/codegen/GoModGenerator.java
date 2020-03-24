@@ -18,21 +18,27 @@ package software.amazon.smithy.go.codegen;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.SymbolDependency;
 
 /**
  * Generates a go.mod file for the project.
  *
  * <p>See here for more information on the format: https://github.com/golang/go/wiki/Modules#gomod
- *
- * TODO: pull in dependencies
  */
 final class GoModGenerator {
 
     private GoModGenerator() {}
 
-    static void writeGoMod(GoSettings settings, FileManifest manifest) {
+    static void writeGoMod(
+            GoSettings settings,
+            FileManifest manifest,
+            Map<String, Map<String, SymbolDependency>> dependencies
+    ) {
         Path goModFile = manifest.getBaseDir().resolve("go.mod");
 
         // `go mod init` will fail if the `go.mod` already exists, so this deletes
@@ -46,5 +52,22 @@ final class GoModGenerator {
             }
         }
         CodegenUtils.runCommand("go mod init " + settings.getModuleName(), manifest.getBaseDir());
+
+        Map<String, String> externalDependencies = getExternalDependencies(dependencies);
+        for (Map.Entry<String, String> dependency : externalDependencies.entrySet()) {
+            CodegenUtils.runCommand(
+                    String.format("go mod edit -require=%s@%s", dependency.getKey(), dependency.getValue()),
+                    manifest.getBaseDir());
+        }
+    }
+
+    private static Map<String, String> getExternalDependencies(
+            Map<String, Map<String, SymbolDependency>> dependencies
+    ) {
+        return dependencies.entrySet().stream()
+                .filter(entry -> !entry.getKey().equals("stdlib"))
+                .flatMap(entry -> entry.getValue().entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey, entry -> entry.getValue().getVersion(), (a, b) -> b, TreeMap::new));
     }
 }

@@ -15,11 +15,13 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
+import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.neighbor.Walker;
@@ -51,7 +53,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         fileManifest = context.getFileManifest();
         LOGGER.info(() -> "Generating Go client for service " + service.getId());
 
-        symbolProvider = GoCodegenPlugin.createSymbolProvider(model);
+        symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings.getModuleName());
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
     }
 
@@ -65,10 +67,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
 
         LOGGER.fine("Flushing go writers");
+        List<SymbolDependency> dependencies = writers.getDependencies();
         writers.flushWriters();
 
         LOGGER.fine("Generating go.mod file");
-        GoModGenerator.writeGoMod(settings, fileManifest);
+        GoModGenerator.writeGoMod(settings, fileManifest, SymbolDependency.gatherDependencies(dependencies.stream()));
+
 
         LOGGER.fine("Running go fmt");
         CodegenUtils.runCommand("go fmt", fileManifest.getBaseDir());
