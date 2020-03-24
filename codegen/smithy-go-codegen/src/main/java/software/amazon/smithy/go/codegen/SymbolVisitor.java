@@ -100,12 +100,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        return createSymbolBuilder(shape, "[]byte", false).build();
+        return createSymbolBuilder(shape, "[]byte").build();
     }
 
     @Override
     public Symbol booleanShape(BooleanShape shape) {
-        return createSymbolBuilder(shape, "bool").build();
+        return createPointableSymbolBuilder(shape, "bool").build();
     }
 
     @Override
@@ -123,7 +123,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return createSymbolBuilder(shape, "[]" + reference.getName(), false)
+        return createSymbolBuilder(shape, "[]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
@@ -131,45 +131,45 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return createSymbolBuilder(shape, "map[string]" + reference.getName(), false)
+        return createSymbolBuilder(shape, "map[string]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
 
     @Override
     public Symbol byteShape(ByteShape shape) {
-        return createSymbolBuilder(shape, "byte").build();
+        return createPointableSymbolBuilder(shape, "byte").build();
     }
 
     @Override
     public Symbol shortShape(ShortShape shape) {
-        return createSymbolBuilder(shape, "int16").build();
+        return createPointableSymbolBuilder(shape, "int16").build();
     }
 
     @Override
     public Symbol integerShape(IntegerShape shape) {
-        return createSymbolBuilder(shape, "int32").build();
+        return createPointableSymbolBuilder(shape, "int32").build();
     }
 
     @Override
     public Symbol longShape(LongShape shape) {
-        return createSymbolBuilder(shape, "int64").build();
+        return createPointableSymbolBuilder(shape, "int64").build();
     }
 
     @Override
     public Symbol floatShape(FloatShape shape) {
-        return createSymbolBuilder(shape, "float32").build();
+        return createPointableSymbolBuilder(shape, "float32").build();
     }
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
         // TODO: implement document shapes
-        return createSymbolBuilder(shape, "nil").build();
+        return createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol doubleShape(DoubleShape shape) {
-        return createSymbolBuilder(shape, "float64").build();
+        return createPointableSymbolBuilder(shape, "float64").build();
     }
 
     @Override
@@ -183,7 +183,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return createSymbolBuilder(shape, symbolName)
+        return createPointableSymbolBuilder(shape, symbolName)
                 .addReference(createNamespaceReference(GoDependency.BIG))
                 .build();
     }
@@ -191,31 +191,31 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol operationShape(OperationShape shape) {
         // TODO: implement operations
-        return createSymbolBuilder(shape, "nil").build();
+        return createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol resourceShape(ResourceShape shape) {
         // TODO: implement resources
-        return createSymbolBuilder(shape, "nil").build();
+        return createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
         // TODO: implement clients
-        return createSymbolBuilder(shape, "nil").build();
+        return createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol stringShape(StringShape shape) {
         // TODO: support specialized strings
-        return createSymbolBuilder(shape, "string").build();
+        return createPointableSymbolBuilder(shape, "string").build();
     }
 
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = StringUtils.capitalize(shape.getId().getName());
-        return createSymbolBuilder(shape, name, rootModuleName)
+        return createPointableSymbolBuilder(shape, name, rootModuleName)
                 .definitionFile("./api_types.go")
                 .build();
     }
@@ -223,7 +223,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol unionShape(UnionShape shape) {
         // TODO: implement unions
-        return createSymbolBuilder(shape, "nil").build();
+        return createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
@@ -235,23 +235,25 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        return createSymbolBuilder(shape, "time.Time")
+        return createPointableSymbolBuilder(shape, "time.Time")
                 .addReference(createNamespaceReference(GoDependency.TIME))
                 .build();
     }
 
-    private Symbol.Builder createSymbolBuilder(Shape shape, String typeName, boolean pointable) {
+    private Symbol.Builder createSymbolBuilder(Shape shape, String typeName) {
         return Symbol.builder().putProperty("shape", shape)
-                .putProperty("pointable", pointable)
+                .putProperty("pointable", false)
                 .name(typeName);
     }
 
-    private Symbol.Builder createSymbolBuilder(Shape shape, String typeName) {
-        return createSymbolBuilder(shape, typeName, true);
+    private Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName) {
+        return Symbol.builder().putProperty("shape", shape)
+                .putProperty("pointable", true)
+                .name(typeName);
     }
 
-    private Symbol.Builder createSymbolBuilder(Shape shape, String typeName, String namespace) {
-        return createSymbolBuilder(shape, typeName).namespace(namespace, ".");
+    private Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, String namespace) {
+        return createPointableSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
     private SymbolReference createNamespaceReference(GoDependency dependency) {
