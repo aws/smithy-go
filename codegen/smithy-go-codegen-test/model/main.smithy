@@ -58,7 +58,12 @@ structure GetCityOutput {
     coordinates: CityCoordinates,
 
     city: CitySummary,
+
+    cityPicture: JpegImage,
 }
+
+@mediaType("image/jpeg")
+blob JpegImage
 
 // This structure is nested within GetCityOutput.
 structure CityCoordinates {
