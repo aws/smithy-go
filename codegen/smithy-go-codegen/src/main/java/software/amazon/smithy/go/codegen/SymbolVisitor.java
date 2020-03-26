@@ -49,6 +49,7 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -100,7 +101,23 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        return createSymbolBuilder(shape, "[]byte").build();
+        Symbol blobSymbol = createPointableSymbolBuilder(shape, "[]byte").build();
+        if (shape.hasTrait(MediaTypeTrait.class)) {
+            return createMediaTypeSymbol(shape, blobSymbol);
+        }
+        return blobSymbol;
+    }
+
+    private Symbol createMediaTypeSymbol(Shape shape, Symbol base) {
+        // Right now we just use the shape's name. We could also generate a name, something like
+        // MediaTypeApplicationJson based on the media type value. This could lead to name conflicts
+        // but potentially reduces duplication.
+        String name = StringUtils.capitalize(shape.getId().getName());
+        return createPointableSymbolBuilder(shape, name, rootModuleName)
+                .putProperty("mediaTypeBaseSymbol", base)
+                .definitionFile("./api_types.go")
+                .addReference(base)
+                .build();
     }
 
     @Override
@@ -208,8 +225,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol stringShape(StringShape shape) {
-        // TODO: support specialized strings
-        return createPointableSymbolBuilder(shape, "string").build();
+        // TODO: enums
+        Symbol stringSymbol = createPointableSymbolBuilder(shape, "string").build();
+        if (shape.hasTrait(MediaTypeTrait.class)) {
+            return createMediaTypeSymbol(shape, stringSymbol);
+        }
+        return stringSymbol;
     }
 
     @Override
