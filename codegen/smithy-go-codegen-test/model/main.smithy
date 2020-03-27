@@ -151,6 +151,7 @@ structure GetForecastInput {
 
 structure GetForecastOutput {
     chanceOfRain: Float,
+    precipitation: Precipitation,
 }
 
 union Precipitation {
@@ -169,7 +170,7 @@ structure OtherStructure {}
 @enum("YES": {}, "NO": {})
 string SimpleYesNo
 
-@enum("YES": {name: "YES"}, "NO": {name: "NO"})
+@enum("Yes": {name: "YES"}, "No": {name: "NO"})
 string TypedYesNo
 
 map StringMap {
