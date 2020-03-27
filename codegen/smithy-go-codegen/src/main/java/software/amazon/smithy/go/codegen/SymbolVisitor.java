@@ -49,6 +49,7 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -225,7 +226,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol stringShape(StringShape shape) {
-        // TODO: enums
+        if (shape.hasTrait(EnumTrait.class)) {
+            String name = StringUtils.capitalize(shape.getId().getName());
+            return createPointableSymbolBuilder(shape, name, rootModuleName)
+                    .definitionFile("./api_enums.go")
+                    .build();
+        }
+
         Symbol stringSymbol = createPointableSymbolBuilder(shape, "string").build();
         if (shape.hasTrait(MediaTypeTrait.class)) {
             return createMediaTypeSymbol(shape, stringSymbol);

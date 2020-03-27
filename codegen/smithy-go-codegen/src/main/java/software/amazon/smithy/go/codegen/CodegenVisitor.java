@@ -31,6 +31,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 
 /**
@@ -94,7 +95,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void stringShape(StringShape shape) {
-        if (shape.hasTrait(MediaTypeTrait.class)) {
+        if (shape.hasTrait(EnumTrait.class)) {
+            writers.useShapeWriter(shape, writer -> new EnumGenerator(symbolProvider, writer, shape).run());
+        } else if (shape.hasTrait(MediaTypeTrait.class)) {
             generateMediaType(shape);
         }
         return null;
