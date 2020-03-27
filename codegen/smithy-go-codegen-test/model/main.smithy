@@ -196,4 +196,5 @@ structure GetCityImageOutput {
     image: CityImageData,
 }
 
+@mediaType("image/jpeg")
 blob CityImageData

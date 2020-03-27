@@ -25,10 +25,13 @@ import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.neighbor.Walker;
+import software.amazon.smithy.model.shapes.BlobShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
+import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.MediaTypeTrait;
 
 /**
  * Orchestrates Go client generation.
@@ -87,5 +90,25 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void structureShape(StructureShape shape) {
         writers.useShapeWriter(shape, writer -> new StructureGenerator(model, symbolProvider, writer, shape).run());
         return null;
+    }
+
+    @Override
+    public Void stringShape(StringShape shape) {
+        if (shape.hasTrait(MediaTypeTrait.class)) {
+            generateMediaType(shape);
+        }
+        return null;
+    }
+
+    @Override
+    public Void blobShape(BlobShape shape) {
+        if (shape.hasTrait(MediaTypeTrait.class)) {
+            generateMediaType(shape);
+        }
+        return null;
+    }
+
+    private void generateMediaType(Shape shape) {
+        writers.useShapeWriter(shape, writer -> new MediaTypeGenerator(symbolProvider, writer, shape).run());
     }
 }
