@@ -31,6 +31,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 
@@ -113,5 +114,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     private void generateMediaType(Shape shape) {
         writers.useShapeWriter(shape, writer -> new MediaTypeGenerator(symbolProvider, writer, shape).run());
+    }
+
+    @Override
+    public Void unionShape(UnionShape shape) {
+        writers.useShapeWriter(shape, writer -> new UnionGenerator(model, symbolProvider, writer, shape).run());
+        return null;
     }
 }
