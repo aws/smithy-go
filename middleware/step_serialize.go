@@ -2,20 +2,23 @@ package middleware
 
 import "context"
 
-// SerializeInput provides the input parameters for serializing input for a
-// handler.
+// SerializeInput provides the input parameters for the SerializeMiddleware to
+// consume. SerializeMiddleware may modify the Request value before forwarding
+// SerializeInput along to the next SerializeHandler. The Parameters member
+// should not be modified by SerializeMiddleware, InitializeMiddleware should
+// be responsible for modifying the provided Parameter value.
 type SerializeInput struct {
 	Parameters interface{}
 	Request    interface{}
 }
 
-// SerializeOutput provides the result of serialize handler middleware stack.
+// SerializeOutput provides the result returned by the next SerializeHandler.
 type SerializeOutput struct {
 	Result interface{}
 }
 
-// SerializeHandler provides the interface for handling the initialization
-// step of a middleware stack. Wraps the underlying handler.
+// SerializeHandler provides the interface for the next handler the
+// SerializeMiddleware will call in the middleware chain.
 type SerializeHandler interface {
 	HandleSerialize(ctx context.Context, in SerializeInput) (
 		out SerializeOutput, err error,
@@ -23,46 +26,68 @@ type SerializeHandler interface {
 }
 
 // SerializeMiddleware provides the interface for middleware specific to the
-// serialize step.
+// serialize step. Delegates to the next SerializeHandler for further
+// processing.
 type SerializeMiddleware interface {
-	Name() string
+	// Unique ID for the middleware in the SerializeStep. The step does not
+	// allow duplicate IDs.
+	ID() string
+
+	// Invokes the middleware behavior which must delegate to the next handler
+	// for the middleware chain to continue. The method must return a result or
+	// error to its caller.
 	HandleSerialize(ctx context.Context, in SerializeInput, next SerializeHandler) (
 		out SerializeOutput, err error,
 	)
 }
 
-// SerializeMiddlewareFunc wraps a function to satisfy the
-// SerializeMiddleware interface.
-type SerializeMiddlewareFunc func(ctx context.Context, in SerializeInput, next SerializeHandler) (
-	out SerializeOutput, err error,
-)
+// SerializeMiddlewareFunc returns a SerializeMiddleware with the unique ID
+// provided, and the func to be invoked.
+func SerializeMiddlewareFunc(id string, fn func(context.Context, SerializeInput, SerializeHandler) (SerializeOutput, error)) SerializeMiddleware {
+	return serializeMiddlewareFunc{
+		id: id,
+		fn: fn,
+	}
+}
 
-var _ SerializeMiddleware = (SerializeMiddlewareFunc)(nil)
+type serializeMiddlewareFunc struct {
+	// Unique ID for the middleware.
+	id string
 
-// Name returns an empty string that will be replaced for a stub value when
-// added to the SerializeStep.
-func (f SerializeMiddlewareFunc) Name() string { return "" }
+	// Middleware function to be called.
+	fn func(context.Context, SerializeInput, SerializeHandler) (SerializeOutput, error)
+}
 
-// HandleSerialize invokes the function with passed in parameters. Returning
-// the result or error.
-//
-// Implements SerializeMiddleware interface.
-func (f SerializeMiddlewareFunc) HandleSerialize(ctx context.Context, in SerializeInput, next SerializeHandler) (
+// ID returns the unique ID for the middleware.
+func (s serializeMiddlewareFunc) ID() string { return s.id }
+
+// HandleSerialize invokes the middleware Fn.
+func (s serializeMiddlewareFunc) HandleSerialize(ctx context.Context, in SerializeInput, next SerializeHandler) (
 	out SerializeOutput, err error,
 ) {
-	return f(ctx, in, next)
+	return s.fn(ctx, in, next)
 }
+
+var _ SerializeMiddleware = (serializeMiddlewareFunc{})
 
 // SerializeStep provides the ordered grouping of SerializeMiddleware to be
 // invoked on an handler.
 type SerializeStep struct {
-	group orderedGroup
+	ids *orderedIDs
+}
+
+// NewSerializeStep returns an SerializeStep ready to have middleware for
+// initialization added to it.
+func NewSerializeStep() *SerializeStep {
+	return &SerializeStep{
+		ids: newOrderedIDs(),
+	}
 }
 
 var _ Middleware = (*SerializeStep)(nil)
 
-// Name returns the name of the initialization step.
-func (s *SerializeStep) Name() string {
+// ID returns the unique id of the step as a middleware.
+func (s *SerializeStep) ID() string {
 	return "Serialize stack step"
 }
 
@@ -73,11 +98,11 @@ func (s *SerializeStep) Name() string {
 func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
 	out interface{}, err error,
 ) {
-	order := s.group.GetOrder()
+	order := s.ids.GetOrder()
 
 	var h SerializeHandler = serializeWrapHandler{Next: next}
 	for i := len(order); i >= 0; i-- {
-		h = decorateSerializeHandler{
+		h = decoratedSerializeHandler{
 			Next: h,
 			With: order[i].(SerializeMiddleware),
 		}
@@ -98,26 +123,31 @@ func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, ne
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *SerializeStep) Add(m SerializeMiddleware, pos RelativePosition) error {
-	return s.group.Add(m, pos)
+	return s.ids.Add(m, pos)
 }
 
-// Insert injects the middleware relative to an existing middleware name.
+// Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *SerializeStep) Insert(m SerializeMiddleware, relativeTo string, pos RelativePosition) error {
-	return s.group.Insert(m, relativeTo, pos)
+	return s.ids.Insert(m, relativeTo, pos)
 }
 
-// Swap removes the middleware by name, replacing it with the new middleware.
+// Swap removes the middleware by id, replacing it with the new middleware.
 // Returns error if the original middleware doesn't exist.
-func (s *SerializeStep) Swap(name string, m SerializeMiddleware) error {
-	return s.group.Swap(name, m)
+func (s *SerializeStep) Swap(id string, m SerializeMiddleware) error {
+	return s.ids.Swap(id, m)
 }
 
-// Remove removes the middleware by name. Returns error if the middleware
+// Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
-func (s *SerializeStep) Remove(name string) error {
-	return s.group.Remove(name)
+func (s *SerializeStep) Remove(id string) error {
+	return s.ids.Remove(id)
+}
+
+// Clear removes all middleware in the step.
+func (s *SerializeStep) Clear() {
+	s.ids.Clear()
 }
 
 type serializeWrapHandler struct {
@@ -141,14 +171,14 @@ func (w serializeWrapHandler) HandleSerialize(ctx context.Context, in SerializeI
 	}, nil
 }
 
-type decorateSerializeHandler struct {
+type decoratedSerializeHandler struct {
 	Next SerializeHandler
 	With SerializeMiddleware
 }
 
-var _ SerializeHandler = (*decorateSerializeHandler)(nil)
+var _ SerializeHandler = (*decoratedSerializeHandler)(nil)
 
-func (h decorateSerializeHandler) HandleSerialize(ctx context.Context, in SerializeInput) (
+func (h decoratedSerializeHandler) HandleSerialize(ctx context.Context, in SerializeInput) (
 	out SerializeOutput, err error,
 ) {
 	return h.With.HandleSerialize(ctx, in, h.Next)

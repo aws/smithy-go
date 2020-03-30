@@ -12,6 +12,9 @@ type Handler interface {
 
 // Middleware provides the interface to call handlers in a chain.
 type Middleware interface {
+	// ID provides a unique identifier for the middleware.
+	ID() string
+
 	// Performs the middleware's handling of the input, returning the output,
 	// or error. The middleware can invoke the next Handler if handling should
 	// continue.
@@ -20,9 +23,9 @@ type Middleware interface {
 	)
 }
 
-// MiddlewareHandler wraps a middleware in order to to call the next handler in
+// decoratedHandler wraps a middleware in order to to call the next handler in
 // the chain.
-type MiddlewareHandler struct {
+type decoratedHandler struct {
 	// The next handler to be called.
 	Next Handler
 
@@ -31,7 +34,7 @@ type MiddlewareHandler struct {
 }
 
 // Handle implements the Handler interface to handle a operation invocation.
-func (m MiddlewareHandler) Handle(ctx context.Context, input interface{}) (
+func (m decoratedHandler) Handle(ctx context.Context, input interface{}) (
 	output interface{}, err error,
 ) {
 	return m.With.HandleMiddleware(ctx, input, m.Next)
@@ -41,7 +44,7 @@ func (m MiddlewareHandler) Handle(ctx context.Context, input interface{}) (
 // with the middleware.
 func DecorateHandler(h Handler, with ...Middleware) Handler {
 	for i := len(with); i >= 0; i-- {
-		h = MiddlewareHandler{
+		h = decoratedHandler{
 			Next: h,
 			With: with[i],
 		}

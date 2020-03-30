@@ -12,93 +12,117 @@ const (
 	Before
 )
 
-type namer interface {
-	Name() string
+type ider interface {
+	ID() string
 }
 
-// orderedGroup provides an ordered collection of items with relative ordering
+// orderedIDs provides an ordered collection of items with relative ordering
 // by name.
-type orderedGroup struct {
+type orderedIDs struct {
 	order relativeOrder
-	items map[string]interface{}
+	items map[string]ider
 
 	unamedCounter int
 }
 
-func (g *orderedGroup) generateName() string {
+func newOrderedIDs() *orderedIDs {
+	return &orderedIDs{
+		items: map[string]ider{},
+	}
+}
+
+func (g *orderedIDs) generateName() string {
 	g.unamedCounter++
-	return fmt.Sprintf("unnamed %d", g.unamedCounter)
+	return fmt.Sprintf("ordered group unnamed %d", g.unamedCounter)
 }
 
-// Add injects the item to the relative position of the item group.
-// Returns an error if the item already exists.
-func (g *orderedGroup) Add(m interface{}, pos RelativePosition) error {
-	var mName string
-	if v, ok := m.(namer); ok && len(v.Name()) != 0 {
-		mName = v.Name()
-	} else {
-		mName = g.generateName()
+// Add injects the item to the relative position of the item group. Returns an
+// error if the item already exists.
+//
+// If the value implements the ider interface, that id must be unique. If
+// the value does not implement the ider interface, a new unique id will be
+// used.
+func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
+	if len(m.ID()) == 0 {
+		return fmt.Errorf("empty ID, ID must not be empty")
 	}
 
-	if err := g.order.Add(mName, pos); err != nil {
+	if err := g.order.Add(m.ID(), pos); err != nil {
 		return err
 	}
 
-	g.items[mName] = m
+	g.items[m.ID()] = m
 	return nil
 }
 
-// Insert injects the item relative to an existing item name.
-// Return error if the original item does not exist, or the item
-// being added already exists.
-func (g *orderedGroup) Insert(m interface{}, relativeTo string, pos RelativePosition) error {
-	var mName string
-	if v, ok := m.(namer); ok && len(v.Name()) != 0 {
-		mName = v.Name()
-	} else {
-		mName = g.generateName()
+// Insert injects the item relative to an existing item id.  Return error if
+// the original item does not exist, or the item being added already exists.
+//
+// If the value implements the ider interface, that id must be unique. If
+// the value does not implement the ider interface, a new unique id will be
+// used.
+func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) error {
+	if len(m.ID()) == 0 {
+		return fmt.Errorf("insert ID must not be empty")
+	}
+	if len(relativeTo) == 0 {
+		return fmt.Errorf("relative to ID must not be empty")
 	}
 
-	if err := g.order.Insert(mName, relativeTo, pos); err != nil {
+	if err := g.order.Insert(m.ID(), relativeTo, pos); err != nil {
 		return err
 	}
 
-	g.items[mName] = m
+	g.items[m.ID()] = m
 	return nil
 }
 
-// Swap removes the item by name, replacing it with the new item.
-// Returns error if the original item doesn't exist.
-func (g *orderedGroup) Swap(name string, m interface{}) error {
-	var mName string
-	if v, ok := m.(namer); ok && len(v.Name()) != 0 {
-		mName = v.Name()
-	} else {
-		mName = g.generateName()
+// Swap removes the item by id, replacing it with the new item. Returns error
+// if the original item doesn't exist.
+//
+// If the value implements the ider interface, that id must be unique. If
+// the value does not implement the ider interface, a new unique id will be
+// used.
+func (g *orderedIDs) Swap(id string, m ider) error {
+	if len(id) == 0 {
+		return fmt.Errorf("swap from ID must not be empty")
+	}
+	if len(m.ID()) == 0 {
+		return fmt.Errorf("swap to ID must not be empty")
 	}
 
-	if err := g.order.Swap(name, mName); err != nil {
+	if err := g.order.Swap(id, m.ID()); err != nil {
 		return err
 	}
 
-	delete(g.items, name)
-	g.items[mName] = m
+	delete(g.items, id)
+	g.items[m.ID()] = m
 	return nil
 }
 
-// Remove removes the item by name. Returns error if the item
+// Remove removes the item by id. Returns error if the item
 // doesn't exist.
-func (g *orderedGroup) Remove(name string) error {
-	if err := g.order.Remove(name); err != nil {
+func (g *orderedIDs) Remove(id string) error {
+	if len(id) == 0 {
+		return fmt.Errorf("remove ID must not be empty")
+	}
+
+	if err := g.order.Remove(id); err != nil {
 		return err
 	}
 
-	delete(g.items, name)
+	delete(g.items, id)
 	return nil
+}
+
+// Clear removes all entries.
+func (g *orderedIDs) Clear() {
+	g.order.Clear()
+	g.items = map[string]ider{}
 }
 
 // GetOrder returns the item in the order it should be invoked in.
-func (g *orderedGroup) GetOrder() []interface{} {
+func (g *orderedIDs) GetOrder() []interface{} {
 	order := g.order.GetOrder()
 	ordered := make([]interface{}, len(order))
 	for i := 0; i < len(order); i++ {
@@ -114,17 +138,17 @@ type relativeOrder struct {
 }
 
 // Add inserts a item into the order relative to the position provided.
-func (s *relativeOrder) Add(name string, pos RelativePosition) error {
-	if _, ok := s.has(name); ok {
-		return fmt.Errorf("already exists, %v", name)
+func (s *relativeOrder) Add(id string, pos RelativePosition) error {
+	if _, ok := s.has(id); ok {
+		return fmt.Errorf("already exists, %v", id)
 	}
 
 	switch pos {
 	case Before:
-		return s.insert(0, name, Before)
+		return s.insert(0, id, Before)
 
 	case After:
-		s.order = append(s.order, name)
+		s.order = append(s.order, id)
 
 	default:
 		return fmt.Errorf("invalid position, %v", int(pos))
@@ -135,9 +159,9 @@ func (s *relativeOrder) Add(name string, pos RelativePosition) error {
 
 // Insert injects a item before or after the relative item. Returns
 // an error if the relative item does not exist.
-func (s *relativeOrder) Insert(name, relativeTo string, pos RelativePosition) error {
-	if _, ok := s.has(name); ok {
-		return fmt.Errorf("already exists, %v", name)
+func (s *relativeOrder) Insert(id, relativeTo string, pos RelativePosition) error {
+	if _, ok := s.has(id); ok {
+		return fmt.Errorf("already exists, %v", id)
 	}
 
 	i, ok := s.has(relativeTo)
@@ -145,19 +169,19 @@ func (s *relativeOrder) Insert(name, relativeTo string, pos RelativePosition) er
 		return fmt.Errorf("not found, %v", relativeTo)
 	}
 
-	return s.insert(i, name, pos)
+	return s.insert(i, id, pos)
 }
 
-// Swap will replace the item name with the to item. Returns an
-// error if the original item name does not exist. Allows swapping out a
-// item for another item with the same name.
-func (s relativeOrder) Swap(name, to string) error {
-	i, ok := s.has(name)
+// Swap will replace the item id with the to item. Returns an
+// error if the original item id does not exist. Allows swapping out a
+// item for another item with the same id.
+func (s *relativeOrder) Swap(id, to string) error {
+	i, ok := s.has(id)
 	if !ok {
-		return fmt.Errorf("not found, %v", name)
+		return fmt.Errorf("not found, %v", id)
 	}
 
-	if _, ok = s.has(to); ok && name != to {
+	if _, ok = s.has(to); ok && id != to {
 		return fmt.Errorf("already exists, %v", to)
 	}
 
@@ -165,25 +189,29 @@ func (s relativeOrder) Swap(name, to string) error {
 	return nil
 }
 
-func (s relativeOrder) Remove(name string) error {
-	i, ok := s.has(name)
+func (s *relativeOrder) Remove(id string) error {
+	i, ok := s.has(id)
 	if !ok {
-		return fmt.Errorf("not found, %v", name)
+		return fmt.Errorf("not found, %v", id)
 	}
 
 	s.order = append(s.order[:i], s.order[i+1:]...)
 	return nil
 }
 
-func (s *relativeOrder) insert(i int, name string, pos RelativePosition) error {
+func (s *relativeOrder) Clear() {
+	s.order = s.order[0:0]
+}
+
+func (s *relativeOrder) insert(i int, id string, pos RelativePosition) error {
 	switch pos {
 	case Before:
 		s.order = append(s.order, "")
 		copy(s.order[i+1:], s.order[i:])
-		s.order[i] = name
+		s.order[i] = id
 
 	case After:
-		s.order = append(s.order, name)
+		s.order = append(s.order, id)
 
 	default:
 		return fmt.Errorf("invalid position, %v", int(pos))
@@ -192,9 +220,9 @@ func (s *relativeOrder) insert(i int, name string, pos RelativePosition) error {
 	return nil
 }
 
-func (s *relativeOrder) has(name string) (i int, found bool) {
+func (s *relativeOrder) has(id string) (i int, found bool) {
 	for i := 0; i < len(s.order); i++ {
-		if s.order[i] == name {
+		if s.order[i] == id {
 			return i, true
 		}
 	}

@@ -2,19 +2,20 @@ package middleware
 
 import "context"
 
-// BuildInput provides the input parameters for serializing input for a
-// handler.
+// BuildInput provides the input parameters for the BuildMiddleware to consume.
+// BuildMiddleware may modify the Request value before forwarding the input
+// along to the next BuildHandler.
 type BuildInput struct {
 	Request interface{}
 }
 
-// BuildOutput provides the result of build handler middleware stack.
+// BuildOutput provides the result returned by the next BuildHandler.
 type BuildOutput struct {
 	Result interface{}
 }
 
-// BuildHandler provides the interface for handling the initialization
-// step of a middleware stack. Wraps the underlying handler.
+// BuildHandler provides the interface for the next handler the
+// BuildMiddleware will call in the middleware chain.
 type BuildHandler interface {
 	HandleBuild(ctx context.Context, in BuildInput) (
 		out BuildOutput, err error,
@@ -22,46 +23,68 @@ type BuildHandler interface {
 }
 
 // BuildMiddleware provides the interface for middleware specific to the
-// build step.
+// serialize step. Delegates to the next BuildHandler for further
+// processing.
 type BuildMiddleware interface {
-	Name() string
+	// Unique ID for the middleware in theBuildStep. The step does not allow
+	// duplicate IDs.
+	ID() string
+
+	// Invokes the middleware behavior which must delegate to the next handler
+	// for the middleware chain to continue. The method must return a result or
+	// error to its caller.
 	HandleBuild(ctx context.Context, in BuildInput, next BuildHandler) (
 		out BuildOutput, err error,
 	)
 }
 
-// BuildMiddlewareFunc wraps a function to satisfy the
-// BuildMiddleware interface.
-type BuildMiddlewareFunc func(ctx context.Context, in BuildInput, next BuildHandler) (
-	out BuildOutput, err error,
-)
-
-var _ BuildMiddleware = (BuildMiddlewareFunc)(nil)
-
-// Name returns an empty string that will be replaced for a stub value when
-// added to the BuildStep.
-func (f BuildMiddlewareFunc) Name() string { return "" }
-
-// HandleBuild invokes the function with passed in parameters. Returning
-// the result or error.
-//
-// Implements BuildMiddleware interface.
-func (f BuildMiddlewareFunc) HandleBuild(ctx context.Context, in BuildInput, next BuildHandler) (
-	out BuildOutput, err error,
-) {
-	return f(ctx, in, next)
+// BuildMiddlewareFunc returns a BuildMiddleware with the unique ID provided,
+// and the func to be invoked.
+func BuildMiddlewareFunc(id string, fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, error)) BuildMiddleware {
+	return buildMiddlewareFunc{
+		id: id,
+		fn: fn,
+	}
 }
 
-// BuildStep provides the ordered grouping of BuildMiddleware to be
-// invoked on an handler.
+type buildMiddlewareFunc struct {
+	// Unique ID for the middleware.
+	id string
+
+	// Middleware function to be called.
+	fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, error)
+}
+
+// ID returns the unique ID for the middleware.
+func (s buildMiddlewareFunc) ID() string { return s.id }
+
+// HandleBuild invokes the middleware Fn.
+func (s buildMiddlewareFunc) HandleBuild(ctx context.Context, in BuildInput, next BuildHandler) (
+	out BuildOutput, err error,
+) {
+	return s.fn(ctx, in, next)
+}
+
+var _ BuildMiddleware = (buildMiddlewareFunc{})
+
+// BuildStep provides the ordered grouping of BuildMiddleware to be invoked on
+// an handler.
 type BuildStep struct {
-	group orderedGroup
+	ids *orderedIDs
+}
+
+// NewBuildStep returns an BuildStep ready to have middleware for
+// initialization added to it.
+func NewBuildStep() *BuildStep {
+	return &BuildStep{
+		ids: newOrderedIDs(),
+	}
 }
 
 var _ Middleware = (*BuildStep)(nil)
 
-// Name returns the name of the initialization step.
-func (s *BuildStep) Name() string {
+// ID returns the unique name of the step as a middleware.
+func (s *BuildStep) ID() string {
 	return "Build stack step"
 }
 
@@ -72,11 +95,11 @@ func (s *BuildStep) Name() string {
 func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
 	out interface{}, err error,
 ) {
-	order := s.group.GetOrder()
+	order := s.ids.GetOrder()
 
 	var h BuildHandler = buildWrapHandler{Next: next}
 	for i := len(order); i >= 0; i-- {
-		h = decorateBuildHandler{
+		h = decoratedBuildHandler{
 			Next: h,
 			With: order[i].(BuildMiddleware),
 		}
@@ -97,26 +120,31 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *BuildStep) Add(m BuildMiddleware, pos RelativePosition) error {
-	return s.group.Add(m, pos)
+	return s.ids.Add(m, pos)
 }
 
-// Insert injects the middleware relative to an existing middleware name.
+// Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *BuildStep) Insert(m BuildMiddleware, relativeTo string, pos RelativePosition) error {
-	return s.group.Insert(m, relativeTo, pos)
+	return s.ids.Insert(m, relativeTo, pos)
 }
 
-// Swap removes the middleware by name, replacing it with the new middleware.
+// Swap removes the middleware by id, replacing it with the new middleware.
 // Returns error if the original middleware doesn't exist.
-func (s *BuildStep) Swap(name string, m BuildMiddleware) error {
-	return s.group.Swap(name, m)
+func (s *BuildStep) Swap(id string, m BuildMiddleware) error {
+	return s.ids.Swap(id, m)
 }
 
-// Remove removes the middleware by name. Returns error if the middleware
+// Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
-func (s *BuildStep) Remove(name string) error {
-	return s.group.Remove(name)
+func (s *BuildStep) Remove(id string) error {
+	return s.ids.Remove(id)
+}
+
+// Clear removes all middleware in the step.
+func (s *BuildStep) Clear() {
+	s.ids.Clear()
 }
 
 type buildWrapHandler struct {
@@ -140,14 +168,14 @@ func (w buildWrapHandler) HandleBuild(ctx context.Context, in BuildInput) (
 	}, nil
 }
 
-type decorateBuildHandler struct {
+type decoratedBuildHandler struct {
 	Next BuildHandler
 	With BuildMiddleware
 }
 
-var _ BuildHandler = (*decorateBuildHandler)(nil)
+var _ BuildHandler = (*decoratedBuildHandler)(nil)
 
-func (h decorateBuildHandler) HandleBuild(ctx context.Context, in BuildInput) (
+func (h decoratedBuildHandler) HandleBuild(ctx context.Context, in BuildInput) (
 	out BuildOutput, err error,
 ) {
 	return h.With.HandleBuild(ctx, in, h.Next)

@@ -55,7 +55,7 @@ func (c *Client) modifyStack(*middleware.Stack) {
 func (c *Client) GetObject(ctx context.Context, input *GetObjectInput, opts ...func(stack *middleware.Stack, httpClient *middleware.Handler)) (
 	*GetObjectResponse, error,
 ) {
-	stack := middleware.NewStack()
+	stack := middleware.NewStack("example stack")
 	stack.Finalize.Add(NewRetryMiddleware(c.retryer), middleware.After)
 	stack.Finalize.Add(c.signMiddleware, middleware.After)
 	stack.Deserialize.Add(deserializeGetObjectOperation{}, middleware.After)
@@ -81,7 +81,7 @@ func (c *Client) GetObject(ctx context.Context, input *GetObjectInput, opts ...f
 
 type deserializeGetObjectOperation struct{}
 
-func (deserializeGetObjectOperation) Name() string { return "S3 GetObject deserializer" }
+func (deserializeGetObjectOperation) ID() string { return "S3 GetObject deserializer" }
 
 // HandleDeserialize is a deserialization middleware that deserializes the
 // underlying raw response into the GetObjectResponse and Output.

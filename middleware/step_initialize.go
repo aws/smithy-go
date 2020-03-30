@@ -2,19 +2,20 @@ package middleware
 
 import "context"
 
-// InitializeInput provides the input parameters for serializing input for a
-// handler.
+// InitializeInput wraps the input parameters for the InitializeMiddlewares to
+// consume. InitializeMiddleware may modify the parameter value before
+// forwarding it along to the next InitializeHandler.
 type InitializeInput struct {
 	Parameters interface{}
 }
 
-// InitializeOutput provides the result of initialize handler middleware stack.
+// InitializeOutput provides the result returned by the next InitializeHandler.
 type InitializeOutput struct {
 	Result interface{}
 }
 
-// InitializeHandler provides the interface for handling the initialization
-// step of a middleware stack. Wraps the underlying handler.
+// InitializeHandler provides the interface for the next handler the
+// InitializeMiddleware will call in the middleware chain.
 type InitializeHandler interface {
 	HandleInitialize(ctx context.Context, in InitializeInput) (
 		out InitializeOutput, err error,
@@ -22,46 +23,68 @@ type InitializeHandler interface {
 }
 
 // InitializeMiddleware provides the interface for middleware specific to the
-// initialize step.
+// initialize step. Delegates to the next InitializeHandler for further
+// processing.
 type InitializeMiddleware interface {
-	Name() string
+	// Unique ID for the middleware in the InitializeStep. The step does not
+	// allow duplicate IDs.
+	ID() string
+
+	// Invokes the middleware behavior which must delegate to the next handler
+	// for the middleware chain to continue. The method must return a result or
+	// error to its caller.
 	HandleInitialize(ctx context.Context, in InitializeInput, next InitializeHandler) (
 		out InitializeOutput, err error,
 	)
 }
 
-// InitializeMiddlewareFunc wraps a function to satisfy the
-// InitializeMiddleware interface.
-type InitializeMiddlewareFunc func(ctx context.Context, in InitializeInput, next InitializeHandler) (
-	out InitializeOutput, err error,
-)
+// InitializeMiddlewareFunc returns a InitializeMiddleware with the unique ID provided,
+// and the func to be invoked.
+func InitializeMiddlewareFunc(id string, fn func(context.Context, InitializeInput, InitializeHandler) (InitializeOutput, error)) InitializeMiddleware {
+	return initializeMiddlewareFunc{
+		id: id,
+		fn: fn,
+	}
+}
 
-var _ InitializeMiddleware = (InitializeMiddlewareFunc)(nil)
+type initializeMiddlewareFunc struct {
+	// Unique ID for the middleware.
+	id string
 
-// Name returns an empty string that will be replaced for a stub value when
-// added to the InitializeStep.
-func (f InitializeMiddlewareFunc) Name() string { return "" }
+	// Middleware function to be called.
+	fn func(context.Context, InitializeInput, InitializeHandler) (InitializeOutput, error)
+}
 
-// HandleInitialize invokes the function with passed in parameters. Returning
-// the result or error.
-//
-// Implements InitializeMiddleware interface.
-func (f InitializeMiddlewareFunc) HandleInitialize(ctx context.Context, in InitializeInput, next InitializeHandler) (
+// ID returns the unique ID for the middleware.
+func (s initializeMiddlewareFunc) ID() string { return s.id }
+
+// HandleInitialize invokes the middleware Fn.
+func (s initializeMiddlewareFunc) HandleInitialize(ctx context.Context, in InitializeInput, next InitializeHandler) (
 	out InitializeOutput, err error,
 ) {
-	return f(ctx, in, next)
+	return s.fn(ctx, in, next)
 }
+
+var _ InitializeMiddleware = (initializeMiddlewareFunc{})
 
 // InitializeStep provides the ordered grouping of InitializeMiddleware to be
 // invoked on an handler.
 type InitializeStep struct {
-	group orderedGroup
+	ids *orderedIDs
+}
+
+// NewInitializeStep returns an InitializeStep ready to have middleware for
+// initialization added to it.
+func NewInitializeStep() *InitializeStep {
+	return &InitializeStep{
+		ids: newOrderedIDs(),
+	}
 }
 
 var _ Middleware = (*InitializeStep)(nil)
 
-// Name returns the name of the initialization step.
-func (s *InitializeStep) Name() string {
+// ID returns the unique id of the step as a middleware.
+func (s *InitializeStep) ID() string {
 	return "Initialize stack step"
 }
 
@@ -72,11 +95,11 @@ func (s *InitializeStep) Name() string {
 func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
 	out interface{}, err error,
 ) {
-	order := s.group.GetOrder()
+	order := s.ids.GetOrder()
 
 	var h InitializeHandler = initializeWrapHandler{Next: next}
 	for i := len(order); i >= 0; i-- {
-		h = decorateInitializeHandler{
+		h = decoratedInitializeHandler{
 			Next: h,
 			With: order[i].(InitializeMiddleware),
 		}
@@ -97,26 +120,31 @@ func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, n
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *InitializeStep) Add(m InitializeMiddleware, pos RelativePosition) error {
-	return s.group.Add(m, pos)
+	return s.ids.Add(m, pos)
 }
 
-// Insert injects the middleware relative to an existing middleware name.
+// Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *InitializeStep) Insert(m InitializeMiddleware, relativeTo string, pos RelativePosition) error {
-	return s.group.Insert(m, relativeTo, pos)
+	return s.ids.Insert(m, relativeTo, pos)
 }
 
-// Swap removes the middleware by name, replacing it with the new middleware.
+// Swap removes the middleware by id, replacing it with the new middleware.
 // Returns error if the original middleware doesn't exist.
-func (s *InitializeStep) Swap(name string, m InitializeMiddleware) error {
-	return s.group.Swap(name, m)
+func (s *InitializeStep) Swap(id string, m InitializeMiddleware) error {
+	return s.ids.Swap(id, m)
 }
 
-// Remove removes the middleware by name. Returns error if the middleware
+// Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
-func (s *InitializeStep) Remove(name string) error {
-	return s.group.Remove(name)
+func (s *InitializeStep) Remove(id string) error {
+	return s.ids.Remove(id)
+}
+
+// Clear removes all middleware in the step.
+func (s *InitializeStep) Clear() {
+	s.ids.Clear()
 }
 
 type initializeWrapHandler struct {
@@ -140,14 +168,14 @@ func (w initializeWrapHandler) HandleInitialize(ctx context.Context, in Initiali
 	}, nil
 }
 
-type decorateInitializeHandler struct {
+type decoratedInitializeHandler struct {
 	Next InitializeHandler
 	With InitializeMiddleware
 }
 
-var _ InitializeHandler = (*decorateInitializeHandler)(nil)
+var _ InitializeHandler = (*decoratedInitializeHandler)(nil)
 
-func (h decorateInitializeHandler) HandleInitialize(ctx context.Context, in InitializeInput) (
+func (h decoratedInitializeHandler) HandleInitialize(ctx context.Context, in InitializeInput) (
 	out InitializeOutput, err error,
 ) {
 	return h.With.HandleInitialize(ctx, in, h.Next)

@@ -2,19 +2,20 @@ package middleware
 
 import "context"
 
-// FinalizeInput provides the input parameters for serializing input for a
-// handler.
+// FinalizeInput provides the input parameters for the FinalizeMiddleware to
+// consume. FinalizeMiddleware may modify the Request value before forwarding
+// the FinalizeInput along to the next next FinalizeHandler.
 type FinalizeInput struct {
 	Request interface{}
 }
 
-// FinalizeOutput provides the result of finalize handler middleware stack.
+// FinalizeOutput provides the result returned by the next FinalizeHandler.
 type FinalizeOutput struct {
 	Result interface{}
 }
 
-// FinalizeHandler provides the interface for handling the initialization
-// step of a middleware stack. Wraps the underlying handler.
+// FinalizeHandler provides the interface for the next handler the
+// FinalizeMiddleware will call in the middleware chain.
 type FinalizeHandler interface {
 	HandleFinalize(ctx context.Context, in FinalizeInput) (
 		out FinalizeOutput, err error,
@@ -22,46 +23,68 @@ type FinalizeHandler interface {
 }
 
 // FinalizeMiddleware provides the interface for middleware specific to the
-// finalize step.
+// serialize step. Delegates to the next FinalizeHandler for further
+// processing.
 type FinalizeMiddleware interface {
-	Name() string
+	// Unique ID for the middleware in the FinalizeStep. The step does not
+	// allow duplicate IDs.
+	ID() string
+
+	// Invokes the middleware behavior which must delegate to the next handler
+	// for the middleware chain to continue. The method must return a result or
+	// error to its caller.
 	HandleFinalize(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
 		out FinalizeOutput, err error,
 	)
 }
 
-// FinalizeMiddlewareFunc wraps a function to satisfy the
-// FinalizeMiddleware interface.
-type FinalizeMiddlewareFunc func(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
-	out FinalizeOutput, err error,
-)
+// FinalizeMiddlewareFunc returns a FinalizeMiddleware with the unique ID
+// provided, and the func to be invoked.
+func FinalizeMiddlewareFunc(id string, fn func(context.Context, FinalizeInput, FinalizeHandler) (FinalizeOutput, error)) FinalizeMiddleware {
+	return finalizeMiddlewareFunc{
+		id: id,
+		fn: fn,
+	}
+}
 
-var _ FinalizeMiddleware = (FinalizeMiddlewareFunc)(nil)
+type finalizeMiddlewareFunc struct {
+	// Unique ID for the middleware.
+	id string
 
-// Name returns an empty string that will be replaced for a stub value when
-// added to the FinalizeStep.
-func (f FinalizeMiddlewareFunc) Name() string { return "" }
+	// Middleware function to be called.
+	fn func(context.Context, FinalizeInput, FinalizeHandler) (FinalizeOutput, error)
+}
 
-// HandleFinalize invokes the function with passed in parameters. Returning
-// the result or error.
-//
-// Implements FinalizeMiddleware interface.
-func (f FinalizeMiddlewareFunc) HandleFinalize(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
+// ID returns the unique ID for the middleware.
+func (s finalizeMiddlewareFunc) ID() string { return s.id }
+
+// HandleFinalize invokes the middleware Fn.
+func (s finalizeMiddlewareFunc) HandleFinalize(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
 	out FinalizeOutput, err error,
 ) {
-	return f(ctx, in, next)
+	return s.fn(ctx, in, next)
 }
+
+var _ FinalizeMiddleware = (finalizeMiddlewareFunc{})
 
 // FinalizeStep provides the ordered grouping of FinalizeMiddleware to be
 // invoked on an handler.
 type FinalizeStep struct {
-	group orderedGroup
+	ids *orderedIDs
+}
+
+// NewFinalizeStep returns an FinalizeStep ready to have middleware for
+// initialization added to it.
+func NewFinalizeStep() *FinalizeStep {
+	return &FinalizeStep{
+		ids: newOrderedIDs(),
+	}
 }
 
 var _ Middleware = (*FinalizeStep)(nil)
 
-// Name returns the name of the initialization step.
-func (s *FinalizeStep) Name() string {
+// ID returns the unique id of the step as a middleware.
+func (s *FinalizeStep) ID() string {
 	return "Finalize stack step"
 }
 
@@ -72,11 +95,11 @@ func (s *FinalizeStep) Name() string {
 func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
 	out interface{}, err error,
 ) {
-	order := s.group.GetOrder()
+	order := s.ids.GetOrder()
 
 	var h FinalizeHandler = finalizeWrapHandler{Next: next}
 	for i := len(order); i >= 0; i-- {
-		h = decorateFinalizeHandler{
+		h = decoratedFinalizeHandler{
 			Next: h,
 			With: order[i].(FinalizeMiddleware),
 		}
@@ -97,26 +120,31 @@ func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, nex
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *FinalizeStep) Add(m FinalizeMiddleware, pos RelativePosition) error {
-	return s.group.Add(m, pos)
+	return s.ids.Add(m, pos)
 }
 
-// Insert injects the middleware relative to an existing middleware name.
+// Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *FinalizeStep) Insert(m FinalizeMiddleware, relativeTo string, pos RelativePosition) error {
-	return s.group.Insert(m, relativeTo, pos)
+	return s.ids.Insert(m, relativeTo, pos)
 }
 
-// Swap removes the middleware by name, replacing it with the new middleware.
+// Swap removes the middleware by id, replacing it with the new middleware.
 // Returns error if the original middleware doesn't exist.
-func (s *FinalizeStep) Swap(name string, m FinalizeMiddleware) error {
-	return s.group.Swap(name, m)
+func (s *FinalizeStep) Swap(id string, m FinalizeMiddleware) error {
+	return s.ids.Swap(id, m)
 }
 
-// Remove removes the middleware by name. Returns error if the middleware
+// Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
-func (s *FinalizeStep) Remove(name string) error {
-	return s.group.Remove(name)
+func (s *FinalizeStep) Remove(id string) error {
+	return s.ids.Remove(id)
+}
+
+// Clear removes all middleware in the step.
+func (s *FinalizeStep) Clear() {
+	s.ids.Clear()
 }
 
 type finalizeWrapHandler struct {
@@ -140,14 +168,14 @@ func (w finalizeWrapHandler) HandleFinalize(ctx context.Context, in FinalizeInpu
 	}, nil
 }
 
-type decorateFinalizeHandler struct {
+type decoratedFinalizeHandler struct {
 	Next FinalizeHandler
 	With FinalizeMiddleware
 }
 
-var _ FinalizeHandler = (*decorateFinalizeHandler)(nil)
+var _ FinalizeHandler = (*decoratedFinalizeHandler)(nil)
 
-func (h decorateFinalizeHandler) HandleFinalize(ctx context.Context, in FinalizeInput) (
+func (h decoratedFinalizeHandler) HandleFinalize(ctx context.Context, in FinalizeInput) (
 	out FinalizeOutput, err error,
 ) {
 	return h.With.HandleFinalize(ctx, in, h.Next)
