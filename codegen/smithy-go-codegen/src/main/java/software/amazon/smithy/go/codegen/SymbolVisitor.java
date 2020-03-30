@@ -51,6 +51,7 @@ import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -102,11 +103,26 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        Symbol blobSymbol = createPointableSymbolBuilder(shape, "[]byte").build();
-        if (shape.hasTrait(MediaTypeTrait.class)) {
-            return createMediaTypeSymbol(shape, blobSymbol);
+        // By default we make a blob shape a byte array.
+        Symbol symbol = createPointableSymbolBuilder(shape, "[]byte").build();
+
+        // If the shape is streaming, it needs to instead be a Reader.
+        if (shape.hasTrait(StreamingTrait.class)) {
+            // We could require a ReadSeeker if the trait is configured to require length,
+            // but that would make changing that setting a breaking change. It would also
+            // prevent being able to just specify the content length as an additional param.
+            // TODO: when generating output structs, try to make these an io.ReadCloser
+            symbol = createSymbolBuilder(shape, "io.Reader")
+                    .addReference(createNamespaceReference(GoDependency.IO))
+                    .build();
         }
-        return blobSymbol;
+
+        // If the shape has the mediatype trait we need to make a type alias decorated with
+        // the required mediatype methods.
+        if (shape.hasTrait(MediaTypeTrait.class)) {
+            return createMediaTypeSymbol(shape, symbol);
+        }
+        return symbol;
     }
 
     private Symbol createMediaTypeSymbol(Shape shape, Symbol base) {
