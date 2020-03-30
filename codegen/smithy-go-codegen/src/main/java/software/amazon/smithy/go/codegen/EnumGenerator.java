@@ -50,7 +50,7 @@ final class EnumGenerator implements Runnable {
             for (Map.Entry<String, EnumConstantBody> entry : enumTrait.getValues().entrySet()) {
                 StringBuilder labelBuilder = new StringBuilder(symbol.getName());
                 String name = entry.getValue().getName().orElse(entry.getKey());
-                for (String part : name.split("\\W")) {
+                for (String part : name.split("(?U)\\W")) {
                     labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
                 }
                 String label = labelBuilder.toString();
