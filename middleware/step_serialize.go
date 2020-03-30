@@ -134,9 +134,15 @@ func (s *SerializeStep) Insert(m SerializeMiddleware, relativeTo string, pos Rel
 }
 
 // Swap removes the middleware by id, replacing it with the new middleware.
-// Returns error if the original middleware doesn't exist.
-func (s *SerializeStep) Swap(id string, m SerializeMiddleware) error {
-	return s.ids.Swap(id, m)
+// Returns the middleware removed, or error if the middleware to be removed
+// doesn't exist.
+func (s *BuildStep) Swap(id string, m BuildMiddleware) (BuildMiddleware, error) {
+	removed, err := s.ids.Swap(id, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return removed.(BuildMiddleware), nil
 }
 
 // Remove removes the middleware by id. Returns error if the middleware

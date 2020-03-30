@@ -83,21 +83,24 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 // If the value implements the ider interface, that id must be unique. If
 // the value does not implement the ider interface, a new unique id will be
 // used.
-func (g *orderedIDs) Swap(id string, m ider) error {
+func (g *orderedIDs) Swap(id string, m ider) (ider, error) {
 	if len(id) == 0 {
-		return fmt.Errorf("swap from ID must not be empty")
+		return nil, fmt.Errorf("swap from ID must not be empty")
 	}
 	if len(m.ID()) == 0 {
-		return fmt.Errorf("swap to ID must not be empty")
+		return nil, fmt.Errorf("swap to ID must not be empty")
 	}
 
 	if err := g.order.Swap(id, m.ID()); err != nil {
-		return err
+		return nil, err
 	}
+
+	removed := g.items[id]
 
 	delete(g.items, id)
 	g.items[m.ID()] = m
-	return nil
+
+	return removed, nil
 }
 
 // Remove removes the item by id. Returns error if the item

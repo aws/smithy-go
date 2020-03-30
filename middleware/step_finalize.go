@@ -131,9 +131,15 @@ func (s *FinalizeStep) Insert(m FinalizeMiddleware, relativeTo string, pos Relat
 }
 
 // Swap removes the middleware by id, replacing it with the new middleware.
-// Returns error if the original middleware doesn't exist.
-func (s *FinalizeStep) Swap(id string, m FinalizeMiddleware) error {
-	return s.ids.Swap(id, m)
+// Returns the middleware removed, or error if the middleware to be removed
+// doesn't exist.
+func (s *FinalizeStep) Swap(id string, m FinalizeMiddleware) (FinalizeMiddleware, error) {
+	removed, err := s.ids.Swap(id, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return removed.(FinalizeMiddleware), nil
 }
 
 // Remove removes the middleware by id. Returns error if the middleware

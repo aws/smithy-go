@@ -15,7 +15,7 @@ type HTTPClientHandler struct {
 	}
 }
 
-// Handle invokes the underlying client's behavior to roundtrip the request.
+// Handle invokes the underlying client's behavior to round trip the request.
 // Input is required to be *http.Request, and output will be *http.Response or
 // error.
 func (h *HTTPClientHandler) Handle(ctx context.Context, input interface{}) (interface{}, error) {
