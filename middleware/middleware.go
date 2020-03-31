@@ -10,6 +10,15 @@ type Handler interface {
 	Handle(ctx context.Context, input interface{}) (output interface{}, err error)
 }
 
+// HandlerFunc provides a wrapper around a function pointer to be used as a
+// middleware handler.
+type HandlerFunc func(ctx context.Context, input interface{}) (output interface{}, err error)
+
+// Handle invokes the underlying function, returning the result.
+func (fn HandlerFunc) Handle(ctx context.Context, input interface{}) (output interface{}, err error) {
+	return fn(ctx, input)
+}
+
 // Middleware provides the interface to call handlers in a chain.
 type Middleware interface {
 	// ID provides a unique identifier for the middleware.
@@ -43,7 +52,7 @@ func (m decoratedHandler) Handle(ctx context.Context, input interface{}) (
 // DecorateHandler decorates a handler with a middleware. Wrapping the handler
 // with the middleware.
 func DecorateHandler(h Handler, with ...Middleware) Handler {
-	for i := len(with); i >= 0; i-- {
+	for i := len(with) - 1; i >= 0; i-- {
 		h = decoratedHandler{
 			Next: h,
 			With: with[i],

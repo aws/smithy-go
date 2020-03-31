@@ -98,7 +98,7 @@ func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, n
 	order := s.ids.GetOrder()
 
 	var h InitializeHandler = initializeWrapHandler{Next: next}
-	for i := len(order); i >= 0; i-- {
+	for i := len(order) - 1; i >= 0; i-- {
 		h = decoratedInitializeHandler{
 			Next: h,
 			With: order[i].(InitializeMiddleware),

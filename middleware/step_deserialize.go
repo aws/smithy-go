@@ -102,7 +102,7 @@ func (s *DeserializeStep) HandleMiddleware(ctx context.Context, in interface{}, 
 	order := s.ids.GetOrder()
 
 	var h DeserializeHandler = deserializeWrapHandler{Next: next}
-	for i := len(order); i >= 0; i-- {
+	for i := len(order) - 1; i >= 0; i-- {
 		h = decoratedDeserializeHandler{
 			Next: h,
 			With: order[i].(DeserializeMiddleware),

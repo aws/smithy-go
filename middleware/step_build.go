@@ -98,7 +98,7 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 	order := s.ids.GetOrder()
 
 	var h BuildHandler = buildWrapHandler{Next: next}
-	for i := len(order); i >= 0; i-- {
+	for i := len(order) - 1; i >= 0; i-- {
 		h = decoratedBuildHandler{
 			Next: h,
 			With: order[i].(BuildMiddleware),

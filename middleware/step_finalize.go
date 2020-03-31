@@ -98,7 +98,7 @@ func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, nex
 	order := s.ids.GetOrder()
 
 	var h FinalizeHandler = finalizeWrapHandler{Next: next}
-	for i := len(order); i >= 0; i-- {
+	for i := len(order) - 1; i >= 0; i-- {
 		h = decoratedFinalizeHandler{
 			Next: h,
 			With: order[i].(FinalizeMiddleware),

@@ -101,7 +101,7 @@ func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, ne
 	order := s.ids.GetOrder()
 
 	var h SerializeHandler = serializeWrapHandler{Next: next}
-	for i := len(order); i >= 0; i-- {
+	for i := len(order) - 1; i >= 0; i-- {
 		h = decoratedSerializeHandler{
 			Next: h,
 			With: order[i].(SerializeMiddleware),
@@ -136,13 +136,13 @@ func (s *SerializeStep) Insert(m SerializeMiddleware, relativeTo string, pos Rel
 // Swap removes the middleware by id, replacing it with the new middleware.
 // Returns the middleware removed, or error if the middleware to be removed
 // doesn't exist.
-func (s *BuildStep) Swap(id string, m BuildMiddleware) (BuildMiddleware, error) {
+func (s *SerializeStep) Swap(id string, m SerializeMiddleware) (SerializeMiddleware, error) {
 	removed, err := s.ids.Swap(id, m)
 	if err != nil {
 		return nil, err
 	}
 
-	return removed.(BuildMiddleware), nil
+	return removed.(SerializeMiddleware), nil
 }
 
 // Remove removes the middleware by id. Returns error if the middleware
