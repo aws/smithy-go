@@ -1,6 +1,8 @@
 package middleware
 
-import "context"
+import (
+	"context"
+)
 
 // Handler provides the interface for performing the logic to obtain an output,
 // or error for the given input.
@@ -46,7 +48,26 @@ type decoratedHandler struct {
 func (m decoratedHandler) Handle(ctx context.Context, input interface{}) (
 	output interface{}, err error,
 ) {
+	ctx = RecordMiddleware(ctx, m.With.ID())
 	return m.With.HandleMiddleware(ctx, input, m.Next)
+}
+
+type middlewareIDs struct{}
+
+// RecordMiddleware appends the middleware id to the list of middleware ids to
+// the context.
+func RecordMiddleware(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, middlewareIDs{}, append(GetMiddlewareIDs(ctx), id))
+}
+
+// GetMiddlewareIDs returns a list of middleware IDs in the order they were
+// added in.
+func GetMiddlewareIDs(ctx context.Context) []string {
+	v, ok := ctx.Value(middlewareIDs{}).([]string)
+	if !ok {
+		return []string{}
+	}
+	return v
 }
 
 // DecorateHandler decorates a handler with a middleware. Wrapping the handler
@@ -60,16 +81,4 @@ func DecorateHandler(h Handler, with ...Middleware) Handler {
 	}
 
 	return h
-}
-
-// Middlewares provides a collection of middleware that can be invoked as a
-// stack on a handler.
-type Middlewares []Middleware
-
-// HandleMiddleware invokes the middleware, decorating the handler.
-func (ms Middlewares) HandleMiddleware(ctx context.Context, input interface{}, next Handler) (
-	output interface{}, err error,
-) {
-	next = DecorateHandler(next, ms...)
-	return next.Handle(ctx, input)
 }

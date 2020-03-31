@@ -184,5 +184,6 @@ var _ InitializeHandler = (*decoratedInitializeHandler)(nil)
 func (h decoratedInitializeHandler) HandleInitialize(ctx context.Context, in InitializeInput) (
 	out InitializeOutput, err error,
 ) {
+	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleInitialize(ctx, in, h.Next)
 }
