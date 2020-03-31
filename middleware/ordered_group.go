@@ -31,17 +31,8 @@ func newOrderedIDs() *orderedIDs {
 	}
 }
 
-func (g *orderedIDs) generateName() string {
-	g.unamedCounter++
-	return fmt.Sprintf("ordered group unnamed %d", g.unamedCounter)
-}
-
 // Add injects the item to the relative position of the item group. Returns an
 // error if the item already exists.
-//
-// If the value implements the ider interface, that id must be unique. If
-// the value does not implement the ider interface, a new unique id will be
-// used.
 func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 	if len(m.ID()) == 0 {
 		return fmt.Errorf("empty ID, ID must not be empty")
@@ -57,10 +48,6 @@ func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 
 // Insert injects the item relative to an existing item id.  Return error if
 // the original item does not exist, or the item being added already exists.
-//
-// If the value implements the ider interface, that id must be unique. If
-// the value does not implement the ider interface, a new unique id will be
-// used.
 func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) error {
 	if len(m.ID()) == 0 {
 		return fmt.Errorf("insert ID must not be empty")
@@ -79,10 +66,6 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 
 // Swap removes the item by id, replacing it with the new item. Returns error
 // if the original item doesn't exist.
-//
-// If the value implements the ider interface, that id must be unique. If
-// the value does not implement the ider interface, a new unique id will be
-// used.
 func (g *orderedIDs) Swap(id string, m ider) (ider, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("swap from ID must not be empty")
