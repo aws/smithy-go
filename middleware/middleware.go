@@ -65,7 +65,7 @@ func RecordMiddleware(ctx context.Context, id string) context.Context {
 func GetMiddlewareIDs(ctx context.Context) []string {
 	v, ok := ctx.Value(middlewareIDs{}).([]string)
 	if !ok {
-		return []string{}
+		return nil
 	}
 	return v
 }
