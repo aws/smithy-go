@@ -73,14 +73,18 @@ var _ SerializeMiddleware = (serializeMiddlewareFunc{})
 // SerializeStep provides the ordered grouping of SerializeMiddleware to be
 // invoked on an handler.
 type SerializeStep struct {
-	ids *orderedIDs
+	newRequest func() interface{}
+	ids        *orderedIDs
 }
 
 // NewSerializeStep returns an SerializeStep ready to have middleware for
-// initialization added to it.
-func NewSerializeStep() *SerializeStep {
+// initialization added to it. The newRequest func parameter is used to
+// initialize the transport specific request for the stack SerializeStep to
+// serialize the input parameters into.
+func NewSerializeStep(newRequest func() interface{}) *SerializeStep {
 	return &SerializeStep{
-		ids: newOrderedIDs(),
+		ids:        newOrderedIDs(),
+		newRequest: newRequest,
 	}
 }
 
@@ -110,6 +114,7 @@ func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, ne
 
 	sIn := SerializeInput{
 		Parameters: in,
+		Request:    s.newRequest(),
 	}
 
 	res, err := h.HandleSerialize(ctx, sIn)

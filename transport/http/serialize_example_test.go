@@ -11,24 +11,14 @@ import (
 )
 
 func ExampleRequest_serializeMiddleware() {
-	stack := middleware.NewStack("serialize example")
+	// Create the stack and provide the function that will create a new Request
+	// when the SerializeStep is invoked.
+	stack := middleware.NewStack("serialize example", NewStackRequest)
 
 	type Input struct {
 		FooName  string
 		BarCount int
 	}
-
-	// Add the first Serialize middleware to initialize the request for our
-	// HTTP transport.
-	stack.Serialize.Add(middleware.SerializeMiddlewareFunc("init request",
-		func(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
-			middleware.SerializeOutput, error,
-		) {
-			in.Request = NewRequest()
-			return next.HandleSerialize(ctx, in)
-		}),
-		middleware.Before,
-	)
 
 	// Add the serialization middleware.
 	stack.Serialize.Add(middleware.SerializeMiddlewareFunc("example serialize",

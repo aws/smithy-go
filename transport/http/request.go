@@ -13,9 +13,10 @@ type Request struct {
 	Stream io.Reader
 }
 
-// NewRequest returns an initialize request ready to populated with the HTTP
-// request details.
-func NewRequest() *Request {
+// NewStackRequest returns an initialized request ready to populated with the
+// HTTP request details. Returns empty interface so the function can be used as
+// a parameter to the Smithy middleware Stack constructor.
+func NewStackRequest() interface{} {
 	return &Request{
 		Request: &http.Request{
 			Header: http.Header{},

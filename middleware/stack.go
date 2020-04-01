@@ -71,11 +71,11 @@ type Stack struct {
 }
 
 // NewStack returns an initialize empty stack.
-func NewStack(id string) *Stack {
+func NewStack(id string, newRequestFn func() interface{}) *Stack {
 	return &Stack{
 		id:          id,
 		Initialize:  NewInitializeStep(),
-		Serialize:   NewSerializeStep(),
+		Serialize:   NewSerializeStep(newRequestFn),
 		Build:       NewBuildStep(),
 		Finalize:    NewFinalizeStep(),
 		Deserialize: NewDeserializeStep(),

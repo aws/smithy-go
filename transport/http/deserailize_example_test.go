@@ -11,7 +11,9 @@ import (
 )
 
 func ExampleResponse_deserializeMiddleware() {
-	stack := middleware.NewStack("deserialize example")
+	// Create the stack and provide the function that will create a new Request
+	// when the SerializeStep is invoked.
+	stack := middleware.NewStack("deserialize example", NewStackRequest)
 
 	type Output struct {
 		FooName  string
