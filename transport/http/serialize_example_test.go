@@ -40,7 +40,10 @@ func ExampleRequest_serializeMiddleware() {
 	mockHandler := middleware.HandlerFunc(func(ctx context.Context, in interface{}) (
 		output interface{}, err error,
 	) {
-		req := in.(*Request)
+		// Returns the standard http Request for the handler to make request
+		// using standard http compatible client.
+		req := in.(*Request).Build()
+
 		fmt.Println("foo-name", req.Header.Get("foo-name"))
 		fmt.Println("bar-count", req.Header.Get("bar-count"))
 
