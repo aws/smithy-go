@@ -83,5 +83,5 @@ func ExampleResponse_deserializeMiddleware() {
 	// Output:
 	// FooName abc
 	// BarCount 123
-	// Metadata: example-meta:example-value
+	// Metadata: example-meta: meta-value
 }

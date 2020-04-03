@@ -1,9 +1,5 @@
 package middleware
 
-//type Metadata struct {
-//	values map[interface{}]interface{}
-//}
-
 // Metadata provides an interface for storing and reading metadata values. Keys
 // may be any comparable value type. Get and set will panic if key is not a
 // comparable value type.
@@ -24,10 +20,6 @@ func NewMetadata() Metadata {
 		values: map[interface{}]interface{}{},
 	}
 }
-
-//type Metadata struct {
-//	values map[interface{}]interface{}
-//}
 
 type metadata struct {
 	values map[interface{}]interface{}
