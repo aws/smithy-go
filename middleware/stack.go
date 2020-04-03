@@ -94,7 +94,7 @@ func (s *Stack) ID() string { return s.id }
 //
 // Will return the result of the operation, or error.
 func (s *Stack) HandleMiddleware(ctx context.Context, input interface{}, next Handler) (
-	output interface{}, err error,
+	output interface{}, metadata Metadata, err error,
 ) {
 	h := DecorateHandler(next,
 		s.Initialize,

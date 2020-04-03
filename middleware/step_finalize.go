@@ -18,7 +18,7 @@ type FinalizeOutput struct {
 // FinalizeMiddleware will call in the middleware chain.
 type FinalizeHandler interface {
 	HandleFinalize(ctx context.Context, in FinalizeInput) (
-		out FinalizeOutput, err error,
+		out FinalizeOutput, metadata Metadata, err error,
 	)
 }
 
@@ -34,13 +34,13 @@ type FinalizeMiddleware interface {
 	// for the middleware chain to continue. The method must return a result or
 	// error to its caller.
 	HandleFinalize(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
-		out FinalizeOutput, err error,
+		out FinalizeOutput, metadata Metadata, err error,
 	)
 }
 
 // FinalizeMiddlewareFunc returns a FinalizeMiddleware with the unique ID
 // provided, and the func to be invoked.
-func FinalizeMiddlewareFunc(id string, fn func(context.Context, FinalizeInput, FinalizeHandler) (FinalizeOutput, error)) FinalizeMiddleware {
+func FinalizeMiddlewareFunc(id string, fn func(context.Context, FinalizeInput, FinalizeHandler) (FinalizeOutput, Metadata, error)) FinalizeMiddleware {
 	return finalizeMiddlewareFunc{
 		id: id,
 		fn: fn,
@@ -52,7 +52,9 @@ type finalizeMiddlewareFunc struct {
 	id string
 
 	// Middleware function to be called.
-	fn func(context.Context, FinalizeInput, FinalizeHandler) (FinalizeOutput, error)
+	fn func(context.Context, FinalizeInput, FinalizeHandler) (
+		FinalizeOutput, Metadata, error,
+	)
 }
 
 // ID returns the unique ID for the middleware.
@@ -60,7 +62,7 @@ func (s finalizeMiddlewareFunc) ID() string { return s.id }
 
 // HandleFinalize invokes the middleware Fn.
 func (s finalizeMiddlewareFunc) HandleFinalize(ctx context.Context, in FinalizeInput, next FinalizeHandler) (
-	out FinalizeOutput, err error,
+	out FinalizeOutput, metadata Metadata, err error,
 ) {
 	return s.fn(ctx, in, next)
 }
@@ -93,7 +95,7 @@ func (s *FinalizeStep) ID() string {
 //
 // Implements Middleware interface.
 func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
-	out interface{}, err error,
+	out interface{}, metadata Metadata, err error,
 ) {
 	order := s.ids.GetOrder()
 
@@ -109,12 +111,8 @@ func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, nex
 		Request: in,
 	}
 
-	res, err := h.HandleFinalize(ctx, sIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return res.Result, nil
+	res, metadata, err := h.HandleFinalize(ctx, sIn)
+	return res.Result, metadata, err
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -162,16 +160,12 @@ var _ FinalizeHandler = (*finalizeWrapHandler)(nil)
 // Implements FinalizeHandler, converts types and delegates to underlying
 // generic handler.
 func (w finalizeWrapHandler) HandleFinalize(ctx context.Context, in FinalizeInput) (
-	out FinalizeOutput, err error,
+	out FinalizeOutput, metadata Metadata, err error,
 ) {
-	res, err := w.Next.Handle(ctx, in.Request)
-	if err != nil {
-		return FinalizeOutput{}, err
-	}
-
+	res, metadata, err := w.Next.Handle(ctx, in.Request)
 	return FinalizeOutput{
 		Result: res,
-	}, nil
+	}, metadata, nil
 }
 
 type decoratedFinalizeHandler struct {
@@ -182,7 +176,7 @@ type decoratedFinalizeHandler struct {
 var _ FinalizeHandler = (*decoratedFinalizeHandler)(nil)
 
 func (h decoratedFinalizeHandler) HandleFinalize(ctx context.Context, in FinalizeInput) (
-	out FinalizeOutput, err error,
+	out FinalizeOutput, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleFinalize(ctx, in, h.Next)

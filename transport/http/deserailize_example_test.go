@@ -24,12 +24,14 @@ func ExampleResponse_deserializeMiddleware() {
 	// deserialize into the target output type.
 	stack.Deserialize.Add(middleware.DeserializeMiddlewareFunc("example deserialize",
 		func(ctx context.Context, in middleware.DeserializeInput, next middleware.DeserializeHandler) (
-			out middleware.DeserializeOutput, err error,
+			out middleware.DeserializeOutput, metadata middleware.Metadata, err error,
 		) {
-			out, err = next.HandleDeserialize(ctx, in)
+			out, metadata, err = next.HandleDeserialize(ctx, in)
 			if err != nil {
-				return middleware.DeserializeOutput{}, err
+				return middleware.DeserializeOutput{}, metadata, err
 			}
+
+			metadata.Set("example-meta", "meta-value")
 
 			rawResp := out.RawResponse.(*Response)
 			out.Result = &Output{
@@ -40,14 +42,14 @@ func ExampleResponse_deserializeMiddleware() {
 				}(),
 			}
 
-			return out, nil
+			return out, metadata, nil
 		}),
 		middleware.After,
 	)
 
 	// Mock example handler taking the request input and returning a response
 	mockHandler := middleware.HandlerFunc(func(ctx context.Context, in interface{}) (
-		output interface{}, err error,
+		output interface{}, metadata middleware.Metadata, err error,
 	) {
 		resp := &http.Response{
 			StatusCode: 200,
@@ -60,13 +62,13 @@ func ExampleResponse_deserializeMiddleware() {
 		// DeserializeOutput.RawResponse field.
 		return &Response{
 			Response: resp,
-		}, nil
+		}, middleware.NewMetadata(), nil
 	})
 
 	// Use the stack to decorate the handler then invoke the decorated handler
 	// with the inputs.
 	handler := middleware.DecorateHandler(mockHandler, stack)
-	result, err := handler.Handle(context.Background(), struct{}{})
+	result, metadata, err := handler.Handle(context.Background(), struct{}{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to call operation, %v", err)
 		return
@@ -76,8 +78,10 @@ func ExampleResponse_deserializeMiddleware() {
 	res := result.(*Output)
 	fmt.Println("FooName", res.FooName)
 	fmt.Println("BarCount", res.BarCount)
+	fmt.Println("Metadata:", "example-meta:", metadata.Get("example-meta"))
 
 	// Output:
 	// FooName abc
 	// BarCount 123
+	// Metadata: example-meta:example-value
 }

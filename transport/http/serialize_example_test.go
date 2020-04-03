@@ -23,7 +23,7 @@ func ExampleRequest_serializeMiddleware() {
 	// Add the serialization middleware.
 	stack.Serialize.Add(middleware.SerializeMiddlewareFunc("example serialize",
 		func(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
-			middleware.SerializeOutput, error,
+			middleware.SerializeOutput, middleware.Metadata, error,
 		) {
 			req := in.Request.(*Request)
 			input := in.Parameters.(*Input)
@@ -38,7 +38,7 @@ func ExampleRequest_serializeMiddleware() {
 
 	// Mock example handler taking the request input and returning a response
 	mockHandler := middleware.HandlerFunc(func(ctx context.Context, in interface{}) (
-		output interface{}, err error,
+		output interface{}, metadata middleware.Metadata, err error,
 	) {
 		// Returns the standard http Request for the handler to make request
 		// using standard http compatible client.
@@ -52,13 +52,13 @@ func ExampleRequest_serializeMiddleware() {
 				StatusCode: 200,
 				Header:     http.Header{},
 			},
-		}, nil
+		}, middleware.NewMetadata(), nil
 	})
 
 	// Use the stack to decorate the handler then invoke the decorated handler
 	// with the inputs.
 	handler := middleware.DecorateHandler(mockHandler, stack)
-	_, err := handler.Handle(context.Background(), &Input{FooName: "abc", BarCount: 123})
+	_, _, err := handler.Handle(context.Background(), &Input{FooName: "abc", BarCount: 123})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to call operation, %v", err)
 		return

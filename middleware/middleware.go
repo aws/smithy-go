@@ -9,15 +9,21 @@ import (
 type Handler interface {
 	// Handle performs logic to obtain an output for the given input. Handler
 	// should be decorated with middleware to perform input specific behavior.
-	Handle(ctx context.Context, input interface{}) (output interface{}, err error)
+	Handle(ctx context.Context, input interface{}) (
+		output interface{}, metadata Metadata, err error,
+	)
 }
 
 // HandlerFunc provides a wrapper around a function pointer to be used as a
 // middleware handler.
-type HandlerFunc func(ctx context.Context, input interface{}) (output interface{}, err error)
+type HandlerFunc func(ctx context.Context, input interface{}) (
+	output interface{}, metadata Metadata, err error,
+)
 
 // Handle invokes the underlying function, returning the result.
-func (fn HandlerFunc) Handle(ctx context.Context, input interface{}) (output interface{}, err error) {
+func (fn HandlerFunc) Handle(ctx context.Context, input interface{}) (
+	output interface{}, metadata Metadata, err error,
+) {
 	return fn(ctx, input)
 }
 
@@ -30,7 +36,7 @@ type Middleware interface {
 	// or error. The middleware can invoke the next Handler if handling should
 	// continue.
 	HandleMiddleware(ctx context.Context, input interface{}, next Handler) (
-		output interface{}, err error,
+		output interface{}, metadata Metadata, err error,
 	)
 }
 
@@ -46,7 +52,7 @@ type decoratedHandler struct {
 
 // Handle implements the Handler interface to handle a operation invocation.
 func (m decoratedHandler) Handle(ctx context.Context, input interface{}) (
-	output interface{}, err error,
+	output interface{}, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, m.With.ID())
 	return m.With.HandleMiddleware(ctx, input, m.Next)

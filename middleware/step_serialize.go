@@ -21,7 +21,7 @@ type SerializeOutput struct {
 // SerializeMiddleware will call in the middleware chain.
 type SerializeHandler interface {
 	HandleSerialize(ctx context.Context, in SerializeInput) (
-		out SerializeOutput, err error,
+		out SerializeOutput, metadata Metadata, err error,
 	)
 }
 
@@ -37,13 +37,13 @@ type SerializeMiddleware interface {
 	// for the middleware chain to continue. The method must return a result or
 	// error to its caller.
 	HandleSerialize(ctx context.Context, in SerializeInput, next SerializeHandler) (
-		out SerializeOutput, err error,
+		out SerializeOutput, metadata Metadata, err error,
 	)
 }
 
 // SerializeMiddlewareFunc returns a SerializeMiddleware with the unique ID
 // provided, and the func to be invoked.
-func SerializeMiddlewareFunc(id string, fn func(context.Context, SerializeInput, SerializeHandler) (SerializeOutput, error)) SerializeMiddleware {
+func SerializeMiddlewareFunc(id string, fn func(context.Context, SerializeInput, SerializeHandler) (SerializeOutput, Metadata, error)) SerializeMiddleware {
 	return serializeMiddlewareFunc{
 		id: id,
 		fn: fn,
@@ -55,7 +55,9 @@ type serializeMiddlewareFunc struct {
 	id string
 
 	// Middleware function to be called.
-	fn func(context.Context, SerializeInput, SerializeHandler) (SerializeOutput, error)
+	fn func(context.Context, SerializeInput, SerializeHandler) (
+		SerializeOutput, Metadata, error,
+	)
 }
 
 // ID returns the unique ID for the middleware.
@@ -63,7 +65,7 @@ func (s serializeMiddlewareFunc) ID() string { return s.id }
 
 // HandleSerialize invokes the middleware Fn.
 func (s serializeMiddlewareFunc) HandleSerialize(ctx context.Context, in SerializeInput, next SerializeHandler) (
-	out SerializeOutput, err error,
+	out SerializeOutput, metadata Metadata, err error,
 ) {
 	return s.fn(ctx, in, next)
 }
@@ -100,7 +102,7 @@ func (s *SerializeStep) ID() string {
 //
 // Implements Middleware interface.
 func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
-	out interface{}, err error,
+	out interface{}, metadata Metadata, err error,
 ) {
 	order := s.ids.GetOrder()
 
@@ -117,12 +119,8 @@ func (s *SerializeStep) HandleMiddleware(ctx context.Context, in interface{}, ne
 		Request:    s.newRequest(),
 	}
 
-	res, err := h.HandleSerialize(ctx, sIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return res.Result, nil
+	res, metadata, err := h.HandleSerialize(ctx, sIn)
+	return res.Result, metadata, err
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -170,16 +168,12 @@ var _ SerializeHandler = (*serializeWrapHandler)(nil)
 // Implements SerializeHandler, converts types and delegates to underlying
 // generic handler.
 func (w serializeWrapHandler) HandleSerialize(ctx context.Context, in SerializeInput) (
-	out SerializeOutput, err error,
+	out SerializeOutput, metadata Metadata, err error,
 ) {
-	res, err := w.Next.Handle(ctx, in.Request)
-	if err != nil {
-		return SerializeOutput{}, err
-	}
-
+	res, metadata, err := w.Next.Handle(ctx, in.Request)
 	return SerializeOutput{
 		Result: res,
-	}, nil
+	}, metadata, nil
 }
 
 type decoratedSerializeHandler struct {
@@ -190,7 +184,7 @@ type decoratedSerializeHandler struct {
 var _ SerializeHandler = (*decoratedSerializeHandler)(nil)
 
 func (h decoratedSerializeHandler) HandleSerialize(ctx context.Context, in SerializeInput) (
-	out SerializeOutput, err error,
+	out SerializeOutput, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleSerialize(ctx, in, h.Next)

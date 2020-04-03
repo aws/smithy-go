@@ -18,7 +18,7 @@ type InitializeOutput struct {
 // InitializeMiddleware will call in the middleware chain.
 type InitializeHandler interface {
 	HandleInitialize(ctx context.Context, in InitializeInput) (
-		out InitializeOutput, err error,
+		out InitializeOutput, metadata Metadata, err error,
 	)
 }
 
@@ -34,13 +34,13 @@ type InitializeMiddleware interface {
 	// for the middleware chain to continue. The method must return a result or
 	// error to its caller.
 	HandleInitialize(ctx context.Context, in InitializeInput, next InitializeHandler) (
-		out InitializeOutput, err error,
+		out InitializeOutput, metadata Metadata, err error,
 	)
 }
 
 // InitializeMiddlewareFunc returns a InitializeMiddleware with the unique ID provided,
 // and the func to be invoked.
-func InitializeMiddlewareFunc(id string, fn func(context.Context, InitializeInput, InitializeHandler) (InitializeOutput, error)) InitializeMiddleware {
+func InitializeMiddlewareFunc(id string, fn func(context.Context, InitializeInput, InitializeHandler) (InitializeOutput, Metadata, error)) InitializeMiddleware {
 	return initializeMiddlewareFunc{
 		id: id,
 		fn: fn,
@@ -52,7 +52,9 @@ type initializeMiddlewareFunc struct {
 	id string
 
 	// Middleware function to be called.
-	fn func(context.Context, InitializeInput, InitializeHandler) (InitializeOutput, error)
+	fn func(context.Context, InitializeInput, InitializeHandler) (
+		InitializeOutput, Metadata, error,
+	)
 }
 
 // ID returns the unique ID for the middleware.
@@ -60,7 +62,7 @@ func (s initializeMiddlewareFunc) ID() string { return s.id }
 
 // HandleInitialize invokes the middleware Fn.
 func (s initializeMiddlewareFunc) HandleInitialize(ctx context.Context, in InitializeInput, next InitializeHandler) (
-	out InitializeOutput, err error,
+	out InitializeOutput, metadata Metadata, err error,
 ) {
 	return s.fn(ctx, in, next)
 }
@@ -93,7 +95,7 @@ func (s *InitializeStep) ID() string {
 //
 // Implements Middleware interface.
 func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
-	out interface{}, err error,
+	out interface{}, metadata Metadata, err error,
 ) {
 	order := s.ids.GetOrder()
 
@@ -109,12 +111,8 @@ func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, n
 		Parameters: in,
 	}
 
-	res, err := h.HandleInitialize(ctx, sIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return res.Result, nil
+	res, metadata, err := h.HandleInitialize(ctx, sIn)
+	return res.Result, metadata, nil
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -162,16 +160,12 @@ var _ InitializeHandler = (*initializeWrapHandler)(nil)
 // Implements InitializeHandler, converts types and delegates to underlying
 // generic handler.
 func (w initializeWrapHandler) HandleInitialize(ctx context.Context, in InitializeInput) (
-	out InitializeOutput, err error,
+	out InitializeOutput, metadata Metadata, err error,
 ) {
-	res, err := w.Next.Handle(ctx, in.Parameters)
-	if err != nil {
-		return InitializeOutput{}, err
-	}
-
+	res, metadata, err := w.Next.Handle(ctx, in.Parameters)
 	return InitializeOutput{
 		Result: res,
-	}, nil
+	}, metadata, nil
 }
 
 type decoratedInitializeHandler struct {
@@ -182,7 +176,7 @@ type decoratedInitializeHandler struct {
 var _ InitializeHandler = (*decoratedInitializeHandler)(nil)
 
 func (h decoratedInitializeHandler) HandleInitialize(ctx context.Context, in InitializeInput) (
-	out InitializeOutput, err error,
+	out InitializeOutput, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleInitialize(ctx, in, h.Next)

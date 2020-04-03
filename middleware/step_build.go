@@ -18,7 +18,7 @@ type BuildOutput struct {
 // BuildMiddleware will call in the middleware chain.
 type BuildHandler interface {
 	HandleBuild(ctx context.Context, in BuildInput) (
-		out BuildOutput, err error,
+		out BuildOutput, metadata Metadata, err error,
 	)
 }
 
@@ -34,13 +34,13 @@ type BuildMiddleware interface {
 	// for the middleware chain to continue. The method must return a result or
 	// error to its caller.
 	HandleBuild(ctx context.Context, in BuildInput, next BuildHandler) (
-		out BuildOutput, err error,
+		out BuildOutput, metadata Metadata, err error,
 	)
 }
 
 // BuildMiddlewareFunc returns a BuildMiddleware with the unique ID provided,
 // and the func to be invoked.
-func BuildMiddlewareFunc(id string, fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, error)) BuildMiddleware {
+func BuildMiddlewareFunc(id string, fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, Metadata, error)) BuildMiddleware {
 	return buildMiddlewareFunc{
 		id: id,
 		fn: fn,
@@ -52,7 +52,7 @@ type buildMiddlewareFunc struct {
 	id string
 
 	// Middleware function to be called.
-	fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, error)
+	fn func(context.Context, BuildInput, BuildHandler) (BuildOutput, Metadata, error)
 }
 
 // ID returns the unique ID for the middleware.
@@ -60,7 +60,7 @@ func (s buildMiddlewareFunc) ID() string { return s.id }
 
 // HandleBuild invokes the middleware Fn.
 func (s buildMiddlewareFunc) HandleBuild(ctx context.Context, in BuildInput, next BuildHandler) (
-	out BuildOutput, err error,
+	out BuildOutput, metadata Metadata, err error,
 ) {
 	return s.fn(ctx, in, next)
 }
@@ -93,7 +93,7 @@ func (s *BuildStep) ID() string {
 //
 // Implements Middleware interface.
 func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
-	out interface{}, err error,
+	out interface{}, metadata Metadata, err error,
 ) {
 	order := s.ids.GetOrder()
 
@@ -109,12 +109,8 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 		Request: in,
 	}
 
-	res, err := h.HandleBuild(ctx, sIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return res.Result, nil
+	res, metadata, err := h.HandleBuild(ctx, sIn)
+	return res.Result, metadata, err
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -162,16 +158,12 @@ var _ BuildHandler = (*buildWrapHandler)(nil)
 // Implements BuildHandler, converts types and delegates to underlying
 // generic handler.
 func (w buildWrapHandler) HandleBuild(ctx context.Context, in BuildInput) (
-	out BuildOutput, err error,
+	out BuildOutput, metadata Metadata, err error,
 ) {
-	res, err := w.Next.Handle(ctx, in.Request)
-	if err != nil {
-		return BuildOutput{}, err
-	}
-
+	res, metadata, err := w.Next.Handle(ctx, in.Request)
 	return BuildOutput{
 		Result: res,
-	}, nil
+	}, metadata, err
 }
 
 type decoratedBuildHandler struct {
@@ -182,7 +174,7 @@ type decoratedBuildHandler struct {
 var _ BuildHandler = (*decoratedBuildHandler)(nil)
 
 func (h decoratedBuildHandler) HandleBuild(ctx context.Context, in BuildInput) (
-	out BuildOutput, err error,
+	out BuildOutput, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleBuild(ctx, in, h.Next)

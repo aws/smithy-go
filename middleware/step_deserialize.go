@@ -22,7 +22,7 @@ type DeserializeOutput struct {
 // DeserializeMiddleware will call in the middleware chain.
 type DeserializeHandler interface {
 	HandleDeserialize(ctx context.Context, in DeserializeInput) (
-		out DeserializeOutput, err error,
+		out DeserializeOutput, metadata Metadata, err error,
 	)
 }
 
@@ -38,13 +38,13 @@ type DeserializeMiddleware interface {
 	// for the middleware chain to continue. The method must return a result or
 	// error to its caller.
 	HandleDeserialize(ctx context.Context, in DeserializeInput, next DeserializeHandler) (
-		out DeserializeOutput, err error,
+		out DeserializeOutput, metadata Metadata, err error,
 	)
 }
 
 // DeserializeMiddlewareFunc returns a DeserializeMiddleware with the unique ID
 // provided, and the func to be invoked.
-func DeserializeMiddlewareFunc(id string, fn func(context.Context, DeserializeInput, DeserializeHandler) (DeserializeOutput, error)) DeserializeMiddleware {
+func DeserializeMiddlewareFunc(id string, fn func(context.Context, DeserializeInput, DeserializeHandler) (DeserializeOutput, Metadata, error)) DeserializeMiddleware {
 	return deserializeMiddlewareFunc{
 		id: id,
 		fn: fn,
@@ -56,7 +56,9 @@ type deserializeMiddlewareFunc struct {
 	id string
 
 	// Middleware function to be called.
-	fn func(context.Context, DeserializeInput, DeserializeHandler) (DeserializeOutput, error)
+	fn func(context.Context, DeserializeInput, DeserializeHandler) (
+		DeserializeOutput, Metadata, error,
+	)
 }
 
 // ID returns the unique ID for the middleware.
@@ -64,7 +66,7 @@ func (s deserializeMiddlewareFunc) ID() string { return s.id }
 
 // HandleDeserialize invokes the middleware Fn.
 func (s deserializeMiddlewareFunc) HandleDeserialize(ctx context.Context, in DeserializeInput, next DeserializeHandler) (
-	out DeserializeOutput, err error,
+	out DeserializeOutput, metadata Metadata, err error,
 ) {
 	return s.fn(ctx, in, next)
 }
@@ -97,7 +99,7 @@ func (s *DeserializeStep) ID() string {
 //
 // Implements Middleware interface.
 func (s *DeserializeStep) HandleMiddleware(ctx context.Context, in interface{}, next Handler) (
-	out interface{}, err error,
+	out interface{}, metadata Metadata, err error,
 ) {
 	order := s.ids.GetOrder()
 
@@ -113,12 +115,8 @@ func (s *DeserializeStep) HandleMiddleware(ctx context.Context, in interface{}, 
 		Request: in,
 	}
 
-	res, err := h.HandleDeserialize(ctx, sIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return res.Result, nil
+	res, metadata, err := h.HandleDeserialize(ctx, sIn)
+	return res.Result, metadata, err
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -166,16 +164,12 @@ var _ DeserializeHandler = (*deserializeWrapHandler)(nil)
 // Implements DeserializeHandler, converts types and delegates to underlying
 // generic handler.
 func (w deserializeWrapHandler) HandleDeserialize(ctx context.Context, in DeserializeInput) (
-	out DeserializeOutput, err error,
+	out DeserializeOutput, metadata Metadata, err error,
 ) {
-	resp, err := w.Next.Handle(ctx, in.Request)
-	if err != nil {
-		return DeserializeOutput{}, err
-	}
-
+	resp, metadata, err := w.Next.Handle(ctx, in.Request)
 	return DeserializeOutput{
 		RawResponse: resp,
-	}, nil
+	}, metadata, err
 }
 
 type decoratedDeserializeHandler struct {
@@ -186,7 +180,7 @@ type decoratedDeserializeHandler struct {
 var _ DeserializeHandler = (*decoratedDeserializeHandler)(nil)
 
 func (h decoratedDeserializeHandler) HandleDeserialize(ctx context.Context, in DeserializeInput) (
-	out DeserializeOutput, err error,
+	out DeserializeOutput, metadata Metadata, err error,
 ) {
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleDeserialize(ctx, in, h.Next)
