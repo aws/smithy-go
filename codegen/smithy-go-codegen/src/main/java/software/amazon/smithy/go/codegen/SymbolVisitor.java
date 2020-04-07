@@ -181,8 +181,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        // TODO: implement document shapes
-        return createPointableSymbolBuilder(shape, "nil").build();
+        return createSymbolBuilder(shape, "smithy.Document")
+                .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
+                .build();
     }
 
     @Override
@@ -287,6 +288,11 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private SymbolReference createNamespaceReference(GoDependency dependency) {
+        String namespace = dependency.getDependencies().get(0).getPackageName();
+        return createNamespaceReference(dependency, CodegenUtils.getDefaultPackageImportName(namespace));
+    }
+
+    private SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
         // Go generally imports an entire package under a single name, which defaults to the last
         // part of the package name path. So we need to create a symbol for that namespace to reference.
         String namespace = dependency.getDependencies().get(0).getPackageName();
@@ -299,7 +305,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .build();
         return SymbolReference.builder()
                 .symbol(namespaceSymbol)
-                .alias(CodegenUtils.getDefaultPackageImportName(namespace))
+                .alias(alias)
                 .build();
     }
 }

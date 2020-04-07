@@ -29,7 +29,9 @@ public enum GoDependency implements SymbolDependencyContainer {
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
     BIG("stdlib", "math/big", "1.14"),
-    TIME("stdlib", "time", "1.14");
+    TIME("stdlib", "time", "1.14"),
+
+    SMITHY("dependency", "github.com/awslabs/smithy-go", "v0.0.1");
 
     public final String packageName;
     public final String version;
