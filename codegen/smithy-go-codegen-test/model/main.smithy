@@ -163,6 +163,7 @@ structure GetForecastOutput {
     precipitation: Precipitation,
 }
 
+/// Different kinds of preciptation.
 union Precipitation {
     rain: PrimitiveBoolean,
     sleet: PrimitiveBoolean,
@@ -179,7 +180,17 @@ structure OtherStructure {}
 @enum("YES": {}, "NO": {})
 string SimpleYesNo
 
-@enum("Yes": {name: "YES"}, "No": {name: "NO"})
+/// yes or no
+@enum(
+    "Yes": {
+        name: "YES",
+        documentation: "yes",
+    },
+    "No": {
+        name: "NO",
+        documentation: "no",
+    }
+)
 string TypedYesNo
 
 map StringMap {
@@ -201,10 +212,12 @@ structure GetCityImageInput {
 }
 
 structure GetCityImageOutput {
+    /// An image of the city in JPEG format.
     @streaming
     @httpPayload
     image: CityImageData,
 }
 
+/// A JPEG image of a city.
 @mediaType("image/jpeg")
 blob CityImageData
