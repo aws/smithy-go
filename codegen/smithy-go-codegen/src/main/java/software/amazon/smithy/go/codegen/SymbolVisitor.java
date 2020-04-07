@@ -250,8 +250,10 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol unionShape(UnionShape shape) {
-        // TODO: implement unions
-        return createPointableSymbolBuilder(shape, "nil").build();
+        String name = StringUtils.capitalize(shape.getId().getName());
+        return createPointableSymbolBuilder(shape, name, rootModuleName)
+                .definitionFile("./api_types.go")
+                .build();
     }
 
     @Override
