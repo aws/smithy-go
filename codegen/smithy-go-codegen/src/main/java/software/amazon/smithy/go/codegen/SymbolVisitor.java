@@ -181,7 +181,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return createPointableSymbolBuilder(shape, "smithy.Document")
+        return createSymbolBuilder(shape, "smithy.Document")
                 .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
                 .build();
     }

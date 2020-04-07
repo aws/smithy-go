@@ -9,12 +9,12 @@ package smithy
 type Document interface {
 	// Marshal will attempt to serialize the provided type into a
 	// protocol specific document value.
-	Marshal(x interface{}) error
+	MarshalDocument(x interface{}) error
 
 	// Unmarshall will attempt to map the protocol specific document value
 	// onto the provided type. If the type does not match the document type
 	// an error will be returned.
-	Unmarshal(x interface{}) error
+	UnmarshalDocument(x interface{}) error
 
 	// Indicates the document is a null (nil) type.
 	IsNull() bool
