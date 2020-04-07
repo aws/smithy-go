@@ -81,9 +81,14 @@ public class UnionGenerator implements Runnable {
 
         // Creates a fallback type for use when an unknown member is found. This
         // could be the result of an outdated client, for example.
-        writer.write("type $LUnknown []byte", symbol.getName())
-                .write("")
-                .write("func (v $LUnknown) is$L() {}", symbol.getName(), symbol.getName())
-                .write("");
+        writer.openBlock("type $LUnknown struct {", "}", symbol.getName(), () -> {
+            // The tag (member) name received over the wire. Necessary for re-serialization.
+            writer.write("tag string");
+            // The value received.
+            writer.write("value []byte");
+        });
+        writer.write("func (v $LUnknown) is$L() {}", symbol.getName(), symbol.getName())
+                .write("func (v $LUnknown) Value() []byte { return v.value }", symbol.getName())
+                .write("func (v $LUnknown) Tag() string { return v.tag }", symbol.getName());
     }
 }
