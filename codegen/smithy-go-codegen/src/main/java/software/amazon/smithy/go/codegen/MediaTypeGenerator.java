@@ -44,6 +44,7 @@ final class MediaTypeGenerator implements Runnable {
                 .orElseThrow(() -> new CodegenException(
                         "Media type symbols must have the property mediaTypeBaseSymbol: " + shape.getId()));
 
+        writer.writeShapeDocs(shape);
         writer.write("type $L $T", symbol.getName(), baseType)
                 .write("")
                 .openBlock("func (m $L) MediaType() string {", "}", symbol.getName(), () -> {

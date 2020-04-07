@@ -54,6 +54,7 @@ final class EnumGenerator implements Runnable {
                     labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
                 }
                 String label = labelBuilder.toString();
+                entry.getValue().getDocumentation().ifPresent(writer::writeDocs);
                 writer.write("$L $L = $S", label, symbol.getName(), entry.getKey());
             }
         }).write("");

@@ -53,6 +53,7 @@ final class StructureGenerator implements Runnable {
      */
     private void renderStructure() {
         Symbol symbol = symbolProvider.toSymbol(shape);
+        writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
         writeMembers();
         writer.closeBlock("}").write("");
@@ -61,6 +62,7 @@ final class StructureGenerator implements Runnable {
     private void writeMembers() {
         for (MemberShape member : shape.getAllMembers().values()) {
             String memberName = symbolProvider.toMemberName(member);
+            writer.writeMemberDocs(model, member);
             writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
         }
     }

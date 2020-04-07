@@ -42,6 +42,7 @@ public class UnionGenerator implements Runnable {
     @Override
     public void run() {
         Symbol symbol = symbolProvider.toSymbol(shape);
+        writer.writeShapeDocs(shape);
 
         // Creates the parent interface for the union, which only defines a
         // non-exported method whose purpose is only to enable satisfying the
@@ -57,6 +58,7 @@ public class UnionGenerator implements Runnable {
             String unExportedMemberName = StringUtils.uncapitalize(exportedMemberName);
 
             // Create an interface for the member
+            writer.writeMemberDocs(model, member);
             writer.openBlock("type $L interface {", "}", exportedMemberName, () -> {
                 writer.write("$L", symbol.getName());
                 writer.write("is$L()", exportedMemberName);
@@ -81,6 +83,8 @@ public class UnionGenerator implements Runnable {
 
         // Creates a fallback type for use when an unknown member is found. This
         // could be the result of an outdated client, for example.
+        writer.writeDocs(symbol.getName()
+                + "Unknown is returned when a union member is returned over the wire, but has an unknown tag.");
         writer.openBlock("type $LUnknown struct {", "}", symbol.getName(), () -> {
             // The tag (member) name received over the wire. Necessary for re-serialization.
             writer.write("tag string");
