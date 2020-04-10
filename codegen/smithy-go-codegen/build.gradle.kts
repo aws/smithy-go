@@ -18,5 +18,5 @@ extra["displayName"] = "Smithy :: Go :: Codegen"
 extra["moduleName"] = "software.amazon.smithy.go.codegen"
 
 dependencies {
-    api("software.amazon.smithy:smithy-codegen-core:0.9.7")
+    api("software.amazon.smithy:smithy-codegen-core:1.0.0")
 }
