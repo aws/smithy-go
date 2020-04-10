@@ -173,7 +173,7 @@ func (w serializeWrapHandler) HandleSerialize(ctx context.Context, in SerializeI
 	res, metadata, err := w.Next.Handle(ctx, in.Request)
 	return SerializeOutput{
 		Result: res,
-	}, metadata, nil
+	}, metadata, err
 }
 
 type decoratedSerializeHandler struct {

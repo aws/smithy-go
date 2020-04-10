@@ -112,7 +112,7 @@ func (s *InitializeStep) HandleMiddleware(ctx context.Context, in interface{}, n
 	}
 
 	res, metadata, err := h.HandleInitialize(ctx, sIn)
-	return res.Result, metadata, nil
+	return res.Result, metadata, err
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -165,7 +165,7 @@ func (w initializeWrapHandler) HandleInitialize(ctx context.Context, in Initiali
 	res, metadata, err := w.Next.Handle(ctx, in.Parameters)
 	return InitializeOutput{
 		Result: res,
-	}, metadata, nil
+	}, metadata, err
 }
 
 type decoratedInitializeHandler struct {

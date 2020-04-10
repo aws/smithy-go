@@ -1,6 +1,8 @@
 package middleware
 
-import "context"
+import (
+	"context"
+)
 
 // DeserializeInput provides the input parameters for the DeserializeInput to
 // consume. DeserializeMiddleware should not modify the Request, and instead
