@@ -165,7 +165,7 @@ func (w finalizeWrapHandler) HandleFinalize(ctx context.Context, in FinalizeInpu
 	res, metadata, err := w.Next.Handle(ctx, in.Request)
 	return FinalizeOutput{
 		Result: res,
-	}, metadata, nil
+	}, metadata, err
 }
 
 type decoratedFinalizeHandler struct {
