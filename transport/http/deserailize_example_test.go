@@ -62,7 +62,7 @@ func ExampleResponse_deserializeMiddleware() {
 		// DeserializeOutput.RawResponse field.
 		return &Response{
 			Response: resp,
-		}, middleware.NewMetadata(), nil
+		}, metadata, nil
 	})
 
 	// Use the stack to decorate the handler then invoke the decorated handler

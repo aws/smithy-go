@@ -52,7 +52,7 @@ func ExampleRequest_serializeMiddleware() {
 				StatusCode: 200,
 				Header:     http.Header{},
 			},
-		}, middleware.NewMetadata(), nil
+		}, metadata, nil
 	})
 
 	// Use the stack to decorate the handler then invoke the decorated handler
