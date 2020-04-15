@@ -42,7 +42,7 @@ func ExampleRequest_serializeMiddleware() {
 	) {
 		// Returns the standard http Request for the handler to make request
 		// using standard http compatible client.
-		req := in.(*Request).Build()
+		req := in.(*Request).Build(context.Background())
 
 		fmt.Println("foo-name", req.Header.Get("foo-name"))
 		fmt.Println("bar-count", req.Header.Get("bar-count"))
