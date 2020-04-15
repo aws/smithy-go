@@ -184,9 +184,7 @@ public final class GoWriter extends CodeWriter {
      * @return Returns the writer.
      */
     public GoWriter writeDocs(String docs) {
-        // Docs can have valid $ characters that shouldn't run through formatters.
-        // Escapes multi-line comment closings.
-        writeDocs(() -> write(docs.replace("$", "$$")));
+        writeDocs(() -> write(DocumentationConverter.convert(docs)));
         return this;
     }
 
