@@ -238,12 +238,6 @@ public final class DocumentationConverter {
             }
             result = String.join("\n", lines);
 
-            // Strip any leading blank lines, preserving leading whitespace on the first non-blank line.
-            String[] firstLineSplit = result.split("\n", 2);
-            if (StringUtils.isBlank(firstLineSplit[0])) {
-                return firstLineSplit[1];
-            }
-
             // Strip out leading and trailing newlines.
             return StringUtils.strip(result, "\n");
         }

@@ -110,7 +110,7 @@ public class DocumentationConverterTest {
                 Arguments.of("<h5>Foo</h5>bar", "Foo\n\nbar"),
                 Arguments.of("###### Foo\nbar", "Foo\n\nbar"),
                 Arguments.of("<h6>Foo</h6>bar", "Foo\n\nbar"),
-                Arguments.of("Inline ``code``", "Inline code"),
+                Arguments.of("Inline `code`", "Inline code"),
                 Arguments.of("```\ncode block\n```", "    code block"),
                 Arguments.of("```java\ncode block\n```", "    code block"),
                 Arguments.of("foo<br/>bar", "foo\n\nbar")
