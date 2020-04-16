@@ -28,6 +28,10 @@ import software.amazon.smithy.codegen.core.SymbolContainer;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.codegen.core.SymbolReference;
+import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.utils.CodeWriter;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -154,6 +158,65 @@ public final class GoWriter extends CodeWriter {
 
     Collection<SymbolDependency> getDependencies() {
         return dependencies;
+    }
+
+    /**
+     * Writes documentation comments.
+     *
+     * @param runnable Runnable that handles actually writing docs with the writer.
+     * @return Returns the writer.
+     */
+    GoWriter writeDocs(Runnable runnable) {
+        pushState("docs");
+        setNewlinePrefix("// ");
+        runnable.run();
+        setNewlinePrefix("");
+        popState();
+        return this;
+    }
+
+    /**
+     * Writes documentation comments from a string.
+     *
+     * <p>This function escapes "$" characters so formatters are not run.
+     *
+     * @param docs Documentation to write.
+     * @return Returns the writer.
+     */
+    public GoWriter writeDocs(String docs) {
+        writeDocs(() -> write(DocumentationConverter.convert(docs)));
+        return this;
+    }
+
+    /**
+     * Writes shape documentation comments if docs are present.
+     *
+     * @param shape Shape to write the documentation of.
+     * @return Returns true if docs were written.
+     */
+    boolean writeShapeDocs(Shape shape) {
+        return shape.getTrait(DocumentationTrait.class)
+                .map(DocumentationTrait::getValue)
+                .map(docs -> {
+                    writeDocs(docs);
+                    return true;
+                }).orElse(false);
+    }
+
+    /**
+     * Writes member shape documentation comments if docs are present.
+     *
+     * @param model Model used to dereference targets.
+     * @param member Shape to write the documentation of.
+     * @return Returns true if docs were written.
+     */
+    boolean writeMemberDocs(Model model, MemberShape member) {
+        return member.getMemberTrait(model, DocumentationTrait.class)
+                .map(DocumentationTrait::getValue)
+                .map(docs -> {
+                    writeDocs(docs);
+                    return true;
+                }).orElse(false);
     }
 
     @Override

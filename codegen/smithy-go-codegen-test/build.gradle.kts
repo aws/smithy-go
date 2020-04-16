@@ -28,5 +28,6 @@ repositories {
 }
 
 dependencies {
+    implementation("software.amazon.smithy:smithy-aws-traits:1.0.0")
     implementation(project(":smithy-go-codegen"))
 }

@@ -16,11 +16,10 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Locale;
-import java.util.Map;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.shapes.StringShape;
-import software.amazon.smithy.model.traits.EnumConstantBody;
+import software.amazon.smithy.model.traits.EnumDefinition;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -47,14 +46,15 @@ final class EnumGenerator implements Runnable {
         writer.write("type $L string", symbol.getName()).write("");
 
         writer.write("// Enum values for $L", symbol.getName()).openBlock("const (", ")", () -> {
-            for (Map.Entry<String, EnumConstantBody> entry : enumTrait.getValues().entrySet()) {
+            for (EnumDefinition definition : enumTrait.getValues()) {
                 StringBuilder labelBuilder = new StringBuilder(symbol.getName());
-                String name = entry.getValue().getName().orElse(entry.getKey());
+                String name = definition.getName().orElse(definition.getValue());
                 for (String part : name.split("(?U)\\W")) {
                     labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
                 }
                 String label = labelBuilder.toString();
-                writer.write("$L $L = $S", label, symbol.getName(), entry.getKey());
+                definition.getDocumentation().ifPresent(writer::writeDocs);
+                writer.write("$L $L = $S", label, symbol.getName(), definition.getValue());
             }
         }).write("");
     }

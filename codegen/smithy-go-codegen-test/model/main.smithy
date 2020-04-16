@@ -1,4 +1,4 @@
-$version: "0.5.0"
+$version: "1.0.0"
 
 metadata suppressions = [{
     ids: ["UnstableFeature"],
@@ -6,8 +6,10 @@ metadata suppressions = [{
 
 namespace example.weather
 
+use aws.protocols#awsJson1_1
+
 /// Provides weather forecasts.
-@protocols([{name: "aws.rest-json-1.1"}])
+@awsJson1_1
 @paginated(inputToken: "nextToken", outputToken: "nextToken", pageSize: "pageSize")
 service Weather {
     version: "2006-03-01",
@@ -163,6 +165,7 @@ structure GetForecastOutput {
     precipitation: Precipitation,
 }
 
+/// Different kinds of preciptation.
 union Precipitation {
     rain: PrimitiveBoolean,
     sleet: PrimitiveBoolean,
@@ -176,10 +179,22 @@ union Precipitation {
 
 structure OtherStructure {}
 
-@enum("YES": {}, "NO": {})
+@enum([{value: "YES"}, {value: "NO"}])
 string SimpleYesNo
 
-@enum("Yes": {name: "YES"}, "No": {name: "NO"})
+/// yes or no
+@enum([
+    {
+        value: "Yes",
+        name: "YES",
+        documentation: "yes",
+    },
+    {
+        value: "No",
+        name: "NO",
+        documentation: "no",
+    }
+])
 string TypedYesNo
 
 map StringMap {
@@ -201,10 +216,12 @@ structure GetCityImageInput {
 }
 
 structure GetCityImageOutput {
-    @streaming
+    /// An image of the city in JPEG format.
     @httpPayload
     image: CityImageData,
 }
 
+/// A JPEG image of a city.
+@streaming
 @mediaType("image/jpeg")
 blob CityImageData
