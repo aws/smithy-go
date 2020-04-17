@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -22,6 +24,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.Shape;
 
 
 /**
@@ -82,6 +85,32 @@ public interface GoIntegration {
     /**
      * Writes additional files.
      *
+     * Called each time a writer is used that defines a shape.
+     *
+     * <p>Any mutations made on the writer (for example, adding
+     * section interceptors) are removed after the callback has completed;
+     * the callback is invoked in between pushing and popping state from
+     * the writer.
+     *
+     * @param settings Settings used to generate.
+     * @param model Model to generate from.
+     * @param symbolProvider Symbol provider used for codegen.
+     * @param writer Writer that will be used.
+     * @param definedShape Shape that is being defined in the writer.
+     */
+    default void onShapeWriterUse(
+            GoSettings settings,
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer,
+            Shape definedShape
+    ) {
+        // pass
+    }
+
+    /**
+     * Writes additional files.
+     *
      * @param settings Settings used to generate.
      * @param model Model to generate from.
      * @param symbolProvider Symbol provider used for codegen.
@@ -94,6 +123,32 @@ public interface GoIntegration {
             Model model,
             SymbolProvider symbolProvider,
             TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+    ) {
+        // pass
+    }
+
+    /**
+     * Gets a list of protocol generators to register.
+     *
+     * @return Returns the list of protocol generators to register.
+     */
+    default List<ProtocolGenerator> getProtocolGenerators() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Adds additional client config interface fields.
+     *
+     * @param settings Settings used to generate.
+     * @param model Model to generate from.
+     * @param symbolProvider Symbol provider used for codegen.
+     * @param writer TypeScript writer to write to.
+     */
+    default void addConfigInterfaceFields(
+            GoSettings settings,
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer
     ) {
         // pass
     }

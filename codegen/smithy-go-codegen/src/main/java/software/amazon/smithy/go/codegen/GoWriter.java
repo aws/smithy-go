@@ -102,9 +102,9 @@ public final class GoWriter extends CodeWriter {
     /**
      * Imports a symbol if necessary using a package alias and list of context options.
      *
-     * @param symbol Symbol to optionally import.
+     * @param symbol       Symbol to optionally import.
      * @param packageAlias The alias to refer to the symbol's package by.
-     * @param options The list of context options (e.g., is it a USE or DECLARE symbol).
+     * @param options      The list of context options (e.g., is it a USE or DECLARE symbol).
      * @return Returns the writer.
      */
     public GoWriter addImport(Symbol symbol, String packageAlias, SymbolReference.ContextOption... options) {
@@ -151,7 +151,7 @@ public final class GoWriter extends CodeWriter {
      * Imports a package using an alias if necessary.
      *
      * @param packageName Package to import.
-     * @param as Alias to refer to the package as.
+     * @param as          Alias to refer to the package as.
      * @return Returns the writer.
      */
     public GoWriter addImport(String packageName, String as) {
@@ -223,7 +223,7 @@ public final class GoWriter extends CodeWriter {
     /**
      * Writes member shape documentation comments if docs are present.
      *
-     * @param model Model used to dereference targets.
+     * @param model  Model used to dereference targets.
      * @param member Shape to write the documentation of.
      * @return Returns true if docs were written.
      */
@@ -321,7 +321,8 @@ public final class GoWriter extends CodeWriter {
                 return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
             } else if (type instanceof SymbolReference) {
                 SymbolReference typeSymbol = (SymbolReference) type;
-                return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
+                return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false)
+                        || typeSymbol.getSymbol().getProperty("pointable", Boolean.class).orElse(false);
             } else {
                 throw new CodegenException(
                         "Invalid type provided to $P. Expected a Symbol, but found `" + type + "`");
