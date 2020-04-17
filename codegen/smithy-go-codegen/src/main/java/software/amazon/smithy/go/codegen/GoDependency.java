@@ -24,26 +24,31 @@ import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
  * An enum of all the built-in dependencies used by this package.
  */
 public enum GoDependency implements SymbolDependencyContainer {
-
     // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
-    BIG("stdlib", "math/big", "1.14"),
-    TIME("stdlib", "time", "1.14"),
+    BIG("stdlib", "", "math/big", "1.14"),
+    TIME("stdlib", "", "time", "1.14"),
 
-    SMITHY("dependency", "github.com/awslabs/smithy-go", "v0.0.1");
+    SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go", "v0.0.1"),
+    SMITHY_HTTP_TRANSPORT("dependency", "github.com/awslabs/smithy-go",
+            "github.com/awslabs/smithy-go/transport/http", "v0.0.1"),
+    SMITHY_MIDDLEWARE("dependency", "github.com/awslabs/smithy-go",
+            "github.com/awslabs/smithy-go/middleware", "v0.0.1");
 
-    public final String packageName;
+    public final String sourcePath;
+    public final String importPath;
     public final String version;
     public final SymbolDependency dependency;
 
-    GoDependency(String type, String name, String version) {
+    GoDependency(String type, String sourcePath, String importPath, String version) {
         this.dependency = SymbolDependency.builder()
                 .dependencyType(type)
-                .packageName(name)
+                .packageName(sourcePath)
                 .version(version)
                 .build();
-        this.packageName = name;
+        this.sourcePath = sourcePath;
+        this.importPath = importPath;
         this.version = version;
     }
 
