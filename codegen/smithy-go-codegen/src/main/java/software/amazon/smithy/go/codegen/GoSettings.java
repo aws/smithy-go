@@ -17,8 +17,11 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
+
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -37,6 +40,7 @@ public final class GoSettings {
     private String moduleName;
     private String moduleVersion;
     private String moduleDescription = "";
+    private ShapeId protocol;
 
     /**
      * Create a settings object from a configuration object node.
@@ -73,7 +77,7 @@ public final class GoSettings {
      * @param model Model to search for the service shape by ID.
      * @return Returns the found {@code Service}.
      * @throws NullPointerException if the service has not been set.
-     * @throws CodegenException if the service is invalid or not found.
+     * @throws CodegenException     if the service is invalid or not found.
      */
     public ServiceShape getService(Model model) {
         return model
@@ -146,5 +150,49 @@ public final class GoSettings {
      */
     public void setModuleDescription(String moduleDescription) {
         this.moduleDescription = Objects.requireNonNull(moduleDescription);
+    }
+
+    /**
+     * Gets the configured protocol to generate.
+     *
+     * @return Returns the configured protocol.
+     */
+    public ShapeId getProtocol() {
+        return protocol;
+    }
+
+    /**
+     * Resolves the highest priority protocol from a service shape that is
+     * supported by the generator.
+     *
+     * @param serviceIndex Service index containing the support
+     * @param service                 Service to get the protocols from if "protocols" is not set.
+     * @param supportedProtocolTraits The set of protocol traits supported by the generator.
+     * @return Returns the resolved protocol name.
+     * @throws UnresolvableProtocolException if no protocol could be resolved.
+     */
+    public ShapeId resolveServiceProtocol(ServiceIndex serviceIndex, ServiceShape service, Set<ShapeId> supportedProtocolTraits) {
+        if (protocol != null) {
+            return protocol;
+        }
+
+        Set<ShapeId> resolvedProtocols = serviceIndex.getProtocols(service).keySet();
+
+        return resolvedProtocols.stream()
+                .filter(supportedProtocolTraits::contains)
+                .findFirst()
+                .orElseThrow(() -> new UnresolvableProtocolException(String.format(
+                        "The %s service supports the following unsupported protocols %s. The following protocol "
+                                + "generators were found on the class path: %s",
+                        service.getId(), resolvedProtocols, supportedProtocolTraits)));
+    }
+
+    /**
+     * Sets the protocol to generate.
+     *
+     * @param protocol Protocols to generate.
+     */
+    public void setProtocol(ShapeId protocol) {
+        this.protocol = Objects.requireNonNull(protocol);
     }
 }

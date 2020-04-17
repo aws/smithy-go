@@ -86,6 +86,17 @@ final class GoDelegator {
         writer.popState();
     }
 
+    /**
+     * Gets a previously created writer or creates a new one if needed
+     * and adds a new line if the writer already exists.
+     *
+     * @param filename Name of the file to create.
+     * @param writerConsumer Consumer that accepts and works with the file.
+     */
+    void useFileWriter(String filename, String namespace, Consumer<GoWriter> writerConsumer) {
+        writerConsumer.accept(checkoutWriter(filename, namespace));
+    }
+
     private GoWriter checkoutWriter(String filename, String namespace) {
         String formattedFilename = Paths.get(filename).normalize().toString();
         boolean needsNewline = writers.containsKey(formattedFilename);
