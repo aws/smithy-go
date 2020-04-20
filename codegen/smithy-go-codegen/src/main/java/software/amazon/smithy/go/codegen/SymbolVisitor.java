@@ -288,14 +288,14 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private SymbolReference createNamespaceReference(GoDependency dependency) {
-        String namespace = dependency.getDependencies().get(0).getPackageName();
+        String namespace = dependency.importPath;
         return createNamespaceReference(dependency, CodegenUtils.getDefaultPackageImportName(namespace));
     }
 
     private SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
         // Go generally imports an entire package under a single name, which defaults to the last
         // part of the package name path. So we need to create a symbol for that namespace to reference.
-        String namespace = dependency.getDependencies().get(0).getPackageName();
+        String namespace = dependency.importPath;
         Symbol namespaceSymbol = Symbol.builder()
                 // We're not referencing a particular symbol from the namespace, so we leave the name blank.
                 .name("")
