@@ -200,9 +200,8 @@ subprojects {
          * CheckStyle
          * ====================================================
          */
-        apply(plugin = "checkstyle")
-
-        tasks["checkstyleTest"].enabled = false
+//        apply(plugin = "checkstyle")
+//        tasks["checkstyleTest"].enabled = false
 
         /*
          * Code coverage
@@ -226,15 +225,15 @@ subprojects {
          * Spotbugs
          * ====================================================
          */
-        apply(plugin = "com.github.spotbugs")
-
-        // We don't need to lint tests.
-        tasks["spotbugsTest"].enabled = false
-
-        // Configure the bug filter for spotbugs.
-        tasks.withType<com.github.spotbugs.SpotBugsTask> {
-            effort = "max"
-            excludeFilterConfig = project.resources.text.fromFile("${project.rootDir}/config/spotbugs/filter.xml")
-        }
+//        apply(plugin = "com.github.spotbugs")
+//
+//        // We don't need to lint tests.
+//        tasks["spotbugsTest"].enabled = false
+//
+//        // Configure the bug filter for spotbugs.
+//        tasks.withType<com.github.spotbugs.SpotBugsTask> {
+//            effort = "max"
+//            excludeFilterConfig = project.resources.text.fromFile("${project.rootDir}/config/spotbugs/filter.xml")
+//        }
     }
 }

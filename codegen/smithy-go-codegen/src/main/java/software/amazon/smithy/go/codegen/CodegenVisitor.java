@@ -15,23 +15,19 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.logging.Logger;
+
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.neighbor.Walker;
-import software.amazon.smithy.model.shapes.BlobShape;
-import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeVisitor;
-import software.amazon.smithy.model.shapes.StringShape;
-import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.shapes.*;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 
@@ -49,6 +45,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final FileManifest fileManifest;
     private final SymbolProvider symbolProvider;
     private final GoDelegator writers;
+    private final List<GoIntegration> integrations = new ArrayList<>();
+    private final ProtocolGenerator protocolGenerator;
+    private final ApplicationProtocol applicationProtocol;
 
     CodegenVisitor(PluginContext context) {
         settings = GoSettings.from(context.getSettings());
@@ -58,8 +57,54 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         fileManifest = context.getFileManifest();
         LOGGER.info(() -> "Generating Go client for service " + service.getId());
 
-        symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings.getModuleName());
+        // Load all integrations.
+        ClassLoader loader = context.getPluginClassLoader().orElse(getClass().getClassLoader());
+        LOGGER.info("Attempting to discover GoIntegration from the classpath...");
+        ServiceLoader.load(GoIntegration.class, loader)
+                .forEach(integration -> {
+                    LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
+                    integrations.add(integration);
+                });
+
+        SymbolProvider resolvedProvider = GoCodegenPlugin.createSymbolProvider(model, settings.getModuleName());
+        for (GoIntegration integration : integrations) {
+            resolvedProvider = integration.decorateSymbolProvider(settings, model, resolvedProvider);
+        }
+        symbolProvider = resolvedProvider;
+
+        protocolGenerator = resolveProtocolGenerator(integrations, model ,service, settings);
+        applicationProtocol = protocolGenerator == null
+                ? new ApplicationProtocol("http", null, null, null)
+                : protocolGenerator.getApplicationProtocol();
+
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
+    }
+
+    private static ProtocolGenerator resolveProtocolGenerator(
+            Collection<GoIntegration> integrations,
+            Model model,
+            ServiceShape service,
+            GoSettings settings
+    ) {
+        // Collect all of the supported protocol generators.
+        Map<ShapeId, ProtocolGenerator> generators = new HashMap<>();
+        for (GoIntegration integration : integrations) {
+            for (ProtocolGenerator generator : integration.getProtocolGenerators()) {
+                generators.put(generator.getProtocol(), generator);
+            }
+        }
+
+        ServiceIndex serviceIndex = model.getKnowledge(ServiceIndex.class);
+
+        ShapeId protocolTrait;
+        try {
+            protocolTrait = settings.resolveServiceProtocol(serviceIndex, service, generators.keySet());
+        } catch (UnresolvableProtocolException e) {
+            LOGGER.warning("Unable to find a protocol generator for " + service.getId() + ": " + e.getMessage());
+            protocolTrait = null;
+        }
+
+        return protocolTrait != null ? generators.get(protocolTrait) : null;
     }
 
     void execute() {
@@ -69,6 +114,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (Shape shape : serviceShapes) {
             shape.accept(this);
+        }
+
+        for (GoIntegration integration : integrations) {
+            integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
         }
 
         LOGGER.fine("Flushing go writers");

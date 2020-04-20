@@ -22,14 +22,17 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Java SPI for customizing Go code generation, registering
@@ -89,21 +92,6 @@ public interface GoIntegration {
     /**
      * Called each time a writer is used that defines a shape.
      *
-     * <p>This method could be called multiple times for the same writer
-     * but for different shapes. It gives an opportunity to intercept code
-     * sections of a {@link GoWriter} by name using the shape for
-     * context. For example:
-     *
-     * <pre>
-     * {@code
-     * public final class MyIntegration implements TypeScriptIntegration {
-     *     public onWriterUse(TypeScriptSettings settings, Model model, SymbolProvider symbolProvider,
-     *             TypeScriptWriter writer, Shape definedShape) {
-     *         writer.onSection("example", text -&gt; writer.write("Intercepted: " + text"));
-     *     }
-     * }
-     * }</pre>
-     *
      * <p>Any mutations made on the writer (for example, adding
      * section interceptors) are removed after the callback has completed;
      * the callback is invoked in between pushing and popping state from
@@ -128,22 +116,6 @@ public interface GoIntegration {
     /**
      * Writes additional files.
      *
-     * <pre>
-     * {@code
-     * public final class MyIntegration implements TypeScriptIntegration {
-     *     public writeAdditionalFiles(
-     *             TypeScriptSettings settings,
-     *             Model model,
-     *             SymbolProvider symbolProvider,
-     *             BiConsumer<String, Consumer<TypeScriptWriter>> writerFactory
-     *     ) {
-     *         writerFactory.accept("foo.ts", writer -> {
-     *             writer.write("// Hello!");
-     *         });
-     *     }
-     * }
-     * }</pre>
-     *
      * @param settings Settings used to generate.
      * @param model Model to generate from.
      * @param symbolProvider Symbol provider used for codegen.
@@ -155,18 +127,9 @@ public interface GoIntegration {
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
-            BiConsumer<String, Consumer<GoWriter>> writerFactory
+            TriConsumer<String, String, Consumer<GoWriter>> writerFactory
     ) {
         // pass
-    }
-
-    /**
-     * Gets a list of plugins to apply to the generated client.
-     *
-     * @return Returns the list of RuntimePlugins to apply to the client.
-     */
-    default List<RuntimeClientPlugin> getClientPlugins() {
-        return Collections.emptyList();
     }
 
     /**
@@ -192,26 +155,6 @@ public interface GoIntegration {
      * automatically imported, and any of their contained
      * {@link SymbolDependency} values are automatically added to the
      * generated {@code package.json} file.
-     *
-     * <p>For example, the following code adds two fields to a client:
-     *
-     * <pre>
-     * {@code
-     * public final class MyIntegration implements TypeScriptIntegration {
-     *     public void addConfigInterfaceFields(
-     *             TypeScriptSettings settings,
-     *             Model model,
-     *             SymbolProvider symbolProvider,
-     *             TypeScriptWriter writer
-     *     ) {
-     *         writer.writeDocs("The docs for foo...");
-     *         writer.write("foo?: string;"); // Note the trailing semicolon!
-     *
-     *         writer.writeDocs("The docs for bar...");
-     *         writer.write("bar?: string;");
-     *     }
-     * }
-     * }</pre>
      *
      * @param settings Settings used to generate.
      * @param model Model to generate from.

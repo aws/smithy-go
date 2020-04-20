@@ -94,4 +94,14 @@ public final class CodegenUtils {
         }
         return packageName.substring(packageName.lastIndexOf('/') + 1);
     }
+
+    /**
+     * Detects if an annotated mediatype indicates JSON contents.
+     *
+     * @param mediaType The media type to inspect.
+     * @return If the media type indicates JSON contents.
+     */
+    public static boolean isJsonMediaType(String mediaType) {
+        return mediaType.equals("application/json") || mediaType.endsWith("+json");
+    }
 }

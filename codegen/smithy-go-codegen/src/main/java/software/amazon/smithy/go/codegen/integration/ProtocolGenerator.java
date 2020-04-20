@@ -24,6 +24,8 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.CaseUtils;
 
 import java.util.Collection;
@@ -36,7 +38,7 @@ import java.util.stream.Collectors;
 public interface ProtocolGenerator {
     /**
      * Sanitizes the name of the protocol so it can be used as a symbol
-     * in TypeScript.
+     * in Go.
      *
      * <p>For example, the default implementation converts "." to "_",
      * and converts "-" to become camelCase separated words. This means
@@ -46,19 +48,15 @@ public interface ProtocolGenerator {
      * @return Returns the sanitized name.
      */
     static String getSanitizedName(String name) {
-        String result = name.replace(".", "_");
-        return CaseUtils.toCamelCase(result, true, '-');
+        return CaseUtils.toCamelCase(name, true, ' ', '-', '_', '.');
     }
 
     /**
-     * Gets the name of the protocol.
+     * Gets the supported protocol {@link ShapeId}.
      *
-     * <p>This is the same name used in Smithy models on the "protocols"
-     * trait (e.g., "aws.rest-json-1.1").
-     *
-     * @return Returns the protocol name.
+     * @return Returns the protocol supported
      */
-    String getName();
+    ShapeId getProtocol();
 
     /**
      * Creates an application protocol for the generator.
@@ -81,9 +79,9 @@ public interface ProtocolGenerator {
      * <p>By default, if the application protocols are considered equal, then
      * {@code other} is returned.
      *
-     * @param service Service being generated.
+     * @param service            Service being generated.
      * @param protocolGenerators Other protocol generators that are being generated.
-     * @param other Protocol generator to resolve against.
+     * @param other              Protocol generator to resolve against.
      * @return Returns the resolved application protocol object.
      */
     default ApplicationProtocol resolveApplicationProtocol(
@@ -93,14 +91,15 @@ public interface ProtocolGenerator {
     ) {
         if (!getApplicationProtocol().equals(other)) {
             String protocolNames = protocolGenerators.stream()
-                    .map(ProtocolGenerator::getName)
+                    .map(ProtocolGenerator::getProtocol)
+                    .map(Trait::getIdiomaticTraitName)
                     .sorted()
                     .collect(Collectors.joining(", "));
             throw new CodegenException(String.format(
                     "All of the protocols generated for a service must be runtime compatible, but "
-                    + "protocol `%s` is incompatible with other application protocols: [%s]. Please pick a "
-                    + "set of compatible protocols using the `protocols` option when generating %s.",
-                    getName(), protocolNames, service.getId()));
+                            + "protocol `%s` is incompatible with other application protocols: [%s]. Please pick a "
+                            + "set of compatible protocols using the `protocols` option when generating %s.",
+                    getProtocol(), protocolNames, service.getId()));
         }
 
         return other;
@@ -111,7 +110,8 @@ public interface ProtocolGenerator {
      *
      * @param context Serde context.
      */
-    default void generateSharedComponents(GenerationContext context) {}
+    default void generateSharedComponents(GenerationContext context) {
+    }
 
     /**
      * Generates the code used to serialize the shapes of a service
@@ -132,12 +132,12 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a serializer function for shapes of a service.
      *
-     * @param symbol The symbol the serializer function is being generated for.
+     * @param symbol   The symbol the serializer function is being generated for.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
     static String getSerFunctionName(Symbol symbol, String protocol) {
-        // e.g., serializeAws_restJson1_1ExecuteStatement
+        // e.g., serializeFooShapeAwsRestJson11
         String functionName = "serialize" + ProtocolGenerator.getSanitizedName(protocol);
 
         // These need intermediate serializers, so generate a separate name.
@@ -159,7 +159,7 @@ public interface ProtocolGenerator {
      * @return Returns the generated function name.
      */
     static String getDeserFunctionName(Symbol symbol, String protocol) {
-        // e.g., deserializeAws_restJson1_1ExecuteStatement
+        // e.g., deserializeFooShapeAwsRestJson11
         String functionName = "deserialize" + ProtocolGenerator.getSanitizedName(protocol);
 
         // These need intermediate serializers, so generate a separate name.

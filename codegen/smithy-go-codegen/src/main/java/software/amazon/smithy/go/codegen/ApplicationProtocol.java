@@ -73,15 +73,6 @@ public final class ApplicationProtocol {
     }
 
     /**
-     * Checks if the protocol is an MQTT based protocol.
-     *
-     * @return Returns true if it is MQTT based.
-     */
-    public boolean isMqttProtocol() {
-        return getName().startsWith("mqtt");
-    }
-
-    /**
      * Gets the symbol used to refer to options for this protocol.
      *
      * @return Returns the protocol options.
