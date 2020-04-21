@@ -96,7 +96,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         // Reserved words that only apply to error members.
         ReservedWords reservedErrorMembers = new ReservedWordsBuilder()
                 .put("ErrorCode", "ErrorCode_")
-                .put("ErrorFault", "ErrorMessage_")
+                .put("ErrorFault", "ErrorFault_")
                 .put("Unwrap", "Unwrap_")
                 .put("Error", "Error_")
                 .build();
