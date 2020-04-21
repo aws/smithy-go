@@ -141,7 +141,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return createSymbolBuilder(shape, "[]" + reference.getName())
+        return createValueSymbolBuilder(shape, "[]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
@@ -149,7 +149,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return createSymbolBuilder(shape, "map[string]" + reference.getName())
+        return createValueSymbolBuilder(shape, "map[string]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
@@ -181,7 +181,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return createSymbolBuilder(shape, "smithy.Document")
+        return createValueSymbolBuilder(shape, "smithy.Document")
                 .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
                 .build();
     }
@@ -229,7 +229,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     public Symbol stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             String name = StringUtils.capitalize(shape.getId().getName());
-            return createPointableSymbolBuilder(shape, name, rootModuleName)
+            return createValueSymbolBuilder(shape, name, rootModuleName)
                     .definitionFile("./api_enums.go")
                     .build();
         }
@@ -271,7 +271,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .build();
     }
 
-    private Symbol.Builder createSymbolBuilder(Shape shape, String typeName) {
+    private Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName) {
         return Symbol.builder().putProperty("shape", shape)
                 .putProperty("pointable", false)
                 .name(typeName);
@@ -285,6 +285,10 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, String namespace) {
         return createPointableSymbolBuilder(shape, typeName).namespace(namespace, ".");
+    }
+
+    private Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName, String namespace) {
+        return createValueSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
     private SymbolReference createNamespaceReference(GoDependency dependency) {
