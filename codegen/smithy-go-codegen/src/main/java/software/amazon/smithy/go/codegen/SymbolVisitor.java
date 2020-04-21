@@ -96,7 +96,6 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         // Reserved words that only apply to error members.
         ReservedWords reservedErrorMembers = new ReservedWordsBuilder()
                 .put("ErrorCode", "ErrorCode_")
-                .put("ErrorMessage", "ErrorMessage_")
                 .put("ErrorFault", "ErrorMessage_")
                 .put("Unwrap", "Unwrap_")
                 .put("Error", "Error_")
@@ -342,7 +341,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         Symbol.Builder builder = createPointableSymbolBuilder(shape, name, rootModuleName);
         if (shape.hasTrait(ErrorTrait.ID)) {
             builder.definitionFile("./api_errors.go")
-                    .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"));
+                    .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
+                    .addReference(createNamespaceReference(GoDependency.FMT));
         } else {
             builder.definitionFile("./api_types.go");
         }

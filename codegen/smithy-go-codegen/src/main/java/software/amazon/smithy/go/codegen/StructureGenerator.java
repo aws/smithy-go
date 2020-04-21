@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Map;
+import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -23,6 +24,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SetUtils;
 
 /**
  * Renders structures.
@@ -33,6 +35,7 @@ final class StructureGenerator implements Runnable {
             "ErrorMessage", "string",
             "ErrorFault", "string"
     );
+    private static final Set<String> ERROR_MESSAGE_MEMBER_NAMES = SetUtils.of("ErrorMessage", "Message");
 
     private final Model model;
     private final SymbolProvider symbolProvider;
@@ -62,16 +65,12 @@ final class StructureGenerator implements Runnable {
         Symbol symbol = symbolProvider.toSymbol(shape);
         writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
-        writeMembers();
-        writer.closeBlock("}").write("");
-    }
-
-    private void writeMembers() {
         for (MemberShape member : shape.getAllMembers().values()) {
             String memberName = symbolProvider.toMemberName(member);
             writer.writeMemberDocs(model, member);
             writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
         }
+        writer.closeBlock("}").write("");
     }
 
     /**
@@ -98,6 +97,11 @@ final class StructureGenerator implements Runnable {
 
             for (MemberShape member : shape.getAllMembers().values()) {
                 String memberName = symbolProvider.toMemberName(member);
+                // Error messages are represented by the ErrorMessage function in the APIError interface,
+                // so we don't generate getters for them.
+                if (ERROR_MESSAGE_MEMBER_NAMES.contains(memberName)) {
+                    continue;
+                }
                 Symbol memberSymbol = symbolProvider.toSymbol(member);
                 String getterName = "Get" + memberName;
                 String haserName = "Has" + memberName;
@@ -114,14 +118,22 @@ final class StructureGenerator implements Runnable {
                 "The concrete implementation for %s. This should not be used directly.", interfaceName));
         writer.openBlock("type $L struct {", "}", structureSymbol.getName(), () -> {
             // The message is the only part of the standard APIError interface that isn't known ahead of time.
-            // In order to reduce potential conflicts, we make the struct member non-exported.
-            writer.write("message string").write("");
-            writeMembers();
+            // Message is a pointer mostly for the sake of consistency.
+            writer.write("Message *string").write("");
+
+
+            for (MemberShape member : shape.getAllMembers().values()) {
+                String memberName = symbolProvider.toMemberName(member);
+                // error messages are represented under Message for consistency
+                if (!ERROR_MESSAGE_MEMBER_NAMES.contains(memberName)) {
+                    writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
+                }
+            }
         }).write("");
 
         // write the Error method to satisfy the standard error interface
         writer.openBlock("func (e *$L) Error() string {", "}", structureSymbol.getName(), () -> {
-            writer.write("return e.ErrorMessage()");
+            writer.write("return fmt.Sprintf(\"%s: %s\", e.ErrorCode(), e.ErrorMessage())");
         });
 
         // Satisfy the isa function
@@ -129,7 +141,12 @@ final class StructureGenerator implements Runnable {
 
         // Write out methods to satisfy the APIError interface. All but the message are known ahead of time,
         // and for those we just encode the information in the method itself.
-        writer.write("func (e *$L) ErrorMessage() string { return e.message }", structureSymbol.getName());
+        writer.openBlock("func (e *$L) ErrorMessage() string {", "}", structureSymbol.getName(), () -> {
+            writer.openBlock("if e.Message == nil {", "}", () -> {
+                writer.write("return \"\"");
+            });
+            writer.write("return *e.Message");
+        });
         writer.write("func (e *$L) ErrorCode() string { return $S }",
                 structureSymbol.getName(), shape.getId().getName());
 
