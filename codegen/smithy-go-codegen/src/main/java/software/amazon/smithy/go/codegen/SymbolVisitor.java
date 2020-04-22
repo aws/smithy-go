@@ -24,7 +24,6 @@ import software.amazon.smithy.codegen.core.ReservedWords;
 import software.amazon.smithy.codegen.core.ReservedWordsBuilder;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.BigDecimalShape;
 import software.amazon.smithy.model.shapes.BigIntegerShape;
@@ -198,7 +197,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        Symbol blobSymbol = createPointableSymbolBuilder(shape, "[]byte").build();
+        Symbol blobSymbol = SymbolUtils.createPointableSymbolBuilder(shape, "[]byte").build();
         if (shape.hasTrait(MediaTypeTrait.class)) {
             return createMediaTypeSymbol(shape, blobSymbol);
         }
@@ -210,7 +209,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         // MediaTypeApplicationJson based on the media type value. This could lead to name conflicts
         // but potentially reduces duplication.
         String name = getDefaultShapeName(shape);
-        return createPointableSymbolBuilder(shape, name, typesPackageName)
+        return SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName)
                 .putProperty("mediaTypeBaseSymbol", base)
                 .definitionFile("./types/types.go")
                 .addReference(base)
@@ -219,7 +218,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol booleanShape(BooleanShape shape) {
-        return createPointableSymbolBuilder(shape, "bool").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "bool").build();
     }
 
     @Override
@@ -237,7 +236,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return createValueSymbolBuilder(shape, "[]" + reference.getName())
+        return SymbolUtils.createValueSymbolBuilder(shape, "[]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
@@ -245,46 +244,46 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return createValueSymbolBuilder(shape, "map[string]" + reference.getName())
+        return SymbolUtils.createValueSymbolBuilder(shape, "map[string]" + reference.getName())
                 .addReference(reference)
                 .build();
     }
 
     @Override
     public Symbol byteShape(ByteShape shape) {
-        return createPointableSymbolBuilder(shape, "byte").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "byte").build();
     }
 
     @Override
     public Symbol shortShape(ShortShape shape) {
-        return createPointableSymbolBuilder(shape, "int16").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int16").build();
     }
 
     @Override
     public Symbol integerShape(IntegerShape shape) {
-        return createPointableSymbolBuilder(shape, "int32").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int32").build();
     }
 
     @Override
     public Symbol longShape(LongShape shape) {
-        return createPointableSymbolBuilder(shape, "int64").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int64").build();
     }
 
     @Override
     public Symbol floatShape(FloatShape shape) {
-        return createPointableSymbolBuilder(shape, "float32").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "float32").build();
     }
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return createValueSymbolBuilder(shape, "smithy.Document")
-                .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
+        return SymbolUtils.createValueSymbolBuilder(shape, "smithy.Document")
+                .addReference(SymbolUtils.createNamespaceReference(GoDependency.SMITHY, "smithy"))
                 .build();
     }
 
     @Override
     public Symbol doubleShape(DoubleShape shape) {
-        return createPointableSymbolBuilder(shape, "float64").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "float64").build();
     }
 
     @Override
@@ -298,27 +297,27 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return createPointableSymbolBuilder(shape, symbolName)
-                .addReference(createNamespaceReference(GoDependency.BIG))
+        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName)
+                .addReference(SymbolUtils.createNamespaceReference(GoDependency.BIG))
                 .build();
     }
 
     @Override
     public Symbol operationShape(OperationShape shape) {
         // TODO: implement operations
-        return createPointableSymbolBuilder(shape, "nil").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol resourceShape(ResourceShape shape) {
         // TODO: implement resources
-        return createPointableSymbolBuilder(shape, "nil").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "nil").build();
     }
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
         // TODO: implement client generation
-        return createValueSymbolBuilder(shape, "Client", rootModuleName)
+        return SymbolUtils.createValueSymbolBuilder(shape, "Client", rootModuleName)
                 .definitionFile("./api_client.go")
                 .build();
     }
@@ -327,12 +326,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     public Symbol stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             String name = getDefaultShapeName(shape);
-            return createValueSymbolBuilder(shape, name, typesPackageName)
+            return SymbolUtils.createValueSymbolBuilder(shape, name, typesPackageName)
                     .definitionFile("./types/enums.go")
                     .build();
         }
 
-        Symbol stringSymbol = createPointableSymbolBuilder(shape, "string").build();
+        Symbol stringSymbol = SymbolUtils.createPointableSymbolBuilder(shape, "string").build();
         if (shape.hasTrait(MediaTypeTrait.class)) {
             return createMediaTypeSymbol(shape, stringSymbol);
         }
@@ -342,11 +341,11 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = getDefaultShapeName(shape);
-        Symbol.Builder builder = createPointableSymbolBuilder(shape, name, typesPackageName);
+        Symbol.Builder builder = SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName);
         if (shape.hasTrait(ErrorTrait.ID)) {
             builder.definitionFile("./types/errors.go")
-                    .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
-                    .addReference(createNamespaceReference(GoDependency.FMT));
+                    .addReference(SymbolUtils.createNamespaceReference(GoDependency.SMITHY, "smithy"))
+                    .addReference(SymbolUtils.createNamespaceReference(GoDependency.FMT));
         } else {
             builder.definitionFile("./types/types.go");
         }
@@ -356,7 +355,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol unionShape(UnionShape shape) {
         String name = getDefaultShapeName(shape);
-        return createPointableSymbolBuilder(shape, name, typesPackageName)
+        return SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName)
                 .definitionFile("./types/types.go")
                 .build();
     }
@@ -370,50 +369,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        return createPointableSymbolBuilder(shape, "time.Time")
-                .addReference(createNamespaceReference(GoDependency.TIME))
-                .build();
-    }
-
-    private Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName) {
-        return Symbol.builder().putProperty("shape", shape)
-                .putProperty("pointable", false)
-                .name(typeName);
-    }
-
-    private Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName) {
-        return Symbol.builder().putProperty("shape", shape)
-                .putProperty("pointable", true)
-                .name(typeName);
-    }
-
-    private Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, String namespace) {
-        return createPointableSymbolBuilder(shape, typeName).namespace(namespace, ".");
-    }
-
-    private Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName, String namespace) {
-        return createValueSymbolBuilder(shape, typeName).namespace(namespace, ".");
-    }
-
-    private SymbolReference createNamespaceReference(GoDependency dependency) {
-        String namespace = dependency.importPath;
-        return createNamespaceReference(dependency, CodegenUtils.getDefaultPackageImportName(namespace));
-    }
-
-    private SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
-        // Go generally imports an entire package under a single name, which defaults to the last
-        // part of the package name path. So we need to create a symbol for that namespace to reference.
-        String namespace = dependency.importPath;
-        Symbol namespaceSymbol = Symbol.builder()
-                // We're not referencing a particular symbol from the namespace, so we leave the name blank.
-                .name("")
-                .putProperty("namespaceSymbol", true)
-                .namespace(namespace, "/")
-                .addDependency(dependency)
-                .build();
-        return SymbolReference.builder()
-                .symbol(namespaceSymbol)
-                .alias(alias)
+        return SymbolUtils.createPointableSymbolBuilder(shape, "time.Time")
+                .addReference(SymbolUtils.createNamespaceReference(GoDependency.TIME))
                 .build();
     }
 }
