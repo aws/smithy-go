@@ -57,11 +57,11 @@ func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
 
 	switch v := reader.(type) {
 	case io.Seeker:
-		rc.isStreamSeekable = true
 		n, err := v.Seek(0, io.SeekCurrent)
 		if err != nil {
-			return rc, err
+			return r, err
 		}
+		rc.isStreamSeekable = true
 		rc.streamStartPos = n
 	default:
 		rc.isStreamSeekable = false
