@@ -120,4 +120,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.useShapeWriter(shape, writer -> new UnionGenerator(model, symbolProvider, writer, shape).run());
         return null;
     }
+
+    @Override
+    public Void serviceShape(ServiceShape shape) {
+        // TODO: implement client generation
+        writers.useShapeWriter(shape, writer -> { });
+        return null;
+    }
 }
