@@ -69,6 +69,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private final Model model;
     private final String rootModuleName;
+    private final String typesPackageName;
     private final ReservedWordSymbolProvider.Escaper escaper;
     private final ReservedWordSymbolProvider.Escaper errorMemberEscaper;
     private final Map<ShapeId, ReservedWordSymbolProvider.Escaper> structureSpecificMemberEscapers = new HashMap<>();
@@ -77,6 +78,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     SymbolVisitor(Model model, String rootModuleName) {
         this.model = model;
         this.rootModuleName = rootModuleName;
+        this.typesPackageName = rootModuleName + "/types";
 
         ReservedWords reservedWords = new ReservedWordsBuilder()
                 // Since Go only exports names if the first character is upper case and all
@@ -208,9 +210,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         // MediaTypeApplicationJson based on the media type value. This could lead to name conflicts
         // but potentially reduces duplication.
         String name = getDefaultShapeName(shape);
-        return createPointableSymbolBuilder(shape, name, rootModuleName)
+        return createPointableSymbolBuilder(shape, name, typesPackageName)
                 .putProperty("mediaTypeBaseSymbol", base)
-                .definitionFile("./api_types.go")
+                .definitionFile("./types/types.go")
                 .addReference(base)
                 .build();
     }
@@ -315,16 +317,18 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
-        // TODO: implement clients
-        return createPointableSymbolBuilder(shape, "nil").build();
+        // TODO: implement client generation
+        return createValueSymbolBuilder(shape, "Client", rootModuleName)
+                .definitionFile("./api_client.go")
+                .build();
     }
 
     @Override
     public Symbol stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             String name = getDefaultShapeName(shape);
-            return createValueSymbolBuilder(shape, name, rootModuleName)
-                    .definitionFile("./api_enums.go")
+            return createValueSymbolBuilder(shape, name, typesPackageName)
+                    .definitionFile("./types/enums.go")
                     .build();
         }
 
@@ -338,13 +342,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = getDefaultShapeName(shape);
-        Symbol.Builder builder = createPointableSymbolBuilder(shape, name, rootModuleName);
+        Symbol.Builder builder = createPointableSymbolBuilder(shape, name, typesPackageName);
         if (shape.hasTrait(ErrorTrait.ID)) {
-            builder.definitionFile("./api_errors.go")
+            builder.definitionFile("./types/errors.go")
                     .addReference(createNamespaceReference(GoDependency.SMITHY, "smithy"))
                     .addReference(createNamespaceReference(GoDependency.FMT));
         } else {
-            builder.definitionFile("./api_types.go");
+            builder.definitionFile("./types/types.go");
         }
         return builder.build();
     }
@@ -352,8 +356,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol unionShape(UnionShape shape) {
         String name = getDefaultShapeName(shape);
-        return createPointableSymbolBuilder(shape, name, rootModuleName)
-                .definitionFile("./api_types.go")
+        return createPointableSymbolBuilder(shape, name, typesPackageName)
+                .definitionFile("./types/types.go")
                 .build();
     }
 
