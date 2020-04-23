@@ -23,6 +23,5 @@ public class GoMiddlewareGeneratorTest {
                 "ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) ("));
         assertThat(generated, containsString("out middleware.SerializeOutput, metadata middleware.Metadata, err error,"));
         assertThat(generated, containsString("return next.HandleSerialize(ctx, in)"));
-
     }
 }

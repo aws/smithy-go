@@ -1,28 +1,45 @@
+/*
+ * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+
 package software.amazon.smithy.go.codegen;
+
+import java.util.function.BiConsumer;
 
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolReference;
 
-import java.util.Optional;
-import java.util.function.BiConsumer;
-
+/*
+ * Helper for generating Smithy Go middleware
+ */
 public class GoMiddlewareGenerator {
+    private static final SymbolReference CONTEXT_TYPE;
+    private static final SymbolReference METADATA_TYPE;
+
     private final String identifier;
     private final String handleMethodName;
     private final SymbolReference inputType;
     private final SymbolReference outputType;
     private final SymbolReference handlerType;
 
-    private static final SymbolReference contextType;
-    private static final SymbolReference metadataType;
-
     static {
-        contextType = SymbolReference.builder()
+        CONTEXT_TYPE = SymbolReference.builder()
                 .symbol(SymbolUtils.createValueSymbolBuilder("context.Context")
                         .addReference(SymbolUtils.createNamespaceReference(GoDependency.CONTEXT))
                         .build())
                 .build();
-        metadataType = SymbolReference.builder()
+        METADATA_TYPE = SymbolReference.builder()
                 .symbol(SymbolUtils.createValueSymbolBuilder("middleware.Metadata")
                         .addReference(SymbolUtils.createNamespaceReference(GoDependency.SMITHY_MIDDLEWARE))
                         .build())
@@ -86,17 +103,15 @@ public class GoMiddlewareGenerator {
         }, handlerBodyConsumer);
     }
 
-    public void writeMiddleware(GoWriter writer, BiConsumer<GoMiddlewareGenerator, GoWriter> fieldConsumer, BiConsumer<GoMiddlewareGenerator, GoWriter> handlerBodyConsumer) {
-        writer.addUseImports(contextType);
-        writer.addUseImports(metadataType);
+    public void writeMiddleware(GoWriter writer, BiConsumer<GoMiddlewareGenerator, GoWriter> fieldConsumer,
+                                BiConsumer<GoMiddlewareGenerator, GoWriter> handlerBodyConsumer) {
+        writer.addUseImports(CONTEXT_TYPE);
+        writer.addUseImports(METADATA_TYPE);
         writer.addUseImports(inputType);
         writer.addUseImports(outputType);
         writer.addUseImports(handlerType);
 
-        Symbol middlwareSym = Symbol.builder()
-                .name(identifier)
-                .putProperty("pointable", true)
-                .build();
+        Symbol middlwareSym = SymbolUtils.createPointableSymbolBuilder(identifier).build();
 
         writer.openBlock("type $L struct {", "}", middlwareSym, () -> {
             fieldConsumer.accept(this, writer);
@@ -104,10 +119,12 @@ public class GoMiddlewareGenerator {
         writer.openBlock("func ($P) ID() string {", "}", middlwareSym, () -> {
             writer.openBlock("return $S", identifier);
         });
-        writer.openBlock("func (m $P) $L(ctx $T, in $T, next $T) (\n" +
-                        "\tout $T, metadata $T, err error,\n" +
-                        "){", "}",
-                new Object[]{middlwareSym, handleMethodName, contextType, inputType, handlerType, outputType, metadataType},
+        writer.openBlock("func (m $P) $L(ctx $T, in $T, next $T) (\n"
+                        + "\tout $T, metadata $T, err error,\n"
+                        + "){", "}",
+                new Object[]{
+                        middlwareSym, handleMethodName, CONTEXT_TYPE, inputType, handlerType, outputType, METADATA_TYPE,
+                },
                 () -> {
                     handlerBodyConsumer.accept(this, writer);
                 });
@@ -138,11 +155,11 @@ public class GoMiddlewareGenerator {
     }
 
     public static SymbolReference getContextType() {
-        return contextType;
+        return CONTEXT_TYPE;
     }
 
     public static SymbolReference getMetadataType() {
-        return metadataType;
+        return METADATA_TYPE;
     }
 
     public static class Builder {
