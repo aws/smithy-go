@@ -5,12 +5,12 @@ import static org.hamcrest.Matchers.containsString;
 
 import org.junit.jupiter.api.Test;
 
-public class GoMiddlewareGeneratorTest {
+public class GoStackStepMiddlewareGeneratorTest {
     @Test
     public void generatesSerializeMiddlewareDefinition() {
         GoWriter writer = new GoWriter("middlewaregentest");
 
-        GoMiddlewareGenerator.newSerializeMiddleware("someMiddlewareId")
+        GoStackStepMiddlewareGenerator.createSerializeStepMiddleware("someMiddlewareId")
                 .writeMiddleware(writer, (m, w) -> {
                     w.openBlock("return next.$L(ctx, in)", m.getHandleMethodName());
                 });
