@@ -26,47 +26,116 @@ public final class SymbolUtils {
     private SymbolUtils() {
     }
 
+    /**
+     * Create a value symbol builder
+     *
+     * @param typeName the name of the type
+     * @return the symbol builder type
+     */
     public static Symbol.Builder createValueSymbolBuilder(String typeName) {
         return Symbol.builder()
                 .putProperty("pointable", false)
                 .name(typeName);
     }
 
+    /**
+     * Create a pointable symbol builder
+     *
+     * @param typeName the name of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createPointableSymbolBuilder(String typeName) {
         return Symbol.builder()
                 .putProperty("pointable", true)
                 .name(typeName);
     }
 
+    /**
+     * Create a value symbol builder
+     *
+     * @param shape the shape that the type is for
+     * @param typeName the name of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName) {
         return createValueSymbolBuilder(typeName).putProperty("shape", shape);
     }
 
+    /**
+     * Create a pointable symbol builder
+     *
+     * @param shape the shape that the type is for
+     * @param typeName the name of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName) {
         return createPointableSymbolBuilder(typeName).putProperty("shape", shape);
     }
 
+    /**
+     * Create a pointable symbol builder
+     *
+     * @param typeName the name of the type
+     * @param namespace the namespace of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createPointableSymbolBuilder(String typeName, String namespace) {
         return createPointableSymbolBuilder(typeName).namespace(namespace, ".");
     }
 
+    /**
+     * Create a value symbol builder
+     *
+     * @param typeName the name of the type
+     * @param namespace the namespace of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createValueSymbolBuilder(String typeName, String namespace) {
         return createValueSymbolBuilder(typeName).namespace(namespace, ".");
     }
 
+    /**
+     * Create a pointable symbol builder
+     *
+     * @param shape the shape that the type is for
+     * @param typeName the name of the type
+     * @param namespace the namespace of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, String namespace) {
         return createPointableSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
+    /**
+     * Create a value symbol builder
+     *
+     * @param shape the shape that the type is for
+     * @param typeName the name of the type
+     * @param namespace the namespace of the type
+     * @return the symbol builder
+     */
     public static Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName, String namespace) {
         return createValueSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
+    /**
+     * Create a symbol reference for a dependency
+     *
+     * @param dependency the dependency to represent as a symbol reference
+     * @return the symbol reference
+     */
     public static SymbolReference createNamespaceReference(GoDependency dependency) {
         String namespace = dependency.importPath;
         return createNamespaceReference(dependency, CodegenUtils.getDefaultPackageImportName(namespace));
     }
 
+    /**
+     * Create a symbol reference for a dependency
+     *
+     * @param dependency the dependency to represent as a symbol reference
+     * @param alias the alias to refer to the namespace
+     * @return the symbol reference
+     */
     public static SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
         // Go generally imports an entire package under a single name, which defaults to the last
         // part of the package name path. So we need to create a symbol for that namespace to reference.
