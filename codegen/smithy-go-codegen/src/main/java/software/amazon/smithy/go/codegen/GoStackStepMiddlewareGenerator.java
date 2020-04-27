@@ -58,6 +58,7 @@ public final class GoStackStepMiddlewareGenerator {
      * Create a new SerializeStep middleware generator with the provided type name
      *
      * @param identifier is the type name to identify the middleware
+     * @return the middleware generator
      */
     public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
