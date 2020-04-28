@@ -30,6 +30,7 @@ public enum GoDependency implements SymbolDependencyContainer {
     BIG("stdlib", "", "math/big", "1.14"),
     TIME("stdlib", "", "time", "1.14"),
     FMT("stdlib", "", "fmt", "1.14"),
+    CONTEXT("stdlib", "", "context", "1.14"),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go", "v0.0.1"),
     SMITHY_HTTP_TRANSPORT("dependency", "github.com/awslabs/smithy-go",
