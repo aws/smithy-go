@@ -35,7 +35,7 @@ public final class GoStackStepMiddlewareGenerator {
                     .build())
             .build();
 
-    private final Symbol middlewareSym;
+    private final Symbol middlewareSymbol;
     private final String handleMethodName;
     private final SymbolReference inputType;
     private final SymbolReference outputType;
@@ -47,7 +47,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param builder the builder to create the generator with
      */
     public GoStackStepMiddlewareGenerator(Builder builder) {
-        this.middlewareSym = SymbolUtils.createPointableSymbolBuilder(builder.identifier).build();
+        this.middlewareSymbol = SymbolUtils.createPointableSymbolBuilder(builder.identifier).build();
         this.handleMethodName = builder.handleMethodName;
         this.inputType = builder.inputType;
         this.outputType = builder.outputType;
@@ -92,11 +92,13 @@ public final class GoStackStepMiddlewareGenerator {
      * @param handlerType       the next handler type
      * @return the middleware generator
      */
-    public static GoStackStepMiddlewareGenerator createMiddleware(String identifier,
-                                                                  String handlerMethodName,
-                                                                  SymbolReference inputType,
-                                                                  SymbolReference outputType,
-                                                                  SymbolReference handlerType) {
+    public static GoStackStepMiddlewareGenerator createMiddleware(
+            String identifier,
+            String handlerMethodName,
+            SymbolReference inputType,
+            SymbolReference outputType,
+            SymbolReference handlerType
+    ) {
         return builder()
                 .identifier(identifier)
                 .handleMethodName(handlerMethodName)
@@ -114,9 +116,12 @@ public final class GoStackStepMiddlewareGenerator {
      * @param writer              the writer to which the middleware definition will be written to
      * @param handlerBodyConsumer is a consumer that will be call in the context of populating the handler definition
      */
-    public void writeMiddleware(GoWriter writer,
-                                BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> handlerBodyConsumer) {
-        writeMiddleware(writer, (m, w) -> {}, handlerBodyConsumer);
+    public void writeMiddleware(
+            GoWriter writer,
+            BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> handlerBodyConsumer
+    ) {
+        writeMiddleware(writer, (m, w) -> {
+        }, handlerBodyConsumer);
     }
 
     /**
@@ -134,9 +139,11 @@ public final class GoStackStepMiddlewareGenerator {
      * @param handlerBodyConsumer is a consumer that will be called in the context of populating the handler definition
      * @param fieldConsumer       is a consumer that will be called in the context of populating the struct members
      */
-    public void writeMiddleware(GoWriter writer,
-                                BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> handlerBodyConsumer,
-                                BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> fieldConsumer) {
+    public void writeMiddleware(
+            GoWriter writer,
+            BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> handlerBodyConsumer,
+            BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> fieldConsumer
+    ) {
         writer.addUseImports(CONTEXT_TYPE);
         writer.addUseImports(METADATA_TYPE);
         writer.addUseImports(inputType);
@@ -144,7 +151,7 @@ public final class GoStackStepMiddlewareGenerator {
         writer.addUseImports(handlerType);
 
         // generate the structure type definition for the middleware
-        writer.openBlock("type $L struct {", "}", middlewareSym, () -> {
+        writer.openBlock("type $L struct {", "}", middlewareSymbol, () -> {
             fieldConsumer.accept(this, writer);
         });
 
@@ -152,8 +159,8 @@ public final class GoStackStepMiddlewareGenerator {
 
         // each middleware step has to implement the ID function and return a unique string to identify itself with
         // here we return the name of the type
-        writer.openBlock("func ($P) ID() string {", "}", middlewareSym, () -> {
-            writer.openBlock("return $S", middlewareSym);
+        writer.openBlock("func ($P) ID() string {", "}", middlewareSymbol, () -> {
+            writer.openBlock("return $S", middlewareSymbol);
         });
 
         writer.write("");
@@ -164,7 +171,7 @@ public final class GoStackStepMiddlewareGenerator {
                        + "\tout $T, metadata $T, err error,\n"
                        + ") {", "}",
                 new Object[]{
-                        middlewareSym, handleMethodName, CONTEXT_TYPE, inputType, handlerType, outputType,
+                        middlewareSymbol, handleMethodName, CONTEXT_TYPE, inputType, handlerType, outputType,
                         METADATA_TYPE,
                 },
                 () -> {
@@ -195,8 +202,8 @@ public final class GoStackStepMiddlewareGenerator {
      *
      * @return Symbol for the middleware type
      */
-    public Symbol getMiddlewareSym() {
-        return middlewareSym;
+    public Symbol getMiddlewareSymbol() {
+        return middlewareSymbol;
     }
 
     /**
