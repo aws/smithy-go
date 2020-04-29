@@ -19,18 +19,18 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.shapes.Shape;
 
-/*
-* Common symbol utility building functions
+/**
+ * Common symbol utility building functions.
  */
 public final class SymbolUtils {
     private SymbolUtils() {
     }
 
     /**
-     * Create a value symbol builder
+     * Create a value symbol builder.
      *
-     * @param typeName the name of the type
-     * @return the symbol builder type
+     * @param typeName the name of the type.
+     * @return the symbol builder type.
      */
     public static Symbol.Builder createValueSymbolBuilder(String typeName) {
         return Symbol.builder()
@@ -39,10 +39,10 @@ public final class SymbolUtils {
     }
 
     /**
-     * Create a pointable symbol builder
+     * Create a pointable symbol builder.
      *
-     * @param typeName the name of the type
-     * @return the symbol builder
+     * @param typeName the name of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createPointableSymbolBuilder(String typeName) {
         return Symbol.builder()
@@ -51,78 +51,78 @@ public final class SymbolUtils {
     }
 
     /**
-     * Create a value symbol builder
+     * Create a value symbol builder.
      *
-     * @param shape the shape that the type is for
-     * @param typeName the name of the type
-     * @return the symbol builder
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName) {
         return createValueSymbolBuilder(typeName).putProperty("shape", shape);
     }
 
     /**
-     * Create a pointable symbol builder
+     * Create a pointable symbol builder.
      *
-     * @param shape the shape that the type is for
-     * @param typeName the name of the type
-     * @return the symbol builder
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName) {
         return createPointableSymbolBuilder(typeName).putProperty("shape", shape);
     }
 
     /**
-     * Create a pointable symbol builder
+     * Create a pointable symbol builder.
      *
-     * @param typeName the name of the type
-     * @param namespace the namespace of the type
-     * @return the symbol builder
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createPointableSymbolBuilder(String typeName, String namespace) {
         return createPointableSymbolBuilder(typeName).namespace(namespace, ".");
     }
 
     /**
-     * Create a value symbol builder
+     * Create a value symbol builder.
      *
-     * @param typeName the name of the type
-     * @param namespace the namespace of the type
-     * @return the symbol builder
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createValueSymbolBuilder(String typeName, String namespace) {
         return createValueSymbolBuilder(typeName).namespace(namespace, ".");
     }
 
     /**
-     * Create a pointable symbol builder
+     * Create a pointable symbol builder.
      *
-     * @param shape the shape that the type is for
-     * @param typeName the name of the type
-     * @param namespace the namespace of the type
-     * @return the symbol builder
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, String namespace) {
         return createPointableSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
     /**
-     * Create a value symbol builder
+     * Create a value symbol builder.
      *
-     * @param shape the shape that the type is for
-     * @param typeName the name of the type
-     * @param namespace the namespace of the type
-     * @return the symbol builder
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
     public static Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName, String namespace) {
         return createValueSymbolBuilder(shape, typeName).namespace(namespace, ".");
     }
 
     /**
-     * Create a symbol reference for a dependency
+     * Create a symbol reference for a dependency.
      *
-     * @param dependency the dependency to represent as a symbol reference
-     * @return the symbol reference
+     * @param dependency the dependency to represent as a symbol reference.
+     * @return the symbol reference.
      */
     public static SymbolReference createNamespaceReference(GoDependency dependency) {
         String namespace = dependency.importPath;
@@ -130,11 +130,11 @@ public final class SymbolUtils {
     }
 
     /**
-     * Create a symbol reference for a dependency
+     * Create a symbol reference for a dependency.
      *
-     * @param dependency the dependency to represent as a symbol reference
-     * @param alias the alias to refer to the namespace
-     * @return the symbol reference
+     * @param dependency the dependency to represent as a symbol reference.
+     * @param alias the alias to refer to the namespace.
+     * @return the symbol reference.
      */
     public static SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
         // Go generally imports an entire package under a single name, which defaults to the last
