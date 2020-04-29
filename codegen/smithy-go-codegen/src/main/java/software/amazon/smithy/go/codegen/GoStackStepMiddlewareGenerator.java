@@ -21,7 +21,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolReference;
 
 /**
- * Helper for generating stack step middleware
+ * Helper for generating stack step middleware.
  */
 public final class GoStackStepMiddlewareGenerator {
     private static final SymbolReference CONTEXT_TYPE = SymbolReference.builder()
@@ -42,9 +42,9 @@ public final class GoStackStepMiddlewareGenerator {
     private final SymbolReference handlerType;
 
     /**
-     * Creates a new middleware generator with the given builder definition
+     * Creates a new middleware generator with the given builder definition.
      *
-     * @param builder the builder to create the generator with
+     * @param builder the builder to create the generator with.
      */
     public GoStackStepMiddlewareGenerator(Builder builder) {
         this.middlewareSymbol = SymbolUtils.createPointableSymbolBuilder(builder.identifier).build();
@@ -55,10 +55,10 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Create a new SerializeStep middleware generator with the provided type name
+     * Create a new SerializeStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware
-     * @return the middleware generator
+     * @param identifier is the type name to identify the middleware.
+     * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
@@ -69,10 +69,10 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Create a new DeserializeStep middleware generator with the provided type name
+     * Create a new DeserializeStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware
-     * @return the middleware generator
+     * @param identifier is the type name to identify the middleware.
+     * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
@@ -83,14 +83,14 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Generates a new step middleware generator
+     * Generates a new step middleware generator.
      *
-     * @param identifier        the name of the middleware type
-     * @param handlerMethodName identifier method name to be implemented
-     * @param inputType         the middleware input type
-     * @param outputType        the middleware output type
-     * @param handlerType       the next handler type
-     * @return the middleware generator
+     * @param identifier        the name of the middleware type.
+     * @param handlerMethodName identifier method name to be implemented.
+     * @param inputType         the middleware input type.
+     * @param outputType        the middleware output type.
+     * @param handlerType       the next handler type.
+     * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createMiddleware(
             String identifier,
@@ -111,10 +111,10 @@ public final class GoStackStepMiddlewareGenerator {
 
     /**
      * Writes the middleware definition to the provided writer.
-     * See the writeMiddleware overloaded function signature for a more complete definition
+     * See the writeMiddleware overloaded function signature for a more complete definition.
      *
-     * @param writer              the writer to which the middleware definition will be written to
-     * @param handlerBodyConsumer is a consumer that will be call in the context of populating the handler definition
+     * @param writer              the writer to which the middleware definition will be written to.
+     * @param handlerBodyConsumer is a consumer that will be call in the context of populating the handler definition.
      */
     public void writeMiddleware(
             GoWriter writer,
@@ -125,19 +125,19 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Writes the middleware definition to the provided writer
+     * Writes the middleware definition to the provided writer.
      * <p>
      * The following Go variables will be in scope of the handler body:
-     * ctx - the Go standard library context.Context type
-     * in - the input for the given middleware type
-     * next - the next handler to be called
-     * out - the output for the given middleware type
-     * metadata - the smithy middleware.Metadata type
-     * err - the error interface type
+     * ctx - the Go standard library context.Context type.
+     * in - the input for the given middleware type.
+     * next - the next handler to be called.
+     * out - the output for the given middleware type.
+     * metadata - the smithy middleware.Metadata type.
+     * err - the error interface type.
      *
-     * @param writer              the writer to which the middleware definition will be written to
-     * @param handlerBodyConsumer is a consumer that will be called in the context of populating the handler definition
-     * @param fieldConsumer       is a consumer that will be called in the context of populating the struct members
+     * @param writer              the writer to which the middleware definition will be written to.
+     * @param handlerBodyConsumer is a consumer that will be called in the context of populating the handler definition.
+     * @param fieldConsumer       is a consumer that will be called in the context of populating the struct members.
      */
     public void writeMiddleware(
             GoWriter writer,
@@ -180,72 +180,72 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Returns a new middleware generator builder
+     * Returns a new middleware generator builder.
      *
-     * @return the middleware generator builder
+     * @return the middleware generator builder.
      */
     public static Builder builder() {
         return new Builder();
     }
 
     /**
-     * Get the handle method name
+     * Get the handle method name.
      *
-     * @return handler method name
+     * @return handler method name.
      */
     public String getHandleMethodName() {
         return handleMethodName;
     }
 
     /**
-     * Get the middleware type symbol
+     * Get the middleware type symbol.
      *
-     * @return Symbol for the middleware type
+     * @return Symbol for the middleware type.
      */
     public Symbol getMiddlewareSymbol() {
         return middlewareSymbol;
     }
 
     /**
-     * Get the input type symbol reference
+     * Get the input type symbol reference.
      *
-     * @return the input type symbol reference
+     * @return the input type symbol reference.
      */
     public SymbolReference getInputType() {
         return inputType;
     }
 
     /**
-     * Get the output type symbol reference
+     * Get the output type symbol reference.
      *
-     * @return the output type symbol reference
+     * @return the output type symbol reference.
      */
     public SymbolReference getOutputType() {
         return outputType;
     }
 
     /**
-     * Get the handler type symbol reference
+     * Get the handler type symbol reference.
      *
-     * @return the handler type symbol reference
+     * @return the handler type symbol reference.
      */
     public SymbolReference getHandlerType() {
         return handlerType;
     }
 
     /**
-     * Get the context type symbol reference
+     * Get the context type symbol reference.
      *
-     * @return the context type symbol reference
+     * @return the context type symbol reference.
      */
     public static SymbolReference getContextType() {
         return CONTEXT_TYPE;
     }
 
     /**
-     * Get the middleware metadata type symbol reference
+     * Get the middleware metadata type symbol reference.
      *
-     * @return the middleware metadata type symbol reference
+     * @return the middleware metadata type symbol reference.
      */
     public static SymbolReference getMiddlewareMetadataType() {
         return METADATA_TYPE;
@@ -260,7 +260,7 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Builds a {@link GoStackStepMiddlewareGenerator}
+     * Builds a {@link GoStackStepMiddlewareGenerator}.
      */
     public static class Builder {
         private String identifier;
@@ -270,19 +270,19 @@ public final class GoStackStepMiddlewareGenerator {
         private SymbolReference handlerType;
 
         /**
-         * Builds the middleware generator
+         * Builds the middleware generator.
          *
-         * @return the middleware generator
+         * @return the middleware generator.
          */
         public GoStackStepMiddlewareGenerator build() {
             return new GoStackStepMiddlewareGenerator(this);
         }
 
         /**
-         * Sets the handler method name
+         * Sets the handler method name.
          *
-         * @param handleMethodName the middleware handler method name to implement
-         * @return the builder
+         * @param handleMethodName the middleware handler method name to implement.
+         * @return the builder.
          */
         public Builder handleMethodName(String handleMethodName) {
             this.handleMethodName = handleMethodName;
@@ -290,10 +290,10 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the identifier of the type to be generated
+         * Set the identifier of the type to be generated.
          *
-         * @param identifier the name to identify the middleware type
-         * @return the builder
+         * @param identifier the name to identify the middleware type.
+         * @return the builder.
          */
         public Builder identifier(String identifier) {
             this.identifier = identifier;
@@ -301,10 +301,10 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the input type symbol reference for the middleware
+         * Set the input type symbol reference for the middleware.
          *
-         * @param inputType the symbol reference to the input type
-         * @return the builder
+         * @param inputType the symbol reference to the input type.
+         * @return the builder.
          */
         public Builder inputType(SymbolReference inputType) {
             this.inputType = inputType;
@@ -312,10 +312,10 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the output type symbol reference for the middleware
+         * Set the output type symbol reference for the middleware.
          *
-         * @param outputType the symbol reference to the output type
-         * @return the builder
+         * @param outputType the symbol reference to the output type.
+         * @return the builder.
          */
         public Builder outputType(SymbolReference outputType) {
             this.outputType = outputType;
@@ -323,10 +323,10 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the hander type symbol reference for the middleware
+         * Set the hander type symbol reference for the middleware.
          *
-         * @param handlerType the symbol reference to the handler type
-         * @return the builder
+         * @param handlerType the symbol reference to the handler type.
+         * @return the builder.
          */
         public Builder handlerType(SymbolReference handlerType) {
             this.handlerType = handlerType;
