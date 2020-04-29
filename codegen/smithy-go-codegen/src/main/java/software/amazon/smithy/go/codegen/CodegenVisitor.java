@@ -76,6 +76,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         for (GoIntegration goIntegration : integrations) {
             resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
         }
+
+        // Add uniqueue operation input/output shapes
+        resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
+
         model = resolvedModel;
         modelWithoutTraitShapes = ModelTransformer.create().getModelWithoutTraitShapes(model);
 

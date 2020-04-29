@@ -15,12 +15,11 @@
 
 package software.amazon.smithy.go.codegen;
 
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.node.Node;
-import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.AbstractTrait;
 import software.amazon.smithy.model.traits.AbstractTraitBuilder;
-import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.ToSmithyBuilder;
 
@@ -41,20 +40,6 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
         this.archetype = builder.archetype;
     }
 
-    public static final class Provider extends AbstractTrait.Provider {
-        public Provider() {
-            super(ID);
-        }
-
-        @Override
-        public Trait createTrait(ShapeId target, Node value) {
-            Builder builder = builder();
-            ObjectNode objectNode = value.expectObjectNode();
-            builder.archetype(ShapeId.from(objectNode.expectStringMember(ARCHETYPE).getValue()));
-            return builder.build();
-        }
-    }
-
     /**
      * Get the archetype shape that this clone is based on
      *
@@ -66,8 +51,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
 
     @Override
     protected Node createNode() {
-        return Node.objectNode()
-                .withMember(ARCHETYPE, Node.from(getArchetype().toString()));
+        throw new CodegenException("attempted to serialize runtime only trait");
     }
 
     @Override
