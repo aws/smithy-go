@@ -20,7 +20,7 @@ import java.util.Objects;
 @FunctionalInterface
 public interface TriConsumer<T, U, V> {
     /**
-     * Performs the operation on the given inputs
+     * Performs the operation on the given inputs.
      *
      * @param t is the first argument
      * @param u is the second argument

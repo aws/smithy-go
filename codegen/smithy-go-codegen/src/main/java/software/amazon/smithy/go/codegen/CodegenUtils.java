@@ -108,7 +108,7 @@ public final class CodegenUtils {
     }
 
     /**
-     * Get the namespace where synthetic types are generated at runtime
+     * Get the namespace where synthetic types are generated at runtime.
      *
      * @return synthetic type namespace
      */

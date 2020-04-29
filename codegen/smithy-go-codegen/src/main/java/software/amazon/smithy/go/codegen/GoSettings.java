@@ -171,7 +171,10 @@ public final class GoSettings {
      * @return Returns the resolved protocol name.
      * @throws UnresolvableProtocolException if no protocol could be resolved.
      */
-    public ShapeId resolveServiceProtocol(ServiceIndex serviceIndex, ServiceShape service, Set<ShapeId> supportedProtocolTraits) {
+    public ShapeId resolveServiceProtocol(
+            ServiceIndex serviceIndex,
+            ServiceShape service,
+            Set<ShapeId> supportedProtocolTraits) {
         if (protocol != null) {
             return protocol;
         }

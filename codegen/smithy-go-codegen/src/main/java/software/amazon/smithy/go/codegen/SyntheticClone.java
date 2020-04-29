@@ -24,7 +24,7 @@ import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.ToSmithyBuilder;
 
 /**
- * Defines a shape as being a clone of another modeled shape
+ * Defines a shape as being a clone of another modeled shape.
  *
  * Must only be used as a runtime trait-only applied to shapes based on model processing
  */
@@ -41,7 +41,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
     }
 
     /**
-     * Get the archetype shape that this clone is based on
+     * Get the archetype shape that this clone is based on.
      *
      * @return the original archetype shape
      */
@@ -68,7 +68,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
     }
 
     /**
-     * Builder for {@link SyntheticClone}
+     * Builder for {@link SyntheticClone}.
      */
     public static final class Builder extends AbstractTraitBuilder<SyntheticClone, Builder> {
         private ShapeId archetype;

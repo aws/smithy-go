@@ -15,23 +15,25 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.TreeSet;
+import java.util.logging.Logger;
+
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.AbstractShapeBuilder;
-import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 
-import java.util.TreeSet;
-import java.util.logging.Logger;
-
 /**
- * Ensures that each operation has a unique input and output shape
+ * Ensures that each operation has a unique input and output shape.
  */
-public class AddOperationShapes {
+public final class AddOperationShapes {
     private static final Logger LOGGER = Logger.getLogger(AddOperationShapes.class.getName());
+
+    private AddOperationShapes() {
+    }
 
     /**
      * Processes the given model and returns a new model ensuring service operation has an unique input and output

@@ -171,7 +171,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     /**
-     * Links the archetype shape id for the symbol
+     * Links the archetype shape id for the symbol.
      *
      * @param shape  the model shape
      * @param symbol the symbol to set the archetype property on
