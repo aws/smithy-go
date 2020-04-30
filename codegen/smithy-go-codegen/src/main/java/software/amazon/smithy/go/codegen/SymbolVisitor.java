@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
+
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.ReservedWordSymbolProvider;
 import software.amazon.smithy.codegen.core.ReservedWords;
@@ -166,7 +167,22 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     public Symbol toSymbol(Shape shape) {
         Symbol symbol = shape.accept(this);
         LOGGER.fine(() -> String.format("Creating symbol from %s: %s", shape, symbol));
-        return escaper.escapeSymbol(shape, symbol);
+        return linkArchetypeShape(shape, escaper.escapeSymbol(shape, symbol));
+    }
+
+    /**
+     * Links the archetype shape id for the symbol.
+     *
+     * @param shape  the model shape
+     * @param symbol the symbol to set the archetype property on
+     * @return the symbol with archetype set if shape is a synthetic clone otherwise the original symbol
+     */
+    private Symbol linkArchetypeShape(Shape shape, Symbol symbol) {
+        return shape.getTrait(SyntheticClone.class)
+                .map(syntheticClone -> symbol.toBuilder()
+                        .putProperty("archetype", syntheticClone.getArchetype())
+                        .build())
+                .orElse(symbol);
     }
 
     @Override

@@ -15,14 +15,19 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
+
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.BlobShape;
@@ -34,6 +39,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
+import software.amazon.smithy.model.transform.ModelTransformer;
 
 /**
  * Orchestrates Go client generation.
@@ -49,16 +55,43 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final FileManifest fileManifest;
     private final SymbolProvider symbolProvider;
     private final GoDelegator writers;
+    private final List<GoIntegration> integrations = new ArrayList<>();
 
     CodegenVisitor(PluginContext context) {
+        // Load all integrations.
+        ClassLoader loader = context.getPluginClassLoader().orElse(getClass().getClassLoader());
+        LOGGER.info("Attempting to discover GoIntegration from the classpath...");
+        ServiceLoader.load(GoIntegration.class, loader)
+                .forEach(integration -> {
+                    LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
+                    integrations.add(integration);
+                });
+        integrations.sort(Comparator.comparingInt(GoIntegration::getOrder));
+
         settings = GoSettings.from(context.getSettings());
-        model = context.getModel();
-        modelWithoutTraitShapes = context.getModelWithoutTraitShapes();
-        service = settings.getService(model);
         fileManifest = context.getFileManifest();
+
+        Model resolvedModel = context.getModel();
+        LOGGER.info(() -> "Preprocessing smithy model");
+        for (GoIntegration goIntegration : integrations) {
+            resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
+        }
+
+        // Add uniqueue operation input/output shapes
+        resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
+
+        model = resolvedModel;
+        modelWithoutTraitShapes = ModelTransformer.create().getModelWithoutTraitShapes(model);
+
+        service = settings.getService(model);
         LOGGER.info(() -> "Generating Go client for service " + service.getId());
 
-        symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings.getModuleName());
+        SymbolProvider resolvedProvider = GoCodegenPlugin.createSymbolProvider(model, settings.getModuleName());
+        for (GoIntegration integration : integrations) {
+            resolvedProvider = integration.decorateSymbolProvider(settings, model, resolvedProvider);
+        }
+        symbolProvider = resolvedProvider;
+
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
     }
 
@@ -69,6 +102,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (Shape shape : serviceShapes) {
             shape.accept(this);
+        }
+
+        for (GoIntegration integration : integrations) {
+            integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
         }
 
         LOGGER.fine("Flushing go writers");
@@ -124,7 +161,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     @Override
     public Void serviceShape(ServiceShape shape) {
         // TODO: implement client generation
-        writers.useShapeWriter(shape, writer -> { });
+        writers.useShapeWriter(shape, writer -> {
+        });
         return null;
     }
 }

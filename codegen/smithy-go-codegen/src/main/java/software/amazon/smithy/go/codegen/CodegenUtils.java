@@ -33,6 +33,8 @@ public final class CodegenUtils {
 
     private static final Logger LOGGER = Logger.getLogger(CodegenUtils.class.getName());
 
+    private static final String SYNTHETIC_NAMESPACE = "smithy.go.synthetic";
+
     private CodegenUtils() {}
 
     /**
@@ -93,5 +95,24 @@ public final class CodegenUtils {
             return packageName;
         }
         return packageName.substring(packageName.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * Detects if an annotated mediatype indicates JSON contents.
+     *
+     * @param mediaType The media type to inspect.
+     * @return If the media type indicates JSON contents.
+     */
+    public static boolean isJsonMediaType(String mediaType) {
+        return mediaType.equals("application/json") || mediaType.endsWith("+json");
+    }
+
+    /**
+     * Get the namespace where synthetic types are generated at runtime.
+     *
+     * @return synthetic type namespace
+     */
+    public static String getSyntheticTypeNamespace() {
+        return CodegenUtils.SYNTHETIC_NAMESPACE;
     }
 }
