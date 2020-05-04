@@ -177,10 +177,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     for (int i = 0; i < bindingMembers.size(); i++) {
                         HttpBinding binding = bindingMap.get(bindingMembers.get(i));
                         writeHttpBindingMember(writer, model, symbolProvider, binding);
-                        if (i != bindingMembers.size() - 1) {
-                            writer.write("");
-                        }
+                        writer.write("");
                     }
+
+                    writer.write("return nil");
                 });
     }
 
