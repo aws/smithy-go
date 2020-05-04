@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -36,9 +37,11 @@ import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.CollectionShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
@@ -240,10 +243,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             switch (binding.getLocation()) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
+                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
+                                .getId());
+                        Symbol collectionMemberSymol = symbolProvider.toSymbol(collectionMemberShape);
                         bodyWriter.openBlock("for i := range v.$L", memberName, "}", () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L[i]"),
-                                    memberName);
+                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymol,
+                                    "v.$L[i]"), memberName);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetHeader($S)", memberShape.getMemberName());
@@ -254,11 +260,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     if (!targetShape.isMapShape()) {
                         throw new CodegenException("prefix headers must target map shape");
                     }
+                    Shape mapValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
+                    Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
-                    bodyWriter.openBlock("for i := range v.$L", memberName, "}", () -> {
-                        bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L[i]"),
-                                memberName);
+                    bodyWriter.openBlock("for i := range v.$L {", memberName, "}", () -> {
+                        if (mapValueShape instanceof CollectionShape) {
+                            bodyWriter.openBlock("for j := range v.$L[i] {", "}", memberName, () -> {
+                                bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
+                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i][j]"),
+                                        memberName);
+                            });
+                        } else {
+                            bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
+                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i]"),
+                                    memberName);
+                        }
                     });
                     break;
                 case LABEL:
