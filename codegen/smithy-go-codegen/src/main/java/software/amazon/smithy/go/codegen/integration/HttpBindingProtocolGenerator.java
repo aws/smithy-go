@@ -245,10 +245,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     if (targetShape instanceof CollectionShape) {
                         Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
                                 .getId());
-                        Symbol collectionMemberSymol = symbolProvider.toSymbol(collectionMemberShape);
+                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
                         bodyWriter.openBlock("for i := range v.$L", memberName, "}", () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymol,
+                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
                                     "v.$L[i]"), memberName);
                         });
                     } else {
@@ -261,18 +261,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         throw new CodegenException("prefix headers must target map shape");
                     }
                     Shape mapValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
-                    Symbol mapKeySymbol = symbolProvider.toSymbol(targetShape);
+                    Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
                     bodyWriter.openBlock("for i := range v.$L {", memberName, "}", () -> {
                         if (mapValueShape instanceof CollectionShape) {
                             bodyWriter.openBlock("for j := range v.$L[i] {", "}", memberName, () -> {
                                 bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapKeySymbol, "v.$L[i][j]"),
+                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i][j]"),
                                         memberName);
                             });
                         } else {
                             bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapKeySymbol, "v.$L[i]"),
+                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i]"),
                                     memberName);
                         }
                     });
@@ -297,8 +297,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private boolean isDereferenceRequired(Shape shape, Symbol symbol) {
-        boolean pointable = symbol.getProperty("pointable")
-                .map(o -> (boolean) o)
+        boolean pointable = symbol.getProperty("pointable", Boolean.class)
                 .orElse(false);
 
         ShapeType shapeType = shape.getType();
