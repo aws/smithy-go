@@ -148,7 +148,7 @@ public interface ProtocolGenerator {
      */
     static String getOperationSerFunctionName(Symbol symbol, String protocol) {
         return protocol
-                + "_serializeOp"
+                + "_serializeHttpBindings"
                 + symbol.getName();
     }
 
