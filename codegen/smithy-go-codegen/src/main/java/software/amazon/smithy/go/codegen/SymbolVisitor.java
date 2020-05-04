@@ -18,7 +18,6 @@ package software.amazon.smithy.go.codegen;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
-
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.ReservedWordSymbolProvider;
 import software.amazon.smithy.codegen.core.ReservedWords;
@@ -54,7 +53,6 @@ import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.ErrorTrait;
-import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -213,23 +211,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        Symbol blobSymbol = SymbolUtils.createPointableSymbolBuilder(shape, "[]byte").build();
-        if (shape.hasTrait(MediaTypeTrait.class)) {
-            return createMediaTypeSymbol(shape, blobSymbol);
-        }
-        return blobSymbol;
-    }
-
-    private Symbol createMediaTypeSymbol(Shape shape, Symbol base) {
-        // Right now we just use the shape's name. We could also generate a name, something like
-        // MediaTypeApplicationJson based on the media type value. This could lead to name conflicts
-        // but potentially reduces duplication.
-        String name = getDefaultShapeName(shape);
-        return SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName)
-                .putProperty("mediaTypeBaseSymbol", base)
-                .definitionFile("./types/types.go")
-                .addReference(base)
-                .build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "[]byte").build();
     }
 
     @Override
@@ -347,11 +329,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                     .build();
         }
 
-        Symbol stringSymbol = SymbolUtils.createPointableSymbolBuilder(shape, "string").build();
-        if (shape.hasTrait(MediaTypeTrait.class)) {
-            return createMediaTypeSymbol(shape, stringSymbol);
-        }
-        return stringSymbol;
+        return SymbolUtils.createPointableSymbolBuilder(shape, "string").build();
     }
 
     @Override

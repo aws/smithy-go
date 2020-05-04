@@ -32,6 +32,8 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
+import software.amazon.smithy.model.traits.MediaTypeTrait;
+import software.amazon.smithy.model.traits.StringTrait;
 import software.amazon.smithy.utils.CodeWriter;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -215,6 +217,10 @@ public final class GoWriter extends CodeWriter {
                 .map(DocumentationTrait::getValue)
                 .map(docs -> {
                     writeDocs(docs);
+                    member.getMemberTrait(model, MediaTypeTrait.class)
+                            .map(StringTrait::getValue)
+                            .ifPresent(mediaType -> writeDocs(
+                                    "\n\nThis value conforms to the media type: " + mediaType));
                     return true;
                 }).orElse(false);
     }

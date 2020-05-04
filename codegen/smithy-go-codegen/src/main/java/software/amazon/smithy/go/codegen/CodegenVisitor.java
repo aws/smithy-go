@@ -22,7 +22,6 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
-
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolDependency;
@@ -30,7 +29,6 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.neighbor.Walker;
-import software.amazon.smithy.model.shapes.BlobShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
@@ -38,7 +36,6 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
-import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 
 /**
@@ -134,22 +131,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             writers.useShapeWriter(shape, writer -> new EnumGenerator(symbolProvider, writer, shape).run());
-        } else if (shape.hasTrait(MediaTypeTrait.class)) {
-            generateMediaType(shape);
         }
         return null;
-    }
-
-    @Override
-    public Void blobShape(BlobShape shape) {
-        if (shape.hasTrait(MediaTypeTrait.class)) {
-            generateMediaType(shape);
-        }
-        return null;
-    }
-
-    private void generateMediaType(Shape shape) {
-        writers.useShapeWriter(shape, writer -> new MediaTypeGenerator(symbolProvider, writer, shape).run());
     }
 
     @Override
