@@ -261,18 +261,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         throw new CodegenException("prefix headers must target map shape");
                     }
                     Shape mapValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
-                    Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
+                    Symbol mapKeySymbol = symbolProvider.toSymbol(targetShape);
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
                     bodyWriter.openBlock("for i := range v.$L {", memberName, "}", () -> {
                         if (mapValueShape instanceof CollectionShape) {
                             bodyWriter.openBlock("for j := range v.$L[i] {", "}", memberName, () -> {
                                 bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i][j]"),
+                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapKeySymbol, "v.$L[i][j]"),
                                         memberName);
                             });
                         } else {
                             bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i]"),
+                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapKeySymbol, "v.$L[i]"),
                                     memberName);
                         }
                     });
