@@ -22,7 +22,6 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
-import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
@@ -121,7 +120,8 @@ public interface ProtocolGenerator {
      *
      * @param context Serde context.
      */
-    default void generateSharedComponents(GenerationContext context) {}
+    default void generateSharedComponents(GenerationContext context) {
+    }
 
     /**
      * Generates the code used to serialize the shapes of a service
@@ -147,31 +147,31 @@ public interface ProtocolGenerator {
      * @return Returns the generated function name.
      */
     static String getOperationSerFunctionName(Symbol symbol, String protocol) {
-        return protocol +
-                "_serializeOp" +
-                symbol.getName();
+        return protocol
+                + "_serializeOp"
+                + symbol.getName();
     }
 
     /**
      * Generates the name of a serializer function for shapes of a service.
      *
-     * @param symbol   The symbol the serializer function is being generated for.
-     * @param protocol Name of the protocol being generated.
+     * @param symbol        The symbol the serializer function is being generated for.
+     * @param protocol      Name of the protocol being generated.
      * @param bindingTarget the layer of the protocol being generated
      * @return Returns the generated function name.
      */
     static String getSerFunctionName(Symbol symbol, String protocol, HttpBinding.Location bindingTarget) {
-        return protocol +
-                "_serialize" +
-                CaseUtils.toPascalCase(bindingTarget.name()) +
-                symbol.getName();
+        return protocol
+                + "_serialize"
+                + CaseUtils.toPascalCase(bindingTarget.name())
+                + symbol.getName();
     }
 
     /**
      * Generates the name of a deserializer function for shapes of a service.
      *
-     * @param symbol The symbol the deserializer function is being generated for.
-     * @param protocol Name of the protocol being generated.
+     * @param symbol        The symbol the deserializer function is being generated for.
+     * @param protocol      Name of the protocol being generated.
      * @param protocolLayer the layer of the protocol being generated
      * @return Returns the generated function name.
      */

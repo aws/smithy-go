@@ -145,8 +145,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
         }
 
-        LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
         if (protocolGenerator != null) {
+            LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = new ProtocolGenerator.GenerationContext();
                 context.setProtocolName(protocolGenerator.getProtocolName());

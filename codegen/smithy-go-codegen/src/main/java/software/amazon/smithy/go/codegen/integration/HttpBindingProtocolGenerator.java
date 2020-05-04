@@ -18,7 +18,6 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -37,11 +36,9 @@ import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.CollectionShape;
-import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
@@ -62,7 +59,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Creates a Http binding protocol generator.
      *
      * @param isErrorCodeInBody A boolean that indicates if the error code for the implementing protocol is located in
-     *                          the error response body, meaning this generator will parse the body before attempting to load an error code.
+     *                          the error response body, meaning this generator will parse the body before attempting to
+     *                          load an error code.
      */
     public HttpBindingProtocolGenerator(boolean isErrorCodeInBody) {
         this.isErrorCodeInBody = isErrorCodeInBody;
@@ -292,6 +290,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
                     bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
                     break;
+                default:
+                    throw new CodegenException("unexpected http binding found");
             }
         });
     }
