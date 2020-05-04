@@ -59,7 +59,7 @@ public final class AddOperationShapes {
                             "Input"))
                     .orElseGet(() -> emptyOperationStructure(operationId, "Input"));
 
-            StructureShape newOutputShape = operation.getInput()
+            StructureShape newOutputShape = operation.getOutput()
                     .map(shapeId -> cloneOperationShape(operationId, (StructureShape) model.expectShape(shapeId),
                             "Output"))
                     .orElseGet(() -> emptyOperationStructure(operationId, "Output"));
