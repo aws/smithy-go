@@ -1,7 +1,7 @@
-$version: "1.0.0"
+$version: "1"
 
 metadata suppressions = [{
-    ids: ["UnstableFeature"],
+    id: "UnstableFeature",
 }]
 
 namespace example.weather
