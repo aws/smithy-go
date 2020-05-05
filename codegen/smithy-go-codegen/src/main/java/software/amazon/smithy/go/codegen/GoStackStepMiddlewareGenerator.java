@@ -120,8 +120,8 @@ public final class GoStackStepMiddlewareGenerator {
             GoWriter writer,
             BiConsumer<GoStackStepMiddlewareGenerator, GoWriter> handlerBodyConsumer
     ) {
-        writeMiddleware(writer, (m, w) -> {
-        }, handlerBodyConsumer);
+        writeMiddleware(writer, handlerBodyConsumer, (m, w) -> {
+        });
     }
 
     /**
