@@ -241,10 +241,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             switch (binding.getLocation()) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
-                                .getId());
+                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember().getTarget());
                         Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
-                        bodyWriter.openBlock("for i := range v.$L", memberName, "}", () -> {
+                        bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
                             bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
                                     "v.$L[i]"), memberName);
@@ -261,7 +260,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     Shape mapValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
                     Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
-                    bodyWriter.openBlock("for i := range v.$L {", memberName, "}", () -> {
+                    bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
                         if (mapValueShape instanceof CollectionShape) {
                             bodyWriter.openBlock("for j := range v.$L[i] {", "}", memberName, () -> {
                                 bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
@@ -281,14 +280,17 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
-                        bodyWriter.openBlock("for i := range v.$L", memberName, "}", () -> {
+                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember().getTarget());
+                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
+                        bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
                             bodyWriter.writeInline("encoder.AddQuery($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L[i]"),
+                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol, "v.$L[i]"),
                                     memberName);
                         });
+                    } else {
+                        bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
+                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
                     }
-                    bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
-                    bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
                     break;
                 default:
                     throw new CodegenException("unexpected http binding found");
