@@ -16,13 +16,16 @@
 package software.amazon.smithy.go.codegen;
 
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
  * Common symbol utility building functions.
  */
 public final class SymbolUtils {
+
+    public static final String POINTABLE = "pointable";
+    public static final String NAMESPACE_ALIAS = "namespaceAlias";
+
     private SymbolUtils() {
     }
 
@@ -34,7 +37,7 @@ public final class SymbolUtils {
      */
     public static Symbol.Builder createValueSymbolBuilder(String typeName) {
         return Symbol.builder()
-                .putProperty("pointable", false)
+                .putProperty(POINTABLE, false)
                 .name(typeName);
     }
 
@@ -46,7 +49,7 @@ public final class SymbolUtils {
      */
     public static Symbol.Builder createPointableSymbolBuilder(String typeName) {
         return Symbol.builder()
-                .putProperty("pointable", true)
+                .putProperty(POINTABLE, true)
                 .name(typeName);
     }
 
@@ -119,37 +122,54 @@ public final class SymbolUtils {
     }
 
     /**
-     * Create a symbol reference for a dependency.
+     * Create a pointable symbol builder.
      *
-     * @param dependency the dependency to represent as a symbol reference.
-     * @return the symbol reference.
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
-    public static SymbolReference createNamespaceReference(GoDependency dependency) {
-        String namespace = dependency.importPath;
-        return createNamespaceReference(dependency, CodegenUtils.getDefaultPackageImportName(namespace));
+    public static Symbol.Builder createPointableSymbolBuilder(Shape shape, String typeName, GoDependency namespace) {
+        return setImportedNamespace(createPointableSymbolBuilder(shape, typeName), namespace);
     }
 
     /**
-     * Create a symbol reference for a dependency.
+     * Create a value symbol builder.
      *
-     * @param dependency the dependency to represent as a symbol reference.
-     * @param alias the alias to refer to the namespace.
-     * @return the symbol reference.
+     * @param shape the shape that the type is for.
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
      */
-    public static SymbolReference createNamespaceReference(GoDependency dependency, String alias) {
-        // Go generally imports an entire package under a single name, which defaults to the last
-        // part of the package name path. So we need to create a symbol for that namespace to reference.
-        String namespace = dependency.importPath;
-        Symbol namespaceSymbol = Symbol.builder()
-                // We're not referencing a particular symbol from the namespace, so we leave the name blank.
-                .name("")
-                .putProperty("namespaceSymbol", true)
-                .namespace(namespace, "/")
+    public static Symbol.Builder createValueSymbolBuilder(Shape shape, String typeName, GoDependency namespace) {
+        return setImportedNamespace(createValueSymbolBuilder(shape, typeName), namespace);
+    }
+
+    /**
+     * Create a pointable symbol builder.
+     *
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
+     */
+    public static Symbol.Builder createPointableSymbolBuilder(String typeName, GoDependency namespace) {
+        return setImportedNamespace(createPointableSymbolBuilder(typeName), namespace);
+    }
+
+    /**
+     * Create a value symbol builder.
+     *
+     * @param typeName the name of the type.
+     * @param namespace the namespace of the type.
+     * @return the symbol builder.
+     */
+    public static Symbol.Builder createValueSymbolBuilder(String typeName, GoDependency namespace) {
+        return setImportedNamespace(createValueSymbolBuilder(typeName), namespace);
+    }
+
+    private static Symbol.Builder setImportedNamespace(Symbol.Builder builder, GoDependency dependency) {
+        return builder.namespace(dependency.importPath, ".")
                 .addDependency(dependency)
-                .build();
-        return SymbolReference.builder()
-                .symbol(namespaceSymbol)
-                .alias(alias)
-                .build();
+                .putProperty(NAMESPACE_ALIAS, dependency.alias);
     }
 }

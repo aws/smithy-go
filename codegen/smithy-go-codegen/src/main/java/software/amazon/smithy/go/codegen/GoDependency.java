@@ -27,23 +27,25 @@ public enum GoDependency implements SymbolDependencyContainer {
     // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
-    BIG("stdlib", "", "math/big", "1.14"),
-    TIME("stdlib", "", "time", "1.14"),
-    FMT("stdlib", "", "fmt", "1.14"),
-    CONTEXT("stdlib", "", "context", "1.14"),
+    BIG("stdlib", "", "math/big", null, "1.14"),
+    TIME("stdlib", "", "time", null, "1.14"),
+    FMT("stdlib", "", "fmt", null, "1.14"),
+    CONTEXT("stdlib", "", "context", null, "1.14"),
 
-    SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go", "v0.0.1"),
+    SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go",
+            "smithy", "v0.0.1"),
     SMITHY_HTTP_TRANSPORT("dependency", "github.com/awslabs/smithy-go",
-            "github.com/awslabs/smithy-go/transport/http", "v0.0.1"),
+            "github.com/awslabs/smithy-go/transport/http", "smithyhttp", "v0.0.1"),
     SMITHY_MIDDLEWARE("dependency", "github.com/awslabs/smithy-go",
-            "github.com/awslabs/smithy-go/middleware", "v0.0.1");
+            "github.com/awslabs/smithy-go/middleware", null, "v0.0.1");
 
     public final String sourcePath;
     public final String importPath;
+    public final String alias;
     public final String version;
     public final SymbolDependency dependency;
 
-    GoDependency(String type, String sourcePath, String importPath, String version) {
+    GoDependency(String type, String sourcePath, String importPath, String alias, String version) {
         this.dependency = SymbolDependency.builder()
                 .dependencyType(type)
                 .packageName(sourcePath)
@@ -52,6 +54,7 @@ public enum GoDependency implements SymbolDependencyContainer {
         this.sourcePath = sourcePath;
         this.importPath = importPath;
         this.version = version;
+        this.alias = alias;
     }
 
     @Override

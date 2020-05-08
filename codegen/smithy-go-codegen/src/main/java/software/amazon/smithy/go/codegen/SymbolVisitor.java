@@ -274,9 +274,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return SymbolUtils.createValueSymbolBuilder(shape, "smithy.Document")
-                .addReference(SymbolUtils.createNamespaceReference(GoDependency.SMITHY, "smithy"))
-                .build();
+        return SymbolUtils.createValueSymbolBuilder(shape, "Document", GoDependency.SMITHY).build();
     }
 
     @Override
@@ -286,18 +284,16 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol bigIntegerShape(BigIntegerShape shape) {
-        return createBigSymbol(shape, "big.Int");
+        return createBigSymbol(shape, "Int");
     }
 
     @Override
     public Symbol bigDecimalShape(BigDecimalShape shape) {
-        return createBigSymbol(shape, "big.Float");
+        return createBigSymbol(shape, "Float");
     }
 
     private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName)
-                .addReference(SymbolUtils.createNamespaceReference(GoDependency.BIG))
-                .build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName, GoDependency.BIG).build();
     }
 
     @Override
@@ -337,9 +333,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         String name = getDefaultShapeName(shape);
         Symbol.Builder builder = SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName);
         if (shape.hasTrait(ErrorTrait.ID)) {
-            builder.definitionFile("./types/errors.go")
-                    .addReference(SymbolUtils.createNamespaceReference(GoDependency.SMITHY, "smithy"))
-                    .addReference(SymbolUtils.createNamespaceReference(GoDependency.FMT));
+            builder.definitionFile("./types/errors.go");
         } else {
             builder.definitionFile("./types/types.go");
         }
@@ -363,8 +357,6 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "time.Time")
-                .addReference(SymbolUtils.createNamespaceReference(GoDependency.TIME))
-                .build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "Time", GoDependency.TIME).build();
     }
 }

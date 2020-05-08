@@ -71,7 +71,7 @@ public final class GoWriter extends CodeWriter {
     public GoWriter addUseImports(SymbolContainer container) {
         for (Symbol symbol : container.getSymbols()) {
             addImport(symbol,
-                    CodegenUtils.getDefaultPackageImportName(symbol.getNamespace()),
+                    CodegenUtils.getSymbolNamespaceAlias(symbol),
                     SymbolReference.ContextOption.USE);
         }
         return this;
@@ -86,6 +86,17 @@ public final class GoWriter extends CodeWriter {
      */
     public GoWriter addUseImports(SymbolReference symbolReference) {
         return addImport(symbolReference.getSymbol(), symbolReference.getAlias(), SymbolReference.ContextOption.USE);
+    }
+
+    /**
+     * Adds and imports the given dependency.
+     *
+     * @param goDependency The GoDependency to import.
+     * @return Returns the writer.
+     */
+    public GoWriter addUseImports(GoDependency goDependency) {
+        dependencies.addAll(goDependency.getDependencies());
+        return addImport(goDependency.importPath, goDependency.alias);
     }
 
     /**
@@ -110,7 +121,7 @@ public final class GoWriter extends CodeWriter {
         // Always add dependencies.
         dependencies.addAll(symbol.getDependencies());
 
-        if (!symbol.getNamespace().isEmpty() && !symbol.getNamespace().equals(fullPackageName)) {
+        if (isExternalNamespace(symbol.getNamespace())) {
             addImport(symbol.getNamespace(), packageAlias);
         }
 
@@ -119,6 +130,10 @@ public final class GoWriter extends CodeWriter {
         addImportReferences(symbol, options);
 
         return this;
+    }
+
+    private boolean isExternalNamespace(String namespace) {
+        return !StringUtils.isBlank(namespace) && !namespace.equals(fullPackageName);
     }
 
     void addImportReferences(Symbol symbol, SymbolReference.ContextOption... options) {
@@ -254,6 +269,9 @@ public final class GoWriter extends CodeWriter {
             if (type instanceof Symbol) {
                 Symbol typeSymbol = (Symbol) type;
                 addUseImports(typeSymbol);
+                if (isExternalNamespace(typeSymbol.getNamespace())) {
+                    return formatWithNamespace(typeSymbol);
+                }
                 return typeSymbol.getName();
             } else if (type instanceof SymbolReference) {
                 SymbolReference typeSymbol = (SymbolReference) type;
@@ -263,6 +281,13 @@ public final class GoWriter extends CodeWriter {
                 throw new CodegenException(
                         "Invalid type provided to $T. Expected a Symbol, but found `" + type + "`");
             }
+        }
+
+        private String formatWithNamespace(Symbol symbol) {
+            if (StringUtils.isEmpty(symbol.getNamespace())) {
+                return symbol.getName();
+            }
+            return String.format("%s.%s", CodegenUtils.getSymbolNamespaceAlias(symbol), symbol.getName());
         }
     }
 
@@ -283,10 +308,10 @@ public final class GoWriter extends CodeWriter {
         private boolean isPointer(Object type) {
             if (type instanceof Symbol) {
                 Symbol typeSymbol = (Symbol) type;
-                return typeSymbol.getProperty("pointable", Boolean.class).orElse(false);
+                return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
             } else if (type instanceof SymbolReference) {
                 SymbolReference typeSymbol = (SymbolReference) type;
-                return typeSymbol.getProperty("pointable", Boolean.class).orElse(false);
+                return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
             } else {
                 throw new CodegenException(
                         "Invalid type provided to $P. Expected a Symbol, but found `" + type + "`");
