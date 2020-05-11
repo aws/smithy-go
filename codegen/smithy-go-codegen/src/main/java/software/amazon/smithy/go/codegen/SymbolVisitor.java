@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.ReservedWordSymbolProvider;
@@ -25,6 +26,10 @@ import software.amazon.smithy.codegen.core.ReservedWordsBuilder;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
+import software.amazon.smithy.model.neighbor.NeighborProvider;
+import software.amazon.smithy.model.neighbor.Relationship;
+import software.amazon.smithy.model.neighbor.RelationshipType;
 import software.amazon.smithy.model.shapes.BigDecimalShape;
 import software.amazon.smithy.model.shapes.BigIntegerShape;
 import software.amazon.smithy.model.shapes.BlobShape;
@@ -316,8 +321,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol operationShape(OperationShape shape) {
-        // TODO: implement operations
-        return SymbolUtils.createPointableSymbolBuilder(shape, "nil")
+        String name = getDefaultShapeName(shape);
+        return SymbolUtils.createPointableSymbolBuilder(shape, name, rootModuleName)
+                .definitionFile(String.format("./api_op_%s.go", name))
                 .build();
     }
 
@@ -329,8 +335,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
-        // TODO: implement client generation
-        return SymbolUtils.createValueSymbolBuilder(shape, "Client", rootModuleName)
+        return SymbolUtils.createPointableSymbolBuilder(shape, "Client", rootModuleName)
                 .definitionFile("./api_client.go")
                 .build();
     }
@@ -352,6 +357,15 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = getDefaultShapeName(shape);
+        if (shape.hasTrait(SyntheticClone.ID)) {
+            Optional<String> boundOperationName = getNameOfBoundOperation(shape);
+            if (boundOperationName.isPresent()) {
+                return SymbolUtils.createPointableSymbolBuilder(shape, name, rootModuleName)
+                        .definitionFile("./api_op_" + boundOperationName.get() + ".go")
+                        .build();
+            }
+        }
+
         Symbol.Builder builder = SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName);
         if (shape.hasTrait(ErrorTrait.ID)) {
             builder.definitionFile("./types/errors.go");
@@ -359,6 +373,17 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
             builder.definitionFile("./types/types.go");
         }
         return builder.build();
+    }
+
+    private Optional<String> getNameOfBoundOperation(StructureShape shape) {
+        NeighborProvider provider = model.getKnowledge(NeighborProviderIndex.class).getReverseProvider();
+        for (Relationship relationship : provider.getNeighbors(shape)) {
+            RelationshipType relationshipType = relationship.getRelationshipType();
+            if (relationshipType == RelationshipType.INPUT || relationshipType == RelationshipType.OUTPUT) {
+                return Optional.of(getDefaultShapeName(relationship.getNeighborShape().get()));
+            }
+        }
+        return Optional.empty();
     }
 
     @Override

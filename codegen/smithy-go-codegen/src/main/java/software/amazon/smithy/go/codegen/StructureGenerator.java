@@ -41,28 +41,38 @@ final class StructureGenerator implements Runnable {
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
     private final StructureShape shape;
+    private final Symbol symbol;
 
-    StructureGenerator(Model model, SymbolProvider symbolProvider, GoWriter writer, StructureShape shape) {
+    StructureGenerator(
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer,
+            StructureShape shape,
+            Symbol symbol
+    ) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.writer = writer;
         this.shape = shape;
+        this.symbol = symbol;
     }
 
     @Override
     public void run() {
         if (!shape.hasTrait(ErrorTrait.class)) {
-            renderStructure();
+            renderStructure(() -> { });
         } else {
             renderErrorStructure();
         }
     }
 
     /**
-     * Renders a normal, non-error structure.
+     * Renders a non-error structure.
+     *
+     * @param runnable A runnable that runs before the structure definition is closed. This can be used to write
+     *     additional members.
      */
-    private void renderStructure() {
-        Symbol symbol = symbolProvider.toSymbol(shape);
+    public void renderStructure(Runnable runnable) {
         writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
         for (MemberShape member : shape.getAllMembers().values()) {
@@ -70,6 +80,7 @@ final class StructureGenerator implements Runnable {
             writer.writeMemberDocs(model, member);
             writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
         }
+        runnable.run();
         writer.closeBlock("}").write("");
     }
 

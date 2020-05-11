@@ -19,7 +19,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
@@ -145,6 +148,60 @@ public interface GoIntegration {
      * @param writer TypeScript writer to write to.
      */
     default void addConfigInterfaceFields(
+            GoSettings settings,
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer
+    ) {
+        // pass
+    }
+
+    /**
+     * Gets a list of plugins to apply to the generated client.
+     *
+     * @return Returns the list of RuntimePlugins to apply to the client.
+     */
+    default List<RuntimeClientPlugin> getClientPlugins() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Adds additional client config fields.
+     *
+     * <p>Implementations of this method are expected to add fields to the
+     * "ClientOptions" struct of a generated client. Implementations are
+     * expected to write field names and their type signatures. Any number
+     * of fields can be added, and any {@link Symbol} or {@link SymbolReference}
+     * objects that are written to the writer are automatically imported, and
+     * any of their contained {@link SymbolDependency} values are automatically
+     * added to the generated {@code go.mod} file.
+     *
+     * <p>For example, the following code adds two fields to a client:
+     *
+     * <pre>
+     * {@code
+     * public final class MyIntegration implements GoIntegration {
+     *     public void addConfigFields(
+     *             GoSettings settings,
+     *             Model model,
+     *             SymbolProvider symbolProvider,
+     *             GoWriter writer
+     *     ) {
+     *         writer.writeDocs("The docs for foo...");
+     *         writer.write("Foo *string");
+     *
+     *         writer.writeDocs("The docs for bar...");
+     *         writer.write("Bar string;");
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param settings Settings used to generate.
+     * @param model Model to generate from.
+     * @param symbolProvider Symbol provider used for codegen.
+     * @param writer Go writer to write to.
+     */
+    default void addConfigFields(
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
