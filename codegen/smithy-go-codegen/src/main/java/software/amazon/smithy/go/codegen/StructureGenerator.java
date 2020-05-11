@@ -80,6 +80,9 @@ final class StructureGenerator implements Runnable {
         Symbol structureSymbol = symbolProvider.toSymbol(shape);
         String interfaceName = structureSymbol.getName() + "Interface";
 
+        writer.addUseImports(GoDependency.SMITHY);
+        writer.addUseImports(GoDependency.FMT);
+
         ErrorTrait errorTrait = shape.expectTrait(ErrorTrait.class);
 
         // Write out the interface for the error

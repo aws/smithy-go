@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -95,6 +96,20 @@ public final class CodegenUtils {
             return packageName;
         }
         return packageName.substring(packageName.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * Gets the alias to use when referencing the given symbol outside of its namespace.
+     *
+     * <p>The default value is the last path component of the symbol's namespace.
+     *
+     * @param symbol The symbol whose whose namespace alias should be retrieved.
+     * @return The alias of the symbol's namespace.
+     */
+    public static String getSymbolNamespaceAlias(Symbol symbol) {
+        return symbol.getProperty(SymbolUtils.NAMESPACE_ALIAS, String.class)
+                .filter(StringUtils::isNotBlank)
+                .orElse(CodegenUtils.getDefaultPackageImportName(symbol.getNamespace()));
     }
 
     /**
