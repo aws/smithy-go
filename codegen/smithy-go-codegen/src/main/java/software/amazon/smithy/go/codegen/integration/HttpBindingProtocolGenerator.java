@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -229,7 +228,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             switch (binding.getLocation()) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember().getTarget());
+                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
+                                .getTarget());
                         Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
                         bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
@@ -263,17 +263,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     });
                     break;
                 case LABEL:
-                    bodyWriter.writeInline("encoder.SetURI($S)", memberShape.getMemberName());
-                    bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                    bodyWriter.writeInline("if err := encoder.SetURI($S)", memberShape.getMemberName());
+                    bodyWriter.writeInline(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                    bodyWriter.write("; err != nil {\n"
+                            + "\treturn err\n"
+                            + "}");
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember().getTarget());
+                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
+                                .getTarget());
                         Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
                         bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
                             bodyWriter.writeInline("encoder.AddQuery($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol, "v.$L[i]"),
-                                    memberName);
+                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
+                                    "v.$L[i]"), memberName);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
