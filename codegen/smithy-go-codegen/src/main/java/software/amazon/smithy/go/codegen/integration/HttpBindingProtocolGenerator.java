@@ -133,9 +133,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
         GoWriter writer = context.getWriter();
 
-        Shape inputShape = model.getShape(operation.getInput()
-                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())))
-                .orElseThrow(() -> new CodegenException("input shape missing from model"));
+        Shape inputShape = model.expectShape(operation.getInput()
+                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
 
         HttpBindingIndex bindingIndex = context.getModel().getKnowledge(HttpBindingIndex.class);
 
@@ -146,27 +145,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         List<String> bindingMembers = new ArrayList<>(bindingMap.keySet());
         bindingMembers.sort(String::compareTo);
 
-        SymbolReference fmtPackageReference = SymbolUtils.createNamespaceReference(GoDependency.FMT);
+        Symbol restEncoder = getRestEncoderSymbolReference();
 
-        SymbolReference restEncoder = getRestEncoderSymbolReference();
-
-        writer.addUseImports(fmtPackageReference);
+        writer.addUseImports(SymbolUtils.createValueSymbolBuilder(null, GoDependency.FMT).build());
         writer.addUseImports(restEncoder);
 
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
 
-        // TODO: This seems awkward for references generated types package?
-        SymbolReference inputSymbolReference = SymbolReference.builder()
-                .symbol(SymbolUtils.createPointableSymbolBuilder("types." + inputSymbol.getName())
-                        .addReference(SymbolUtils.createNamespaceReference(inputSymbol.getNamespace(), "types"))
-                        .build())
-                .build();
-
-        writer.addUseImports(inputSymbolReference);
+        writer.addUseImports(inputSymbol);
 
         String functionName = ProtocolGenerator.getOperationSerFunctionName(inputSymbol, getProtocolName());
 
-        writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbolReference, restEncoder,
+        writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, restEncoder,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
                         writer.write("return fmt.Errorf(\"unsupported serialization of nil %T\", v)");
@@ -182,13 +172,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     writer.write("return nil");
                 });
+        writer.write("");
     }
 
-    private SymbolReference getRestEncoderSymbolReference() {
-        return SymbolReference.builder()
-                .symbol(SymbolUtils.createPointableSymbolBuilder("rest.Encoder")
-                        .addReference(SymbolUtils.createNamespaceReference(GoDependency.AWS_REST_PROTOCOL))
-                        .build())
+    private Symbol getRestEncoderSymbolReference() {
+        return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL)
                 .build();
     }
 

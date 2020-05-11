@@ -17,8 +17,6 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.Objects;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolReference;
-import software.amazon.smithy.utils.ListUtils;
 
 
 /**
@@ -28,20 +26,19 @@ import software.amazon.smithy.utils.ListUtils;
 public final class ApplicationProtocol {
 
     private final String name;
-    private final SymbolReference requestType;
-    private final SymbolReference responseType;
+    private final Symbol requestType;
+    private final Symbol responseType;
 
     /**
      * Creates a resolved application protocol.
-     *
-     * @param name The protocol name (e.g., http, mqtt, etc).
-     * @param requestType The type used to represent request messages for the protocol.
+     *  @param name         The protocol name (e.g., http, mqtt, etc).
+     * @param requestType  The type used to represent request messages for the protocol.
      * @param responseType The type used to represent response messages for the protocol.
      */
     public ApplicationProtocol(
             String name,
-            SymbolReference requestType,
-            SymbolReference responseType
+            Symbol requestType,
+            Symbol responseType
     ) {
         this.name = name;
         this.requestType = requestType;
@@ -56,19 +53,13 @@ public final class ApplicationProtocol {
     public static ApplicationProtocol createDefaultHttpApplicationProtocol() {
         return new ApplicationProtocol(
                 "http",
-                SymbolReference.builder()
-                        .symbol(createHttpSymbol(GoDependency.SMITHY_HTTP_TRANSPORT, "http.Request"))
-                        .build(),
-                SymbolReference.builder()
-                        .symbol(createHttpSymbol(GoDependency.SMITHY_HTTP_TRANSPORT, "http.Response"))
-                        .build()
+                createHttpSymbol("Request"),
+                createHttpSymbol("Response")
         );
     }
 
-    private static Symbol createHttpSymbol(GoDependency dependency, String symbolName) {
-        SymbolReference symbolReference = SymbolUtils.createNamespaceReference(dependency);
-        return SymbolUtils.createPointableSymbolBuilder(symbolName)
-                .references(ListUtils.of(symbolReference))
+    private static Symbol createHttpSymbol(String symbolName) {
+        return SymbolUtils.createPointableSymbolBuilder(symbolName, GoDependency.SMITHY_HTTP_TRANSPORT)
                 .build();
     }
 
@@ -98,7 +89,7 @@ public final class ApplicationProtocol {
      *
      * @return Returns the protocol request type.
      */
-    public SymbolReference getRequestType() {
+    public Symbol getRequestType() {
         return requestType;
     }
 
@@ -107,7 +98,7 @@ public final class ApplicationProtocol {
      *
      * @return Returns the protocol response type.
      */
-    public SymbolReference getResponseType() {
+    public Symbol getResponseType() {
         return responseType;
     }
 
@@ -121,7 +112,7 @@ public final class ApplicationProtocol {
 
         ApplicationProtocol that = (ApplicationProtocol) o;
         return requestType.equals(that.requestType)
-               && responseType.equals(that.responseType);
+                && responseType.equals(that.responseType);
     }
 
     @Override
