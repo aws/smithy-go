@@ -240,7 +240,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("input, ok := in.Parameters.($P)", inputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\", in.Request)}");
+                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                        + " in.Parameters)}");
             });
 
             writer.write("");
