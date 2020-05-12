@@ -16,8 +16,11 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
@@ -27,10 +30,13 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -53,6 +59,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final SymbolProvider symbolProvider;
     private final GoDelegator writers;
     private final List<GoIntegration> integrations = new ArrayList<>();
+    private final ProtocolGenerator protocolGenerator;
+    private final ApplicationProtocol applicationProtocol;
 
     CodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -89,7 +97,39 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
         symbolProvider = resolvedProvider;
 
+        protocolGenerator = resolveProtocolGenerator(integrations, model, service, settings);
+        applicationProtocol = protocolGenerator == null
+                ? ApplicationProtocol.createDefaultHttpApplicationProtocol()
+                : protocolGenerator.getApplicationProtocol();
+
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
+    }
+
+    private static ProtocolGenerator resolveProtocolGenerator(
+            Collection<GoIntegration> integrations,
+            Model model,
+            ServiceShape service,
+            GoSettings settings
+    ) {
+        // Collect all of the supported protocol generators.
+        Map<ShapeId, ProtocolGenerator> generators = new HashMap<>();
+        for (GoIntegration integration : integrations) {
+            for (ProtocolGenerator generator : integration.getProtocolGenerators()) {
+                generators.put(generator.getProtocol(), generator);
+            }
+        }
+
+        ServiceIndex serviceIndex = model.getKnowledge(ServiceIndex.class);
+
+        ShapeId protocolTrait;
+        try {
+            protocolTrait = settings.resolveServiceProtocol(serviceIndex, service, generators.keySet());
+        } catch (UnresolvableProtocolException e) {
+            LOGGER.warning("Unable to find a protocol generator for " + service.getId() + ": " + e.getMessage());
+            protocolTrait = null;
+        }
+
+        return protocolTrait != null ? generators.get(protocolTrait) : null;
     }
 
     void execute() {
@@ -103,6 +143,21 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (GoIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
+        }
+
+        if (protocolGenerator != null) {
+            LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
+            writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
+                ProtocolGenerator.GenerationContext context = new ProtocolGenerator.GenerationContext();
+                context.setProtocolName(protocolGenerator.getProtocolName());
+                context.setIntegrations(integrations);
+                context.setModel(model);
+                context.setService(service);
+                context.setSettings(settings);
+                context.setSymbolProvider(symbolProvider);
+                context.setWriter(writer);
+                protocolGenerator.generateRequestSerializers(context);
+            });
         }
 
         LOGGER.fine("Flushing go writers");

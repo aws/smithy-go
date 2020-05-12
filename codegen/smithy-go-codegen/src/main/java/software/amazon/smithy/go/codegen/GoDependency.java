@@ -37,7 +37,10 @@ public enum GoDependency implements SymbolDependencyContainer {
     SMITHY_HTTP_TRANSPORT("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go/transport/http", "smithyhttp", "v0.0.1"),
     SMITHY_MIDDLEWARE("dependency", "github.com/awslabs/smithy-go",
-            "github.com/awslabs/smithy-go/middleware", null, "v0.0.1");
+            "github.com/awslabs/smithy-go/middleware", null, "v0.0.1"),
+
+    AWS_REST_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, "v0.22.0");
 
     public final String sourcePath;
     public final String importPath;
