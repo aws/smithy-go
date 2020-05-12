@@ -211,12 +211,16 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "[]byte").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "[]byte")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
     public Symbol booleanShape(BooleanShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "bool").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "bool")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
@@ -234,17 +238,21 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return SymbolUtils.createValueSymbolBuilder(shape, "[]" + reference.getName())
-                .addReference(reference)
-                .build();
+        return SymbolUtils.createValueSymbolBuilder(shape, reference.getName(), typesPackageName)
+                .putProperty(SymbolUtils.GO_SLICE, true)
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
+                        SymbolUtils.isUniverseType(reference))
+                .addReference(reference).build();
     }
 
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return SymbolUtils.createValueSymbolBuilder(shape, "map[string]" + reference.getName())
-                .addReference(reference)
-                .build();
+        return SymbolUtils.createValueSymbolBuilder(shape, reference.getName(), typesPackageName)
+                .putProperty(SymbolUtils.GO_MAP, true)
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
+                        SymbolUtils.isUniverseType(reference))
+                .addReference(reference).build();
     }
 
     @Override
@@ -254,22 +262,30 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol shortShape(ShortShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int16").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int16")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
     public Symbol integerShape(IntegerShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int32").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int32")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
     public Symbol longShape(LongShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int64").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int64")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
     public Symbol floatShape(FloatShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "float32").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "float32")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
@@ -279,7 +295,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol doubleShape(DoubleShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "float64").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "float64")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
@@ -299,7 +317,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol operationShape(OperationShape shape) {
         // TODO: implement operations
-        return SymbolUtils.createPointableSymbolBuilder(shape, "nil").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "nil")
+                .build();
     }
 
     @Override
@@ -325,7 +344,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                     .build();
         }
 
-        return SymbolUtils.createPointableSymbolBuilder(shape, "string").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "string")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
