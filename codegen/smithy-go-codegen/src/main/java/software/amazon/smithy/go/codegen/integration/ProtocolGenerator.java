@@ -148,6 +148,13 @@ public interface ProtocolGenerator {
     void generateResponseDeserializers(GenerationContext context);
 
     /**
+     * Generates the code for validating the generated protocol's serializers and deserializers.
+     *
+     * @param context Generation context
+     */
+    default void generateProtocolTests(GenerationContext context) {}
+
+    /**
      * Generates the name of a serializer function for shapes of a service.
      *
      * @param shape    The shape the serializer function is being generated for.
@@ -295,6 +302,7 @@ public interface ProtocolGenerator {
             return protocolName;
         }
 
+        // TODO change to shape id of protocol shape id
         public void setProtocolName(String protocolName) {
             this.protocolName = protocolName;
         }
