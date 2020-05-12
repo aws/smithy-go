@@ -269,10 +269,23 @@ public final class GoWriter extends CodeWriter {
             if (type instanceof Symbol) {
                 Symbol typeSymbol = (Symbol) type;
                 addUseImports(typeSymbol);
-                if (isExternalNamespace(typeSymbol.getNamespace())) {
-                    return formatWithNamespace(typeSymbol);
+
+                Boolean isUniverseType = typeSymbol.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class)
+                        .orElse(false);
+
+                String literal = typeSymbol.getName();
+
+                if (!isUniverseType && isExternalNamespace(typeSymbol.getNamespace())) {
+                    literal = formatWithNamespace(typeSymbol);
                 }
-                return typeSymbol.getName();
+
+                if (typeSymbol.getProperty(SymbolUtils.GO_SLICE, Boolean.class).orElse(false)) {
+                    return "[]" + literal;
+                } else if (typeSymbol.getProperty(SymbolUtils.GO_MAP, Boolean.class).orElse(false)) {
+                    return "map[string]" + literal;
+                } else {
+                    return literal;
+                }
             } else if (type instanceof SymbolReference) {
                 SymbolReference typeSymbol = (SymbolReference) type;
                 addImport(typeSymbol.getSymbol(), typeSymbol.getAlias(), SymbolReference.ContextOption.USE);

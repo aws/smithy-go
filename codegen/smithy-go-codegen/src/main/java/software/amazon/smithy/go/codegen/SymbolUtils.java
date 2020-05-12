@@ -25,6 +25,9 @@ public final class SymbolUtils {
 
     public static final String POINTABLE = "pointable";
     public static final String NAMESPACE_ALIAS = "namespaceAlias";
+    public static final String GO_UNIVERSE_TYPE = "universeType";
+    public static final String GO_SLICE = "slice";
+    public static final String GO_MAP = "map";
 
     private SymbolUtils() {
     }
@@ -56,7 +59,7 @@ public final class SymbolUtils {
     /**
      * Create a value symbol builder.
      *
-     * @param shape the shape that the type is for.
+     * @param shape    the shape that the type is for.
      * @param typeName the name of the type.
      * @return the symbol builder.
      */
@@ -67,7 +70,7 @@ public final class SymbolUtils {
     /**
      * Create a pointable symbol builder.
      *
-     * @param shape the shape that the type is for.
+     * @param shape    the shape that the type is for.
      * @param typeName the name of the type.
      * @return the symbol builder.
      */
@@ -78,7 +81,7 @@ public final class SymbolUtils {
     /**
      * Create a pointable symbol builder.
      *
-     * @param typeName the name of the type.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -89,7 +92,7 @@ public final class SymbolUtils {
     /**
      * Create a value symbol builder.
      *
-     * @param typeName the name of the type.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -100,8 +103,8 @@ public final class SymbolUtils {
     /**
      * Create a pointable symbol builder.
      *
-     * @param shape the shape that the type is for.
-     * @param typeName the name of the type.
+     * @param shape     the shape that the type is for.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -112,8 +115,8 @@ public final class SymbolUtils {
     /**
      * Create a value symbol builder.
      *
-     * @param shape the shape that the type is for.
-     * @param typeName the name of the type.
+     * @param shape     the shape that the type is for.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -124,8 +127,8 @@ public final class SymbolUtils {
     /**
      * Create a pointable symbol builder.
      *
-     * @param shape the shape that the type is for.
-     * @param typeName the name of the type.
+     * @param shape     the shape that the type is for.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -136,8 +139,8 @@ public final class SymbolUtils {
     /**
      * Create a value symbol builder.
      *
-     * @param shape the shape that the type is for.
-     * @param typeName the name of the type.
+     * @param shape     the shape that the type is for.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -148,7 +151,7 @@ public final class SymbolUtils {
     /**
      * Create a pointable symbol builder.
      *
-     * @param typeName the name of the type.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
@@ -159,7 +162,7 @@ public final class SymbolUtils {
     /**
      * Create a value symbol builder.
      *
-     * @param typeName the name of the type.
+     * @param typeName  the name of the type.
      * @param namespace the namespace of the type.
      * @return the symbol builder.
      */
