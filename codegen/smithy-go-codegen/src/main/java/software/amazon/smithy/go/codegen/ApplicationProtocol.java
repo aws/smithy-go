@@ -31,7 +31,8 @@ public final class ApplicationProtocol {
 
     /**
      * Creates a resolved application protocol.
-     *  @param name         The protocol name (e.g., http, mqtt, etc).
+     *
+     * @param name         The protocol name (e.g., http, mqtt, etc).
      * @param requestType  The type used to represent request messages for the protocol.
      * @param responseType The type used to represent response messages for the protocol.
      */

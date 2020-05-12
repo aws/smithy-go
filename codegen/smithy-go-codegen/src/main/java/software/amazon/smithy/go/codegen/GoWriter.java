@@ -322,7 +322,7 @@ public final class GoWriter extends CodeWriter {
             } else if (type instanceof SymbolReference) {
                 SymbolReference typeSymbol = (SymbolReference) type;
                 return typeSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false)
-                        || typeSymbol.getSymbol().getProperty("pointable", Boolean.class).orElse(false);
+                        || typeSymbol.getSymbol().getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
             } else {
                 throw new CodegenException(
                         "Invalid type provided to $P. Expected a Symbol, but found `" + type + "`");

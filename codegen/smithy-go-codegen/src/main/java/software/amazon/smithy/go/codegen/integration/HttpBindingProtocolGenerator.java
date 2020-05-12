@@ -144,7 +144,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         List<String> bindingMembers = new ArrayList<>(bindingMap.keySet());
         bindingMembers.sort(String::compareTo);
 
-        Symbol restEncoder = getRestEncoderSymbolReference();
+        Symbol restEncoder = getRestEncoderSymbol();
 
         writer.addUseImports(SymbolUtils.createValueSymbolBuilder(null, GoDependency.FMT).build());
         writer.addUseImports(restEncoder);
@@ -174,7 +174,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.write("");
     }
 
-    private Symbol getRestEncoderSymbolReference() {
+    private Symbol getRestEncoderSymbol() {
         return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL)
                 .build();
     }
