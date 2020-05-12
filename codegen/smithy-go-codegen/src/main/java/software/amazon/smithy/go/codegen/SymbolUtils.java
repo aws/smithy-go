@@ -175,4 +175,17 @@ public final class SymbolUtils {
                 .addDependency(dependency)
                 .putProperty(NAMESPACE_ALIAS, dependency.alias);
     }
+
+    /**
+     * Go declares several built-in language types in what is known as the Universe block. This function determines
+     * whether the provided symbol represents a Go universe type.
+     *
+     * @param symbol the symbol to check
+     * @return whether the symbol type is in the Go universe block
+     * @see <a href="https://golang.org/ref/spec#Predeclared_identifiers">The Go Programming Language Specification</a>
+     */
+    public static boolean isUniverseType(Symbol symbol) {
+        return symbol.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class)
+                .orElse(false);
+    }
 }

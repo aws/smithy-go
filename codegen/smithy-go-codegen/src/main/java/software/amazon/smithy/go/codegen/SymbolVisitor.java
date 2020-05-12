@@ -241,7 +241,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         return SymbolUtils.createValueSymbolBuilder(shape, reference.getName(), typesPackageName)
                 .putProperty(SymbolUtils.GO_SLICE, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
-                        reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
+                        SymbolUtils.isUniverseType(reference))
                 .addReference(reference).build();
     }
 
@@ -251,7 +251,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         return SymbolUtils.createValueSymbolBuilder(shape, reference.getName(), typesPackageName)
                 .putProperty(SymbolUtils.GO_MAP, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
-                        reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
+                        SymbolUtils.isUniverseType(reference))
                 .addReference(reference).build();
     }
 

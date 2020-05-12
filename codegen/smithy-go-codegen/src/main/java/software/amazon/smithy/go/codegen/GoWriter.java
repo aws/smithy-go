@@ -270,12 +270,9 @@ public final class GoWriter extends CodeWriter {
                 Symbol typeSymbol = (Symbol) type;
                 addUseImports(typeSymbol);
 
-                Boolean isUniverseType = typeSymbol.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class)
-                        .orElse(false);
-
                 String literal = typeSymbol.getName();
 
-                if (!isUniverseType && isExternalNamespace(typeSymbol.getNamespace())) {
+                if (!SymbolUtils.isUniverseType(typeSymbol) && isExternalNamespace(typeSymbol.getNamespace())) {
                     literal = formatWithNamespace(typeSymbol);
                 }
 
