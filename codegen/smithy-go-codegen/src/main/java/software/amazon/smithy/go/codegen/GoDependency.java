@@ -32,7 +32,7 @@ public enum GoDependency implements SymbolDependencyContainer {
     FMT("stdlib", "", "fmt", null, "1.14"),
     CONTEXT("stdlib", "", "context", null, "1.14"),
     STRCONV("stdlib", "", "strconv", null, "1.14"),
-    BASE64ENCODING("stdlib", "", "encoding/base64", null, "1.14"),
+    BASE64("stdlib", "", "encoding/base64", null, "1.14"),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go",
             "smithy", "v0.0.1"),
