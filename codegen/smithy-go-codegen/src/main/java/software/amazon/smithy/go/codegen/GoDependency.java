@@ -31,6 +31,8 @@ public enum GoDependency implements SymbolDependencyContainer {
     TIME("stdlib", "", "time", null, "1.14"),
     FMT("stdlib", "", "fmt", null, "1.14"),
     CONTEXT("stdlib", "", "context", null, "1.14"),
+    STRCONV("stdlib", "", "strconv", null, "1.14"),
+    BASE64ENCODING("stdlib", "", "encoding/base64", null, "1.14"),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go",
             "smithy", "v0.0.1"),
@@ -40,7 +42,9 @@ public enum GoDependency implements SymbolDependencyContainer {
             "github.com/awslabs/smithy-go/middleware", null, "v0.0.1"),
 
     AWS_REST_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, "v0.22.0");
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, "v0.22.0"),
+    AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/private/protocol", null, "v0.22.0");
 
     public final String sourcePath;
     public final String importPath;

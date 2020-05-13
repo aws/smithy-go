@@ -153,6 +153,19 @@ public interface ProtocolGenerator {
     }
 
     /**
+     * Generates the name of a deserializer function for shapes of a service.
+     *
+     * @param symbol   The symbol the deserializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
+    static String getOperationDeserFunctionName(Symbol symbol, String protocol) {
+        return protocol
+                + "_deserializeHttpBindings"
+                + symbol.getName();
+    }
+
+    /**
      * Generates the name of a serializer function for shapes of a service.
      *
      * @param symbol        The symbol the serializer function is being generated for.

@@ -147,16 +147,22 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         if (protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
+            ProtocolGenerator.GenerationContext context = new ProtocolGenerator.GenerationContext();
+            context.setProtocolName(protocolGenerator.getProtocolName());
+            context.setIntegrations(integrations);
+            context.setModel(model);
+            context.setService(service);
+            context.setSettings(settings);
+            context.setSymbolProvider(symbolProvider);
+
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = new ProtocolGenerator.GenerationContext();
-                context.setProtocolName(protocolGenerator.getProtocolName());
-                context.setIntegrations(integrations);
-                context.setModel(model);
-                context.setService(service);
-                context.setSettings(settings);
-                context.setSymbolProvider(symbolProvider);
                 context.setWriter(writer);
                 protocolGenerator.generateRequestSerializers(context);
+            });
+
+            writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
+                context.setWriter(writer);
+                protocolGenerator.generateResponseDeserializers(context);
             });
         }
 
