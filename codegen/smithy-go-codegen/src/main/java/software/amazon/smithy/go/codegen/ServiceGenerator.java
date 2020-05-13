@@ -40,6 +40,7 @@ final class ServiceGenerator implements Runnable {
     private final ServiceShape service;
     private final List<GoIntegration> integrations;
     private final List<RuntimeClientPlugin> runtimePlugins;
+    private final ApplicationProtocol applicationProtocol;
 
     ServiceGenerator(
             GoSettings settings,
@@ -48,7 +49,8 @@ final class ServiceGenerator implements Runnable {
             GoWriter writer,
             ServiceShape service,
             List<GoIntegration> integrations,
-            List<RuntimeClientPlugin> runtimePlugins
+            List<RuntimeClientPlugin> runtimePlugins,
+            ApplicationProtocol applicationProtocol
     ) {
         this.settings = settings;
         this.model = model;
@@ -57,6 +59,7 @@ final class ServiceGenerator implements Runnable {
         this.service = service;
         this.integrations = integrations;
         this.runtimePlugins = runtimePlugins;
+        this.applicationProtocol = applicationProtocol;
     }
 
     @Override
@@ -125,8 +128,10 @@ final class ServiceGenerator implements Runnable {
                 integration.addConfigFields(settings, model, symbolProvider, writer);
             }
 
-            // TODO: add application protocol defaults
+            generateApplicationProtocolConfig();
         }).write("");
+
+        generateApplicationProtocolTypes();
 
         writer.writeDocs("Copy creates a clone where the APIOptions list is deep copied.");
         writer.openBlock("func (o $L) Copy() $L {", "}", CONFIG_NAME, CONFIG_NAME, () -> {
@@ -135,5 +140,27 @@ final class ServiceGenerator implements Runnable {
             writer.write("copy(to.APIOptions, o.APIOptions)");
             writer.write("return to");
         });
+    }
+
+    private void generateApplicationProtocolConfig() {
+        ensureSupportedProtocol();
+        writer.writeDocs(
+                "The HTTP client to invoke API calls with. Defaults to client's default HTTP implementation if nil.");
+        writer.write("HTTPClient HTTPClient").write("");
+    }
+
+    private void generateApplicationProtocolTypes() {
+        ensureSupportedProtocol();
+        writer.openBlock("type HTTPClient interface {", "}", () -> {
+            writer.write("Do($P) ($P, error)", applicationProtocol.getRequestType(),
+                    applicationProtocol.getResponseType());
+        }).write("");
+    }
+
+    private void ensureSupportedProtocol() {
+        if (!applicationProtocol.isHttpProtocol()) {
+            throw new UnsupportedOperationException(
+                    "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
+        }
     }
 }

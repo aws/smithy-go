@@ -226,7 +226,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         writers.useShapeWriter(shape, serviceWriter -> {
             new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
-                    runtimePlugins).run();
+                    runtimePlugins, applicationProtocol).run();
 
             // Generate each operation for the service. We do this here instead of via the operation visitor method to
             // limit it to the operations bound to the service.
@@ -236,7 +236,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 Symbol operationSymbol = symbolProvider.toSymbol(operation);
                 writers.useShapeWriter(operation, operationWriter -> new OperationGenerator(
                         settings, model, symbolProvider, operationWriter, service, operation,
-                        operationSymbol).run());
+                        operationSymbol, applicationProtocol).run());
             }
         });
         return null;

@@ -36,6 +36,7 @@ final class OperationGenerator implements Runnable {
     private final ServiceShape service;
     private final OperationShape operation;
     private final Symbol operationSymbol;
+    private final ApplicationProtocol applicationProtocol;
 
     OperationGenerator(
             GoSettings settings,
@@ -44,7 +45,8 @@ final class OperationGenerator implements Runnable {
             GoWriter writer,
             ServiceShape service,
             OperationShape operation,
-            Symbol operationSymbol
+            Symbol operationSymbol,
+            ApplicationProtocol applicationProtocol
     ) {
         this.settings = settings;
         this.model = model;
@@ -53,6 +55,7 @@ final class OperationGenerator implements Runnable {
         this.service = service;
         this.operation = operation;
         this.operationSymbol = operationSymbol;
+        this.applicationProtocol = applicationProtocol;
     }
 
     @Override
@@ -79,7 +82,8 @@ final class OperationGenerator implements Runnable {
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", GoDependency.CONTEXT).build();
         writer.openBlock("func (c $P) $T(ctx $T, params $P, opts ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
-                    // TODO: create middleware stack
+                    constructStack();
+
                     writer.write("options := c.options.Copy()");
                     writer.openBlock("for _, fn := range optFns {", "}", () -> {
                         writer.write("fn(&options)");
@@ -87,8 +91,10 @@ final class OperationGenerator implements Runnable {
                     writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
                         writer.write("if err := fn(stack); err != nil { return nil, err }");
                     });
-                    // TODO: resolve middleware stack
-                    writer.write("return nil, nil");
+
+                    writer.write("result, err := handler.Handle(ctx, params)");
+                    writer.write("if err != nil { return nil, err }");
+                    writer.write("return result.($P), nil", outputSymbol);
                 }).write("");
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
@@ -103,5 +109,15 @@ final class OperationGenerator implements Runnable {
             writer.writeDocs("Metadata pertaining to the operation's result.");
             writer.write("ResultMetadata $T", metadataSymbol);
         });
+    }
+
+    private void constructStack() {
+        if (!applicationProtocol.isHttpProtocol()) {
+            throw new UnsupportedOperationException(
+                    "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
+        }
+        writer.addUseImports(GoDependency.SMITHY_MIDDLEWARE);
+        writer.addUseImports(GoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.write("stack := middleware.NewStack($S, smithyhttp.NewStackRequest)", operationSymbol.getName());
     }
 }
