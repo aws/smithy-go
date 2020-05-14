@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -38,6 +39,7 @@ import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
@@ -54,6 +56,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private static final Logger LOGGER = Logger.getLogger(HttpBindingProtocolGenerator.class.getName());
 
     private final boolean isErrorCodeInBody;
+    private final Set<ShapeId> serializeErrorBindingShapes = new TreeSet<>();
 
     /**
      * Creates a Http binding protocol generator.
@@ -341,8 +344,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     public void generateResponseDeserializers(GenerationContext context) {
         for (OperationShape operation : getHttpBindingOperations(context)) {
             generateOperationHttpBindingDeserializer(context, operation);
+            addErrorShapeBinders(context, operation);
+        }
+
+        for (ShapeId errorBinding: serializeErrorBindingShapes) {
+            generateErrorHttpBindingDeserializer(context, errorBinding);
         }
     }
+
 
     private void generateOperationHttpBindingDeserializer(
             GenerationContext context,
@@ -368,16 +377,51 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             return;
         }
 
-        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+        generateShapeDeserializerFunction(writer, model, symbolProvider, outputShape, bindingMap);
+    }
+
+    private void generateErrorHttpBindingDeserializer(
+            GenerationContext context,
+            ShapeId errorBinding
+    ) {
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
+        GoWriter writer = context.getWriter();
+        HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
+        Shape errorBindingShape = model.expectShape(errorBinding);
+
+        Map<String, HttpBinding> bindingMap = bindingIndex.getResponseBindings(errorBinding).entrySet().stream()
+                .filter(entry -> isRestBinding(entry.getValue().getLocation()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
+                    throw new CodegenException("found duplicate binding entries for same error shape");
+                }, TreeMap::new));
+
+        // do not generate if no HTTPBinding for Error Binding
+        if (bindingMap.size() == 0) {
+            return;
+        }
+
+        generateShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
+    }
+
+
+    private void generateShapeDeserializerFunction(
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            Shape targetShape,
+            Map<String, HttpBinding> bindingMap
+    ) {
+        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         Symbol smithyHttpResponsePointableSymbol = SymbolUtils.createPointableSymbolBuilder(
                 "Response", GoDependency.SMITHY_HTTP_TRANSPORT).build();
 
         writer.addUseImports(smithyHttpResponsePointableSymbol);
         writer.addUseImports(GoDependency.FMT);
 
-        String functionName = ProtocolGenerator.getOperationDeserFunctionName(outputSymbol, getProtocolName());
+        String functionName = ProtocolGenerator.getOperationDeserFunctionName(targetSymbol, getProtocolName());
         writer.openBlock("func $L(v $P, response $P) error {", "}",
-                functionName, outputSymbol, smithyHttpResponsePointableSymbol,
+                functionName, targetSymbol, smithyHttpResponsePointableSymbol,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
                         writer.write("return fmt.Errorf(\"unsupported deserialization for nil %T\", v)");
@@ -391,6 +435,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     }
                     writer.write("return nil");
                 });
+    }
+
+
+    private void addErrorShapeBinders(GenerationContext context, OperationShape operation) {
+        for (ShapeId errorBinding: operation.getErrors()) {
+            serializeErrorBindingShapes.add(errorBinding);
+        }
     }
 
 
@@ -470,7 +521,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                         bindingLocation, "", () -> {
                             String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
-                            // Todo should use some util to add reference as address.
                             boolean pointable = targetSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
                                     .orElse(false);
                             if (pointable) {
