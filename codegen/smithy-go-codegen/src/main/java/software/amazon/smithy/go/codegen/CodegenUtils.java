@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -137,13 +140,12 @@ public final class CodegenUtils {
      * This method can be used by deserializers to get pointer to
      * operand.
      *
-     * @param symbol The Symbol corresponding to shape whose value needs to be assigned.
+     * @param shape The shape whose value needs to be assigned.
      * @param operand The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */
-    public static String generatePointerReferenceIfPointable(Symbol symbol, String operand) {
-        if (symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
-                .orElse(false)) {
+    public static String generatePointerReferenceIfPointable(Shape shape, String operand) {
+        if (isShapePassByReference(shape)) {
             return '&' + operand;
         }
         return operand;
@@ -166,5 +168,30 @@ public final class CodegenUtils {
             default:
                 throw new CodegenException("unknown timestamp format found: " + format.toString());
         }
+    }
+
+    /**
+     * Returns whether the shape should be passed by value in Go.
+     *
+     * @param shape the shape
+     * @return whether the shape should be passed by value
+     */
+    public static boolean isShapePassByValue(Shape shape) {
+        return shape.getType() == ShapeType.LIST
+                || shape.getType() == ShapeType.SET
+                || shape.getType() == ShapeType.UNION
+                || shape.getType() == ShapeType.MAP
+                || shape.getType() == ShapeType.BLOB
+                || (shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class));
+    }
+
+    /**
+     * Returns whether the shape should be passed by pointer reference in Go.
+     *
+     * @param shape the shape
+     * @return whether the shape should be passed by reference
+     */
+    public static boolean isShapePassByReference(Shape shape) {
+        return !isShapePassByValue(shape);
     }
 }

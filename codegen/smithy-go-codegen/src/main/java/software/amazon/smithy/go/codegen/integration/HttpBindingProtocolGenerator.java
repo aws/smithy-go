@@ -417,7 +417,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Symbol smithyHttpResponsePointableSymbol = SymbolUtils.createPointableSymbolBuilder(
                 "Response", GoDependency.SMITHY_HTTP_TRANSPORT).build();
 
-        writer.addUseImports(smithyHttpResponsePointableSymbol);
         writer.addUseImports(GoDependency.FMT);
 
         String functionName = ProtocolGenerator.getOperationDeserFunctionName(targetSymbol, getProtocolName());
@@ -511,12 +510,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         String memberName = symbolProvider.toMemberName(memberShape);
 
         switch (binding.getLocation()) {
             case HEADER:
-                writeHeaderDeserializerFunction(writer, model, memberName, targetSymbol, targetShape, binding);
+                writeHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
                 break;
             case PREFIX_HEADERS:
                 if (!targetShape.isMapShape()) {
@@ -545,13 +543,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
 
-    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName, Symbol targetSymbol,
-            Shape targetShape, HttpBinding binding) {
+    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
+                                                 Shape targetShape, HttpBinding binding) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
                     String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
                     writer.write("v.$L = $L", memberName,
-                            CodegenUtils.generatePointerReferenceIfPointable(targetSymbol, value));
+                            CodegenUtils.generatePointerReferenceIfPointable(targetShape, value));
                 });
     }
 
