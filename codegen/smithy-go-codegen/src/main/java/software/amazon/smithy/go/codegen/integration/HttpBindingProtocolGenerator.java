@@ -357,9 +357,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL).build();
     }
 
-    private String generateHttpBindingSetter(Shape targetShape, Symbol targetSymbol, String operand) {
-        operand = isDereferenceRequired(targetShape, targetSymbol)
-                && targetShape.getType() != ShapeType.BIG_INTEGER || targetShape.getType() != ShapeType.BIG_DECIMAL
+    private String generateHttpBindingSetter(
+            Model model,
+            MemberShape memberShape,
+            String operand
+    ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
+        // We only need to dereference if we pass the shape around as reference in Go.
+        // Note we make two exceptions here: big.Int and big.Float should still be passed as reference to the helper
+        // method as they can be arbitrarily large.
+        operand = CodegenUtils.isShapePassByReference(targetShape)
+                && targetShape.getType() != ShapeType.BIG_INTEGER
+                && targetShape.getType() != ShapeType.BIG_DECIMAL
                 ? "*" + operand : operand;
 
         switch (targetShape.getType()) {
@@ -400,71 +410,62 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         String memberName = symbolProvider.toMemberName(memberShape);
 
         writeSafeOperandAccessor(model, symbolProvider, memberShape, "v", writer, (bodyWriter, operand) -> {
             switch (binding.getLocation()) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
-                                .getTarget());
-                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
-
+                        MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
-                                    "v.$L[i]"), memberName);
+                            bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "v.$L[i]"),
+                                    memberName);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetHeader($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "$L"), operand);
+                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "$L"), operand);
                     }
                     break;
                 case PREFIX_HEADERS:
-                    if (!targetShape.isMapShape()) {
-                        throw new CodegenException("prefix headers must target map shape");
-                    }
-                    Shape mapValueShape = model.expectShape(targetShape.asMapShape()
-                            .orElseThrow(() -> new CodegenException("expected map shape"))
-                            .getValue().getTarget());
-                    Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
+                    MemberShape valueMemberShape = targetShape.asMapShape()
+                            .orElseThrow(() -> new CodegenException("prefix headers must target map shape"))
+                            .getValue();
+                    Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
 
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
                     bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
-                        if (mapValueShape instanceof CollectionShape) {
+                        if (valueMemberTarget instanceof CollectionShape) {
+                            MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
                             bodyWriter.openBlock("for j := range $L[i] {", "}", operand, () -> {
                                 bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "$L[i][j]"),
+                                bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "$L[i][j]"),
                                         operand);
                             });
                         } else {
                             bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i]"),
+                            bodyWriter.write(generateHttpBindingSetter(model, valueMemberShape, "v.$L[i]"),
                                     memberName);
                         }
                     });
                     break;
                 case LABEL:
                     bodyWriter.writeInline("if err := encoder.SetURI($S)", memberShape.getMemberName());
-                    bodyWriter.writeInline(generateHttpBindingSetter(targetShape, targetSymbol, "$L"), operand);
+                    bodyWriter.writeInline(generateHttpBindingSetter(model, memberShape, "$L"), operand);
                     bodyWriter.write("; err != nil {\n"
                             + "\treturn err\n"
                             + "}");
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
-                                .getTarget());
-                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
+                        MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             bodyWriter.writeInline("encoder.AddQuery($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
-                                    "[i]"), operand);
+                            bodyWriter.write(generateHttpBindingSetter(model, collectionMember, "$L[i]"), operand);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "v.$L"), memberName);
                     }
                     break;
                 default:
@@ -495,7 +496,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             BiConsumer<GoWriter, String> consumer
     ) {
         Shape targetShape = model.expectShape(memberShape.getTarget());
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
 
         String memberName = symbolProvider.toMemberName(memberShape);
 
@@ -503,7 +503,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         operand = operand + "." + memberName;
 
-        if (!isDereferenceRequired(targetShape, targetSymbol) && !enumShape) {
+        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, memberShape)) {
             consumer.accept(writer, operand);
             return;
         }
