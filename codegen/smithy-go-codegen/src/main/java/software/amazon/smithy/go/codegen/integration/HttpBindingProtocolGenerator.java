@@ -28,6 +28,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -471,11 +472,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         binding.getLocation(),
                         Format.HTTP_DATE
                 );
-                writer.write(String.format("t, err := protocol.parseTime(%s, %s)",
-                        getTimeStampFormatName(format), operand));
-                writer.openBlock("if err != nil", "{", "}", () -> {
-                   writer.write("return err");
-                });
+                writer.write(String.format("t, err := protocol.parseTime(protocol.%s, %s)",
+                        CodegenUtils.getTimeStampFormatName(format), operand));
+                writer.write("if err != nil { return err }");
                 return "t";
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
@@ -514,33 +513,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Shape targetShape = model.expectShape(memberShape.getTarget());
         Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         String memberName = symbolProvider.toMemberName(memberShape);
-        String bindingLocation = binding.getLocationName();
 
         switch (binding.getLocation()) {
             case HEADER:
-                writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
-                        bindingLocation, "", () -> {
-                            String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
-                            boolean pointable = targetSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
-                                    .orElse(false);
-                            if (pointable) {
-                                value = "&" + value;
-                            }
-                            writer.write("v.$L = $L", memberName, value);
-                        });
+                writeHeaderDeserializerFunction(writer, model, memberName, targetSymbol, targetShape, binding);
                 break;
             case PREFIX_HEADERS:
-                String prefix = binding.getLocationName();
                 if (!targetShape.isMapShape()) {
                     throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
                 }
-                writePrefixHeaderDeserializerFunction(writer, model, prefix, memberName, targetShape, binding);
+                writePrefixHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
                 break;
             case PAYLOAD:
                 switch (targetShape.getType()) {
                     case BLOB:
                         writer.openBlock("if val := response.Header.Get($S); val != $S {",
-                                "}", bindingLocation, "", () -> {
+                                "}", binding.getLocationName(), "", () -> {
                                     writer.write("v.$L = $L", memberName, "val");
                                 });
                         break;
@@ -556,39 +544,29 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
-    private void writePrefixHeaderDeserializerFunction(
-            GoWriter writer,
-            Model model,
-            String prefix,
-            String memberName,
-            Shape targetShape,
-            HttpBinding binding
-            ) {
+
+    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName, Symbol targetSymbol,
+            Shape targetShape, HttpBinding binding) {
+        writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
+                binding.getLocationName(), "", () -> {
+                    String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
+                    writer.write("v.$L = $L", memberName,
+                            CodegenUtils.generatePointerReferenceIfPointable(targetSymbol, value));
+                });
+    }
+
+    private void writePrefixHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
+                                                       Shape targetShape, HttpBinding binding) {
+        String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
         for (Shape shape: targetShape.asMapShape().get().members()) {
             String name = shape.getId().getName();
             String locationName = prefix + name;
-            writer.openBlock(
-                    "if val := response.Header.Get($S); val != $S {",
+            writer.openBlock("if val := response.Header.Get($S); val != $S {",
                     "}", locationName, "", () -> {
-                        writer.write("v.$L[$L] = $L",
-                                memberName, name,
-                                generateHttpBindingsValue(writer, model, targetValueShape, binding,
-                                        "val"));
+                        writer.write("v.$L[$L] = $L", memberName, name,
+                                generateHttpBindingsValue(writer, model, targetValueShape, binding, "val"));
                     });
-        }
-    }
-
-    private String getTimeStampFormatName(TimestampFormatTrait.Format format) {
-        switch (format) {
-            case DATE_TIME:
-                return "protocol.ISO8601TimeFormatName";
-            case EPOCH_SECONDS:
-                return "protocol.UnixTimeFormatName";
-            case HTTP_DATE:
-                return "protocol.RFC822TimeFormat";
-            default:
-                throw new CodegenException("unknown timestamp format found: " + format.toString());
         }
     }
 

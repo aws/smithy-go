@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -129,5 +130,41 @@ public final class CodegenUtils {
      */
     public static String getSyntheticTypeNamespace() {
         return CodegenUtils.SYNTHETIC_NAMESPACE;
+    }
+
+    /**
+     * Get the pointer reference to operand , if symbol is pointable.
+     * This method can be used by deserializers to get pointer to
+     * operand.
+     *
+     * @param symbol The Symbol corresponding to shape whose value needs to be assigned.
+     * @param operand The Operand is the value to be assigned to the symbol shape.
+     * @return The Operand, along with pointer reference if applicable
+     */
+    public static String generatePointerReferenceIfPointable(Symbol symbol, String operand) {
+        if (symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
+                .orElse(false)) {
+            return '&' + operand;
+        }
+        return operand;
+    }
+
+    /**
+     * Get SDK equivalent timestamp format name for TimestampFormatTrait.Format enum.
+     *
+     * @param format The format is TimestampFormatTrait.Format enum
+     * @return SDK equivalent timestamp format name
+     */
+    public static String getTimeStampFormatName(TimestampFormatTrait.Format format) {
+        switch (format) {
+            case DATE_TIME:
+                return "ISO8601TimeFormatName";
+            case EPOCH_SECONDS:
+                return "UnixTimeFormatName";
+            case HTTP_DATE:
+                return "RFC822TimeFormat";
+            default:
+                throw new CodegenException("unknown timestamp format found: " + format.toString());
+        }
     }
 }
