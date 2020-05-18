@@ -295,8 +295,7 @@ public final class GoWriter extends CodeWriter {
                 Symbol typeSymbol = (Symbol) type;
                 addUseImports(typeSymbol);
 
-                String literal = typeSymbol.getProperty(SymbolUtils.MEMBER_TYPE, String.class)
-                        .orElse(typeSymbol.getName());
+                String literal = typeSymbol.getName();
 
                 if (!SymbolUtils.isUniverseType(typeSymbol) && isExternalNamespace(typeSymbol.getNamespace())) {
                     literal = formatWithNamespace(typeSymbol);

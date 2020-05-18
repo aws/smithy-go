@@ -28,7 +28,7 @@ public final class SymbolUtils {
     public static final String GO_UNIVERSE_TYPE = "universeType";
     public static final String GO_SLICE = "slice";
     public static final String GO_MAP = "map";
-    public static final String MEMBER_TYPE = "memberType";
+    public static final String MEMBER_SYMBOL = "memberSymbol";
 
     private SymbolUtils() {
     }

@@ -121,7 +121,8 @@ public interface ProtocolGenerator {
      *
      * @param context Serde context.
      */
-    void generateSharedSerializerComponents(GenerationContext context);
+    default void generateSharedSerializerComponents(GenerationContext context) {
+    }
 
     /**
      * Generates the code used to serialize the shapes of a service

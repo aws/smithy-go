@@ -243,23 +243,21 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape), typesPackageName)
+        return SymbolUtils.createValueSymbolBuilder(shape, reference.getName())
                 .putProperty(SymbolUtils.GO_SLICE, true)
-                .putProperty(SymbolUtils.MEMBER_TYPE, reference.getName())
-                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
-                        SymbolUtils.isUniverseType(reference))
-                .addReference(reference).build();
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .addReference(reference)
+                .build();
     }
 
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape), typesPackageName)
+        return SymbolUtils.createValueSymbolBuilder(shape, reference.getName())
                 .putProperty(SymbolUtils.GO_MAP, true)
-                .putProperty(SymbolUtils.MEMBER_TYPE, reference.getName())
-                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
-                        SymbolUtils.isUniverseType(reference))
-                .addReference(reference).build();
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .addReference(reference)
+                .build();
     }
 
     @Override

@@ -38,6 +38,8 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.neighbor.RelationshipType;
+import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -87,39 +89,34 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private Set<Shape> resolveRequiredDocumentShapeSerializers(Model model, Set<Shape> shapes) {
         Set<ShapeId> processed = new TreeSet<>();
-        return resolveRequiredDocumentShapeSerializers(model, processed, shapes);
-    }
+        Set<Shape> resolvedShapes = new TreeSet<>();
+        Walker walker = new Walker(model);
 
-    private Set<Shape> resolveRequiredDocumentShapeSerializers(
-            Model model,
-            Set<ShapeId> processed,
-            Set<Shape> shapes
-    ) {
-        Set<Shape> unprocessed = shapes.stream()
-                .filter((shape) -> !processed.contains(shape.getId()))
-                .collect(Collectors.toSet());
-
-        if (unprocessed.size() == 0) {
-            return shapes;
-        }
-
-        // First we must ensure each document binding shapes members have their member shapes also generated
-        unprocessed.forEach(shape -> {
+        shapes.forEach(shape -> {
             processed.add(shape.getId());
-            shape.members().forEach(member -> {
-                Shape targetShape = model.expectShape(member.getTarget());
-                if (processed.contains(targetShape.getId())) {
-                    return;
-                }
-                if (isShapeTypeDocumentSerializerRequired(targetShape.getType())) {
-                    shapes.add(targetShape);
-                }
-            });
+            resolvedShapes.add(shape);
+            walker.iterateShapes(shape,
+                    relationship -> relationship.getRelationshipType() == RelationshipType.MEMBER_TARGET)
+                    .forEachRemaining(walkedShape -> {
+                        if (processed.contains(walkedShape.getId())) {
+                            return;
+                        }
+                        if (isShapeTypeDocumentSerializerRequired(shape.getType())) {
+                            resolvedShapes.add(walkedShape);
+                            processed.add(walkedShape.getId());
+                        }
+                    });
         });
 
-        return resolveRequiredDocumentShapeSerializers(model, processed, shapes);
+        return resolvedShapes;
     }
 
+    /**
+     * Returns whether a document serializer function is required to serializer the given shape type.
+     *
+     * @param shapeType the shape type
+     * @return whether the shape type requires a document serializer function
+     */
     protected boolean isShapeTypeDocumentSerializerRequired(ShapeType shapeType) {
         switch (shapeType) {
             case MAP:
@@ -181,6 +178,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         addOperationDocumentShapeBinders(context, operation);
     }
 
+    /**
+     * Generates the operation document serializer function.
+     *
+     * @param context the generation context
+     * @param operation the operation shape being generated
+     */
     protected abstract void generateOperationDocumentSerializer(GenerationContext context, OperationShape operation);
 
     /**
@@ -192,11 +195,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void addOperationDocumentShapeBinders(GenerationContext context, OperationShape operation) {
         Model model = context.getModel();
 
-        /*
-         * Walk and members shapes to the list that will require serializer functions
-         */
-        List<HttpBinding> bindings = new ArrayList<>(model.getKnowledge(HttpBindingIndex.class)
-                .getRequestBindings(operation).values());
+        // Walk and add members shapes to the list that will require serializer functions
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getRequestBindings(operation).values();
 
         for (HttpBinding binding : bindings) {
             Shape targetShape = model.expectShape(binding.getMember().getTarget());
@@ -226,8 +227,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
-            writer.addUseImports(requestType);
-            writer.addUseImports(SymbolUtils.createValueSymbolBuilder("", GoDependency.FMT).build());
+            writer.addUseImports(GoDependency.FMT);
 
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
@@ -252,8 +252,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             if (withRestBindings) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
-                writer.addUseImports(SymbolUtils.createValueSymbolBuilder("", GoDependency.AWS_REST_PROTOCOL)
-                        .build());
+                writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
 
                 writer.write("restEncoder := rest.NewEncoder(request.Request)");
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
@@ -277,6 +276,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
 
+    /**
+     * Generate the document serializer logic for the serializer middleware body.
+     *
+     * @param model the model
+     * @param symbolProvider the symbol provider
+     * @param operation the operation
+     * @param generator middleware generator definition
+     * @param writer the writer within the middlware context
+     */
     protected abstract void writeMiddlewareDocumentSerializerDelegator(
             Model model,
             SymbolProvider symbolProvider,
@@ -317,7 +325,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
 
         HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
-
         Map<String, HttpBinding> bindingMap = bindingIndex.getRequestBindings(operation).entrySet().stream()
                 .filter(entry -> isRestBinding(entry.getValue().getLocation()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
@@ -325,16 +332,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }, TreeMap::new));
 
         Symbol restEncoder = getRestEncoderSymbol();
-
-        writer.addUseImports(SymbolUtils.createValueSymbolBuilder(null, GoDependency.FMT).build());
-        writer.addUseImports(restEncoder);
-
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
-
-        writer.addUseImports(inputSymbol);
-
         String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
 
+        writer.addUseImports(GoDependency.FMT);
         writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, restEncoder,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
@@ -487,6 +488,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || shapeType == ShapeType.DOCUMENT;
     }
 
+    /**
+     * Writes a conditional check of the provided operand represented by the member shape.
+     * This check is to verify if the provided Go value was set by the user and whether the value
+     * should be serialized to the transport request.
+     *
+     * @param model the model being generated
+     * @param symbolProvider the symbol provider
+     * @param memberShape the member shape being accessed
+     * @param operand the Go operand representing the member shape
+     * @param writer the writer
+     * @param consumer a consumer that will be given the writer to populate the accessor body
+     */
     protected void writeSafeOperandAccessor(
             Model model,
             SymbolProvider symbolProvider,
