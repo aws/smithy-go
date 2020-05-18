@@ -462,7 +462,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 return operand;
             case BOOLEAN:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strConv.ParseBool(%s)", operand);
+                return String.format("strconv.ParseBool(%s)", operand);
             case TIMESTAMP:
                 writer.addUseImports(GoDependency.AWS_PRIVATE_PROTOCOL);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
@@ -477,7 +477,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 return "t";
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strConv.ParseInt(%s,0,0)", operand);
+                return String.format("strconv.ParseInt(%s,0,0)", operand);
             case BLOB:
                 writer.addUseImports(GoDependency.BASE64);
                 writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
