@@ -47,10 +47,13 @@ import software.amazon.smithy.utils.StringUtils;
 public final class GoWriter extends CodeWriter {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
+    private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
 
     private final String fullPackageName;
     private final ImportDeclarations imports = new ImportDeclarations();
     private final List<SymbolDependency> dependencies = new ArrayList<>();
+
+    private int docWrapLength;
 
     public GoWriter(String fullPackageName) {
         this.fullPackageName = fullPackageName;
@@ -59,6 +62,29 @@ public final class GoWriter extends CodeWriter {
         setIndentText("\t");
         putFormatter('T', new GoSymbolFormatter());
         putFormatter('P', new PointableGoSymbolFormatter());
+
+        this.docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
+    }
+
+    /**
+     * Sets the wrap length of doc strings written.
+     *
+     * @param wrapLength The wrap length of the doc string.
+     * @return Returns the writer.
+     */
+    public GoWriter setDocWrapLength(final int wrapLength) {
+        this.docWrapLength = wrapLength;
+        return this;
+    }
+
+    /**
+     * Sets the wrap length of doc strings written to the default value for the Go writer.
+     *
+     * @return Returns the writer.
+     */
+    public GoWriter setDocWrapLength() {
+        this.docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
+        return this;
     }
 
     /**
@@ -183,7 +209,7 @@ public final class GoWriter extends CodeWriter {
      * @param runnable Runnable that handles actually writing docs with the writer.
      * @return Returns the writer.
      */
-    GoWriter writeDocs(Runnable runnable) {
+    protected GoWriter writeDocs(Runnable runnable) {
         pushState("docs");
         setNewlinePrefix("// ");
         runnable.run();
@@ -201,7 +227,8 @@ public final class GoWriter extends CodeWriter {
      * @return Returns the writer.
      */
     public GoWriter writeDocs(String docs) {
-        writeDocs(() -> write(DocumentationConverter.convert(docs)));
+        String wrappedDoc = StringUtils.wrap(DocumentationConverter.convert(docs), docWrapLength);
+        writeDocs(() -> write(wrappedDoc));
         return this;
     }
 
