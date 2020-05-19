@@ -25,6 +25,10 @@ import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -129,5 +133,65 @@ public final class CodegenUtils {
      */
     public static String getSyntheticTypeNamespace() {
         return CodegenUtils.SYNTHETIC_NAMESPACE;
+    }
+
+    /**
+     * Get the pointer reference to operand , if symbol is pointable.
+     * This method can be used by deserializers to get pointer to
+     * operand.
+     *
+     * @param shape The shape whose value needs to be assigned.
+     * @param operand The Operand is the value to be assigned to the symbol shape.
+     * @return The Operand, along with pointer reference if applicable
+     */
+    public static String generatePointerReferenceIfPointable(Shape shape, String operand) {
+        if (isShapePassByReference(shape)) {
+            return '&' + operand;
+        }
+        return operand;
+    }
+
+    /**
+     * Get SDK equivalent timestamp format name for TimestampFormatTrait.Format enum.
+     *
+     * @param format The format is TimestampFormatTrait.Format enum
+     * @return SDK equivalent timestamp format name
+     */
+    public static String getTimeStampFormatName(TimestampFormatTrait.Format format) {
+        switch (format) {
+            case DATE_TIME:
+                return "ISO8601TimeFormatName";
+            case EPOCH_SECONDS:
+                return "UnixTimeFormatName";
+            case HTTP_DATE:
+                return "RFC822TimeFormat";
+            default:
+                throw new CodegenException("unknown timestamp format found: " + format.toString());
+        }
+    }
+
+    /**
+     * Returns whether the shape should be passed by value in Go.
+     *
+     * @param shape the shape
+     * @return whether the shape should be passed by value
+     */
+    public static boolean isShapePassByValue(Shape shape) {
+        return shape.getType() == ShapeType.LIST
+                || shape.getType() == ShapeType.SET
+                || shape.getType() == ShapeType.UNION
+                || shape.getType() == ShapeType.MAP
+                || shape.getType() == ShapeType.BLOB
+                || (shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class));
+    }
+
+    /**
+     * Returns whether the shape should be passed by pointer reference in Go.
+     *
+     * @param shape the shape
+     * @return whether the shape should be passed by reference
+     */
+    public static boolean isShapePassByReference(Shape shape) {
+        return !isShapePassByValue(shape);
     }
 }

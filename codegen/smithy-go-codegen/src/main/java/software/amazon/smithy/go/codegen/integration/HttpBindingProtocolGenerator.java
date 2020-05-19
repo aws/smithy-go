@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -27,6 +28,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -38,9 +40,11 @@ import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
+import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait.Format;
 import software.amazon.smithy.utils.OptionalUtils;
 
@@ -53,6 +57,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private static final Logger LOGGER = Logger.getLogger(HttpBindingProtocolGenerator.class.getName());
 
     private final boolean isErrorCodeInBody;
+    private final Set<ShapeId> serializeErrorBindingShapes = new TreeSet<>();
 
     /**
      * Creates a Http binding protocol generator.
@@ -75,25 +80,27 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // pass
     }
 
-    @Override
-    public void generateRequestSerializers(GenerationContext context) {
+    public List<OperationShape> getHttpBindingOperations(GenerationContext context) {
         TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
 
-        Set<OperationShape> containedOperations = new TreeSet<>(
-                topDownIndex.getContainedOperations(context.getService()));
-        for (OperationShape operation : containedOperations) {
+        List<OperationShape> containedOperations = new ArrayList<>();
+        for (OperationShape operation: topDownIndex.getContainedOperations(context.getService())) {
             OptionalUtils.ifPresentOrElse(
                     operation.getTrait(HttpTrait.class),
-                    httpTrait -> generateOperationSerializer(context, operation),
+                    httpTrait -> containedOperations.add(operation),
                     () -> LOGGER.warning(String.format(
-                            "Unable to generate %s protocol request bindings for %s because it does not have an "
-                                    + "http binding trait", getProtocol(), operation.getId())));
+                            "Unable to fetch %s protocol request bindings for %s because it does not have an "
+                                    + "http binding trait", getProtocol(), operation.getId()))
+            );
         }
+        return containedOperations;
     }
 
     @Override
-    public void generateResponseDeserializers(GenerationContext context) {
-        // pass
+    public void generateRequestSerializers(GenerationContext context) {
+        for (OperationShape operation : getHttpBindingOperations(context)) {
+            generateOperationSerializer(context, operation);
+        }
     }
 
     /**
@@ -135,14 +142,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Shape inputShape = model.expectShape(operation.getInput()
                 .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
 
-        HttpBindingIndex bindingIndex = context.getModel().getKnowledge(HttpBindingIndex.class);
+        HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
 
         Map<String, HttpBinding> bindingMap = bindingIndex.getRequestBindings(operation).entrySet().stream()
                 .filter(entry -> isRestBinding(entry.getValue().getLocation()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        List<String> bindingMembers = new ArrayList<>(bindingMap.keySet());
-        bindingMembers.sort(String::compareTo);
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
+                    throw new CodegenException("found duplicate binding entries for same response operation shape");
+                }, TreeMap::new));
 
         Symbol restEncoder = getRestEncoderSymbol();
 
@@ -163,12 +169,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     writer.write("");
 
-                    for (int i = 0; i < bindingMembers.size(); i++) {
-                        HttpBinding binding = bindingMap.get(bindingMembers.get(i));
+                    for (Map.Entry<String, HttpBinding> entry : bindingMap.entrySet()) {
+                        HttpBinding binding = entry.getValue();
                         writeHttpBindingMember(writer, model, symbolProvider, binding);
                         writer.write("");
                     }
-
                     writer.write("return nil");
                 });
         writer.write("");
@@ -291,7 +296,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private boolean isDereferenceRequired(Shape shape, Symbol symbol) {
-        boolean pointable = symbol.getProperty("pointable", Boolean.class)
+        boolean pointable = symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
                 .orElse(false);
 
         ShapeType shapeType = shape.getType();
@@ -333,6 +338,234 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.openBlock("if " + conditionCheck + " {", "}", () -> {
             consumer.accept(writer);
         });
+    }
+
+
+    @Override
+    public void generateResponseDeserializers(GenerationContext context) {
+        for (OperationShape operation : getHttpBindingOperations(context)) {
+            generateOperationHttpBindingDeserializer(context, operation);
+            addErrorShapeBinders(context, operation);
+        }
+
+        for (ShapeId errorBinding: serializeErrorBindingShapes) {
+            generateErrorHttpBindingDeserializer(context, errorBinding);
+        }
+    }
+
+
+    private void generateOperationHttpBindingDeserializer(
+            GenerationContext context,
+            OperationShape operation
+    ) {
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
+        GoWriter writer = context.getWriter();
+
+        Shape outputShape = model.expectShape(operation.getOutput()
+                .orElseThrow(() -> new CodegenException(
+                        "missing output shape for operation: " + operation.getId())));
+
+        HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
+        Map<String, HttpBinding> bindingMap = bindingIndex.getResponseBindings(operation).entrySet().stream()
+                .filter(entry -> isRestBinding(entry.getValue().getLocation()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
+                    throw new CodegenException("found duplicate binding entries for same response operation shape");
+                }, TreeMap::new));
+
+        // do not generate if no HTTPBinding for operation output
+        if (bindingMap.size() == 0) {
+            return;
+        }
+
+        generateShapeDeserializerFunction(writer, model, symbolProvider, outputShape, bindingMap);
+    }
+
+    private void generateErrorHttpBindingDeserializer(
+            GenerationContext context,
+            ShapeId errorBinding
+    ) {
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
+        GoWriter writer = context.getWriter();
+        HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
+        Shape errorBindingShape = model.expectShape(errorBinding);
+
+        Map<String, HttpBinding> bindingMap = bindingIndex.getResponseBindings(errorBinding).entrySet().stream()
+                .filter(entry -> isRestBinding(entry.getValue().getLocation()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
+                    throw new CodegenException("found duplicate binding entries for same error shape");
+                }, TreeMap::new));
+
+        // do not generate if no HTTPBinding for Error Binding
+        if (bindingMap.size() == 0) {
+            return;
+        }
+
+        generateShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
+    }
+
+
+    private void generateShapeDeserializerFunction(
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            Shape targetShape,
+            Map<String, HttpBinding> bindingMap
+    ) {
+        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+        Symbol smithyHttpResponsePointableSymbol = SymbolUtils.createPointableSymbolBuilder(
+                "Response", GoDependency.SMITHY_HTTP_TRANSPORT).build();
+
+        writer.addUseImports(GoDependency.FMT);
+
+        String functionName = ProtocolGenerator.getOperationDeserFunctionName(targetSymbol, getProtocolName());
+        writer.openBlock("func $L(v $P, response $P) error {", "}",
+                functionName, targetSymbol, smithyHttpResponsePointableSymbol,
+                () -> {
+                    writer.openBlock("if v == nil {", "}", () -> {
+                        writer.write("return fmt.Errorf(\"unsupported deserialization for nil %T\", v)");
+                    });
+                    writer.write("");
+
+                    for (Map.Entry<String, HttpBinding> entry : bindingMap.entrySet()) {
+                        HttpBinding binding = entry.getValue();
+                        writeRestDeserializerMember(writer, model, symbolProvider, binding);
+                        writer.write("");
+                    }
+                    writer.write("return nil");
+                });
+    }
+
+
+    private void addErrorShapeBinders(GenerationContext context, OperationShape operation) {
+        for (ShapeId errorBinding: operation.getErrors()) {
+            serializeErrorBindingShapes.add(errorBinding);
+        }
+    }
+
+
+    private String generateHttpBindingsValue(
+            GoWriter writer,
+            Model model,
+            Shape targetShape,
+            HttpBinding binding,
+            String operand
+    ) {
+        String value = "";
+        switch (targetShape.getType()) {
+            case STRING:
+                if (targetShape.hasTrait(EnumTrait.class)) {
+                    value = String.format("types.%s(%s)", targetShape.getId().getName(), operand);
+                    return value;
+                }
+                return operand;
+            case BOOLEAN:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseBool(%s)", operand);
+            case TIMESTAMP:
+                writer.addUseImports(GoDependency.AWS_PRIVATE_PROTOCOL);
+                HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
+                TimestampFormatTrait.Format format  = bindingIndex.determineTimestampFormat(
+                        targetShape,
+                        binding.getLocation(),
+                        Format.HTTP_DATE
+                );
+                writer.write(String.format("t, err := protocol.parseTime(protocol.%s, %s)",
+                        CodegenUtils.getTimeStampFormatName(format), operand));
+                writer.write("if err != nil { return err }");
+                return "t";
+            case INTEGER:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseInt(%s,0,0)", operand);
+            case BLOB:
+                writer.addUseImports(GoDependency.BASE64);
+                writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
+                writer.write("if err != nil { return err }");
+                return "b";
+            case STRUCTURE:
+                // Todo: delegate to the shape deserializer
+                break;
+            case LIST:
+                // handle list of simple types for prefix headers
+                Shape targetValueShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
+                writer.write("list := make([]$L, 0, 0)", targetValueShape.getId().getName());
+                writer.openBlock("for _, i := range $T.Split($L[1:len($L)-1, $S)", "{", "}", operand, operand, ",",
+                        () -> {
+                    writer.write("list.add($L)", generateHttpBindingsValue(writer, model, targetValueShape, binding,
+                            "i"));
+                });
+                return "list";
+            default:
+                throw new CodegenException("unexpected shape type " + targetShape.getType());
+        }
+        return value;
+    }
+
+    private void writeRestDeserializerMember(
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            HttpBinding binding
+    ) {
+        MemberShape memberShape = binding.getMember();
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+        String memberName = symbolProvider.toMemberName(memberShape);
+
+        switch (binding.getLocation()) {
+            case HEADER:
+                writeHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                break;
+            case PREFIX_HEADERS:
+                if (!targetShape.isMapShape()) {
+                    throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
+                }
+                writePrefixHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                break;
+            case PAYLOAD:
+                switch (targetShape.getType()) {
+                    case BLOB:
+                        writer.openBlock("if val := response.Header.Get($S); val != $S {",
+                                "}", binding.getLocationName(), "", () -> {
+                                    writer.write("v.$L = $L", memberName, "val");
+                                });
+                        break;
+                    case STRUCTURE:
+                        // Todo deligate to unmarshaler for structure
+                        break;
+                    default:
+                        throw new CodegenException("unexpected payload type found in http binding");
+                }
+                break;
+            default:
+                throw new CodegenException("unexpected http binding found");
+        }
+    }
+
+
+    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
+                                                 Shape targetShape, HttpBinding binding) {
+        writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
+                binding.getLocationName(), "", () -> {
+                    String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
+                    writer.write("v.$L = $L", memberName,
+                            CodegenUtils.generatePointerReferenceIfPointable(targetShape, value));
+                });
+    }
+
+    private void writePrefixHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
+                                                       Shape targetShape, HttpBinding binding) {
+        String prefix = binding.getLocationName();
+        Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
+        for (Shape shape: targetShape.asMapShape().get().members()) {
+            String name = shape.getId().getName();
+            String locationName = prefix + name;
+            writer.openBlock("if val := response.Header.Get($S); val != $S {",
+                    "}", locationName, "", () -> {
+                        writer.write("v.$L[$L] = $L", memberName, name,
+                                generateHttpBindingsValue(writer, model, targetValueShape, binding, "val"));
+                    });
+        }
     }
 
     /**
