@@ -53,7 +53,7 @@ public final class GoWriter extends CodeWriter {
     private final ImportDeclarations imports = new ImportDeclarations();
     private final List<SymbolDependency> dependencies = new ArrayList<>();
 
-    private int docWrapLength;
+    private int docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
 
     public GoWriter(String fullPackageName) {
         this.fullPackageName = fullPackageName;
@@ -62,8 +62,6 @@ public final class GoWriter extends CodeWriter {
         setIndentText("\t");
         putFormatter('T', new GoSymbolFormatter());
         putFormatter('P', new PointableGoSymbolFormatter());
-
-        this.docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
     }
 
     /**
@@ -209,7 +207,7 @@ public final class GoWriter extends CodeWriter {
      * @param runnable Runnable that handles actually writing docs with the writer.
      * @return Returns the writer.
      */
-    protected GoWriter writeDocs(Runnable runnable) {
+    private GoWriter writeDocs(Runnable runnable) {
         pushState("docs");
         setNewlinePrefix("// ");
         runnable.run();
