@@ -92,9 +92,13 @@ final class OperationGenerator implements Runnable {
                         writer.write("if err := fn(stack); err != nil { return nil, err }");
                     });
 
-                    writer.write("result, err := handler.Handle(ctx, params)");
+                    constructHandler();
+
+                    writer.write("result, metadata, err := handler.Handle(ctx, params)");
                     writer.write("if err != nil { return nil, err }");
-                    writer.write("return result.($P), nil", outputSymbol);
+                    writer.write("out := result.($P)", outputSymbol);
+                    writer.write("out.ResultMetadata = metadata");
+                    writer.write("return out, nil");
                 }).write("");
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
@@ -119,5 +123,17 @@ final class OperationGenerator implements Runnable {
         writer.addUseImports(GoDependency.SMITHY_MIDDLEWARE);
         writer.addUseImports(GoDependency.SMITHY_HTTP_TRANSPORT);
         writer.write("stack := middleware.NewStack($S, smithyhttp.NewStackRequest)", operationSymbol.getName());
+    }
+
+    private void constructHandler() {
+        if (!applicationProtocol.isHttpProtocol()) {
+            throw new UnsupportedOperationException(
+                    "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
+        }
+        Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
+                "DecorateHandler", GoDependency.SMITHY_MIDDLEWARE).build();
+        Symbol clientHandler = SymbolUtils.createValueSymbolBuilder(
+                "ClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
+        writer.write("handler := $T($T{Client: options.HTTPClient}, stack)", decorateHandler, clientHandler);
     }
 }
