@@ -37,6 +37,7 @@ public enum GoDependency implements SymbolDependencyContainer {
     NET_URL("stdlib", "", "net/url", null, Versions.GO_STDLIB),
     NET_HTTP("stdlib", "", "net/http", null, Versions.GO_STDLIB),
     BYTES("stdlib", "", "bytes", null, Versions.GO_STDLIB),
+    STRINGS("stdlib", "", "strings", null, Versions.GO_STDLIB),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go", "smithy", Versions.SMITHY_GO),

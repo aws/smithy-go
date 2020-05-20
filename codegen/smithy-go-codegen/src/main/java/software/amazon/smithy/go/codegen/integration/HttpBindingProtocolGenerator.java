@@ -475,9 +475,48 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         CodegenUtils.getTimeStampFormatName(format), operand));
                 writer.write("if err != nil { return err }");
                 return "t";
+            case BYTE:
+                writer.addUseImports(GoDependency.STRCONV);
+                writer.write("i, err := strconv.ParseInt($L,0,8)", operand);
+                writer.write("if err != nil { return err }");
+                return String.format("byte(i)");
+            case SHORT:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseInt(%s,0,16)", operand);
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,0)", operand);
+                return String.format("strconv.ParseInt(%s,0,32)", operand);
+            case LONG:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseInt(%s,0,64)", operand);
+            case FLOAT:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseFloat(%s,0,32)", operand);
+            case DOUBLE:
+                writer.addUseImports(GoDependency.STRCONV);
+                return String.format("strconv.ParseFloat(%s,0,64)", operand);
+            case BIG_INTEGER:
+                writer.addUseImports(GoDependency.BIG);
+                writer.write("i := big.Int{}");
+                writer.write("bi, ok := i.SetString($L,0)", operand);
+                writer.openBlock("if !ok {", "}", () -> {
+                    writer.write(
+                            "return fmt.Error($S)",
+                            "Incorrect conversion from string to BigInteger type"
+                    );
+                });
+                return "*bi";
+            case BIG_DECIMAL:
+                writer.addUseImports(GoDependency.BIG);
+                writer.write("f := big.NewFloat(0)");
+                writer.write("bd, ok := f.SetString($L,0)", operand);
+                writer.openBlock("if !ok {", "}", () -> {
+                    writer.write(
+                            "return fmt.Error($S)",
+                            "Incorrect conversion from string to BigDecimal type"
+                    );
+                });
+                return "*bd";
             case BLOB:
                 writer.addUseImports(GoDependency.BASE64);
                 writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
@@ -486,20 +525,33 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case STRUCTURE:
                 // Todo: delegate to the shape deserializer
                 break;
+            case SET:
+                // handle set as target shape
+                Shape targetValueSetShape = model.expectShape(targetShape.asSetShape().get().getMember().getTarget());
+                return getCollectionDeserializer(writer, model, targetValueSetShape, binding, operand);
             case LIST:
-                // handle list of simple types for prefix headers
-                Shape targetValueShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
-                writer.write("list := make([]$L, 0, 0)", targetValueShape.getId().getName());
-                writer.openBlock("for _, i := range $T.Split($L[1:len($L)-1, $S)", "{", "}", operand, operand, ",",
-                        () -> {
-                    writer.write("list.add($L)", generateHttpBindingsValue(writer, model, targetValueShape, binding,
-                            "i"));
-                });
-                return "list";
+                // handle list as target shape
+                Shape targetValueListShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
+                return getCollectionDeserializer(writer, model, targetValueListShape, binding, operand);
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
         }
         return value;
+    }
+
+    private String getCollectionDeserializer(GoWriter writer, Model model,
+                                             Shape targetShape, HttpBinding binding, String operand) {
+        writer.write("list := make([]$L, 0, 0)", targetShape.getId().getName());
+
+        writer.addUseImports(GoDependency.STRINGS);
+        writer.openBlock("for _, i := range strings.Split($L[1:len($L)-1], $S) {",
+                "}", operand, operand, ",",
+                () -> {
+                    writer.write("list.add($L)",
+                            generateHttpBindingsValue(writer, model, targetShape, binding,
+                                    "i"));
+                });
+        return "list";
     }
 
     private void writeRestDeserializerMember(
