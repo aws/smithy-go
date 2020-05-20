@@ -90,8 +90,11 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .put("String", "String_")
                 .build();
 
+        model.shapes(StructureShape.class)
+                .filter(this::supportsInheritance)
+                .forEach(this::reserveInterfaceMemberAccessors);
+
         escaper = ReservedWordSymbolProvider.builder()
-                .nameReservedWords(reserveInterfaces(model))
                 .memberReservedWords(reservedWords)
                 // Only escape words when the symbol has a definition file to
                 // prevent escaping intentional references to built-in types.
@@ -110,26 +113,6 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .memberReservedWords(ReservedWords.compose(reservedWords, reservedErrorMembers))
                 .escapePredicate((shape, symbol) -> !StringUtils.isEmpty(symbol.getDefinitionFile()))
                 .buildEscaper();
-    }
-
-    /**
-     * Reserves interface names for any structure that supports inheritance.
-     *
-     * <p>For each of these structures, Get* and Has* methods are reserved for their members.
-     *
-     * @param model The model whose inheritable structures should have reserved interfaces.
-     * @return ReservedWords containing all the reserved interface names.
-     */
-    private ReservedWords reserveInterfaces(Model model) {
-        ReservedWordsBuilder builder = new ReservedWordsBuilder();
-        model.shapes(StructureShape.class)
-                .filter(this::supportsInheritance)
-                .forEach(shape -> {
-                    reserveInterfaceMemberAccessors(shape);
-                    String name = getDefaultShapeName(shape) + "Interface";
-                    builder.put(name, escapeWithTrailingUnderscore(name));
-                });
-        return builder.build();
     }
 
     private boolean supportsInheritance(Shape shape) {
