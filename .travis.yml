@@ -1,0 +1,19 @@
+language: java
+sudo: true
+dist: bionic
+install: /bin/true
+script: cd codegen && ./gradlew clean build -Plog-tests
+
+matrix:
+  include:
+    - language: java
+      go: 1.14.x
+      jdk: openjdk8
+
+    - language: java
+      go: 1.14.x
+      jdk: openjdk11
+
+    - language: go
+      go: 1.14.x
+      script: go test -v ./...
