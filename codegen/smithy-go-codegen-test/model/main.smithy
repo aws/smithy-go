@@ -2,6 +2,7 @@ $version: "1"
 
 metadata suppressions = [{
     id: "UnstableFeature",
+    namespace: "example.weather"
 }]
 
 namespace example.weather
