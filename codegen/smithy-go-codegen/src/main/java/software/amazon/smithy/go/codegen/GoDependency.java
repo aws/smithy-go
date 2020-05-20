@@ -24,27 +24,31 @@ import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
  * An enum of all the built-in dependencies used by this package.
  */
 public enum GoDependency implements SymbolDependencyContainer {
+
     // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
-    BIG("stdlib", "", "math/big", null, "1.14"),
-    TIME("stdlib", "", "time", null, "1.14"),
-    FMT("stdlib", "", "fmt", null, "1.14"),
-    CONTEXT("stdlib", "", "context", null, "1.14"),
-    STRCONV("stdlib", "", "strconv", null, "1.14"),
-    BASE64("stdlib", "", "encoding/base64", null, "1.14"),
+    BIG("stdlib", "", "math/big", null, Versions.GO_STDLIB),
+    TIME("stdlib", "", "time", null,  Versions.GO_STDLIB),
+    FMT("stdlib", "", "fmt", null, Versions.GO_STDLIB),
+    CONTEXT("stdlib", "", "context", null, Versions.GO_STDLIB),
+    STRCONV("stdlib", "", "strconv", null, Versions.GO_STDLIB),
+    BASE64("stdlib", "", "encoding/base64", null, Versions.GO_STDLIB),
+    NET_URL("stdlib", "", "net/url", null, Versions.GO_STDLIB),
+    NET_HTTP("stdlib", "", "net/http", null, Versions.GO_STDLIB),
+    BYTES("stdlib", "", "bytes", null, Versions.GO_STDLIB),
 
-    SMITHY("dependency", "github.com/awslabs/smithy-go", "github.com/awslabs/smithy-go",
-            "smithy", "v0.0.1"),
+    SMITHY("dependency", "github.com/awslabs/smithy-go",
+            "github.com/awslabs/smithy-go", "smithy", Versions.SMITHY_GO),
     SMITHY_HTTP_TRANSPORT("dependency", "github.com/awslabs/smithy-go",
-            "github.com/awslabs/smithy-go/transport/http", "smithyhttp", "v0.0.1"),
+            "github.com/awslabs/smithy-go/transport/http", "smithyhttp", Versions.SMITHY_GO),
     SMITHY_MIDDLEWARE("dependency", "github.com/awslabs/smithy-go",
-            "github.com/awslabs/smithy-go/middleware", null, "v0.0.1"),
+            "github.com/awslabs/smithy-go/middleware", null, Versions.SMITHY_GO),
 
     AWS_REST_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, "v0.22.0"),
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, Versions.AWS_SDK),
     AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/private/protocol", null, "v0.22.0");
+            "github.com/aws/aws-sdk-go-v2/aws/private/protocol", null, Versions.AWS_SDK);
 
     public final String sourcePath;
     public final String importPath;
@@ -67,5 +71,12 @@ public enum GoDependency implements SymbolDependencyContainer {
     @Override
     public List<SymbolDependency> getDependencies() {
         return Collections.singletonList(dependency);
+    }
+
+    private static final class Versions {
+        private static final String GO_STDLIB = "1.14";
+        private static final String SMITHY_GO = "v0.0.1";
+        private static final String AWS_SDK = "v0.22.0";
+
     }
 }
