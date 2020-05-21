@@ -89,47 +89,12 @@ final class StructureGenerator implements Runnable {
      */
     private void renderErrorStructure() {
         Symbol structureSymbol = symbolProvider.toSymbol(shape);
-        String interfaceName = structureSymbol.getName() + "Interface";
-
         writer.addUseImports(GoDependency.SMITHY);
         writer.addUseImports(GoDependency.FMT);
-
         ErrorTrait errorTrait = shape.expectTrait(ErrorTrait.class);
 
-        // Write out the interface for the error
-        writer.writeShapeDocs(shape);
-        writer.openBlock("type $L interface {", "}", interfaceName, () -> {
-            writer.write("smithy.APIError");
-
-            // This non-exported method will be used when inheritance is introduced.
-            writer.write("is$L()", structureSymbol.getName()).write("");
-
-            for (Map.Entry<String, String> errorMember : STANDARD_ERROR_MEMBERS.entrySet()) {
-                writer.write("$L() $L", errorMember.getKey(), errorMember.getValue());
-            }
-            writer.write("");
-
-            for (MemberShape member : shape.getAllMembers().values()) {
-                String memberName = symbolProvider.toMemberName(member);
-                // Error messages are represented by the ErrorMessage function in the APIError interface,
-                // so we don't generate getters for them.
-                if (ERROR_MESSAGE_MEMBER_NAMES.contains(memberName)) {
-                    continue;
-                }
-                Symbol memberSymbol = symbolProvider.toSymbol(member);
-                String getterName = "Get" + memberName;
-                String haserName = "Has" + memberName;
-
-                writer.writeMemberDocs(model, member);
-                writer.write("$L() $T", getterName, memberSymbol);
-                writer.writeDocs(String.format("%s returns whether %s exists.", haserName, memberName));
-                writer.write("$L() bool", haserName);
-            }
-        }).write("");
-
         // Write out a struct to hold the error data.
-        writer.writeDocs(String.format(
-                "The concrete implementation for %s. This should not be used directly.", interfaceName));
+        writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", "}", structureSymbol.getName(), () -> {
             // The message is the only part of the standard APIError interface that isn't known ahead of time.
             // Message is a pointer mostly for the sake of consistency.
@@ -150,9 +115,6 @@ final class StructureGenerator implements Runnable {
             writer.write("return fmt.Sprintf(\"%s: %s\", e.ErrorCode(), e.ErrorMessage())");
         });
 
-        // Satisfy the isa function
-        writer.write("func (e *$L) is$L() {}", structureSymbol.getName(), structureSymbol.getName());
-
         // Write out methods to satisfy the APIError interface. All but the message are known ahead of time,
         // and for those we just encode the information in the method itself.
         writer.openBlock("func (e *$L) ErrorMessage() string {", "}", structureSymbol.getName(), () -> {
@@ -172,7 +134,7 @@ final class StructureGenerator implements Runnable {
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
 
-        // Write out methods to satisfy the error's specific interface
+        // Write out convenience getter / haser methods
         for (MemberShape member : shape.getAllMembers().values()) {
             String memberName = symbolProvider.toMemberName(member);
             Symbol memberSymbol = symbolProvider.toSymbol(member);
