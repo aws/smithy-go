@@ -86,6 +86,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         generateDocumentBodyShapeSerializers(context, serializeDocumentBindingShapes);
     }
 
+    /**
+     * Resolves the entire set of shapes that will require serializers given an initial set of shapes.
+     *
+     * @param model the model
+     * @param shapes the shapes to walk and resolve additional required serializers for
+     * @return the complete set of shapes requiring serializers
+     */
     private Set<Shape> resolveRequiredDocumentShapeSerializers(Model model, Set<Shape> shapes) {
         Set<ShapeId> processed = new TreeSet<>();
         Set<Shape> resolvedShapes = new TreeSet<>();
@@ -109,6 +116,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         }
                     })
                     .forEachRemaining(walkedShape -> {
+                        // MemberShape type itself is not what we are interested in
                         if (walkedShape.getType() == ShapeType.MEMBER) {
                             return;
                         }
@@ -145,6 +153,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
+    /**
+     * Get the operations with HTTP Bindings.
+     *
+     * @param context the generation context
+     * @return the list of operation shapes
+     */
     public List<OperationShape> getHttpBindingOperations(GenerationContext context) {
         TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
 
@@ -215,6 +229,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         for (HttpBinding binding : bindings) {
             Shape targetShape = model.expectShape(binding.getMember().getTarget());
+            // Check if the input shape has a members that target the document or payload and require serializers
             if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
                     && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
@@ -251,6 +266,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
             writer.write("");
 
+            // cast input parameters type to the input type of the operation
             writer.write("input, ok := in.Parameters.($P)", inputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
@@ -275,6 +291,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("");
             }
 
+            // delegate the setup and usage of the document serializer function for the protocol
             writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
             writer.write("");
 
@@ -613,7 +630,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         generateShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
     }
 
-
     private void generateShapeDeserializerFunction(
             GoWriter writer,
             Model model,
@@ -651,7 +667,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             serializeErrorBindingShapes.add(errorBinding);
         }
     }
-
 
     private String generateHttpBindingsValue(
             GoWriter writer,
@@ -803,7 +818,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 throw new CodegenException("unexpected http binding found");
         }
     }
-
 
     private void writeHeaderDeserializerFunction(
             GoWriter writer, Model model, String memberName,
