@@ -25,11 +25,12 @@ import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.CaseUtils;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Smithy protocol code generators.
@@ -120,7 +121,7 @@ public interface ProtocolGenerator {
      *
      * @param context Serde context.
      */
-    default void generateSharedComponents(GenerationContext context) {
+    default void generateSharedSerializerComponents(GenerationContext context) {
     }
 
     /**
@@ -142,14 +143,14 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a serializer function for shapes of a service.
      *
-     * @param symbol   The symbol the serializer function is being generated for.
+     * @param shape    The shape the serializer function is being generated for.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getOperationSerFunctionName(Symbol symbol, String protocol) {
+    static String getOperationHttpBindingsSerFunctionName(Shape shape, String protocol) {
         return protocol
                 + "_serializeHttpBindings"
-                + symbol.getName();
+                + StringUtils.capitalize(shape.getId().getName());
     }
 
     /**
@@ -168,16 +169,12 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a serializer function for shapes of a service.
      *
-     * @param symbol        The symbol the serializer function is being generated for.
-     * @param protocol      Name of the protocol being generated.
-     * @param bindingTarget the layer of the protocol being generated
+     * @param shape    The shape the serializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getSerFunctionName(Symbol symbol, String protocol, HttpBinding.Location bindingTarget) {
-        return protocol
-                + "_serialize"
-                + CaseUtils.toPascalCase(bindingTarget.name())
-                + symbol.getName();
+    static String getDocumentSerializerFunctionName(Shape shape, String protocol) {
+        return protocol + "_serializeDocument" + StringUtils.capitalize(shape.getId().getName());
     }
 
     /**
@@ -197,6 +194,12 @@ public interface ProtocolGenerator {
         functionName += symbol.getName();
 
         return functionName;
+    }
+
+    static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {
+        return protocol
+                + "_serializeOp"
+                + operationShapeId.getName();
     }
 
     /**

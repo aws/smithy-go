@@ -168,6 +168,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
                 context.setWriter(writer);
                 protocolGenerator.generateRequestSerializers(context);
+                protocolGenerator.generateSharedSerializerComponents(context);
             });
 
             writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {

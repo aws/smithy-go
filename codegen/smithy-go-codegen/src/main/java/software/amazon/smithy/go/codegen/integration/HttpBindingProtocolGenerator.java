@@ -16,12 +16,13 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -30,12 +31,14 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoDependency;
+import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -57,6 +60,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private static final Logger LOGGER = Logger.getLogger(HttpBindingProtocolGenerator.class.getName());
 
     private final boolean isErrorCodeInBody;
+    private final Set<Shape> serializeDocumentBindingShapes = new TreeSet<>();
     private final Set<ShapeId> serializeErrorBindingShapes = new TreeSet<>();
 
     /**
@@ -76,15 +80,90 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     @Override
-    public void generateSharedComponents(GenerationContext context) {
-        // pass
+    public void generateSharedSerializerComponents(GenerationContext context) {
+        serializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
+                serializeDocumentBindingShapes));
+        generateDocumentBodyShapeSerializers(context, serializeDocumentBindingShapes);
     }
 
+    /**
+     * Resolves the entire set of shapes that will require serializers given an initial set of shapes.
+     *
+     * @param model the model
+     * @param shapes the shapes to walk and resolve additional required serializers for
+     * @return the complete set of shapes requiring serializers
+     */
+    private Set<Shape> resolveRequiredDocumentShapeSerializers(Model model, Set<Shape> shapes) {
+        Set<ShapeId> processed = new TreeSet<>();
+        Set<Shape> resolvedShapes = new TreeSet<>();
+        Walker walker = new Walker(model);
+
+        shapes.forEach(shape -> {
+            processed.add(shape.getId());
+            resolvedShapes.add(shape);
+            walker.iterateShapes(shape,
+                    relationship -> {
+                        switch (relationship.getRelationshipType()) {
+                            case STRUCTURE_MEMBER:
+                            case UNION_MEMBER:
+                            case LIST_MEMBER:
+                            case SET_MEMBER:
+                            case MAP_VALUE:
+                            case MEMBER_TARGET:
+                                return true;
+                            default:
+                                return false;
+                        }
+                    })
+                    .forEachRemaining(walkedShape -> {
+                        // MemberShape type itself is not what we are interested in
+                        if (walkedShape.getType() == ShapeType.MEMBER) {
+                            return;
+                        }
+                        if (processed.contains(walkedShape.getId())) {
+                            return;
+                        }
+                        if (isShapeTypeDocumentSerializerRequired(walkedShape.getType())) {
+                            resolvedShapes.add(walkedShape);
+                            processed.add(walkedShape.getId());
+                        }
+                    });
+        });
+
+        return resolvedShapes;
+    }
+
+    /**
+     * Returns whether a document serializer function is required to serializer the given shape type.
+     *
+     * @param shapeType the shape type
+     * @return whether the shape type requires a document serializer function
+     */
+    protected boolean isShapeTypeDocumentSerializerRequired(ShapeType shapeType) {
+        switch (shapeType) {
+            case MAP:
+            case LIST:
+            case SET:
+            case DOCUMENT:
+            case STRUCTURE:
+            case UNION:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Get the operations with HTTP Bindings.
+     *
+     * @param context the generation context
+     * @return the list of operation shapes
+     */
     public List<OperationShape> getHttpBindingOperations(GenerationContext context) {
         TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
 
         List<OperationShape> containedOperations = new ArrayList<>();
-        for (OperationShape operation: topDownIndex.getContainedOperations(context.getService())) {
+        for (OperationShape operation : topDownIndex.getContainedOperations(context.getService())) {
             OptionalUtils.ifPresentOrElse(
                     operation.getTrait(HttpTrait.class),
                     httpTrait -> containedOperations.add(operation),
@@ -121,14 +200,148 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GenerationContext context,
             OperationShape operation
     ) {
+        generateOperationSerializerMiddleware(context, operation);
         generateOperationHttpBindingSerializer(context, operation);
+        generateOperationDocumentSerializer(context, operation);
+        addOperationDocumentShapeBinders(context, operation);
     }
+
+    /**
+     * Generates the operation document serializer function.
+     *
+     * @param context   the generation context
+     * @param operation the operation shape being generated
+     */
+    protected abstract void generateOperationDocumentSerializer(GenerationContext context, OperationShape operation);
+
+    /**
+     * Adds the top-level shapes from the operation that bind to the body document that require serializer functions.
+     *
+     * @param context   the generator context
+     * @param operation the operation to add document binders from
+     */
+    private void addOperationDocumentShapeBinders(GenerationContext context, OperationShape operation) {
+        Model model = context.getModel();
+
+        // Walk and add members shapes to the list that will require serializer functions
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getRequestBindings(operation).values();
+
+        for (HttpBinding binding : bindings) {
+            Shape targetShape = model.expectShape(binding.getMember().getTarget());
+            // Check if the input shape has a members that target the document or payload and require serializers
+            if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+                    && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                    || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
+                serializeDocumentBindingShapes.add(targetShape);
+            }
+        }
+    }
+
+    private void generateOperationSerializerMiddleware(GenerationContext context, OperationShape operation) {
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()
+                ));
+
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
+
+        Shape inputShape = model.expectShape(operation.getInput()
+                .orElseThrow(() -> new CodegenException("expect input shape for operation: " + operation.getId())));
+
+        Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
+
+        ApplicationProtocol applicationProtocol = getApplicationProtocol();
+        Symbol requestType = applicationProtocol.getRequestType();
+
+        // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
+        middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
+            writer.addUseImports(GoDependency.FMT);
+
+            // cast input request to smithy transport type, check for failures
+            writer.write("request, ok := in.Request.($P)", requestType);
+            writer.openBlock("if !ok {", "}", () -> {
+                writer.write("return out, metadata, "
+                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}");
+            });
+            writer.write("");
+
+            // cast input parameters type to the input type of the operation
+            writer.write("input, ok := in.Parameters.($P)", inputSymbol);
+            writer.openBlock("if !ok {", "}", () -> {
+                writer.write("return out, metadata, "
+                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                        + " in.Parameters)}");
+            });
+
+            writer.write("");
+
+            boolean withRestBindings = isOperationWithRestBindings(model, operation);
+
+            // we only generate an operations http bindings function if there are bindings
+            if (withRestBindings) {
+                String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
+                        getProtocolName());
+                writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
+
+                writer.write("restEncoder := rest.NewEncoder(request.Request)");
+                writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
+                    writer.write("return out, metadata, &aws.SerializationError{Err: err}");
+                });
+                writer.write("");
+            }
+
+            // delegate the setup and usage of the document serializer function for the protocol
+            writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
+            writer.write("");
+
+            if (withRestBindings) {
+                writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
+                    writer.write("return out, metadata, &aws.SerializationError{Err: err}");
+                });
+            }
+
+            writer.write("");
+            writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
+        });
+    }
+
+
+    /**
+     * Generate the document serializer logic for the serializer middleware body.
+     *
+     * @param model          the model
+     * @param symbolProvider the symbol provider
+     * @param operation      the operation
+     * @param generator      middleware generator definition
+     * @param writer         the writer within the middlware context
+     */
+    protected abstract void writeMiddlewareDocumentSerializerDelegator(
+            Model model,
+            SymbolProvider symbolProvider,
+            OperationShape operation,
+            GoStackStepMiddlewareGenerator generator,
+            GoWriter writer
+    );
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
                 || location == HttpBinding.Location.PREFIX_HEADERS
                 || location == HttpBinding.Location.LABEL
                 || location == HttpBinding.Location.QUERY;
+    }
+
+    private boolean isOperationWithRestBindings(Model model, OperationShape operationShape) {
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getRequestBindings(operationShape).values();
+
+        for (HttpBinding binding : bindings) {
+            if (isRestBinding(binding.getLocation())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void generateOperationHttpBindingSerializer(
@@ -143,7 +356,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
 
         HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
-
         Map<String, HttpBinding> bindingMap = bindingIndex.getRequestBindings(operation).entrySet().stream()
                 .filter(entry -> isRestBinding(entry.getValue().getLocation()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
@@ -151,16 +363,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }, TreeMap::new));
 
         Symbol restEncoder = getRestEncoderSymbol();
-
-        writer.addUseImports(SymbolUtils.createValueSymbolBuilder(null, GoDependency.FMT).build());
-        writer.addUseImports(restEncoder);
-
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
+        String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
 
-        writer.addUseImports(inputSymbol);
-
-        String functionName = ProtocolGenerator.getOperationSerFunctionName(inputSymbol, getProtocolName());
-
+        writer.addUseImports(GoDependency.FMT);
         writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, restEncoder,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
@@ -180,13 +386,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private Symbol getRestEncoderSymbol() {
-        return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL)
-                .build();
+        return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL).build();
     }
 
-    private String generateHttpBindingSetter(Shape targetShape, Symbol targetSymbol, String operand) {
-        operand = isDereferenceRequired(targetShape, targetSymbol)
-                && targetShape.getType() != ShapeType.BIG_INTEGER || targetShape.getType() != ShapeType.BIG_DECIMAL
+    private String generateHttpBindingSetter(
+            Model model,
+            MemberShape memberShape,
+            String operand
+    ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
+        // We only need to dereference if we pass the shape around as reference in Go.
+        // Note we make two exceptions here: big.Int and big.Float should still be passed as reference to the helper
+        // method as they can be arbitrarily large.
+        operand = CodegenUtils.isShapePassByReference(targetShape)
+                && targetShape.getType() != ShapeType.BIG_INTEGER
+                && targetShape.getType() != ShapeType.BIG_DECIMAL
                 ? "*" + operand : operand;
 
         switch (targetShape.getType()) {
@@ -196,6 +411,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 operand = targetShape.hasTrait(EnumTrait.class) ? "string(" + operand + ")" : operand;
                 return ".String(" + operand + ")";
             case TIMESTAMP:
+                // TODO: This needs to handle formats based on location
                 return ".UnixTime(" + operand + ")";
             case BYTE:
                 return ".Byte(" + operand + ")";
@@ -226,67 +442,62 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         String memberName = symbolProvider.toMemberName(memberShape);
 
-        writeSafeFieldAccessor(model, symbolProvider, memberShape, "v", writer, bodyWriter -> {
+        writeSafeOperandAccessor(model, symbolProvider, memberShape, "v", writer, (bodyWriter, operand) -> {
             switch (binding.getLocation()) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
-                                .getTarget());
-                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
-                        bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
+                        MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
+                        bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
-                                    "v.$L[i]"), memberName);
+                            bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "v.$L[i]"),
+                                    memberName);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetHeader($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "$L"), operand);
                     }
                     break;
                 case PREFIX_HEADERS:
-                    if (!targetShape.isMapShape()) {
-                        throw new CodegenException("prefix headers must target map shape");
-                    }
-                    Shape mapValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
-                    Symbol mapValueSymbol = symbolProvider.toSymbol(targetShape);
+                    MemberShape valueMemberShape = targetShape.asMapShape()
+                            .orElseThrow(() -> new CodegenException("prefix headers must target map shape"))
+                            .getValue();
+                    Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
+
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
-                    bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
-                        if (mapValueShape instanceof CollectionShape) {
-                            bodyWriter.openBlock("for j := range v.$L[i] {", "}", memberName, () -> {
+                    bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
+                        if (valueMemberTarget instanceof CollectionShape) {
+                            MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
+                            bodyWriter.openBlock("for j := range $L[i] {", "}", operand, () -> {
                                 bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                                bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i][j]"),
-                                        memberName);
+                                bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "$L[i][j]"),
+                                        operand);
                             });
                         } else {
                             bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(mapValueShape, mapValueSymbol, "v.$L[i]"),
+                            bodyWriter.write(generateHttpBindingSetter(model, valueMemberShape, "v.$L[i]"),
                                     memberName);
                         }
                     });
                     break;
                 case LABEL:
                     bodyWriter.writeInline("if err := encoder.SetURI($S)", memberShape.getMemberName());
-                    bodyWriter.writeInline(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                    bodyWriter.writeInline(generateHttpBindingSetter(model, memberShape, "$L"), operand);
                     bodyWriter.write("; err != nil {\n"
                             + "\treturn err\n"
                             + "}");
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
-                        Shape collectionMemberShape = model.expectShape(((CollectionShape) targetShape).getMember()
-                                .getTarget());
-                        Symbol collectionMemberSymbol = symbolProvider.toSymbol(collectionMemberShape);
-                        bodyWriter.openBlock("for i := range v.$L {", "}", memberName, () -> {
+                        MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
+                        bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             bodyWriter.writeInline("encoder.AddQuery($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(collectionMemberShape, collectionMemberSymbol,
-                                    "v.$L[i]"), memberName);
+                            bodyWriter.write(generateHttpBindingSetter(model, collectionMember, "$L[i]"), operand);
                         });
                     } else {
                         bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(targetShape, targetSymbol, "v.$L"), memberName);
+                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "v.$L"), memberName);
                     }
                     break;
                 default:
@@ -295,7 +506,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         });
     }
 
-    private boolean isDereferenceRequired(Shape shape, Symbol symbol) {
+    protected boolean isDereferenceRequired(Shape shape, Symbol symbol) {
         boolean pointable = symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
                 .orElse(false);
 
@@ -308,35 +519,49 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || shapeType == ShapeType.DOCUMENT;
     }
 
-    private void writeSafeFieldAccessor(
+    /**
+     * Writes a conditional check of the provided operand represented by the member shape.
+     * This check is to verify if the provided Go value was set by the user and whether the value
+     * should be serialized to the transport request.
+     *
+     * @param model          the model being generated
+     * @param symbolProvider the symbol provider
+     * @param memberShape    the member shape being accessed
+     * @param operand        the Go operand representing the member shape
+     * @param writer         the writer
+     * @param consumer       a consumer that will be given the writer to populate the accessor body
+     */
+    protected void writeSafeOperandAccessor(
             Model model,
             SymbolProvider symbolProvider,
             MemberShape memberShape,
-            String structureVariable,
+            String operand,
             GoWriter writer,
-            Consumer<GoWriter> consumer
+            BiConsumer<GoWriter, String> consumer
     ) {
         Shape targetShape = model.expectShape(memberShape.getTarget());
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
 
         String memberName = symbolProvider.toMemberName(memberShape);
 
         boolean enumShape = targetShape.hasTrait(EnumTrait.class);
 
-        if (!isDereferenceRequired(targetShape, targetSymbol) && !enumShape) {
-            consumer.accept(writer);
+        operand = operand + "." + memberName;
+
+        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, memberShape)) {
+            consumer.accept(writer, operand);
             return;
         }
 
-        String conditionCheck = structureVariable + "." + memberName;
+        String conditionCheck;
         if (enumShape) {
-            conditionCheck = "len(" + conditionCheck + ") > 0";
+            conditionCheck = "len(" + operand + ") > 0";
         } else {
-            conditionCheck = conditionCheck + " != nil";
+            conditionCheck = operand + " != nil";
         }
 
+        String resolvedOperand = operand;
         writer.openBlock("if " + conditionCheck + " {", "}", () -> {
-            consumer.accept(writer);
+            consumer.accept(writer, resolvedOperand);
         });
     }
 
@@ -348,7 +573,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             addErrorShapeBinders(context, operation);
         }
 
-        for (ShapeId errorBinding: serializeErrorBindingShapes) {
+        for (ShapeId errorBinding : serializeErrorBindingShapes) {
             generateErrorHttpBindingDeserializer(context, errorBinding);
         }
     }
@@ -405,7 +630,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         generateShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
     }
 
-
     private void generateShapeDeserializerFunction(
             GoWriter writer,
             Model model,
@@ -439,11 +663,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
 
     private void addErrorShapeBinders(GenerationContext context, OperationShape operation) {
-        for (ShapeId errorBinding: operation.getErrors()) {
+        for (ShapeId errorBinding : operation.getErrors()) {
             serializeErrorBindingShapes.add(errorBinding);
         }
     }
-
 
     private String generateHttpBindingsValue(
             GoWriter writer,
@@ -466,7 +689,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case TIMESTAMP:
                 writer.addUseImports(GoDependency.AWS_PRIVATE_PROTOCOL);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
-                TimestampFormatTrait.Format format  = bindingIndex.determineTimestampFormat(
+                TimestampFormatTrait.Format format = bindingIndex.determineTimestampFormat(
                         targetShape,
                         binding.getLocation(),
                         Format.HTTP_DATE
@@ -539,8 +762,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return value;
     }
 
-    private String getCollectionDeserializer(GoWriter writer, Model model,
-                                             Shape targetShape, HttpBinding binding, String operand) {
+    private String getCollectionDeserializer(
+            GoWriter writer, Model model,
+            Shape targetShape, HttpBinding binding, String operand
+    ) {
         writer.write("list := make([]$L, 0, 0)", targetShape.getId().getName());
 
         writer.addUseImports(GoDependency.STRINGS);
@@ -594,9 +819,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
-
-    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
-                                                 Shape targetShape, HttpBinding binding) {
+    private void writeHeaderDeserializerFunction(
+            GoWriter writer, Model model, String memberName,
+            Shape targetShape, HttpBinding binding
+    ) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
                     String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
@@ -605,11 +831,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 });
     }
 
-    private void writePrefixHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
-                                                       Shape targetShape, HttpBinding binding) {
+    private void writePrefixHeaderDeserializerFunction(
+            GoWriter writer, Model model, String memberName,
+            Shape targetShape, HttpBinding binding
+    ) {
         String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
-        for (Shape shape: targetShape.asMapShape().get().members()) {
+        for (Shape shape : targetShape.asMapShape().get().members()) {
             String name = shape.getId().getName();
             String locationName = prefix + name;
             writer.openBlock("if val := response.Header.Get($S); val != $S {",
@@ -619,48 +847,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     });
         }
     }
-
-    /**
-     * Writes the code needed to serialize the input payload of a request.
-     *
-     * <p>Implementations of this method are expected to set a value to the
-     * {@code body} variable that will be serialized as the request body.
-     * This variable will already be defined in scope.
-     *
-     * @param context        The generation context.
-     * @param operation      The operation being generated.
-     * @param payloadBinding The payload binding to serialize.
-     */
-    protected void serializeInputPayload(
-            GenerationContext context,
-            OperationShape operation,
-            HttpBinding payloadBinding
-    ) {
-        // pass
-    }
-
-    /**
-     * Writes any additional HTTP headers required by the protocol implementation.
-     *
-     * @param context   The generation context.
-     * @param operation The operation being generated.
-     */
-    protected void writeDefaultHeaders(GenerationContext context, OperationShape operation) {
-        // pass
-    }
-
-    /**
-     * Writes the code needed to serialize the input document of a request.
-     *
-     * @param context          The generation context.
-     * @param operation        The operation being generated.
-     * @param documentBindings The bindings to place in the document.
-     */
-    protected abstract void serializeInputDocument(
-            GenerationContext context,
-            OperationShape operation,
-            List<HttpBinding> documentBindings
-    );
 
     /**
      * Generates serialization functions for shapes in the passed set. These functions
@@ -681,37 +867,4 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param shapes  The shapes to generate deserialization for.
      */
     protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
-
-    /**
-     * Writes the code needed to deserialize the output document of a response.
-     *
-     * @param context          The generation context.
-     * @param operationOrError The operation or error with a document being deserialized.
-     * @param documentBindings The bindings to read from the document.
-     */
-    protected abstract void deserializeOutputDocument(
-            GenerationContext context,
-            Shape operationOrError,
-            List<HttpBinding> documentBindings
-    );
-
-    /**
-     * Writes the code that loads an {@code errorCode} String with the content used
-     * to dispatch errors to specific serializers.
-     *
-     * @param context The generation context.
-     */
-    protected abstract void writeErrorCodeParser(GenerationContext context);
-
-    /**
-     * Provides where within the passed output variable the actual error resides. This is useful
-     * for protocols that wrap the specific error in additional elements within the body.
-     *
-     * @param context        The generation context.
-     * @param outputLocation The name of the variable containing the output body.
-     * @return A string of the variable containing the error body within the output.
-     */
-    protected String getErrorBodyLocation(GenerationContext context, String outputLocation) {
-        return outputLocation;
-    }
 }

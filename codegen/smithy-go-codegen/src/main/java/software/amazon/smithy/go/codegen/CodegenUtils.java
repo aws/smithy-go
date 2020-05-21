@@ -25,8 +25,12 @@ import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.utils.StringUtils;
@@ -40,12 +44,13 @@ public final class CodegenUtils {
 
     private static final String SYNTHETIC_NAMESPACE = "smithy.go.synthetic";
 
-    private CodegenUtils() {}
+    private CodegenUtils() {
+    }
 
     /**
      * Executes a given shell command in a given directory.
      *
-     * @param command The string command to execute, e.g. "go fmt".
+     * @param command   The string command to execute, e.g. "go fmt".
      * @param directory The directory to run the command in.
      * @return Returns the console output of the command.
      */
@@ -193,5 +198,32 @@ public final class CodegenUtils {
      */
     public static boolean isShapePassByReference(Shape shape) {
         return !isShapePassByValue(shape);
+    }
+
+    /**
+     * Returns whether the provided shape can have a Go nil value assigned to it.
+     * If provided a MemberShape it will use the target shape and the aggregate shape containing
+     * the member is a reference frame to determine if nil is allowed.
+     *
+     * @param model the model
+     * @param shape the shape to test
+     * @return if the shape can be assigned a nil Go value
+     */
+    public static boolean isNilAssignableToShape(Model model, Shape shape) {
+        if (shape instanceof MemberShape) {
+            ShapeId memberShapeId = shape.getId();
+
+            Shape aggregateShape = model.expectShape(ShapeId.fromParts(memberShapeId.getNamespace(),
+                    memberShapeId.getName()));
+
+            // If the aggregate parent shape is not a structure the member shape is expected to not be a pointer
+            if (!(aggregateShape instanceof StructureShape)) {
+                return false;
+            }
+
+            shape = model.expectShape(((MemberShape) shape).getTarget());
+        }
+
+        return !shape.hasTrait(EnumTrait.class);
     }
 }
