@@ -38,7 +38,6 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.neighbor.RelationshipType;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -96,12 +95,27 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             processed.add(shape.getId());
             resolvedShapes.add(shape);
             walker.iterateShapes(shape,
-                    relationship -> relationship.getRelationshipType() == RelationshipType.MEMBER_TARGET)
+                    relationship -> {
+                        switch (relationship.getRelationshipType()) {
+                            case STRUCTURE_MEMBER:
+                            case UNION_MEMBER:
+                            case LIST_MEMBER:
+                            case SET_MEMBER:
+                            case MAP_VALUE:
+                            case MEMBER_TARGET:
+                                return true;
+                            default:
+                                return false;
+                        }
+                    })
                     .forEachRemaining(walkedShape -> {
+                        if (walkedShape.getType() == ShapeType.MEMBER) {
+                            return;
+                        }
                         if (processed.contains(walkedShape.getId())) {
                             return;
                         }
-                        if (isShapeTypeDocumentSerializerRequired(shape.getType())) {
+                        if (isShapeTypeDocumentSerializerRequired(walkedShape.getType())) {
                             resolvedShapes.add(walkedShape);
                             processed.add(walkedShape.getId());
                         }
@@ -135,7 +149,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
 
         List<OperationShape> containedOperations = new ArrayList<>();
-        for (OperationShape operation: topDownIndex.getContainedOperations(context.getService())) {
+        for (OperationShape operation : topDownIndex.getContainedOperations(context.getService())) {
             OptionalUtils.ifPresentOrElse(
                     operation.getTrait(HttpTrait.class),
                     httpTrait -> containedOperations.add(operation),
@@ -181,7 +195,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generates the operation document serializer function.
      *
-     * @param context the generation context
+     * @param context   the generation context
      * @param operation the operation shape being generated
      */
     protected abstract void generateOperationDocumentSerializer(GenerationContext context, OperationShape operation);
@@ -279,11 +293,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the document serializer logic for the serializer middleware body.
      *
-     * @param model the model
+     * @param model          the model
      * @param symbolProvider the symbol provider
-     * @param operation the operation
-     * @param generator middleware generator definition
-     * @param writer the writer within the middlware context
+     * @param operation      the operation
+     * @param generator      middleware generator definition
+     * @param writer         the writer within the middlware context
      */
     protected abstract void writeMiddlewareDocumentSerializerDelegator(
             Model model,
@@ -493,12 +507,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * This check is to verify if the provided Go value was set by the user and whether the value
      * should be serialized to the transport request.
      *
-     * @param model the model being generated
+     * @param model          the model being generated
      * @param symbolProvider the symbol provider
-     * @param memberShape the member shape being accessed
-     * @param operand the Go operand representing the member shape
-     * @param writer the writer
-     * @param consumer a consumer that will be given the writer to populate the accessor body
+     * @param memberShape    the member shape being accessed
+     * @param operand        the Go operand representing the member shape
+     * @param writer         the writer
+     * @param consumer       a consumer that will be given the writer to populate the accessor body
      */
     protected void writeSafeOperandAccessor(
             Model model,
@@ -542,7 +556,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             addErrorShapeBinders(context, operation);
         }
 
-        for (ShapeId errorBinding: serializeErrorBindingShapes) {
+        for (ShapeId errorBinding : serializeErrorBindingShapes) {
             generateErrorHttpBindingDeserializer(context, errorBinding);
         }
     }
@@ -633,7 +647,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
 
     private void addErrorShapeBinders(GenerationContext context, OperationShape operation) {
-        for (ShapeId errorBinding: operation.getErrors()) {
+        for (ShapeId errorBinding : operation.getErrors()) {
             serializeErrorBindingShapes.add(errorBinding);
         }
     }
@@ -660,7 +674,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case TIMESTAMP:
                 writer.addUseImports(GoDependency.AWS_PRIVATE_PROTOCOL);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
-                TimestampFormatTrait.Format format  = bindingIndex.determineTimestampFormat(
+                TimestampFormatTrait.Format format = bindingIndex.determineTimestampFormat(
                         targetShape,
                         binding.getLocation(),
                         Format.HTTP_DATE
@@ -733,8 +747,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return value;
     }
 
-    private String getCollectionDeserializer(GoWriter writer, Model model,
-                                             Shape targetShape, HttpBinding binding, String operand) {
+    private String getCollectionDeserializer(
+            GoWriter writer, Model model,
+            Shape targetShape, HttpBinding binding, String operand
+    ) {
         writer.write("list := make([]$L, 0, 0)", targetShape.getId().getName());
 
         writer.addUseImports(GoDependency.STRINGS);
@@ -789,8 +805,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
 
-    private void writeHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
-                                                 Shape targetShape, HttpBinding binding) {
+    private void writeHeaderDeserializerFunction(
+            GoWriter writer, Model model, String memberName,
+            Shape targetShape, HttpBinding binding
+    ) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
                     String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
@@ -799,11 +817,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 });
     }
 
-    private void writePrefixHeaderDeserializerFunction(GoWriter writer, Model model, String memberName,
-                                                       Shape targetShape, HttpBinding binding) {
+    private void writePrefixHeaderDeserializerFunction(
+            GoWriter writer, Model model, String memberName,
+            Shape targetShape, HttpBinding binding
+    ) {
         String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
-        for (Shape shape: targetShape.asMapShape().get().members()) {
+        for (Shape shape : targetShape.asMapShape().get().members()) {
             String name = shape.getId().getName();
             String locationName = prefix + name;
             writer.openBlock("if val := response.Header.Get($S); val != $S {",
