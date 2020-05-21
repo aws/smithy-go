@@ -815,48 +815,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     /**
-     * Writes the code needed to serialize the input payload of a request.
-     *
-     * <p>Implementations of this method are expected to set a value to the
-     * {@code body} variable that will be serialized as the request body.
-     * This variable will already be defined in scope.
-     *
-     * @param context        The generation context.
-     * @param operation      The operation being generated.
-     * @param payloadBinding The payload binding to serialize.
-     */
-    protected void serializeInputPayload(
-            GenerationContext context,
-            OperationShape operation,
-            HttpBinding payloadBinding
-    ) {
-        // pass
-    }
-
-    /**
-     * Writes any additional HTTP headers required by the protocol implementation.
-     *
-     * @param context   The generation context.
-     * @param operation The operation being generated.
-     */
-    protected void writeDefaultHeaders(GenerationContext context, OperationShape operation) {
-        // pass
-    }
-
-    /**
-     * Writes the code needed to serialize the input document of a request.
-     *
-     * @param context          The generation context.
-     * @param operation        The operation being generated.
-     * @param documentBindings The bindings to place in the document.
-     */
-    protected abstract void serializeInputDocument(
-            GenerationContext context,
-            OperationShape operation,
-            List<HttpBinding> documentBindings
-    );
-
-    /**
      * Generates serialization functions for shapes in the passed set. These functions
      * should return a value that can then be serialized by the implementation of
      * {@code serializeInputDocument}.
