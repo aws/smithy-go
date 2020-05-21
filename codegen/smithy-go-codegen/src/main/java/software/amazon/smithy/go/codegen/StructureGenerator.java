@@ -73,12 +73,28 @@ final class StructureGenerator implements Runnable {
      *     additional members.
      */
     public void renderStructure(Runnable runnable) {
+        renderStructure(runnable, false);
+    }
+
+    /**
+     * Renders a non-error structure.
+     *
+     * @param runnable A runnable that runs before the structure definition is closed. This can be used to write
+     *     additional members.
+     * @param isInputStructure A boolean indicating if input variants for member symbols should be used.
+     */
+    public void renderStructure(Runnable runnable, boolean isInputStructure) {
         writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
         for (MemberShape member : shape.getAllMembers().values()) {
             String memberName = symbolProvider.toMemberName(member);
             writer.writeMemberDocs(model, member);
-            writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
+
+            Symbol memberSymbol = symbolProvider.toSymbol(member);
+            if (isInputStructure) {
+                memberSymbol = memberSymbol.getProperty(SymbolUtils.INPUT_VARIANT, Symbol.class).orElse(memberSymbol);
+            }
+            writer.write("$L $P", memberName, memberSymbol);
         }
         runnable.run();
         writer.closeBlock("}").write("");

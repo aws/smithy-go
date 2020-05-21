@@ -29,6 +29,9 @@ public final class SymbolUtils {
     public static final String GO_SLICE = "slice";
     public static final String GO_MAP = "map";
 
+    // Used when a given shape must be represented differently on input.
+    public static final String INPUT_VARIANT = "inputVariant";
+
     private SymbolUtils() {
     }
 
