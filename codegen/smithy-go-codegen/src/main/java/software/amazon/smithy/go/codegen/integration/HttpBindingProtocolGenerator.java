@@ -61,6 +61,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private final boolean isErrorCodeInBody;
     private final Set<Shape> serializeDocumentBindingShapes = new TreeSet<>();
+    private final Set<Shape> deserializeDocumentBindingShapes = new TreeSet<>();
     private final Set<ShapeId> serializeErrorBindingShapes = new TreeSet<>();
 
     /**
@@ -87,11 +88,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     /**
-     * Resolves the entire set of shapes that will require serializers given an initial set of shapes.
+     * Resolves the entire set of shapes that will require serializers, deserializers given an initial set of shapes.
      *
      * @param model the model
-     * @param shapes the shapes to walk and resolve additional required serializers for
-     * @return the complete set of shapes requiring serializers
+     * @param shapes the shapes to walk and resolve additional required serializers, deserializers for
+     * @return the complete set of shapes requiring serializers, deserializers
      */
     private Set<Shape> resolveRequiredDocumentShapeSerializers(Model model, Set<Shape> shapes) {
         Set<ShapeId> processed = new TreeSet<>();
@@ -134,10 +135,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     /**
-     * Returns whether a document serializer function is required to serializer the given shape type.
+     * Returns whether a document serializer, deserializer function is required to serializer the given shape type.
      *
      * @param shapeType the shape type
-     * @return whether the shape type requires a document serializer function
+     * @return whether the shape type requires a document serializer, deserializer function
      */
     protected boolean isShapeTypeDocumentSerializerRequired(ShapeType shapeType) {
         switch (shapeType) {
@@ -203,7 +204,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         generateOperationSerializerMiddleware(context, operation);
         generateOperationHttpBindingSerializer(context, operation);
         generateOperationDocumentSerializer(context, operation);
-        addOperationDocumentShapeBinders(context, operation);
+        addOperationDocumentShapeBindersForSerializer(context, operation);
     }
 
     /**
@@ -220,7 +221,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context   the generator context
      * @param operation the operation to add document binders from
      */
-    private void addOperationDocumentShapeBinders(GenerationContext context, OperationShape operation) {
+    private void addOperationDocumentShapeBindersForSerializer(GenerationContext context, OperationShape operation) {
         Model model = context.getModel();
 
         // Walk and add members shapes to the list that will require serializer functions
@@ -565,19 +566,32 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         });
     }
 
+    /**
+     * Generates serialization functions for shapes in the passed set. These functions
+     * should return a value that can then be serialized by the implementation of
+     * {@code serializeInputDocument}.
+     *
+     * @param context The generation context.
+     * @param shapes  The shapes to generate serialization for.
+     */
+    protected abstract void generateDocumentBodyShapeSerializers(GenerationContext context, Set<Shape> shapes);
 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
         for (OperationShape operation : getHttpBindingOperations(context)) {
             generateOperationHttpBindingDeserializer(context, operation);
+            generateOperationDocumentDeserializer(context, operation);
+            generateOperationPayloadDeserializer(context, operation);
+            addOperationDocumentShapeBindersForDeserializer(context, operation);
             addErrorShapeBinders(context, operation);
         }
 
         for (ShapeId errorBinding : serializeErrorBindingShapes) {
             generateErrorHttpBindingDeserializer(context, errorBinding);
+            generateErrorDocumentBindingDeserializer(context, errorBinding);
+            generateErrorPayloadBindingDeserializer(context, errorBinding);
         }
     }
-
 
     private void generateOperationHttpBindingDeserializer(
             GenerationContext context,
@@ -720,7 +734,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 return String.format("strconv.ParseFloat(%s,0,64)", operand);
             case BIG_INTEGER:
                 writer.addUseImports(GoDependency.BIG);
-                writer.write("i := big.Int{}");
+                writer.write("i := big.NewInt(0)");
                 writer.write("bi, ok := i.SetString($L,0)", operand);
                 writer.openBlock("if !ok {", "}", () -> {
                     writer.write(
@@ -745,9 +759,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
                 writer.write("if err != nil { return err }");
                 return "b";
-            case STRUCTURE:
-                // Todo: delegate to the shape deserializer
-                break;
             case SET:
                 // handle set as target shape
                 Shape targetValueSetShape = model.expectShape(targetShape.asSetShape().get().getMember().getTarget());
@@ -759,7 +770,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
         }
-        return value;
     }
 
     private String getCollectionDeserializer(
@@ -799,21 +809,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }
                 writePrefixHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
                 break;
-            case PAYLOAD:
-                switch (targetShape.getType()) {
-                    case BLOB:
-                        writer.openBlock("if val := response.Header.Get($S); val != $S {",
-                                "}", binding.getLocationName(), "", () -> {
-                                    writer.write("v.$L = $L", memberName, "val");
-                                });
-                        break;
-                    case STRUCTURE:
-                        // Todo deligate to unmarshaler for structure
-                        break;
-                    default:
-                        throw new CodegenException("unexpected payload type found in http binding");
-                }
-                break;
             default:
                 throw new CodegenException("unexpected http binding found");
         }
@@ -848,15 +843,50 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
+    @Override
+    public void generateSharedDeserializerComponents(GenerationContext context) {
+        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
+                deserializeDocumentBindingShapes));
+        generateDocumentBodyShapeDeserializers(context, deserializeDocumentBindingShapes);
+    }
+
     /**
-     * Generates serialization functions for shapes in the passed set. These functions
-     * should return a value that can then be serialized by the implementation of
-     * {@code serializeInputDocument}.
+     * Adds the top-level shapes from the operation that bind to the body document that require deserializer functions.
      *
-     * @param context The generation context.
-     * @param shapes  The shapes to generate serialization for.
+     * @param context   the generator context
+     * @param operation the operation to add document binders from
      */
-    protected abstract void generateDocumentBodyShapeSerializers(GenerationContext context, Set<Shape> shapes);
+    private void addOperationDocumentShapeBindersForDeserializer(GenerationContext context, OperationShape operation) {
+        Model model = context.getModel();
+
+        // Walk and add members shapes to the list that will require deserializer functions
+         model.getKnowledge(HttpBindingIndex.class)
+                .getResponseBindings(operation).values()
+                .forEach(binding -> {
+                    Shape targetShape = model.expectShape(binding.getMember().getTarget());
+                    if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+                            && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                            || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
+                        deserializeDocumentBindingShapes.add(targetShape);
+                    }
+                });
+    }
+
+    /**
+     * Generates the operation document deserializer function.
+     *
+     * @param context   the generation context
+     * @param operation the operation shape being generated
+     */
+    protected abstract void generateOperationDocumentDeserializer(GenerationContext context, OperationShape operation);
+
+    /**
+     * Generates the operation payload deserializer function.
+     *
+     * @param context   the generation context
+     * @param operation the operation shape being generated
+     */
+    protected abstract void generateOperationPayloadDeserializer(GenerationContext context, OperationShape operation);
 
     /**
      * Generates deserialization functions for shapes in the passed set. These functions
@@ -866,5 +896,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context The generation context.
      * @param shapes  The shapes to generate deserialization for.
      */
-    protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
+    protected abstract void  generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
+
+    /**
+     * Generates the error document deserializer function.
+     *
+     * @param context   the generation context
+     * @param shapeId the error shape id for which deserializer is being generated
+     */
+    protected  abstract  void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
+
+    /**
+     * Generates the error payload deserializer function.
+     *
+     * @param context   the generation context
+     * @param shapeId the error shape id for which deserializer is being generated
+     */
+    protected  abstract  void generateErrorPayloadBindingDeserializer(GenerationContext context, ShapeId shapeId);
 }

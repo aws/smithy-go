@@ -26,6 +26,8 @@ import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 public enum GoDependency implements SymbolDependencyContainer {
 
     // The version in the stdlib dependencies should reflect the minimum Go version.
+
+    // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
     BIG("stdlib", "", "math/big", null, Versions.GO_STDLIB),
@@ -38,7 +40,9 @@ public enum GoDependency implements SymbolDependencyContainer {
     NET_HTTP("stdlib", "", "net/http", null, Versions.GO_STDLIB),
     BYTES("stdlib", "", "bytes", null, Versions.GO_STDLIB),
     STRINGS("stdlib", "", "strings", null, Versions.GO_STDLIB),
+    JSON("stdlib", "", "encoding/json", null, Versions.GO_STDLIB),
     IO("stdlib", "", "io", null, Versions.GO_STDLIB),
+    IOUTIL("stdlib", "",  "io/ioutil", null, Versions.GO_STDLIB),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go", "smithy", Versions.SMITHY_GO),
@@ -52,7 +56,9 @@ public enum GoDependency implements SymbolDependencyContainer {
     AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
             "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK),
     AWS_JSON_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", null, Versions.AWS_SDK);
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", null, Versions.AWS_SDK),
+    AWS_JSON_PROTOCOL_ALIAS("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", "jsonprotocol", Versions.AWS_SDK);
 
     public final String sourcePath;
     public final String importPath;

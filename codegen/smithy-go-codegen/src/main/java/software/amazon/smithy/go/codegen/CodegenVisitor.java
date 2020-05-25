@@ -174,6 +174,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
                 context.setWriter(writer);
                 protocolGenerator.generateResponseDeserializers(context);
+                protocolGenerator.generateSharedDeserializerComponents(context);
             });
         }
 

@@ -133,6 +133,14 @@ public interface ProtocolGenerator {
     void generateRequestSerializers(GenerationContext context);
 
     /**
+     * Generates any standard code for service response deserialization.
+     *
+     * @param context Serde context.
+     */
+    default void generateSharedDeserializerComponents(GenerationContext context) {
+    }
+
+    /**
      * Generates the code used to deserialize the shapes of a service
      * for responses.
      *
@@ -193,25 +201,23 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a deserializer function for shapes of a service.
      *
-     * @param symbol        The symbol the deserializer function is being generated for.
-     * @param protocol      Name of the protocol being generated.
-     * @param protocolLayer the layer of the protocol being generated
+     * @param shape    The shape the deserializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getDeserFunctionName(Symbol symbol, String protocol, String protocolLayer) {
-        // e.g., awsRestJson1_serializeRestFooShape
-        String functionName = ProtocolGenerator.getSanitizedName(protocol)
-                + "_deserialize"
-                + ProtocolGenerator.getSanitizedName(protocolLayer);
-
-        functionName += symbol.getName();
-
-        return functionName;
+    static String getDocumentDeserializerFunctionName(Shape shape, String protocol) {
+        return protocol + "_deserializeDocument" + StringUtils.capitalize(shape.getId().getName());
     }
 
     static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {
         return protocol
                 + "_serializeOp"
+                + operationShapeId.getName();
+    }
+
+    static String getDeserializeMiddlewareName(ShapeId operationShapeId, String protocol) {
+        return protocol
+                + "_deserializeOp"
                 + operationShapeId.getName();
     }
 
