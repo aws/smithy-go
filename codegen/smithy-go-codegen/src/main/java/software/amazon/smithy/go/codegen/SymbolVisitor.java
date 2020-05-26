@@ -254,7 +254,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol byteShape(ByteShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "byte").build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "int8").build();
     }
 
     @Override
