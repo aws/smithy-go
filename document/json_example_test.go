@@ -31,6 +31,7 @@ func ExampleMarshalJSONDocument() {
 
 var _ document.JSON = (document.RawJSON)(nil)
 var _ document.JSON = (*document.JSONReader)(nil)
+var _ document.JSONCloser = (*document.JSONReader)(nil)
 
 func ExampleRawJSON_UnmarshalDocument() {
 	type Output struct {

@@ -14,6 +14,16 @@ type JSON interface {
 	JSONReader() io.Reader
 }
 
+// JSONCloser is the same as the JSON interface, but adds an additional
+// requirement that an io.Closer also implemented by the underlying type.
+//
+// API streaming response documents will be generated as JSONClosers so the
+// underlying connection can be closed and potentially reused.
+type JSONCloser interface {
+	JSON
+	io.Closer
+}
+
 // RawJSON provides a document marshaler for a byte slice containing a
 // JSON document.
 type RawJSON []byte
