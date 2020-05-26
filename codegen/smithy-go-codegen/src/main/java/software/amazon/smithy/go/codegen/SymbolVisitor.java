@@ -233,7 +233,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     private Symbol createCollectionSymbol(CollectionShape shape) {
         Symbol reference = toSymbol(shape.getMember());
-        return SymbolUtils.createValueSymbolBuilder(shape, shape.getId().getName())
+        // Shape name will be unused for symbols that represent a slice, but in the event it does we set the collection
+        // shape's name to make debugging simpler.
+        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape))
                 .putProperty(SymbolUtils.GO_SLICE, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
                         reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
@@ -244,7 +246,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol mapShape(MapShape shape) {
         Symbol reference = toSymbol(shape.getValue());
-        return SymbolUtils.createValueSymbolBuilder(shape, shape.getId().getName())
+        // Shape name will be unused for symbols that represent a map, but in the event it does we set the map shape's
+        // name to make debugging simpler.
+        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape))
                 .putProperty(SymbolUtils.GO_MAP, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
                         reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
