@@ -7,11 +7,11 @@ import (
 )
 
 // JSON provides an abstract representation of the serialized JSON document
-// based. The Unmarshal method will attempt to // unmarshal the underlying
+// based. The Unmarshal method will attempt to unmarshal the underlying
 // document's value into the Go type provided.
 type JSON interface {
 	UnmarshalDocument(interface{}) error
-	JSONBytes() ([]byte, error)
+	JSONReader() io.Reader
 }
 
 // RawJSON provides a document marshaler for a byte slice containing a

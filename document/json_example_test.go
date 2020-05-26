@@ -29,6 +29,9 @@ func ExampleMarshalJSONDocument() {
 	client.AnJSONAPIOperation(params)
 }
 
+var _ document.JSON = (document.RawJSON)(nil)
+var _ document.JSON = (*document.JSONReader)(nil)
+
 func ExampleRawJSON_UnmarshalDocument() {
 	type Output struct {
 		ADoc document.JSON
