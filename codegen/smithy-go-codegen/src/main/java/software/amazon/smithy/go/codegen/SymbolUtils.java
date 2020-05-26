@@ -26,8 +26,9 @@ public final class SymbolUtils {
     public static final String POINTABLE = "pointable";
     public static final String NAMESPACE_ALIAS = "namespaceAlias";
     public static final String GO_UNIVERSE_TYPE = "universeType";
-    public static final String GO_SLICE = "slice";
-    public static final String GO_MAP = "map";
+    public static final String GO_SLICE = "goSlice";
+    public static final String GO_MAP = "goMap";
+    public static final String GO_ELEMENT_TYPE = "goElementType";
 
     // Used when a given shape must be represented differently on input.
     public static final String INPUT_VARIANT = "inputVariant";

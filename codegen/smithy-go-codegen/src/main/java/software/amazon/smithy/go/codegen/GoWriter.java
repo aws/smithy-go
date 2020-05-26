@@ -292,18 +292,26 @@ public final class GoWriter extends CodeWriter {
         @Override
         public String apply(Object type, String indent) {
             if (type instanceof Symbol) {
-                Symbol typeSymbol = (Symbol) type;
-                addUseImports(typeSymbol);
+                Symbol resolvedSymbol = (Symbol) type;
+                String literal = resolvedSymbol.getName();
 
-                String literal = typeSymbol.getName();
-
-                if (!SymbolUtils.isUniverseType(typeSymbol) && isExternalNamespace(typeSymbol.getNamespace())) {
-                    literal = formatWithNamespace(typeSymbol);
+                boolean isSlice = resolvedSymbol.getProperty(SymbolUtils.GO_SLICE, Boolean.class).orElse(false);
+                boolean isMap = resolvedSymbol.getProperty(SymbolUtils.GO_MAP, Boolean.class).orElse(false);
+                if (isSlice || isMap) {
+                    resolvedSymbol = resolvedSymbol.getProperty(SymbolUtils.GO_ELEMENT_TYPE, Symbol.class)
+                            .orElseThrow(() -> new CodegenException("Expected go element type property to be defined"));
+                    literal = apply(resolvedSymbol, indent);
                 }
 
-                if (typeSymbol.getProperty(SymbolUtils.GO_SLICE, Boolean.class).orElse(false)) {
+                addUseImports(resolvedSymbol);
+
+                if (!SymbolUtils.isUniverseType(resolvedSymbol) && isExternalNamespace(resolvedSymbol.getNamespace())) {
+                    literal = formatWithNamespace(resolvedSymbol);
+                }
+
+                if (isSlice) {
                     return "[]" + literal;
-                } else if (typeSymbol.getProperty(SymbolUtils.GO_MAP, Boolean.class).orElse(false)) {
+                } else if (isMap) {
                     return "map[string]" + literal;
                 } else {
                     return literal;
