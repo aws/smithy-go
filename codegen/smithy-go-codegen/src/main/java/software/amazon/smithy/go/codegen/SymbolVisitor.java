@@ -58,6 +58,7 @@ import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -199,6 +200,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol blobShape(BlobShape shape) {
+        if (shape.hasTrait(StreamingTrait.ID)) {
+            Symbol inputVariant = SymbolUtils.createValueSymbolBuilder(shape, "Reader", GoDependency.IO).build();
+            return SymbolUtils.createValueSymbolBuilder(shape, "ReadCloser", GoDependency.IO)
+                    .putProperty(SymbolUtils.INPUT_VARIANT, inputVariant)
+                    .build();
+        }
         return SymbolUtils.createPointableSymbolBuilder(shape, "[]byte")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();

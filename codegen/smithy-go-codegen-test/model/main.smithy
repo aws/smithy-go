@@ -1,16 +1,11 @@
-$version: "1"
-
-metadata suppressions = [{
-    id: "UnstableFeature",
-    namespace: "example.weather"
-}]
-
+$version: "1.0"
 namespace example.weather
 
-use aws.protocols#awsJson1_1
+use smithy.test#httpRequestTests
+use smithy.test#httpResponseTests
 
 /// Provides weather forecasts.
-@awsJson1_1
+@fakeProtocol
 @paginated(inputToken: "nextToken", outputToken: "nextToken", pageSize: "pageSize")
 service Weather {
     version: "2006-03-01",
@@ -23,6 +18,7 @@ resource City {
     read: GetCity,
     list: ListCities,
     resources: [Forecast, CityImage],
+    operations: [GetCityAnnouncements]
 }
 
 resource Forecast {
@@ -47,6 +43,58 @@ operation GetCity {
     errors: [NoSuchResource]
 }
 
+// Tests that HTTP protocol tests are generated.
+apply GetCity @httpRequestTests([
+    {
+        id: "WriteGetCityAssertions",
+        documentation: "Does something",
+        protocol: "example.weather#fakeProtocol",
+        method: "GET",
+        uri: "/cities/123",
+        body: "",
+        params: {
+            cityId: "123"
+        }
+    }
+])
+
+apply GetCity @httpResponseTests([
+    {
+        id: "WriteGetCityResponseAssertions",
+        documentation: "Does something",
+        protocol: "example.weather#fakeProtocol",
+        code: 200,
+        body: """
+            {
+                "name": "Seattle",
+                "coordinates": {
+                    "latitude": 12.34,
+                    "longitude": -56.78
+                },
+                "city": {
+                    "cityId": "123",
+                    "name": "Seattle",
+                    "number": "One",
+                    "case": "Upper"
+                }
+            }""",
+        bodyMediaType: "application/json",
+        params: {
+            name: "Seattle",
+            coordinates: {
+                latitude: 12.34,
+                longitude: -56.78
+            },
+            city: {
+                cityId: "123",
+                name: "Seattle",
+                number: "One",
+                case: "Upper"
+            }
+        }
+    }
+])
+
 /// The input used to get a city.
 structure GetCityInput {
     // "cityId" provides the identifier for the resource and
@@ -66,11 +114,7 @@ structure GetCityOutput {
     coordinates: CityCoordinates,
 
     city: CitySummary,
-
-    metadata: CityMetadata
 }
-
-document CityMetadata
 
 // This structure is nested within GetCityOutput.
 structure CityCoordinates {
@@ -92,6 +136,25 @@ structure NoSuchResource {
     message: String,
 }
 
+apply NoSuchResource @httpResponseTests([
+    {
+        id: "WriteNoSuchResourceAssertions",
+        documentation: "Does something",
+        protocol: "example.weather#fakeProtocol",
+        code: 404,
+        body: """
+            {
+                "resourceType": "City",
+                "message": "Your custom message"
+            }""",
+        bodyMediaType: "application/json",
+        params: {
+            resourceType: "City",
+            message: "Your custom message"
+        }
+    }
+])
+
 // The paginated trait indicates that the operation may
 // return truncated results.
 @readonly
@@ -101,6 +164,22 @@ operation ListCities {
     input: ListCitiesInput,
     output: ListCitiesOutput
 }
+
+apply ListCities @httpRequestTests([
+    {
+        id: "WriteListCitiesAssertions",
+        documentation: "Does something",
+        protocol: "example.weather#fakeProtocol",
+        method: "GET",
+        uri: "/cities",
+        body: "",
+        queryParams: ["pageSize=50"],
+        forbidQueryParams: ["nextToken"],
+        params: {
+            pageSize: 50
+        }
+    }
+])
 
 structure ListCitiesInput {
     @httpQuery("nextToken")
@@ -166,7 +245,6 @@ structure GetForecastOutput {
     precipitation: Precipitation,
 }
 
-/// Different kinds of preciptation.
 union Precipitation {
     rain: PrimitiveBoolean,
     sleet: PrimitiveBoolean,
@@ -175,6 +253,7 @@ union Precipitation {
     mixed: TypedYesNo,
     other: OtherStructure,
     blob: Blob,
+    foo: example.weather.nested#Foo,
     baz: example.weather.nested.more#Baz,
 }
 
@@ -183,19 +262,7 @@ structure OtherStructure {}
 @enum([{value: "YES"}, {value: "NO"}])
 string SimpleYesNo
 
-/// yes or no
-@enum([
-    {
-        value: "Yes",
-        name: "YES",
-        documentation: "yes",
-    },
-    {
-        value: "No",
-        name: "NO",
-        documentation: "no",
-    }
-])
+@enum([{value: "YES", name: "YES"}, {value: "NO", name: "NO"}])
 string TypedYesNo
 
 map StringMap {
@@ -217,12 +284,49 @@ structure GetCityImageInput {
 }
 
 structure GetCityImageOutput {
-    /// An image of the city in JPEG format.
     @httpPayload
     image: CityImageData,
 }
 
-/// A JPEG image of a city.
 @streaming
-@mediaType("image/jpeg")
 blob CityImageData
+
+@readonly
+@http(method: "GET", uri: "/cities/{cityId}/announcements")
+operation GetCityAnnouncements {
+    input: GetCityAnnouncementsInput,
+    output: GetCityAnnouncementsOutput,
+    errors: [NoSuchResource]
+}
+
+
+structure GetCityAnnouncementsInput {
+    @required
+    @httpLabel
+    cityId: CityId,
+}
+
+structure GetCityAnnouncementsOutput {
+    @httpHeader("x-last-updated")
+    lastUpdated: Timestamp,
+
+    @httpPayload
+    announcements: Announcements
+}
+
+@streaming
+union Announcements {
+    police: Message,
+    fire: Message,
+    health: Message
+}
+
+structure Message {
+    message: String,
+    author: String
+}
+
+// Define a fake protocol trait for use.
+@trait
+@protocolDefinition
+structure fakeProtocol {}

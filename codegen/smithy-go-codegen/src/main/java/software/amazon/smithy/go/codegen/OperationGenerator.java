@@ -103,7 +103,8 @@ final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, inputShape, inputSymbol).run();
+        new StructureGenerator(model, symbolProvider, writer, inputShape, inputSymbol)
+                .renderStructure(() -> { }, true);
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder(
