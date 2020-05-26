@@ -48,3 +48,9 @@ func ExampleRawJSON_UnmarshalDocument() {
 	// Output:
 	// A: cool document
 }
+
+type mockClient struct{}
+
+func (mockClient) AnAPIOperation(interface{}) {}
+
+var client mockClient
