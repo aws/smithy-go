@@ -195,7 +195,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void structureShape(StructureShape shape) {
-        if (shape.hasTrait(SyntheticClone.ID)) {
+        if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return null;
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
