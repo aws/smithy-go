@@ -110,7 +110,9 @@ final class OperationGenerator implements Runnable {
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder(
                 "Metadata", GoDependency.SMITHY_MIDDLEWARE).build();
         new StructureGenerator(model, symbolProvider, writer, outputShape, outputSymbol).renderStructure(() -> {
-            writer.write("");
+            if (outputShape.getMemberNames().size() != 0) {
+                writer.write("");
+            }
             writer.writeDocs("Metadata pertaining to the operation's result.");
             writer.write("ResultMetadata $T", metadataSymbol);
         });
