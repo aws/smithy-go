@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoSettings;
@@ -177,14 +176,14 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a deserializer function for shapes of a service.
      *
-     * @param symbol   The symbol the deserializer function is being generated for.
+     * @param shape    The shape the deserializer function is being generated for.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getOperationDeserFunctionName(Symbol symbol, String protocol) {
+    static String getOperationHttpBindingsDeserFunctionName(Shape shape, String protocol) {
         return protocol
                 + "_deserializeHttpBindings"
-                + symbol.getName();
+                + StringUtils.capitalize(shape.getId().getName());
     }
 
     /**

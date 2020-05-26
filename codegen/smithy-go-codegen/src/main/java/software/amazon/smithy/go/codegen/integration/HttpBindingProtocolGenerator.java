@@ -277,7 +277,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write("");
 
-            boolean withRestBindings = isOperationWithRestBindings(model, operation);
+            boolean withRestBindings = isOperationWithRestRequestBindings(model, operation);
 
             // we only generate an operations http bindings function if there are bindings
             if (withRestBindings) {
@@ -307,6 +307,75 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         });
     }
 
+    private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()));
+
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
+
+        Shape outputShape = model.expectShape(operation.getOutput()
+                .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId())));
+
+        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+
+        ApplicationProtocol applicationProtocol = getApplicationProtocol();
+        Symbol responseType = applicationProtocol.getResponseType();
+
+        middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
+            writer.addUseImports(GoDependency.FMT);
+
+            writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
+            writer.write("if err != nil { return out, metadata, err }");
+            writer.write("");
+
+            writer.write("response, ok := out.RawResponse.($P)", responseType);
+            writer.openBlock("if !ok {", "}", () -> {
+               writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                       "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
+            });
+            writer.write("");
+
+            writer.write("out.Result = &$T{}", outputSymbol);
+            writer.write("output, ok := out.Result.($P)", outputSymbol);
+            writer.openBlock("if !ok {", "}", () -> {
+                writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                        "fmt.Errorf(\"unknown output result type %T\", out.Result)"));
+            });
+            writer.write("");
+
+            boolean withRestBindings = isOperationWithRestResponseBindings(model, operation);
+            if (withRestBindings) {
+               String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
+                   outputShape, getProtocolName());
+
+               writer.write("err= $L(output, response)", deserFuncName);
+               writer.openBlock("if err != nil {", "}", () -> {
+                   writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                           "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
+               });
+               writer.write("");
+            }
+
+            boolean withPayloadBindings = isOperationWithResponseBindings(model, operation,
+                    HttpBinding.Location.PAYLOAD);
+            if (withPayloadBindings) {
+                writeMiddlewarePayloadDeserializerDelegator(writer, model, symbolProvider, operation, generator);
+                writer.write("");
+            }
+
+            boolean withDocumentBindings = isOperationWithResponseBindings(model, operation,
+                    HttpBinding.Location.DOCUMENT);
+            if (withDocumentBindings) {
+                writeMiddlewareDocumentDeserializerDelegator(writer, model, symbolProvider, operation, generator);
+                writer.write("");
+            }
+
+            writer.write("return out, metadata, err");
+        });
+    }
+
+
 
     /**
      * Generate the document serializer logic for the serializer middleware body.
@@ -325,6 +394,40 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GoWriter writer
     );
 
+    /**
+     * Generate the payload deserializer logic for the deserializer middleware body.
+     *
+     * @param writer         the writer within the middleware context
+     * @param model          the model
+     * @param symbolProvider the symbol provider
+     * @param operation      the operation
+     * @param generator      middleware generator definition
+     */
+    protected abstract void writeMiddlewarePayloadDeserializerDelegator(
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            OperationShape operation,
+            GoStackStepMiddlewareGenerator generator
+    );
+
+    /**
+     * Generate the document deserializer logic for the deserializer middleware body.
+     *
+     * @param writer         the writer within the middleware context
+     * @param model          the model
+     * @param symbolProvider the symbol provider
+     * @param operation      the operation
+     * @param generator      middleware generator definition
+     */
+    protected abstract void writeMiddlewareDocumentDeserializerDelegator(
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            OperationShape operation,
+            GoStackStepMiddlewareGenerator generator
+    );
+
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
                 || location == HttpBinding.Location.PREFIX_HEADERS
@@ -332,7 +435,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || location == HttpBinding.Location.QUERY;
     }
 
-    private boolean isOperationWithRestBindings(Model model, OperationShape operationShape) {
+    private boolean isOperationWithRestRequestBindings(Model model, OperationShape operationShape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getRequestBindings(operationShape).values();
 
@@ -344,6 +447,33 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         return false;
     }
+
+    private boolean isOperationWithRestResponseBindings(Model model, OperationShape operationShape) {
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getResponseBindings(operationShape).values();
+
+        for (HttpBinding binding: bindings) {
+            if (isRestBinding(binding.getLocation())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isOperationWithResponseBindings(Model model, OperationShape operationShape,
+        HttpBinding.Location location) {
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getResponseBindings(operationShape).values();
+
+        for (HttpBinding binding: bindings) {
+            if (binding.getLocation() == location) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
 
     private void generateOperationHttpBindingSerializer(
             GenerationContext context,
@@ -579,6 +709,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
         for (OperationShape operation : getHttpBindingOperations(context)) {
+            generateOperationDeserializerMiddleware(context, operation);
             generateOperationHttpBindingDeserializer(context, operation);
             generateOperationDocumentDeserializer(context, operation);
             generateOperationPayloadDeserializer(context, operation);
@@ -657,7 +788,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         writer.addUseImports(GoDependency.FMT);
 
-        String functionName = ProtocolGenerator.getOperationDeserFunctionName(targetSymbol, getProtocolName());
+        String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(targetShape,
+                getProtocolName());
         writer.openBlock("func $L(v $P, response $P) error {", "}",
                 functionName, targetSymbol, smithyHttpResponsePointableSymbol,
                 () -> {
