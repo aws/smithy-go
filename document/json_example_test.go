@@ -9,7 +9,7 @@ import (
 
 func ExampleMarshalJSONDocument() {
 	type Input struct {
-		ADoc document.Unmarshaler
+		ADoc document.JSON
 	}
 
 	myType := struct {
@@ -26,12 +26,12 @@ func ExampleMarshalJSONDocument() {
 		ADoc: jsonDoc,
 	}
 
-	client.AnAPIOperation(params)
+	client.AnJSONAPIOperation(params)
 }
 
 func ExampleRawJSON_UnmarshalDocument() {
 	type Output struct {
-		ADoc document.Unmarshaler
+		ADoc document.JSON
 	}
 
 	v := Output{ADoc: document.RawJSON([]byte(`{"A":"cool document"}`))}
@@ -51,6 +51,6 @@ func ExampleRawJSON_UnmarshalDocument() {
 
 type mockClient struct{}
 
-func (mockClient) AnAPIOperation(interface{}) {}
+func (mockClient) AnJSONAPIOperation(interface{}) {}
 
 var client mockClient

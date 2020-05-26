@@ -1,9 +1,18 @@
 package document
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 )
+
+// JSON provides an abstract representation of the serialized JSON document
+// based. The Unmarshal method will attempt to // unmarshal the underlying
+// document's value into the Go type provided.
+type JSON interface {
+	UnmarshalDocument(interface{}) error
+	JSONBytes() ([]byte, error)
+}
 
 // RawJSON provides a document marshaler for a byte slice containing a
 // JSON document.
@@ -26,23 +35,21 @@ func (d RawJSON) UnmarshalDocument(t interface{}) error {
 	return json.Unmarshal(d, t)
 }
 
+// JSONReader returns an io.Reader for reading the JSON document's
+// serialized bytes.
+func (d RawJSON) JSONReader() io.Reader {
+	return bytes.NewReader(d)
+}
+
 // JSONReader provides a DocumentMarshaler for a JSON document from an
 // io.Reader value.
 type JSONReader struct {
 	r io.Reader
 }
 
-// NewJSONReader returns a JSON document unmarshaller for an io.Reader
-// value.
+// NewJSONReader returns a JSON document unmarshaller for an io.Reader value.
 func NewJSONReader(r io.Reader) *JSONReader {
 	return &JSONReader{r: r}
-}
-
-// Read method attempts to read bytes from the underlying reader into the byte
-// slice provided. Returns the number of bytes read, or error if the read
-// failed.
-func (d *JSONReader) Read(p []byte) (int, error) {
-	return d.r.Read(p)
 }
 
 // Close will close the underlying reader if it is an io.Closer, otherwise this
@@ -58,10 +65,21 @@ func (d *JSONReader) Close() error {
 // provided. The Go type must be a pointer value type, or the method will
 // panic. Returns an error if the document could not be unmarshalled.
 //
-// Calling this method multiple types most likely will result in EOF errors.
+// Calling this method multiple types most likely will result in EOF, or other
+// errors.
 func (d *JSONReader) UnmarshalDocument(t interface{}) error {
 	// TODO should the document unmarshal call close?
 	defer d.Close()
 
 	return json.NewDecoder(d.r).Decode(t)
+}
+
+// JSONReader returns an io.Reader for reading the JSON document's
+// serialized bytes.
+//
+// Only UnmasrhalDocument or JSONReader methods should be used, not both.
+// Since they share the same underlying reader, using both methods will result
+// in undefined behavior.
+func (d *JSONReader) JSONReader() io.Reader {
+	return d.r
 }
