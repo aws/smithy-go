@@ -307,6 +307,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         });
     }
 
+    // Generates operation deserializer middleware that delegates to appropriate deserializers for the error,
+    // output shapes for the operation.
     private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()));
@@ -316,12 +318,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
-
-        // Output shape middleware generation
-        Shape outputShape = model.expectShape(operation.getOutput()
-                .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId())));
-
-        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
         GoWriter goWriter = context.getWriter();
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
@@ -341,6 +337,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Error shape middleware generation
             writeMiddlewareErrorDeserializer(writer, model, symbolProvider, operation, generator);
 
+            Shape outputShape = model.expectShape(operation.getOutput()
+                    .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
+            );
+
+            Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+
+            // initialize out.Result as output structure shape
             writer.write("out.Result = &$T{}", outputSymbol);
             writer.write("output, ok := out.Result.($P)", outputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
@@ -349,19 +352,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
             writer.write("");
 
+            // Output shape HTTP binding middleware generation
             boolean withRestBindings = isShapeWithRestResponseBindings(model, operation);
             if (withRestBindings) {
-               String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
-                   outputShape, getProtocolName());
+                String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
+                        outputShape, getProtocolName());
 
-               writer.write("err= $L(output, response)", deserFuncName);
-               writer.openBlock("if err != nil {", "}", () -> {
-                   writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
-                           "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
-               });
-               writer.write("");
+                writer.write("err= $L(output, response)", deserFuncName);
+                writer.openBlock("if err != nil {", "}", () -> {
+                    writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                            "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
+                });
+                writer.write("");
             }
 
+            // Output Shape Document Binding middleware generation
             boolean withPayloadBindings = isShapeWithResponseBindings(model, operation,
                     HttpBinding.Location.PAYLOAD);
             boolean withDocumentBindings = isShapeWithResponseBindings(model, operation,
@@ -435,6 +440,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || location == HttpBinding.Location.QUERY;
     }
 
+    // returns whether an operation shape has Rest Request Bindings
     private boolean isOperationWithRestRequestBindings(Model model, OperationShape operationShape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getRequestBindings(operationShape).values();
@@ -448,6 +454,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return false;
     }
 
+    // returns whether a Shape has Rest response bindings.
+    // The shape can be an operation shape, error shape or an output shape.
     protected boolean isShapeWithRestResponseBindings(Model model, Shape shape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
@@ -460,6 +468,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return false;
     }
 
+    // returns whether a shape has response binding for the provided HttpBinding location.
+    // The shape can be an operation shape, error shape or an output shape.
     protected boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
@@ -719,6 +729,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
+    // Generates Http Binding deserializer for operation output shape
     private void generateOperationHttpBindingDeserializer(
             GenerationContext context,
             OperationShape operation
@@ -743,9 +754,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             return;
         }
 
-        generateShapeDeserializerFunction(writer, model, symbolProvider, outputShape, bindingMap);
+        generateHttpBindingShapeDeserializerFunction(writer, model, symbolProvider, outputShape, bindingMap);
     }
 
+    // Generate Http Binding deserializer for operation Error shape
     private void generateErrorHttpBindingDeserializer(
             GenerationContext context,
             ShapeId errorBinding
@@ -767,10 +779,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             return;
         }
 
-        generateShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
+        generateHttpBindingShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
     }
 
-    private void generateShapeDeserializerFunction(
+    // Generates Http Binding shape deserializer function.
+    private void generateHttpBindingShapeDeserializerFunction(
             GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
