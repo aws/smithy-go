@@ -423,7 +423,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param symbolProvider the symbol provider
      * @param operation      the operation
      * @param generator      middleware generator definition
-     * @param writer         the writer within the middlware context
+     * @param writer         the writer within the middleware context
      */
      protected void writeMiddlewareErrorDeserializer(
             GoWriter writer,

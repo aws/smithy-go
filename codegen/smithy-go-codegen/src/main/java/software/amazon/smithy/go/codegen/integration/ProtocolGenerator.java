@@ -208,6 +208,17 @@ public interface ProtocolGenerator {
         return protocol + "_deserializeDocument" + StringUtils.capitalize(shape.getId().getName());
     }
 
+    /**
+     * Generates the name of a deserializer function for an output shape of a service.
+     *
+     * @param shape    The shape the deserializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
+    static String getDocumentOutputDeserializerFunctionName(Shape shape, String protocol) {
+        return protocol + "_deserializeOpDocument" + StringUtils.capitalize(shape.getId().getName());
+    }
+
     static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {
         return protocol
                 + "_serializeOp"
