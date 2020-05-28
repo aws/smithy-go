@@ -154,6 +154,19 @@ public interface ProtocolGenerator {
     }
 
     /**
+     * Generates the name of a operation document serializer function for shapes of a service.
+     *
+     * @param shape    The shape the serializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
+    static String getOperationDocumentSerFunctionName(Shape shape, String protocol) {
+        return protocol
+                + "_serializeOpDocument"
+                + StringUtils.capitalize(shape.getId().getName());
+    }
+
+    /**
      * Generates the name of a deserializer function for shapes of a service.
      *
      * @param symbol   The symbol the deserializer function is being generated for.
