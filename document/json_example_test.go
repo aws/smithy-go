@@ -7,9 +7,18 @@ import (
 	"github.com/awslabs/smithy-go/document"
 )
 
-func ExampleMarshalJSONDocument() {
+var _ document.Value = document.LazyValue{}
+var _ document.Value = document.LazyJSONValue{}
+var _ document.Value = document.JSONBytes{}
+var _ document.Value = (*document.JSONReader)(nil)
+var _ document.Embedded = document.LazyJSONValue{}
+var _ document.Embedded = document.JSONBytes{}
+var _ document.Embedded = (*document.JSONReader)(nil)
+
+func ExampleLazyJSONValue() {
 	type Input struct {
-		ADoc document.JSON
+		InDoc document.Value    // Inline document
+		EmDoc document.Embedded // Embedded document
 	}
 
 	myType := struct {
@@ -17,33 +26,30 @@ func ExampleMarshalJSONDocument() {
 	}{
 		Abc: "123",
 	}
-	jsonDoc, err := document.MarshalJSONDocument(myType)
-	if err != nil {
-		log.Fatalf("unable to marshal JSON document, %v", err)
-	}
 
 	params := &Input{
-		ADoc: jsonDoc,
+		InDoc: document.NewLazyValue(myType),
+		EmDoc: document.NewLazyJSONValue(myType),
 	}
 
 	client.AnJSONAPIOperation(params)
 }
 
-var _ document.JSON = (document.RawJSON)(nil)
-var _ document.JSON = (*document.JSONReader)(nil)
-var _ document.JSONCloser = (*document.JSONReader)(nil)
-
-func ExampleRawJSON_UnmarshalDocument() {
+func ExampleEmbedded_UnmarshalDocument() {
 	type Output struct {
-		ADoc document.JSON
+		InDoc document.Value
+		EmDoc document.Embedded
 	}
 
-	v := Output{ADoc: document.RawJSON([]byte(`{"A":"cool document"}`))}
+	v := Output{
+		InDoc: document.NewLazyValue(map[string]string{"A": "cool document"}),
+		EmDoc: document.JSONBytes([]byte(`{"A":"cool document"}`)),
+	}
 
 	var myType struct {
 		A string
 	}
-	if err := v.ADoc.UnmarshalDocument(&myType); err != nil {
+	if err := v.EmDoc.UnmarshalDocument(&myType); err != nil {
 		log.Fatalf("unable to unmarshal document, %v", err)
 	}
 

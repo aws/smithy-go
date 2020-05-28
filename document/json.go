@@ -6,48 +6,76 @@ import (
 	"io"
 )
 
-// JSON provides an abstract representation of the serialized JSON document
-// based. The Unmarshal method will attempt to unmarshal the underlying
-// document's value into the Go type provided.
-type JSON interface {
-	UnmarshalDocument(interface{}) error
-	JSONReader() io.Reader
+// LazyJSONValue provides a wrapper for a Go value that will be lazily serialized as
+// a JSON document.
+type LazyJSONValue struct {
+	LazyValue
 }
 
-// JSONCloser is the same as the JSON interface, but adds an additional
-// requirement that an io.Closer also implemented by the underlying type.
-//
-// API streaming response documents will be generated as JSONClosers so the
-// underlying connection can be closed and potentially reused.
-type JSONCloser interface {
-	JSON
-	io.Closer
+// NewLazyJSONValue returns an initialized LazyJSONValue wrapping the provided
+// Go value.
+func NewLazyJSONValue(v interface{}) LazyJSONValue {
+	return LazyJSONValue{
+		LazyValue: NewLazyValue(v),
+	}
 }
 
-// RawJSON provides a document marshaler for a byte slice containing a
+// MediaType returns the document's media type.
+func (LazyJSONValue) MediaType() string { return "application/json" }
+
+// DocumentReader returns an io.Reader for reading the JSON document's
+// serialized bytes.
+func (d LazyJSONValue) DocumentReader() io.Reader {
+	r, w := io.Pipe()
+	go func() {
+		encoder := json.NewEncoder(w)
+		if err := encoder.Encode(d.Value); err != nil && err != io.EOF {
+			w.CloseWithError(err)
+		}
+	}()
+
+	return r
+}
+
+// JSONBytes provides a document marshaler for a byte slice containing a
 // JSON document.
-type RawJSON []byte
+type JSONBytes []byte
 
-// MarshalJSONDocument attempts to marshal the Go value into a JSON document.
+// MarshalJSONBytes attempts to marshal the Go value into a JSON document.
 // Returns a marshaled raw JSON document value, or error if marshaling failed.
-func MarshalJSONDocument(v interface{}) (RawJSON, error) {
+func MarshalJSONBytes(v interface{}) (JSONBytes, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
-	return RawJSON(b), nil
+	return JSONBytes(b), nil
 }
 
 // UnmarshalDocument attempts to unmarshal the JSON document into the Go type
 // provided. The Go type must be a pointer value type, or the method will
 // panic. Returns an error if the document could not be unmarshalled.
-func (d RawJSON) UnmarshalDocument(t interface{}) error {
+func (d JSONBytes) UnmarshalDocument(t interface{}) error {
+	// TODO need document type generic unmarshaling behavior.
 	return json.Unmarshal(d, t)
 }
 
-// JSONReader returns an io.Reader for reading the JSON document's
+// GetValue returns the unmarshalled JSON document as generic Go value,
+// interface{}. Use reflection inspect the value's contents.
+func (d JSONBytes) GetValue() (interface{}, error) {
+	var v interface{}
+	if err := d.UnmarshalDocument(&v); err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+// MediaType returns the document's media type.
+func (JSONBytes) MediaType() string { return "application/json" }
+
+// DocumentReader returns an io.Reader for reading the JSON document's
 // serialized bytes.
-func (d RawJSON) JSONReader() io.Reader {
+func (d JSONBytes) DocumentReader() io.Reader {
 	return bytes.NewReader(d)
 }
 
@@ -60,15 +88,6 @@ type JSONReader struct {
 // NewJSONReader returns a JSON document unmarshaller for an io.Reader value.
 func NewJSONReader(r io.Reader) *JSONReader {
 	return &JSONReader{r: r}
-}
-
-// Close will close the underlying reader if it is an io.Closer, otherwise this
-// method does nothing.
-func (d *JSONReader) Close() error {
-	if v, ok := d.r.(io.Closer); ok {
-		return v.Close()
-	}
-	return nil
 }
 
 // UnmarshalDocument attempts to unmarshal the JSON document into the Go type
@@ -84,12 +103,35 @@ func (d *JSONReader) UnmarshalDocument(t interface{}) error {
 	return json.NewDecoder(d.r).Decode(t)
 }
 
-// JSONReader returns an io.Reader for reading the JSON document's
+// GetValue returns the unmarshalled JSON document as generic Go value,
+// interface{}. Use reflection inspect the value's contents.
+func (d *JSONReader) GetValue() (interface{}, error) {
+	var v interface{}
+	if err := d.UnmarshalDocument(&v); err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+// MediaType returns the document's media type.
+func (*JSONReader) MediaType() string { return "application/json" }
+
+// DocumentReader returns an io.Reader for reading the JSON document's
 // serialized bytes.
 //
 // Only UnmasrhalDocument or JSONReader methods should be used, not both.
 // Since they share the same underlying reader, using both methods will result
 // in undefined behavior.
-func (d *JSONReader) JSONReader() io.Reader {
+func (d *JSONReader) DocumentReader() io.Reader {
 	return d.r
+}
+
+// Close will close the underlying reader if it is an io.Closer, otherwise this
+// method does nothing.
+func (d *JSONReader) Close() error {
+	if v, ok := d.r.(io.Closer); ok {
+		return v.Close()
+	}
+	return nil
 }
