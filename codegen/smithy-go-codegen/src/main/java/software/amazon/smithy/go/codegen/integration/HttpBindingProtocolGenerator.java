@@ -246,18 +246,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
-
         Shape inputShape = model.expectShape(operation.getInput()
                 .orElseThrow(() -> new CodegenException("expect input shape for operation: " + operation.getId())));
-
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
-
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
+        HttpTrait httpTrait = operation.getTrait(HttpTrait.class)
+                .orElseThrow(() -> new CodegenException("Expected HttpTrait on operation"));
 
         // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(GoDependency.FMT);
+            writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
 
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
@@ -276,16 +276,17 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
 
             writer.write("");
-
-            boolean withRestBindings = isOperationWithRestRequestBindings(model, operation);
+            writer.write("request.Request.URL.Path = $S", httpTrait.getUri());
+            writer.write("request.Request.Method = $S", httpTrait.getMethod());
+            writer.write("restEncoder := rest.NewEncoder(request.Request)");
+            writer.write("");
 
             // we only generate an operations http bindings function if there are bindings
+            boolean withRestBindings = isOperationWithRestRequestBindings(model, operation);
             if (withRestBindings) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
                 writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
-
-                writer.write("restEncoder := rest.NewEncoder(request.Request)");
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &aws.SerializationError{Err: err}");
                 });
@@ -295,13 +296,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // delegate the setup and usage of the document serializer function for the protocol
             writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
             writer.write("");
-
-            if (withRestBindings) {
-                writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
-                    writer.write("return out, metadata, &aws.SerializationError{Err: err}");
-                });
-            }
-
+            writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
+                writer.write("return out, metadata, &aws.SerializationError{Err: err}");
+            });
             writer.write("");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
