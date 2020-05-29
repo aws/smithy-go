@@ -145,7 +145,7 @@ public final class CodegenUtils {
      * This method can be used by deserializers to get pointer to
      * operand.
      *
-     * @param shape The shape whose value needs to be assigned.
+     * @param shape   The shape whose value needs to be assigned.
      * @param operand The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */

@@ -90,7 +90,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Resolves the entire set of shapes that will require serializers, deserializers given an initial set of shapes.
      *
-     * @param model the model
+     * @param model  the model
      * @param shapes the shapes to walk and resolve additional required serializers, deserializers for
      * @return the complete set of shapes requiring serializers, deserializers
      */
@@ -257,7 +257,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(GoDependency.FMT);
-            writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
+            writer.addUseImports(GoDependency.SMITHY_HTTP_BINDING);
 
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
@@ -286,7 +286,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             if (withRestBindings) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
-                writer.addUseImports(GoDependency.AWS_REST_PROTOCOL);
+                writer.addUseImports(GoDependency.SMITHY_HTTP_BINDING);
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &aws.SerializationError{Err: err}");
                 });
@@ -530,13 +530,57 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private Symbol getRestEncoderSymbol() {
-        return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.AWS_REST_PROTOCOL).build();
+        return SymbolUtils.createPointableSymbolBuilder("Encoder", GoDependency.SMITHY_HTTP_BINDING).build();
     }
 
-    private String generateHttpBindingSetter(
+    private void generateHttpBindingTimestampSerializer(
             Model model,
+            GoWriter writer,
             MemberShape memberShape,
-            String operand
+            HttpBinding.Location location,
+            String operand,
+            BiConsumer<GoWriter, String> locationEncoder
+    ) {
+        writer.addUseImports(GoDependency.SMITHY_TIME);
+
+        TimestampFormatTrait.Format format = memberShape.getMemberTrait(model, TimestampFormatTrait.class)
+                .map(TimestampFormatTrait::getFormat)
+                .orElseGet(() -> {
+                    switch (location) {
+                        case LABEL:
+                        case QUERY:
+                            return Format.DATE_TIME;
+                        case HEADER:
+                        case PREFIX_HEADERS:
+                            return Format.HTTP_DATE;
+                        default:
+                            throw new CodegenException("Unexpected HttpBinding location for timestamp");
+                    }
+                });
+
+        switch (format) {
+            case DATE_TIME:
+                locationEncoder.accept(writer, "String(smithytime.FormatDateTime(" + operand + "))");
+                break;
+            case HTTP_DATE:
+                locationEncoder.accept(writer, "String(smithytime.FormatHTTPDate(" + operand + "))");
+                break;
+            case EPOCH_SECONDS:
+                locationEncoder.accept(writer, "Float(smithytime.FormatEpochSeconds(" + operand + "))");
+                break;
+            case UNKNOWN:
+            default:
+                throw new CodegenException("Unknown timestamp format");
+        }
+    }
+
+    private void writeHttpBindingSetter(
+            Model model,
+            GoWriter writer,
+            MemberShape memberShape,
+            HttpBinding.Location location,
+            String operand,
+            BiConsumer<GoWriter, String> locationEncoder
     ) {
         Shape targetShape = model.expectShape(memberShape.getTarget());
 
@@ -550,29 +594,39 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         switch (targetShape.getType()) {
             case BOOLEAN:
-                return ".Boolean(" + operand + ")";
+                locationEncoder.accept(writer, "Boolean(" + operand + ")");
+                break;
             case STRING:
                 operand = targetShape.hasTrait(EnumTrait.class) ? "string(" + operand + ")" : operand;
-                return ".String(" + operand + ")";
+                locationEncoder.accept(writer, "String(" + operand + ")");
+                break;
             case TIMESTAMP:
-                // TODO: This needs to handle formats based on location
-                return ".UnixTime(" + operand + ")";
+                generateHttpBindingTimestampSerializer(model, writer, memberShape, location, operand, locationEncoder);
+                break;
             case BYTE:
-                return ".Byte(" + operand + ")";
+                locationEncoder.accept(writer, "Byte(" + operand + ")");
+                break;
             case SHORT:
-                return ".Short(" + operand + ")";
+                locationEncoder.accept(writer, "Short(" + operand + ")");
+                break;
             case INTEGER:
-                return ".Integer(" + operand + ")";
+                locationEncoder.accept(writer, "Integer(" + operand + ")");
+                break;
             case LONG:
-                return ".Long(" + operand + ")";
+                locationEncoder.accept(writer, "Long(" + operand + ")");
+                break;
             case FLOAT:
-                return ".Float(" + operand + ")";
+                locationEncoder.accept(writer, "Float(" + operand + ")");
+                break;
             case DOUBLE:
-                return ".Double(" + operand + ")";
+                locationEncoder.accept(writer, "Double(" + operand + ")");
+                break;
             case BIG_INTEGER:
-                return ".BigInteger(" + operand + ")";
+                locationEncoder.accept(writer, "BigInteger(" + operand + ")");
+                break;
             case BIG_DECIMAL:
-                return ".BigDecimal(" + operand + ")";
+                locationEncoder.accept(writer, "BigDecimal(" + operand + ")");
+                break;
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
         }
@@ -589,18 +643,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         String memberName = symbolProvider.toMemberName(memberShape);
 
         writeSafeOperandAccessor(model, symbolProvider, memberShape, "v", writer, (bodyWriter, operand) -> {
-            switch (binding.getLocation()) {
+            HttpBinding.Location location = binding.getLocation();
+            switch (location) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
-                            bodyWriter.writeInline("encoder.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "v.$L[i]"),
-                                    memberName);
+                            writeHttpBindingSetter(model, writer, collectionMemberShape, location, operand + "[i]",
+                                    (w, s) -> {
+                                        w.writeInline("encoder.AddHeader($S).$L", memberShape.getMemberName(), s);
+                                    });
                         });
                     } else {
-                        bodyWriter.writeInline("encoder.SetHeader($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "$L"), operand);
+                        writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> w.writeInline(
+                                "encoder.SetHeader($S).$L", memberShape.getMemberName(), s));
                     }
                     break;
                 case PREFIX_HEADERS:
@@ -614,34 +670,34 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         if (valueMemberTarget instanceof CollectionShape) {
                             MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
                             bodyWriter.openBlock("for j := range $L[i] {", "}", operand, () -> {
-                                bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                                bodyWriter.write(generateHttpBindingSetter(model, collectionMemberShape, "$L[i][j]"),
-                                        operand);
+                                writeHttpBindingSetter(model, writer, collectionMemberShape, location,
+                                        operand + "[i][j]", (w, s) -> w.writeInline("hv.AddHeader($S).$L",
+                                                memberShape.getMemberName(), s));
                             });
                         } else {
-                            bodyWriter.writeInline("hv.AddHeader($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(model, valueMemberShape, "v.$L[i]"),
-                                    memberName);
+                            writeHttpBindingSetter(model, writer, valueMemberShape, location, operand + "[i]",
+                                    (w, s) -> w.writeInline("hv.AddHeader($S).$L", memberShape.getMemberName(), s));
                         }
                     });
                     break;
                 case LABEL:
-                    bodyWriter.writeInline("if err := encoder.SetURI($S)", memberShape.getMemberName());
-                    bodyWriter.writeInline(generateHttpBindingSetter(model, memberShape, "$L"), operand);
-                    bodyWriter.write("; err != nil {\n"
-                            + "\treturn err\n"
-                            + "}");
+                    writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
+                        w.writeInline("if err := encoder.SetURI($S).$L", memberShape.getMemberName(), s);
+                        w.write("; err != nil {\n"
+                                + "\treturn err\n"
+                                + "}");
+                    });
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
-                            bodyWriter.writeInline("encoder.AddQuery($S)", memberShape.getMemberName());
-                            bodyWriter.write(generateHttpBindingSetter(model, collectionMember, "$L[i]"), operand);
+                            writeHttpBindingSetter(model, writer, collectionMember, location, operand + "[i]",
+                                    (w, s) -> w.writeInline("encoder.AddQuery($S).$L", memberShape.getMemberName(), s));
                         });
                     } else {
-                        bodyWriter.writeInline("encoder.SetQuery($S)", memberShape.getMemberName());
-                        bodyWriter.write(generateHttpBindingSetter(model, memberShape, "v.$L"), memberName);
+                        writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> w.writeInline(
+                                "encoder.SetQuery($S).$L", memberShape.getMemberName(), s));
                     }
                     break;
                 default:

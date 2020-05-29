@@ -301,13 +301,11 @@ public final class GoWriter extends CodeWriter {
                     resolvedSymbol = resolvedSymbol.getProperty(SymbolUtils.GO_ELEMENT_TYPE, Symbol.class)
                             .orElseThrow(() -> new CodegenException("Expected go element type property to be defined"));
                     literal = apply(resolvedSymbol, indent);
-                }
-
-                addUseImports(resolvedSymbol);
-
-                if (!SymbolUtils.isUniverseType(resolvedSymbol) && isExternalNamespace(resolvedSymbol.getNamespace())) {
+                } else if (!SymbolUtils.isUniverseType(resolvedSymbol)
+                        && isExternalNamespace(resolvedSymbol.getNamespace())) {
                     literal = formatWithNamespace(resolvedSymbol);
                 }
+                addUseImports(resolvedSymbol);
 
                 if (isSlice) {
                     return "[]" + literal;

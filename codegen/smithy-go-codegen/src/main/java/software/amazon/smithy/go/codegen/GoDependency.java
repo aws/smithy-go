@@ -29,7 +29,7 @@ public enum GoDependency implements SymbolDependencyContainer {
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
     BIG("stdlib", "", "math/big", null, Versions.GO_STDLIB),
-    TIME("stdlib", "", "time", null,  Versions.GO_STDLIB),
+    TIME("stdlib", "", "time", null, Versions.GO_STDLIB),
     FMT("stdlib", "", "fmt", null, Versions.GO_STDLIB),
     CONTEXT("stdlib", "", "context", null, Versions.GO_STDLIB),
     STRCONV("stdlib", "", "strconv", null, Versions.GO_STDLIB),
@@ -50,15 +50,13 @@ public enum GoDependency implements SymbolDependencyContainer {
             "github.com/awslabs/smithy-go/middleware", null, Versions.SMITHY_GO),
     SMITHY_TIME("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go/time", "smithytime", Versions.SMITHY_GO),
+    SMITHY_HTTP_BINDING("dependency", "github.com/awslabs/smithy-go",
+            "github.com/awslabs/smithy-go/httpbinding", null, Versions.SMITHY_GO),
+    SMITHY_JSON("dependency", "github.com/awslabs/smithy-go",
+            "github.com/aws/awslabs/smithy-go/json", "smithyjson", Versions.SMITHY_GO),
 
-    AWS_REST_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, Versions.AWS_SDK),
     AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK),
-    AWS_JSON_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", null, Versions.AWS_SDK),
-    AWS_JSON_PROTOCOL_ALIAS("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", "jsonprotocol", Versions.AWS_SDK);
+            "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK);
 
     public final String sourcePath;
     public final String importPath;
