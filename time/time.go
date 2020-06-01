@@ -12,32 +12,44 @@ const (
 	httpDateFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
 )
 
-// FormatDateTime format value as a date-time
+// FormatDateTime format value as a date-time (RFC3339 section 5.6)
+//
+// Example: 1985-04-12T23:20:50.52Z
 func FormatDateTime(value time.Time) string {
 	return value.Format(dateTimeFormat)
 }
 
 // ParseDateTimeFormat parse a string as a date-time
+//
+// Example: 1985-04-12T23:20:50.52Z
 func ParseDateTimeFormat(value string) (time.Time, error) {
 	return time.Parse(dateTimeFormat, value)
 }
 
-// FormatHTTPDate format value as a http-date
+// FormatHTTPDate format value as a http-date (RFC 7231#section-7.1.1.1 IMF-fixdate)
+//
+// Example: Tue, 29 Apr 2014 18:30:38 GMT
 func FormatHTTPDate(value time.Time) string {
 	return value.Format(httpDateFormat)
 }
 
 // ParseHTTPDate parse a string as a http-date
+//
+// Example: Tue, 29 Apr 2014 18:30:38 GMT
 func ParseHTTPDate(value string) (time.Time, error) {
 	return time.Parse(httpDateFormat, value)
 }
 
 // FormatEpochSeconds returns value as a Unix time in seconds with with decimal precision
+//
+// Example: 1515531081.1234
 func FormatEpochSeconds(value time.Time) float64 {
 	return float64(value.UnixNano()) / float64(time.Second)
 }
 
 // ParseEpochSeconds returns value as a Unix time in seconds with with decimal precision
+//
+// Example: 1515531081.1234
 func ParseEpochSeconds(value float64) time.Time {
 	return time.Unix(0, int64(value*float64(time.Second)))
 }
