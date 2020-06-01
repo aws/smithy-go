@@ -18,7 +18,7 @@ func TestEncoder(t *testing.T) {
 
 	subObj := object.Key("foo").Object()
 
-	subObj.Key("byteSlice").EncodedBytes([]byte("foo bar"))
+	subObj.Key("byteSlice").Base64EncodeBytes([]byte("foo bar"))
 	subObj.Close()
 
 	object.Close()

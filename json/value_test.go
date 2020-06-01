@@ -62,13 +62,13 @@ func TestValue(t *testing.T) {
 		},
 		"encode bytes": {
 			setter: func(value Value) {
-				value.EncodedBytes([]byte("foo bar"))
+				value.Base64EncodeBytes([]byte("foo bar"))
 			},
 			expected: `"Zm9vIGJhcg=="`,
 		},
 		"encode bytes nil": {
 			setter: func(value Value) {
-				value.EncodedBytes(nil)
+				value.Base64EncodeBytes(nil)
 			},
 			expected: `null`,
 		},
@@ -98,7 +98,7 @@ func TestValue(t *testing.T) {
 		"write bytes": {
 			setter: func(value Value) {
 				o := value.Object()
-				o.Key("inline").WriteBytes([]byte(`{"nested":"value"}`))
+				o.Key("inline").Write([]byte(`{"nested":"value"}`))
 				defer o.Close()
 			},
 			expected: `{"inline":{"nested":"value"}}`,

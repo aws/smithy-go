@@ -257,13 +257,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(GoDependency.FMT);
+            writer.addUseImports(GoDependency.SMITHY);
             writer.addUseImports(GoDependency.SMITHY_HTTP_BINDING);
 
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}");
+                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}");
             });
             writer.write("");
 
@@ -271,7 +272,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("input, ok := in.Parameters.($P)", inputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&aws.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
                         + " in.Parameters)}");
             });
 
@@ -282,13 +283,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
 
             // we only generate an operations http bindings function if there are bindings
-            boolean withRestBindings = isOperationWithRestRequestBindings(model, operation);
-            if (withRestBindings) {
+            if (isOperationWithRestRequestBindings(model, operation)) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
                 writer.addUseImports(GoDependency.SMITHY_HTTP_BINDING);
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
-                    writer.write("return out, metadata, &aws.SerializationError{Err: err}");
+                    writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
                 });
                 writer.write("");
             }
@@ -297,7 +297,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
             writer.write("");
             writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
-                writer.write("return out, metadata, &aws.SerializationError{Err: err}");
+                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
             writer.write("");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
@@ -543,20 +543,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         writer.addUseImports(GoDependency.SMITHY_TIME);
 
-        TimestampFormatTrait.Format format = memberShape.getMemberTrait(model, TimestampFormatTrait.class)
-                .map(TimestampFormatTrait::getFormat)
-                .orElseGet(() -> {
-                    switch (location) {
-                        case LABEL:
-                        case QUERY:
-                            return Format.DATE_TIME;
-                        case HEADER:
-                        case PREFIX_HEADERS:
-                            return Format.HTTP_DATE;
-                        default:
-                            throw new CodegenException("Unexpected HttpBinding location for timestamp");
-                    }
-                });
+        TimestampFormatTrait.Format format = model.getKnowledge(HttpBindingIndex.class).determineTimestampFormat(
+                memberShape, location, getDocumentTimestampFormat());
 
         switch (format) {
             case DATE_TIME:

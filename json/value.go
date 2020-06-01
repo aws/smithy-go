@@ -68,13 +68,13 @@ func (jv Value) Boolean(v bool) {
 	jv.w.Write(*jv.scratch)
 }
 
-// EncodedBytes writes v as a base64 value in JSON string
-func (jv Value) EncodedBytes(v []byte) {
+// Base64EncodeBytes writes v as a base64 value in JSON string
+func (jv Value) Base64EncodeBytes(v []byte) {
 	encodeByteSlice(jv.w, (*jv.scratch)[:0], v)
 }
 
-// WriteBytes writes v directly to the JSON document
-func (jv Value) WriteBytes(v []byte) {
+// Write writes v directly to the JSON document
+func (jv Value) Write(v []byte) {
 	jv.w.Write(v)
 }
 
@@ -107,6 +107,8 @@ func (jv Value) BigDecimal(v *big.Float) {
 	jv.w.Write([]byte(v.Text('e', -1)))
 }
 
+// Encodes a float value into dst while attempting to conform to ES6 ToString for Numbers
+//
 // Based on encoding/json floatEncoder from the Go Standard Library
 // https://golang.org/src/encoding/json/encode.go
 func encodeFloat(dst []byte, v float64, bits int) []byte {
