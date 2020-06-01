@@ -353,8 +353,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
 
             // Output shape HTTP binding middleware generation
-            boolean withRestBindings = isShapeWithRestResponseBindings(model, operation);
-            if (withRestBindings) {
+            if (isShapeWithRestResponseBindings(model, operation)) {
                 String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
                         outputShape, getProtocolName());
 
@@ -367,11 +366,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             }
 
             // Output Shape Document Binding middleware generation
-            boolean withPayloadBindings = isShapeWithResponseBindings(model, operation,
-                    HttpBinding.Location.PAYLOAD);
-            boolean withDocumentBindings = isShapeWithResponseBindings(model, operation,
-                    HttpBinding.Location.DOCUMENT);
-            if (withDocumentBindings || withPayloadBindings) {
+            if (isShapeWithResponseBindings(model, operation, HttpBinding.Location.DOCUMENT)
+                    || isShapeWithResponseBindings(model, operation, HttpBinding.Location.PAYLOAD)) {
                 writeMiddlewareDocumentDeserializerDelegator(writer, model, symbolProvider, operation, generator);
                 writer.write("");
             }
@@ -454,8 +450,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return false;
     }
 
-    // returns whether a Shape has Rest response bindings.
-    // The shape can be an operation shape, error shape or an output shape.
+    /**
+     * Returns whether a shape has rest response bindings.
+     * The shape can be an operation shape, error shape or an output shape.
+     *
+     * @param model          the model
+     * @param shape          the shape with possible presence of rest response bindings
+     * @return boolean indicating presence of rest response bindings in the shape
+     */
     protected boolean isShapeWithRestResponseBindings(Model model, Shape shape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
@@ -468,8 +470,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return false;
     }
 
-    // returns whether a shape has response binding for the provided HttpBinding location.
-    // The shape can be an operation shape, error shape or an output shape.
+    /**
+     * Returns whether a shape has response bindings for the provided HttpBinding location.
+     * The shape can be an operation shape, error shape or an output shape.
+     *
+     * @param model          the model
+     * @param shape          the shape with possible presence of response bindings
+     * @param location       the HttpBinding location for response binding
+     * @return boolean indicating presence of response bindings in the shape for provided location
+     */
     protected boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
@@ -642,19 +651,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     throw new CodegenException("unexpected http binding found");
             }
         });
-    }
-
-    protected boolean isDereferenceRequired(Shape shape, Symbol symbol) {
-        boolean pointable = symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class)
-                .orElse(false);
-
-        ShapeType shapeType = shape.getType();
-
-        return pointable
-                || shapeType == ShapeType.MAP
-                || shapeType == ShapeType.LIST
-                || shapeType == ShapeType.SET
-                || shapeType == ShapeType.DOCUMENT;
     }
 
     /**

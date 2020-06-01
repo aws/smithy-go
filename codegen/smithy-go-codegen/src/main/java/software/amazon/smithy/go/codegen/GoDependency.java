@@ -26,8 +26,6 @@ import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 public enum GoDependency implements SymbolDependencyContainer {
 
     // The version in the stdlib dependencies should reflect the minimum Go version.
-
-    // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
     BIG("stdlib", "", "math/big", null, Versions.GO_STDLIB),
