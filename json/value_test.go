@@ -110,19 +110,19 @@ func TestValue(t *testing.T) {
 			},
 			expected: strconv.FormatInt(math.MaxInt64-1, 10),
 		},
-		"bigInteger overflow": {
+		"bigInteger > int64": {
 			setter: func(value Value) {
 				v := new(big.Int).SetInt64(math.MaxInt64)
 				value.BigInteger(v.Add(v, oneInt))
 			},
-			expected: strconv.FormatInt(math.MinInt64, 10),
+			expected: "9223372036854775808",
 		},
-		"bigInteger underflow": {
+		"bigInteger < int64": {
 			setter: func(value Value) {
 				v := new(big.Int).SetInt64(math.MinInt64)
 				value.BigInteger(v.Sub(v, oneInt))
 			},
-			expected: strconv.FormatInt(math.MaxInt64, 10),
+			expected: "-9223372036854775809",
 		},
 		"bigFloat": {
 			setter: func(value Value) {
@@ -131,19 +131,12 @@ func TestValue(t *testing.T) {
 			},
 			expected: strconv.FormatFloat(math.MaxFloat64-1, 'e', -1, 64),
 		},
-		"bigFloat overflow": {
+		"bigFloat fits in int64": {
 			setter: func(value Value) {
-				v := new(big.Float).SetFloat64(math.MaxFloat64)
-				value.BigDecimal(v.Add(v, oneFloat))
+				v := new(big.Float).SetInt64(math.MaxInt64)
+				value.BigDecimal(v)
 			},
-			expected: strconv.FormatFloat(math.MaxFloat64, 'e', -1, 64),
-		},
-		"bigFloat underflow": {
-			setter: func(value Value) {
-				v := new(big.Float).SetFloat64(math.MaxFloat64)
-				value.BigDecimal(v.Sub(v, oneFloat))
-			},
-			expected: strconv.FormatFloat(math.MaxFloat64-1, 'e', -1, 64),
+			expected: "9223372036854775807",
 		},
 	}
 	scratch := make([]byte, 64)

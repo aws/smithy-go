@@ -93,15 +93,18 @@ func (jv Value) Null() {
 	jv.w.WriteString(null)
 }
 
-// BigInteger encodes v as an int64 JSON value
+// BigInteger encodes v as JSON value
 func (jv Value) BigInteger(v *big.Int) {
-	jv.Long(v.Int64())
+	jv.w.Write([]byte(v.Text(10)))
 }
 
-// BigDecimal encodes v as an int64 JSON value
+// BigDecimal encodes v as JSON value
 func (jv Value) BigDecimal(v *big.Float) {
-	f, _ := v.Float64()
-	jv.Double(f)
+	if i, accuracy := v.Int64(); accuracy == big.Exact {
+		jv.Long(i)
+		return
+	}
+	jv.w.Write([]byte(v.Text('e', -1)))
 }
 
 // Based on encoding/json floatEncoder from the Go Standard Library
