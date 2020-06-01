@@ -51,5 +51,5 @@ func FormatEpochSeconds(value time.Time) float64 {
 //
 // Example: 1515531081.1234
 func ParseEpochSeconds(value float64) time.Time {
-	return time.Unix(0, int64(value*float64(time.Second)))
+	return time.Unix(0, int64(value*float64(time.Second))).UTC()
 }
