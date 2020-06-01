@@ -694,7 +694,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         binding.getLocation(),
                         Format.HTTP_DATE
                 );
-                writer.write(String.format("t, err := protocol.parseTime(protocol.%s, %s)",
+                writer.write(String.format("t, err := protocol.ParseTime(protocol.%s, %s)",
                         CodegenUtils.getTimeStampFormatName(format), operand));
                 writer.write("if err != nil { return err }");
                 return "t";
