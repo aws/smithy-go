@@ -67,6 +67,8 @@ func (ts Scalars) Imports() []*Import {
 
 func main() {
 	types := Scalars{
+		{Type: "bool"},
+		{Type: "byte"},
 		{Type: "string"},
 		{Type: "int"},
 		{Type: "int8"},

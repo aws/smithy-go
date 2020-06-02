@@ -5,6 +5,60 @@ import (
 	"time"
 )
 
+// Bool returns a pointer value for the bool value passed in.
+func Bool(v bool) *bool {
+	return &v
+}
+
+// BoolSlice returns a slice of bool pointers from the values
+// passed in.
+func BoolSlice(vs []bool) []*bool {
+	ps := make([]*bool, len(vs))
+	for i, v := range vs {
+		ps[i] = &v
+	}
+
+	return ps
+}
+
+// BoolMap returns a map of bool pointers from the values
+// passed in.
+func BoolMap(vs map[string]bool) map[string]*bool {
+	ps := make(map[string]*bool, len(vs))
+	for k, v := range vs {
+		ps[k] = &v
+	}
+
+	return ps
+}
+
+// Byte returns a pointer value for the byte value passed in.
+func Byte(v byte) *byte {
+	return &v
+}
+
+// ByteSlice returns a slice of byte pointers from the values
+// passed in.
+func ByteSlice(vs []byte) []*byte {
+	ps := make([]*byte, len(vs))
+	for i, v := range vs {
+		ps[i] = &v
+	}
+
+	return ps
+}
+
+// ByteMap returns a map of byte pointers from the values
+// passed in.
+func ByteMap(vs map[string]byte) map[string]*byte {
+	ps := make(map[string]*byte, len(vs))
+	for k, v := range vs {
+		ps[k] = &v
+	}
+
+	return ps
+}
+
 // String returns a pointer value for the string value passed in.
 func String(v string) *string {
 	return &v

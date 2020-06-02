@@ -5,6 +5,76 @@ import (
 	"time"
 )
 
+// ToBool returns bool value dereferenced if the passed
+// in pointer was not nil. Returns a bool zero value if the
+// pointer was nil.
+func ToBool(p *bool) (v bool) {
+	if p == nil {
+		return v
+	}
+
+	return *p
+}
+
+// ToBoolSlice returns a slice of bool values, that are
+// dereferenced if the passed in pointer was not nil. Returns a bool
+// zero value if the pointer was nil.
+func ToBoolSlice(vs []*bool) []bool {
+	ps := make([]bool, len(vs))
+	for i, v := range vs {
+		ps[i] = ToBool(v)
+	}
+
+	return ps
+}
+
+// ToBoolMap returns a map of bool values, that are
+// dereferenced if the passed in pointer was not nil. The bool
+// zero value is used if the pointer was nil.
+func ToBoolMap(vs map[string]*bool) map[string]bool {
+	ps := make(map[string]bool, len(vs))
+	for k, v := range vs {
+		ps[k] = ToBool(v)
+	}
+
+	return ps
+}
+
+// ToByte returns byte value dereferenced if the passed
+// in pointer was not nil. Returns a byte zero value if the
+// pointer was nil.
+func ToByte(p *byte) (v byte) {
+	if p == nil {
+		return v
+	}
+
+	return *p
+}
+
+// ToByteSlice returns a slice of byte values, that are
+// dereferenced if the passed in pointer was not nil. Returns a byte
+// zero value if the pointer was nil.
+func ToByteSlice(vs []*byte) []byte {
+	ps := make([]byte, len(vs))
+	for i, v := range vs {
+		ps[i] = ToByte(v)
+	}
+
+	return ps
+}
+
+// ToByteMap returns a map of byte values, that are
+// dereferenced if the passed in pointer was not nil. The byte
+// zero value is used if the pointer was nil.
+func ToByteMap(vs map[string]*byte) map[string]byte {
+	ps := make(map[string]byte, len(vs))
+	for k, v := range vs {
+		ps[k] = ToByte(v)
+	}
+
+	return ps
+}
+
 // ToString returns string value dereferenced if the passed
 // in pointer was not nil. Returns a string zero value if the
 // pointer was nil.
