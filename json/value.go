@@ -104,6 +104,7 @@ func (jv Value) BigDecimal(v *big.Float) {
 		jv.Long(i)
 		return
 	}
+	// TODO: Should this try to match ES6 ToString similar to stdlib JSON?
 	jv.w.Write([]byte(v.Text('e', -1)))
 }
 
