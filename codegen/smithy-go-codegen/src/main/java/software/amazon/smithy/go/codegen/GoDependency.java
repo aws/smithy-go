@@ -53,7 +53,7 @@ public enum GoDependency implements SymbolDependencyContainer {
     SMITHY_HTTP_BINDING("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go/httpbinding", null, Versions.SMITHY_GO),
     SMITHY_JSON("dependency", "github.com/awslabs/smithy-go",
-            "github.com/aws/awslabs/smithy-go/json", "smithyjson", Versions.SMITHY_GO),
+            "github.com/awslabs/smithy-go/json", "smithyjson", Versions.SMITHY_GO),
 
     AWS_REST_JSON_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
             "github.com/aws/aws-sdk-go-v2/aws/protocol/restjson", null, Versions.AWS_SDK),

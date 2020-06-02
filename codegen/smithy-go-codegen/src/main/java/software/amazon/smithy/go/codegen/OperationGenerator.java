@@ -135,8 +135,8 @@ final class OperationGenerator implements Runnable {
         }
         Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
                 "DecorateHandler", GoDependency.SMITHY_MIDDLEWARE).build();
-        Symbol clientHandler = SymbolUtils.createValueSymbolBuilder(
-                "ClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
-        writer.write("handler := $T($T{Client: options.HTTPClient}, stack)", decorateHandler, clientHandler);
+        Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
+                "NewClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
+        writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
     }
 }
