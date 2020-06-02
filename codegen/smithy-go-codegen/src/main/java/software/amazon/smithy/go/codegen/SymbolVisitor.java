@@ -353,7 +353,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol structureShape(StructureShape shape) {
         String name = getDefaultShapeName(shape);
-        if (shape.hasTrait(SyntheticClone.ID)) {
+        if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             Optional<String> boundOperationName = getNameOfBoundOperation(shape);
             if (boundOperationName.isPresent()) {
                 return SymbolUtils.createPointableSymbolBuilder(shape, name, rootModuleName)
