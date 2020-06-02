@@ -85,7 +85,7 @@ public enum GoDependency implements SymbolDependencyContainer {
 
     private static final class Versions {
         private static final String GO_STDLIB = "1.14";
-        private static final String SMITHY_GO = "v0.0.1";
+        private static final String SMITHY_GO = "latest";
         private static final String AWS_SDK = "v0.22.0";
 
     }
