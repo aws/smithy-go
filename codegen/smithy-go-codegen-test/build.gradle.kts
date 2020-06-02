@@ -28,6 +28,6 @@ repositories {
 }
 
 dependencies {
-    implementation("software.amazon.smithy:smithy-protocol-test-traits:1.0.2")
+    implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.0.2,1.1.0[")
     implementation(project(":smithy-go-codegen"))
 }
