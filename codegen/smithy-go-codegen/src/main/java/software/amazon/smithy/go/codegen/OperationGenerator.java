@@ -80,7 +80,7 @@ final class OperationGenerator implements Runnable {
 
         writer.writeShapeDocs(operation);
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", GoDependency.CONTEXT).build();
-        writer.openBlock("func (c $P) $T(ctx $T, params $P, opts ...func(*Options)) ($P, error) {", "}",
+        writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
                     constructStack();
 
