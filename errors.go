@@ -80,3 +80,20 @@ func (f ErrorFault) String() string {
 		return "unknown"
 	}
 }
+
+// SerializationError represents an error that occurred while attempting to serialize a request
+type SerializationError struct {
+	Err error // original error
+}
+
+// Error returns a formatted error for SerializationError
+func (e *SerializationError) Error() string {
+	const msg = "serialization failed"
+	if e.Err == nil {
+		return msg
+	}
+	return fmt.Sprintf("%s: %v", msg, e.Err)
+}
+
+// Unwrap returns the underlying Error in SerializationError
+func (e *SerializationError) Unwrap() error { return e.Err }
