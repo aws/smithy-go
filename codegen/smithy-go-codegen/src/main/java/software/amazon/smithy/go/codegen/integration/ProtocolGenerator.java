@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoSettings;
@@ -133,6 +132,14 @@ public interface ProtocolGenerator {
     void generateRequestSerializers(GenerationContext context);
 
     /**
+     * Generates any standard code for service response deserialization.
+     *
+     * @param context Serde context.
+     */
+    default void generateSharedDeserializerComponents(GenerationContext context) {
+    }
+
+    /**
      * Generates the code used to deserialize the shapes of a service
      * for responses.
      *
@@ -169,14 +176,14 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a deserializer function for shapes of a service.
      *
-     * @param symbol   The symbol the deserializer function is being generated for.
+     * @param shape    The shape the deserializer function is being generated for.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getOperationDeserFunctionName(Symbol symbol, String protocol) {
+    static String getOperationHttpBindingsDeserFunctionName(Shape shape, String protocol) {
         return protocol
                 + "_deserializeHttpBindings"
-                + symbol.getName();
+                + StringUtils.capitalize(shape.getId().getName());
     }
 
     /**
@@ -193,25 +200,34 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of a deserializer function for shapes of a service.
      *
-     * @param symbol        The symbol the deserializer function is being generated for.
-     * @param protocol      Name of the protocol being generated.
-     * @param protocolLayer the layer of the protocol being generated
+     * @param shape    The shape the deserializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getDeserFunctionName(Symbol symbol, String protocol, String protocolLayer) {
-        // e.g., awsRestJson1_serializeRestFooShape
-        String functionName = ProtocolGenerator.getSanitizedName(protocol)
-                + "_deserialize"
-                + ProtocolGenerator.getSanitizedName(protocolLayer);
+    static String getDocumentDeserializerFunctionName(Shape shape, String protocol) {
+        return protocol + "_deserializeDocument" + StringUtils.capitalize(shape.getId().getName());
+    }
 
-        functionName += symbol.getName();
-
-        return functionName;
+    /**
+     * Generates the name of a deserializer function for an output shape of a service.
+     *
+     * @param shape    The shape the deserializer function is being generated for.
+     * @param protocol Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
+    static String getDocumentOutputDeserializerFunctionName(Shape shape, String protocol) {
+        return protocol + "_deserializeOpDocument" + StringUtils.capitalize(shape.getId().getName());
     }
 
     static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {
         return protocol
                 + "_serializeOp"
+                + operationShapeId.getName();
+    }
+
+    static String getDeserializeMiddlewareName(ShapeId operationShapeId, String protocol) {
+        return protocol
+                + "_deserializeOp"
                 + operationShapeId.getName();
     }
 

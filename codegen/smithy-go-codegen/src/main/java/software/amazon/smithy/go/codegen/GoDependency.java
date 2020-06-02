@@ -38,7 +38,9 @@ public enum GoDependency implements SymbolDependencyContainer {
     NET_HTTP("stdlib", "", "net/http", null, Versions.GO_STDLIB),
     BYTES("stdlib", "", "bytes", null, Versions.GO_STDLIB),
     STRINGS("stdlib", "", "strings", null, Versions.GO_STDLIB),
+    JSON("stdlib", "", "encoding/json", null, Versions.GO_STDLIB),
     IO("stdlib", "", "io", null, Versions.GO_STDLIB),
+    IOUTIL("stdlib", "",  "io/ioutil", null, Versions.GO_STDLIB),
 
     SMITHY("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go", "smithy", Versions.SMITHY_GO),
@@ -46,13 +48,17 @@ public enum GoDependency implements SymbolDependencyContainer {
             "github.com/awslabs/smithy-go/transport/http", "smithyhttp", Versions.SMITHY_GO),
     SMITHY_MIDDLEWARE("dependency", "github.com/awslabs/smithy-go",
             "github.com/awslabs/smithy-go/middleware", null, Versions.SMITHY_GO),
+    SMITHY_TIME("dependency", "github.com/awslabs/smithy-go",
+            "github.com/awslabs/smithy-go/time", "smithytime", Versions.SMITHY_GO),
 
     AWS_REST_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
             "github.com/aws/aws-sdk-go-v2/aws/protocol/rest", null, Versions.AWS_SDK),
     AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
             "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK),
     AWS_JSON_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", null, Versions.AWS_SDK);
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", null, Versions.AWS_SDK),
+    AWS_JSON_PROTOCOL_ALIAS("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/json", "jsonprotocol", Versions.AWS_SDK);
 
     public final String sourcePath;
     public final String importPath;
