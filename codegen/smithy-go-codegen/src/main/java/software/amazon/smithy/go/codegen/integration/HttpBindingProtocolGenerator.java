@@ -251,10 +251,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
-        HttpTrait httpTrait = operation.getTrait(HttpTrait.class)
-                .orElseThrow(() -> new CodegenException("Expected HttpTrait on operation"));
+        HttpTrait httpTrait = operation.expectTrait(HttpTrait.class);
 
-        // TODO: Smithy http binding code generator should not know AWS types, composition would help solve this
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(GoDependency.FMT);
             writer.addUseImports(GoDependency.SMITHY);
@@ -556,7 +554,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case EPOCH_SECONDS:
                 locationEncoder.accept(writer, "Float(smithytime.FormatEpochSeconds(" + operand + "))");
                 break;
-            case UNKNOWN:
             default:
                 throw new CodegenException("Unknown timestamp format");
         }
