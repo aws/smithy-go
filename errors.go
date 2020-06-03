@@ -63,7 +63,8 @@ func (e *OperationError) Error() string {
 // DeserializationError provides a wrapper for and error that occurs during
 // deserialization.
 type DeserializationError struct {
-	Err error //  original error
+	Err      error //  original error
+	Snapshot []byte
 }
 
 // Error returns a formatted error for DeserializationError
