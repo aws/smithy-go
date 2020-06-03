@@ -145,15 +145,53 @@ public final class CodegenUtils {
      * This method can be used by deserializers to get pointer to
      * operand.
      *
+     * @param writer  The writer dependencies will be added to, if needed.
      * @param shape   The shape whose value needs to be assigned.
      * @param operand The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */
-    public static String generatePointerReferenceIfPointable(Shape shape, String operand) {
-        if (isShapePassByReference(shape)) {
-            return '&' + operand;
+    public static String generatePointerValueIfPointable(GoWriter writer, Shape shape, String operand) {
+        switch (shape.getType()) {
+            case STRING:
+                if (shape.hasTrait(EnumTrait.class)) {
+                    return operand;
+                }
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.String(" + operand + ")";
+            case BOOLEAN:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Bool(" + operand + ")";
+
+            case BYTE:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Int8(" + operand + ")";
+            case SHORT:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Int16(" + operand + ")";
+            case INTEGER:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Int32(" + operand + ")";
+            case LONG:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Int64(" + operand + ")";
+
+            case FLOAT:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Float32(" + operand + ")";
+            case DOUBLE:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Float64(" + operand + ")";
+
+            case TIMESTAMP:
+                writer.addUseImports(GoDependency.SMITHY_PTR);
+                return "ptr.Time(" + operand + ")";
+
+            default:
+                if (isShapePassByReference(shape)) {
+                    return '&' + operand;
+                }
+                return operand;
         }
-        return operand;
     }
 
     /**

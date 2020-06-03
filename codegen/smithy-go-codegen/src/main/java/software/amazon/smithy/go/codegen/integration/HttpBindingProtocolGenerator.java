@@ -862,6 +862,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private String generateHttpBindingsValue(
             GoWriter writer,
             Model model,
+            SymbolProvider symbolProvider,
             Shape targetShape,
             HttpBinding binding,
             String operand
@@ -893,22 +894,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.addUseImports(GoDependency.STRCONV);
                 writer.write("i, err := strconv.ParseInt($L,0,8)", operand);
                 writer.write("if err != nil { return err }");
-                return String.format("byte(i)");
+                return "int8(i)";
             case SHORT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,16)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 16)", operand);
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,32)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 32)", operand);
             case LONG:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,64)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 64)", operand);
             case FLOAT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s,0,32)", operand);
+                return String.format("strconv.ParseFloat(%s, 32)", operand);
             case DOUBLE:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s,0,64)", operand);
+                return String.format("strconv.ParseFloat(%s, 64)", operand);
             case BIG_INTEGER:
                 writer.addUseImports(GoDependency.BIG);
                 writer.write("i := big.NewInt(0)");
@@ -939,29 +940,30 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case SET:
                 // handle set as target shape
                 Shape targetValueSetShape = model.expectShape(targetShape.asSetShape().get().getMember().getTarget());
-                return getCollectionDeserializer(writer, model, targetValueSetShape, binding, operand);
+                return getCollectionDeserializer(writer, model, symbolProvider, targetValueSetShape, binding, operand);
             case LIST:
                 // handle list as target shape
                 Shape targetValueListShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
-                return getCollectionDeserializer(writer, model, targetValueListShape, binding, operand);
+                return getCollectionDeserializer(writer, model, symbolProvider, targetValueListShape, binding, operand);
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
         }
     }
 
     private String getCollectionDeserializer(
-            GoWriter writer, Model model,
+            GoWriter writer, Model model, SymbolProvider symbolProvider,
             Shape targetShape, HttpBinding binding, String operand
     ) {
-        writer.write("list := make([]$L, 0, 0)", targetShape.getId().getName());
+        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+        writer.write("list := make([]$P, 0, 0)", targetSymbol);
 
         writer.addUseImports(GoDependency.STRINGS);
         writer.openBlock("for _, i := range strings.Split($L[1:len($L)-1], $S) {",
                 "}", operand, operand, ",",
                 () -> {
-                    writer.write("list.add($L)",
-                            generateHttpBindingsValue(writer, model, targetShape, binding,
-                                    "i"));
+                    String value = generateHttpBindingsValue(writer, model, symbolProvider, targetShape, binding, "i");
+                    writer.write("list = append(list, $L)",
+                            CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
                 });
         return "list";
     }
@@ -978,13 +980,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         switch (binding.getLocation()) {
             case HEADER:
-                writeHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                writeHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
                 break;
             case PREFIX_HEADERS:
                 if (!targetShape.isMapShape()) {
                     throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
                 }
-                writePrefixHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                writePrefixHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
                 break;
             default:
                 throw new CodegenException("unexpected http binding found");
@@ -992,20 +994,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHeaderDeserializerFunction(
-            GoWriter writer, Model model, String memberName,
-            Shape targetShape, HttpBinding binding
+            GoWriter writer, Model model, SymbolProvider symbolProvider,
+            String memberName, Shape targetShape, HttpBinding binding
     ) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
-                    String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
+                    String value = generateHttpBindingsValue(writer, model, symbolProvider,
+                            targetShape, binding, "val");
                     writer.write("v.$L = $L", memberName,
-                            CodegenUtils.generatePointerReferenceIfPointable(targetShape, value));
+                            CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
                 });
     }
 
     private void writePrefixHeaderDeserializerFunction(
-            GoWriter writer, Model model, String memberName,
-            Shape targetShape, HttpBinding binding
+            GoWriter writer, Model model, SymbolProvider symbolProvider,
+            String memberName, Shape targetShape, HttpBinding binding
     ) {
         String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
@@ -1014,8 +1017,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String locationName = prefix + name;
             writer.openBlock("if val := response.Header.Get($S); val != $S {",
                     "}", locationName, "", () -> {
-                        writer.write("v.$L[$L] = $L", memberName, name,
-                                generateHttpBindingsValue(writer, model, targetValueShape, binding, "val"));
+                        String value = generateHttpBindingsValue(writer, model, symbolProvider,
+                                targetValueShape, binding, "val");
+                        writer.write("v.$L[$S] = $L", memberName, name,
+                                CodegenUtils.generatePointerValueIfPointable(writer, targetValueShape, value));
                     });
         }
     }
