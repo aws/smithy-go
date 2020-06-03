@@ -325,8 +325,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.addUseImports(GoDependency.SMITHY);
-               writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
-                       "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
+                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });
             writer.write("");
 
@@ -419,13 +419,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param generator      middleware generator definition
      * @param writer         the writer within the middleware context
      */
-     protected void writeMiddlewareErrorDeserializer(
+    protected void writeMiddlewareErrorDeserializer(
             GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
             OperationShape operation,
             GoStackStepMiddlewareGenerator generator
-    ){}
+    ) {
+    }
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
@@ -452,15 +453,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Returns whether a shape has rest response bindings.
      * The shape can be an operation shape, error shape or an output shape.
      *
-     * @param model          the model
-     * @param shape          the shape with possible presence of rest response bindings
+     * @param model the model
+     * @param shape the shape with possible presence of rest response bindings
      * @return boolean indicating presence of rest response bindings in the shape
      */
     protected boolean isShapeWithRestResponseBindings(Model model, Shape shape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
 
-        for (HttpBinding binding: bindings) {
+        for (HttpBinding binding : bindings) {
             if (isRestBinding(binding.getLocation())) {
                 return true;
             }
@@ -472,16 +473,16 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Returns whether a shape has response bindings for the provided HttpBinding location.
      * The shape can be an operation shape, error shape or an output shape.
      *
-     * @param model          the model
-     * @param shape          the shape with possible presence of response bindings
-     * @param location       the HttpBinding location for response binding
+     * @param model    the model
+     * @param shape    the shape with possible presence of response bindings
+     * @param location the HttpBinding location for response binding
      * @return boolean indicating presence of response bindings in the shape for provided location
      */
     protected boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
 
-        for (HttpBinding binding: bindings) {
+        for (HttpBinding binding : bindings) {
             if (binding.getLocation() == location) {
                 return true;
             }
@@ -951,8 +952,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private String getCollectionDeserializer(
-            GoWriter writer, Model model, SymbolProvider symbolProvider,
-            Shape targetShape, HttpBinding binding, String operand
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            Shape targetShape,
+            HttpBinding binding,
+            String operand
     ) {
         Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         writer.write("list := make([]$P, 0, 0)", targetSymbol);
@@ -994,8 +999,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHeaderDeserializerFunction(
-            GoWriter writer, Model model, SymbolProvider symbolProvider,
-            String memberName, Shape targetShape, HttpBinding binding
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            String memberName,
+            Shape targetShape,
+            HttpBinding binding
     ) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
@@ -1007,8 +1016,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writePrefixHeaderDeserializerFunction(
-            GoWriter writer, Model model, SymbolProvider symbolProvider,
-            String memberName, Shape targetShape, HttpBinding binding
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            String memberName,
+            Shape targetShape,
+            HttpBinding binding
     ) {
         String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
@@ -1042,7 +1055,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
 
         // Walk and add members shapes to the list that will require deserializer functions
-         model.getKnowledge(HttpBindingIndex.class)
+        model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(operation).values()
                 .forEach(binding -> {
                     Shape targetShape = model.expectShape(binding.getMember().getTarget());
@@ -1070,13 +1083,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context The generation context.
      * @param shapes  The shapes to generate deserialization for.
      */
-    protected abstract void  generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
+    protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
     /**
      * Generates the error document deserializer function.
      *
-     * @param context   the generation context
+     * @param context the generation context
      * @param shapeId the error shape id for which deserializer is being generated
      */
-    protected  abstract  void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
+    protected abstract void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
 }
