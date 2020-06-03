@@ -80,7 +80,7 @@ final class OperationGenerator implements Runnable {
 
         writer.writeShapeDocs(operation);
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", GoDependency.CONTEXT).build();
-        writer.openBlock("func (c $P) $T(ctx $T, params $P, opts ...func(*Options)) ($P, error) {", "}",
+        writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
                     constructStack();
 
@@ -135,8 +135,8 @@ final class OperationGenerator implements Runnable {
         }
         Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
                 "DecorateHandler", GoDependency.SMITHY_MIDDLEWARE).build();
-        Symbol clientHandler = SymbolUtils.createValueSymbolBuilder(
-                "ClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
-        writer.write("handler := $T($T{Client: options.HTTPClient}, stack)", decorateHandler, clientHandler);
+        Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
+                "NewClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
+        writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
     }
 }
