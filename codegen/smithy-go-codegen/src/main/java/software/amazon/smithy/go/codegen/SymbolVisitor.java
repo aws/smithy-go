@@ -206,7 +206,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                     .putProperty(SymbolUtils.INPUT_VARIANT, inputVariant)
                     .build();
         }
-        return SymbolUtils.createPointableSymbolBuilder(shape, "[]byte")
+        return SymbolUtils.createValueSymbolBuilder(shape, "[]byte")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
