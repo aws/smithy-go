@@ -151,40 +151,45 @@ public final class CodegenUtils {
      * @return The Operand, along with pointer reference if applicable
      */
     public static String generatePointerValueIfPointable(GoWriter writer, Shape shape, String operand) {
+        String prefix = "";
+        String suffix = ")";
+
         switch (shape.getType()) {
             case STRING:
                 if (shape.hasTrait(EnumTrait.class)) {
                     return operand;
                 }
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.String(" + operand + ")";
+
+                prefix = "ptr.String(";
+                break;
+
             case BOOLEAN:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Bool(" + operand + ")";
+                prefix = "ptr.Bool(";
+                break;
 
             case BYTE:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Int8(" + operand + ")";
+                prefix = "ptr.Int8(";
+                break;
             case SHORT:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Int16(" + operand + ")";
+                prefix = "ptr.Int16(";
+                break;
             case INTEGER:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Int32(" + operand + ")";
+                prefix = "ptr.Int32(";
+                break;
             case LONG:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Int64(" + operand + ")";
+                prefix = "ptr.Int64(";
+                break;
 
             case FLOAT:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Float32(" + operand + ")";
+                prefix = "ptr.Float32(";
+                break;
             case DOUBLE:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Float64(" + operand + ")";
+                prefix = "ptr.Float64(";
+                break;
 
             case TIMESTAMP:
-                writer.addUseImports(GoDependency.SMITHY_PTR);
-                return "ptr.Time(" + operand + ")";
+                prefix = "ptr.Time(";
+                break;
 
             default:
                 if (isShapePassByReference(shape)) {
@@ -192,6 +197,9 @@ public final class CodegenUtils {
                 }
                 return operand;
         }
+
+        writer.addUseImports(GoDependency.SMITHY_PTR);
+        return prefix + operand + suffix;
     }
 
     /**
