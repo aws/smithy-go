@@ -324,7 +324,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
-               writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                writer.addUseImports(GoDependency.SMITHY);
+               writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });
             writer.write("");
@@ -342,7 +343,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("out.Result = &$T{}", outputSymbol);
             writer.write("output, ok := out.Result.($P)", outputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
-                writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                writer.addUseImports(GoDependency.SMITHY);
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown output result type %T\", out.Result)"));
             });
             writer.write("");
@@ -354,7 +356,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                 writer.write("err= $L(output, response)", deserFuncName);
                 writer.openBlock("if err != nil {", "}", () -> {
-                    writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                    writer.addUseImports(GoDependency.SMITHY);
+                    writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                             "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
                 });
                 writer.write("");
