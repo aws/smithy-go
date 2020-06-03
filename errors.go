@@ -69,7 +69,11 @@ type DeserializationError struct {
 
 // Error returns a formatted error for DeserializationError
 func (e *DeserializationError) Error() string {
-	return fmt.Sprintf("deserialization failed, %v", e.Err)
+	const msg = "deserialization failed"
+	if e.Err == nil {
+		return msg
+	}
+	return fmt.Sprintf("%s, %v", msg, e.Err)
 }
 
 // Unwrap returns the underlying Error in DeserializationError

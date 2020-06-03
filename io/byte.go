@@ -1,4 +1,4 @@
-package sdkio
+package io
 
 const (
 	// Byte is 8 bits

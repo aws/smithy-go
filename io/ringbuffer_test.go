@@ -1,4 +1,4 @@
-package sdkio
+package io
 
 import (
 	"bytes"
