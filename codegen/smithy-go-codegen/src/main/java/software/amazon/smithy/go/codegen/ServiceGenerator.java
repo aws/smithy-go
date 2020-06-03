@@ -151,9 +151,9 @@ final class ServiceGenerator implements Runnable {
 
     private void generateApplicationProtocolTypes() {
         ensureSupportedProtocol();
+        writer.addUseImports(GoDependency.NET_HTTP);
         writer.openBlock("type HTTPClient interface {", "}", () -> {
-            writer.write("Do($P) ($P, error)", applicationProtocol.getRequestType(),
-                    applicationProtocol.getResponseType());
+            writer.write("Do(*http.Request) (*http.Response, error)");
         }).write("");
     }
 

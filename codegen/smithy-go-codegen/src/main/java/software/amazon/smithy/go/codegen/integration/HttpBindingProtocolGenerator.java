@@ -324,8 +324,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
-               writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
-                       "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
+                writer.addUseImports(GoDependency.SMITHY);
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
+                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });
             writer.write("");
 
@@ -342,7 +343,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("out.Result = &$T{}", outputSymbol);
             writer.write("output, ok := out.Result.($P)", outputSymbol);
             writer.openBlock("if !ok {", "}", () -> {
-                writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                writer.addUseImports(GoDependency.SMITHY);
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown output result type %T\", out.Result)"));
             });
             writer.write("");
@@ -354,7 +356,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                 writer.write("err= $L(output, response)", deserFuncName);
                 writer.openBlock("if err != nil {", "}", () -> {
-                    writer.write(String.format("return out, metadata, &aws.DeserializationError{Err: %s}",
+                    writer.addUseImports(GoDependency.SMITHY);
+                    writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                             "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
                 });
                 writer.write("");
@@ -416,13 +419,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param generator      middleware generator definition
      * @param writer         the writer within the middleware context
      */
-     protected void writeMiddlewareErrorDeserializer(
+    protected void writeMiddlewareErrorDeserializer(
             GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
             OperationShape operation,
             GoStackStepMiddlewareGenerator generator
-    ){}
+    ) {
+    }
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
@@ -449,15 +453,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Returns whether a shape has rest response bindings.
      * The shape can be an operation shape, error shape or an output shape.
      *
-     * @param model          the model
-     * @param shape          the shape with possible presence of rest response bindings
+     * @param model the model
+     * @param shape the shape with possible presence of rest response bindings
      * @return boolean indicating presence of rest response bindings in the shape
      */
     protected boolean isShapeWithRestResponseBindings(Model model, Shape shape) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
 
-        for (HttpBinding binding: bindings) {
+        for (HttpBinding binding : bindings) {
             if (isRestBinding(binding.getLocation())) {
                 return true;
             }
@@ -469,16 +473,16 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Returns whether a shape has response bindings for the provided HttpBinding location.
      * The shape can be an operation shape, error shape or an output shape.
      *
-     * @param model          the model
-     * @param shape          the shape with possible presence of response bindings
-     * @param location       the HttpBinding location for response binding
+     * @param model    the model
+     * @param shape    the shape with possible presence of response bindings
+     * @param location the HttpBinding location for response binding
      * @return boolean indicating presence of response bindings in the shape for provided location
      */
     protected boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
         Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(shape).values();
 
-        for (HttpBinding binding: bindings) {
+        for (HttpBinding binding : bindings) {
             if (binding.getLocation() == location) {
                 return true;
             }
@@ -859,6 +863,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private String generateHttpBindingsValue(
             GoWriter writer,
             Model model,
+            SymbolProvider symbolProvider,
             Shape targetShape,
             HttpBinding binding,
             String operand
@@ -890,22 +895,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.addUseImports(GoDependency.STRCONV);
                 writer.write("i, err := strconv.ParseInt($L,0,8)", operand);
                 writer.write("if err != nil { return err }");
-                return String.format("byte(i)");
+                return "int8(i)";
             case SHORT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,16)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 16)", operand);
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,32)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 32)", operand);
             case LONG:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s,0,64)", operand);
+                return String.format("strconv.ParseInt(%s, 0, 64)", operand);
             case FLOAT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s,0,32)", operand);
+                return String.format("strconv.ParseFloat(%s, 32)", operand);
             case DOUBLE:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s,0,64)", operand);
+                return String.format("strconv.ParseFloat(%s, 64)", operand);
             case BIG_INTEGER:
                 writer.addUseImports(GoDependency.BIG);
                 writer.write("i := big.NewInt(0)");
@@ -936,29 +941,34 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case SET:
                 // handle set as target shape
                 Shape targetValueSetShape = model.expectShape(targetShape.asSetShape().get().getMember().getTarget());
-                return getCollectionDeserializer(writer, model, targetValueSetShape, binding, operand);
+                return getCollectionDeserializer(writer, model, symbolProvider, targetValueSetShape, binding, operand);
             case LIST:
                 // handle list as target shape
                 Shape targetValueListShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
-                return getCollectionDeserializer(writer, model, targetValueListShape, binding, operand);
+                return getCollectionDeserializer(writer, model, symbolProvider, targetValueListShape, binding, operand);
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
         }
     }
 
     private String getCollectionDeserializer(
-            GoWriter writer, Model model,
-            Shape targetShape, HttpBinding binding, String operand
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            Shape targetShape,
+            HttpBinding binding,
+            String operand
     ) {
-        writer.write("list := make([]$L, 0, 0)", targetShape.getId().getName());
+        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+        writer.write("list := make([]$P, 0, 0)", targetSymbol);
 
         writer.addUseImports(GoDependency.STRINGS);
         writer.openBlock("for _, i := range strings.Split($L[1:len($L)-1], $S) {",
                 "}", operand, operand, ",",
                 () -> {
-                    writer.write("list.add($L)",
-                            generateHttpBindingsValue(writer, model, targetShape, binding,
-                                    "i"));
+                    String value = generateHttpBindingsValue(writer, model, symbolProvider, targetShape, binding, "i");
+                    writer.write("list = append(list, $L)",
+                            CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
                 });
         return "list";
     }
@@ -975,13 +985,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         switch (binding.getLocation()) {
             case HEADER:
-                writeHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                writeHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
                 break;
             case PREFIX_HEADERS:
                 if (!targetShape.isMapShape()) {
                     throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
                 }
-                writePrefixHeaderDeserializerFunction(writer, model, memberName, targetShape, binding);
+                writePrefixHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
                 break;
             default:
                 throw new CodegenException("unexpected http binding found");
@@ -989,20 +999,29 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHeaderDeserializerFunction(
-            GoWriter writer, Model model, String memberName,
-            Shape targetShape, HttpBinding binding
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            String memberName,
+            Shape targetShape,
+            HttpBinding binding
     ) {
         writer.openBlock("if val := response.Header.Get($S); val != $S {", "}",
                 binding.getLocationName(), "", () -> {
-                    String value = generateHttpBindingsValue(writer, model, targetShape, binding, "val");
+                    String value = generateHttpBindingsValue(writer, model, symbolProvider,
+                            targetShape, binding, "val");
                     writer.write("v.$L = $L", memberName,
-                            CodegenUtils.generatePointerReferenceIfPointable(targetShape, value));
+                            CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
                 });
     }
 
     private void writePrefixHeaderDeserializerFunction(
-            GoWriter writer, Model model, String memberName,
-            Shape targetShape, HttpBinding binding
+            GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
+            String memberName,
+            Shape targetShape,
+            HttpBinding binding
     ) {
         String prefix = binding.getLocationName();
         Shape targetValueShape = model.expectShape(targetShape.asMapShape().get().getValue().getTarget());
@@ -1011,8 +1030,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String locationName = prefix + name;
             writer.openBlock("if val := response.Header.Get($S); val != $S {",
                     "}", locationName, "", () -> {
-                        writer.write("v.$L[$L] = $L", memberName, name,
-                                generateHttpBindingsValue(writer, model, targetValueShape, binding, "val"));
+                        String value = generateHttpBindingsValue(writer, model, symbolProvider,
+                                targetValueShape, binding, "val");
+                        writer.write("v.$L[$S] = $L", memberName, name,
+                                CodegenUtils.generatePointerValueIfPointable(writer, targetValueShape, value));
                     });
         }
     }
@@ -1034,7 +1055,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
 
         // Walk and add members shapes to the list that will require deserializer functions
-         model.getKnowledge(HttpBindingIndex.class)
+        model.getKnowledge(HttpBindingIndex.class)
                 .getResponseBindings(operation).values()
                 .forEach(binding -> {
                     Shape targetShape = model.expectShape(binding.getMember().getTarget());
@@ -1062,13 +1083,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context The generation context.
      * @param shapes  The shapes to generate deserialization for.
      */
-    protected abstract void  generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
+    protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
     /**
      * Generates the error document deserializer function.
      *
-     * @param context   the generation context
+     * @param context the generation context
      * @param shapeId the error shape id for which deserializer is being generated
      */
-    protected  abstract  void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
+    protected abstract void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
 }

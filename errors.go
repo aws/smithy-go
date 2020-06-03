@@ -60,6 +60,25 @@ func (e *OperationError) Error() string {
 	return fmt.Sprintf("operation error %s: %s, %v", e.ServiceName, e.OperationName, e.Err)
 }
 
+// DeserializationError provides a wrapper for and error that occurs during
+// deserialization.
+type DeserializationError struct {
+	Err      error //  original error
+	Snapshot []byte
+}
+
+// Error returns a formatted error for DeserializationError
+func (e *DeserializationError) Error() string {
+	const msg = "deserialization failed"
+	if e.Err == nil {
+		return msg
+	}
+	return fmt.Sprintf("%s, %v", msg, e.Err)
+}
+
+// Unwrap returns the underlying Error in DeserializationError
+func (e *DeserializationError) Unwrap() error { return e.Err }
+
 // ErrorFault provides the type for a Smithy API error fault.
 type ErrorFault int
 

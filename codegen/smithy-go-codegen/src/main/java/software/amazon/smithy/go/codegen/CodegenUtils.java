@@ -145,15 +145,61 @@ public final class CodegenUtils {
      * This method can be used by deserializers to get pointer to
      * operand.
      *
+     * @param writer  The writer dependencies will be added to, if needed.
      * @param shape   The shape whose value needs to be assigned.
      * @param operand The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */
-    public static String generatePointerReferenceIfPointable(Shape shape, String operand) {
-        if (isShapePassByReference(shape)) {
-            return '&' + operand;
+    public static String generatePointerValueIfPointable(GoWriter writer, Shape shape, String operand) {
+        String prefix = "";
+        String suffix = ")";
+
+        switch (shape.getType()) {
+            case STRING:
+                if (shape.hasTrait(EnumTrait.class)) {
+                    return operand;
+                }
+
+                prefix = "ptr.String(";
+                break;
+
+            case BOOLEAN:
+                prefix = "ptr.Bool(";
+                break;
+
+            case BYTE:
+                prefix = "ptr.Int8(";
+                break;
+            case SHORT:
+                prefix = "ptr.Int16(";
+                break;
+            case INTEGER:
+                prefix = "ptr.Int32(";
+                break;
+            case LONG:
+                prefix = "ptr.Int64(";
+                break;
+
+            case FLOAT:
+                prefix = "ptr.Float32(";
+                break;
+            case DOUBLE:
+                prefix = "ptr.Float64(";
+                break;
+
+            case TIMESTAMP:
+                prefix = "ptr.Time(";
+                break;
+
+            default:
+                if (isShapePassByReference(shape)) {
+                    return '&' + operand;
+                }
+                return operand;
         }
-        return operand;
+
+        writer.addUseImports(GoDependency.SMITHY_PTR);
+        return prefix + operand + suffix;
     }
 
     /**
