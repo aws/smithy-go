@@ -277,7 +277,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
             writer.write("request.Request.URL.Path = $S", httpTrait.getUri());
             writer.write("request.Request.Method = $S", httpTrait.getMethod());
-            writer.write("restEncoder := rest.NewEncoder(request.Request)");
+            writer.addUseImports(GoDependency.SMITHY_HTTP_BINDING);
+            writer.write("restEncoder := httpbinding.NewEncoder(request.Request)");
             writer.write("");
 
             // we only generate an operations http bindings function if there are bindings
@@ -878,7 +879,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 return operand;
             case BOOLEAN:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseBool(%s)", operand);
+                writer.write("vv, err := strconv.ParseBool($L)", operand);
+                writer.write("if err != nil { return err }");
+                return "vv";
             case TIMESTAMP:
                 writer.addUseImports(GoDependency.AWS_PRIVATE_PROTOCOL);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
@@ -893,24 +896,34 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 return "t";
             case BYTE:
                 writer.addUseImports(GoDependency.STRCONV);
-                writer.write("i, err := strconv.ParseInt($L,0,8)", operand);
+                writer.write("vv, err := strconv.ParseInt($L, 0, 8)", operand);
                 writer.write("if err != nil { return err }");
-                return "int8(i)";
+                return "int8(vv)";
             case SHORT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s, 0, 16)", operand);
+                writer.write("vv, err := strconv.ParseInt($L, 0, 16)", operand);
+                writer.write("if err != nil { return err }");
+                return "int16(vv)";
             case INTEGER:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s, 0, 32)", operand);
+                writer.write("vv, err := strconv.ParseInt($L, 0, 32)", operand);
+                writer.write("if err != nil { return err }");
+                return "int32(vv)";
             case LONG:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseInt(%s, 0, 64)", operand);
+                writer.write("vv, err := strconv.ParseInt($L, 0, 64)", operand);
+                writer.write("if err != nil { return err }");
+                return "vv";
             case FLOAT:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s, 32)", operand);
+                writer.write("vv, err := strconv.ParseFloat($L, 32)", operand);
+                writer.write("if err != nil { return err }");
+                return "float32(vv)";
             case DOUBLE:
                 writer.addUseImports(GoDependency.STRCONV);
-                return String.format("strconv.ParseFloat(%s, 64)", operand);
+                writer.write("vv, err := strconv.ParseFloat($L, 64)", operand);
+                writer.write("if err != nil { return err }");
+                return "vv";
             case BIG_INTEGER:
                 writer.addUseImports(GoDependency.BIG);
                 writer.write("i := big.NewInt(0)");
