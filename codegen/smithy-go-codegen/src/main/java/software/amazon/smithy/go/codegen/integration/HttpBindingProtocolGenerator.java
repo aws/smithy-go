@@ -268,6 +268,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // cast input parameters type to the input type of the operation
             writer.write("input, ok := in.Parameters.($P)", inputSymbol);
+            writer.write("_ = input");
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
                         + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
@@ -341,13 +342,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
             // initialize out.Result as output structure shape
-            writer.write("out.Result = &$T{}", outputSymbol);
-            writer.write("output, ok := out.Result.($P)", outputSymbol);
-            writer.openBlock("if !ok {", "}", () -> {
-                writer.addUseImports(GoDependency.SMITHY);
-                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
-                        "fmt.Errorf(\"unknown output result type %T\", out.Result)"));
-            });
+            writer.write("output := &$T{}", outputSymbol);
+            writer.write("_, out.Result = output, output");
             writer.write("");
 
             // Output shape HTTP binding middleware generation
