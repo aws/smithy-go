@@ -557,7 +557,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 locationEncoder.accept(writer, "String(smithytime.FormatHTTPDate(" + operand + "))");
                 break;
             case EPOCH_SECONDS:
-                locationEncoder.accept(writer, "Float(smithytime.FormatEpochSeconds(" + operand + "))");
+                locationEncoder.accept(writer, "Double(smithytime.FormatEpochSeconds(" + operand + "))");
                 break;
             default:
                 throw new CodegenException("Unknown timestamp format");
