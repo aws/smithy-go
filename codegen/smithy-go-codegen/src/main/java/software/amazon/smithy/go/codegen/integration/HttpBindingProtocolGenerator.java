@@ -343,7 +343,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // initialize out.Result as output structure shape
             writer.write("output := &$T{}", outputSymbol);
-            writer.write("_, out.Result = output, output");
+            writer.write("out.Result = output");
             writer.write("");
 
             // Output shape HTTP binding middleware generation
