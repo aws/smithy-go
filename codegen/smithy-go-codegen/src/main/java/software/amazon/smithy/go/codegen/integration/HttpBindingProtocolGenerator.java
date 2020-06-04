@@ -1053,8 +1053,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
-        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
+        Model model = context.getModel();
+        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(model,
                 deserializeDocumentBindingShapes));
+
+        Set<Shape> errorBindingShapes = new TreeSet<>();
+        for (ShapeId errId: serializeErrorBindingShapes) {
+            Shape err = context.getModel().expectShape(errId);
+            errorBindingShapes.add(err);
+        }
+        // Add document shapes referred by Error shapes to the document binding shapes list
+        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(model, errorBindingShapes));
+
         generateDocumentBodyShapeDeserializers(context, deserializeDocumentBindingShapes);
     }
 
