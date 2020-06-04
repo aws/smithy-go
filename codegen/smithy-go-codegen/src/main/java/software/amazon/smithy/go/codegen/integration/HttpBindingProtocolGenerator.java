@@ -1053,18 +1053,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
-        Model model = context.getModel();
-        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(model,
+        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
                 deserializeDocumentBindingShapes));
-
-        Set<Shape> errorBindingShapes = new TreeSet<>();
-        for (ShapeId errId: serializeErrorBindingShapes) {
-            Shape err = context.getModel().expectShape(errId);
-            errorBindingShapes.add(err);
-        }
-        // Add document shapes referred by Error shapes to the document binding shapes list
-        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(model, errorBindingShapes));
-
         generateDocumentBodyShapeDeserializers(context, deserializeDocumentBindingShapes);
     }
 
@@ -1076,10 +1066,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     private void addOperationDocumentShapeBindersForDeserializer(GenerationContext context, OperationShape operation) {
         Model model = context.getModel();
-
+        HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
         // Walk and add members shapes to the list that will require deserializer functions
-        model.getKnowledge(HttpBindingIndex.class)
-                .getResponseBindings(operation).values()
+        httpBindingIndex.getResponseBindings(operation).values()
                 .forEach(binding -> {
                     Shape targetShape = model.expectShape(binding.getMember().getTarget());
                     if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
@@ -1088,6 +1077,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         deserializeDocumentBindingShapes.add(targetShape);
                     }
                 });
+
+        for (ShapeId errorShapeId: operation.getErrors()) {
+            httpBindingIndex.getResponseBindings(errorShapeId).values()
+                    .forEach(binding -> {
+                        Shape targetShape = model.expectShape(binding.getMember().getTarget());
+                        if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+                                && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                                || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
+                            deserializeDocumentBindingShapes.add(targetShape);
+                        }
+                    });
+        }
     }
 
     /**
