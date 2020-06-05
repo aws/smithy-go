@@ -170,8 +170,8 @@ public class ValidationGenerator implements Runnable {
                 writer.write("return nil");
                 writer.write("}");
             });
+            writer.write("");
         }
-        writer.write("");
     }
 
     public static String getOperationValidationMiddlewareName(OperationShape operationShape) {
