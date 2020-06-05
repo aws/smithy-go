@@ -140,10 +140,8 @@ public class ValidationGenerator implements Runnable {
                         String helperName = getShapeValidationFunctionName(model.expectShape(((CollectionShape) shape)
                                 .getMember().getTarget()), false);
                         writer.openBlock("for i := range v {", "}", () -> {
-                            writer.openBlock("if v != nil {", "}", () -> {
-                                writer.openBlock("if err := $L(v[i]); err != nil {", "}", helperName, () -> {
-                                    writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), err)");
-                                });
+                            writer.openBlock("if err := $L(v[i]); err != nil {", "}", helperName, () -> {
+                                writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), err)");
                             });
                         });
                         break;
@@ -151,10 +149,8 @@ public class ValidationGenerator implements Runnable {
                         helperName = getShapeValidationFunctionName(model.expectShape(((MapShape) shape).getValue()
                                 .getTarget()), false);
                         writer.openBlock("for key := range v {", "}", () -> {
-                            writer.openBlock("if v != nil {", "}", () -> {
-                                writer.openBlock("if err := $L(v[key]); err != nil {", "}", helperName, () -> {
-                                    writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), err)");
-                                });
+                            writer.openBlock("if err := $L(v[key]); err != nil {", "}", helperName, () -> {
+                                writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), err)");
                             });
                         });
                         break;
