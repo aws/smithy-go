@@ -98,7 +98,7 @@ public class ValidationGenerator implements Runnable {
             writer.openBlock("func $L(v $P) error {", "}", functionName, shapeSymbol, () -> {
                 writer.addUseImports(GoDependency.SMITHY);
                 writer.openBlock("if v == nil {", "}", () -> writer.write("return nil"));
-                writer.write("invalidParams := &smithy.InvalidParamsError{Context: $S}", shapeSymbol.getName());
+                writer.write("invalidParams := smithy.InvalidParamsError{Context: $S}", shapeSymbol.getName());
                 switch (shape.getType()) {
                     case STRUCTURE:
                         shape.members().forEach(memberShape -> {
@@ -111,7 +111,7 @@ public class ValidationGenerator implements Runnable {
                                 if (isEnum) {
                                     writer.write("if len(v.$L) == 0 {", memberName);
                                 } else {
-                                    writer.write("if v.$L != nil {", memberName);
+                                    writer.write("if v.$L == nil {", memberName);
                                 }
                                 writer.write("invalidParams.Add(smithy.NewErrParamRequired($S))", memberName);
                                 if (hasHelper) {

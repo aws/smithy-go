@@ -27,7 +27,7 @@ func (e *InvalidParamsError) Add(err InvalidParamError) {
 // updated and base context to reflect the merging.
 //
 // Use for nested validations errors.
-func (e *InvalidParamsError) AddNested(nestedCtx string, nested *InvalidParamsError) {
+func (e *InvalidParamsError) AddNested(nestedCtx string, nested InvalidParamsError) {
 	for _, err := range nested.errs {
 		err.SetContext(e.Context)
 		err.AddNestedContext(nestedCtx)
@@ -41,7 +41,7 @@ func (e *InvalidParamsError) Len() int {
 }
 
 // Error returns the string formatted form of the invalid parameters.
-func (e *InvalidParamsError) Error() string {
+func (e InvalidParamsError) Error() string {
 	w := &bytes.Buffer{}
 	fmt.Fprintf(w, "%d validation error(s) found.\n", len(e.errs))
 
@@ -53,7 +53,7 @@ func (e *InvalidParamsError) Error() string {
 }
 
 // Errs returns a slice of the invalid parameters
-func (e *InvalidParamsError) Errs() []error {
+func (e InvalidParamsError) Errs() []error {
 	errs := make([]error, len(e.errs))
 	for i := 0; i < len(errs); i++ {
 		errs[i] = e.errs[i]
@@ -84,16 +84,18 @@ type invalidParamError struct {
 }
 
 // Error returns the string version of the invalid parameter error.
-func (e *invalidParamError) Error() string {
+func (e invalidParamError) Error() string {
 	return fmt.Sprintf("%s, %s.", e.reason, e.Field())
 }
 
 // Field Returns the field and context the error occurred.
-func (e *invalidParamError) Field() string {
+func (e invalidParamError) Field() string {
 	sb := &strings.Builder{}
-	sb.WriteString(e.field)
+	sb.WriteString(e.context)
 	if sb.Len() > 0 {
-		sb.WriteRune('.')
+		if len(e.nestedContext) == 0 || (len(e.nestedContext) > 0 && e.nestedContext[:1] != "[") {
+			sb.WriteRune('.')
+		}
 	}
 	if len(e.nestedContext) > 0 {
 		sb.WriteString(e.nestedContext)
