@@ -47,6 +47,20 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create a new BuildStep middleware generator with the provided type name.
+     *
+     * @param identifier is the type name to identify the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String identifier) {
+        return createMiddleware(identifier,
+                "HandleBuild",
+                SymbolUtils.createValueSymbolBuilder("BuildInput", GoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+    }
+
+    /**
      * Create a new SerializeStep middleware generator with the provided type name.
      *
      * @param identifier is the type name to identify the middleware.

@@ -178,6 +178,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             });
         }
 
+        writers.useFileWriter("validators.go", settings.getModuleName(), writer -> {
+            new ValidationGenerator(writer, model, symbolProvider, service).run();
+        });
+
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();
         writers.flushWriters();
