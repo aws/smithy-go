@@ -113,7 +113,7 @@ public class ValidationGenerator implements Runnable {
                                 } else {
                                     writer.write("if v.$L != nil {", memberName);
                                 }
-                                writer.write("invalidParams.Add(NewErrParamRequired($S))", memberName);
+                                writer.write("invalidParams.Add(smithy.NewErrParamRequired($S))", memberName);
                                 if (hasHelper) {
                                     writer.writeInline("} else ");
                                 } else {
