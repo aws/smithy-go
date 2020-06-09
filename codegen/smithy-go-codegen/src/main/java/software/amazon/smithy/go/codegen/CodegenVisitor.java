@@ -238,7 +238,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 Symbol operationSymbol = symbolProvider.toSymbol(operation);
                 writers.useShapeWriter(operation, operationWriter -> new OperationGenerator(
                         settings, model, symbolProvider, operationWriter, service, operation,
-                        operationSymbol, applicationProtocol).run());
+                        operationSymbol, applicationProtocol, protocolGenerator).run());
             }
         });
         return null;
