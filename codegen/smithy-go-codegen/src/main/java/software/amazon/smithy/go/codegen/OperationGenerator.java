@@ -154,13 +154,15 @@ final class OperationGenerator implements Runnable {
      */
     private void populateOperationMiddlewareStack() {
         writer.write("");
+        // add serializer middleware
         String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(operation.getId(),
                 protocolGenerator.getProtocolName());
-        writer.write("stack.Serialize.Add($L{}, middleware.After)", serializerMiddlewareName);
+        writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
 
+        // add deserializer middleware
         String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(),
                 protocolGenerator.getProtocolName());
-        writer.write("stack.Deserialize.Add($L{}, middleware.After)", deserializerMiddlewareName);
+        writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
         writer.write("");
     }
 }
