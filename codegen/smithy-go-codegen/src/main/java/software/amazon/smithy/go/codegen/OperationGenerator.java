@@ -172,7 +172,7 @@ final class OperationGenerator implements Runnable {
         }
 
         for (GoIntegration integration: integrations) {
-            integration.assembleMiddlewareStack(settings, model, symbolProvider, writer, operation);
+            integration.assembleMiddlewareStack(settings, model, symbolProvider, writer, service, operation);
         }
 
         writer.write("");

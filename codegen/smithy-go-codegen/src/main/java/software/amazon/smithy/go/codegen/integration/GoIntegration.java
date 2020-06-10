@@ -28,6 +28,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 
@@ -122,13 +123,15 @@ public interface GoIntegration {
      * @param model Model to generate from.
      * @param symbolProvider Symbol provider used for codegen.
      * @param writer Writer that will be used.
-     * @param operationShape Operation Shape that is being defined in the writer.
+     * @param serviceShape Service shape of the operation.
+     * @param operationShape Operation Shape for which middleware stack is populated.
      */
     default void assembleMiddlewareStack(
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
+            ServiceShape serviceShape,
             OperationShape operationShape
     ) {
         // pass
