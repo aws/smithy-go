@@ -62,7 +62,13 @@ public enum GoDependency implements SymbolDependencyContainer {
     AWS_REST_JSON_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
             "github.com/aws/aws-sdk-go-v2/aws/protocol/restjson", null, Versions.AWS_SDK),
     AWS_PRIVATE_PROTOCOL("dependency", "github.com/aws/aws-sdk-go-v2",
-            "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK);
+            "github.com/aws/aws-sdk-go-v2/private/protocol", null, Versions.AWS_SDK),
+    AWS_MIDDLEWARE("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/middleware", "awsmiddleware", Versions.AWS_SDK),
+    AWS_RETRY_MIDDLEWARE("dependency", "github.com/aws/aws-sdk-go-v2",
+                        "github.com/aws/aws-sdk-go-v2/aws/retry", null, Versions.AWS_SDK),
+    AWS_V4SIGNER_MIDDLEWARE("dependency", "github.com/aws/aws-sdk-go-v2",
+            "github.com/aws/aws-sdk-go-v2/aws/signer/v4", null, Versions.AWS_SDK);
 
     public final String sourcePath;
     public final String importPath;
