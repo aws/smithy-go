@@ -13,16 +13,37 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen;
+/*
+ * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+
+package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDependency;
+import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -34,28 +55,8 @@ import software.amazon.smithy.utils.StringUtils;
 /**
  * Generates Go validation middleware and shape helpers.
  */
-public class ValidationGenerator implements Runnable {
-    private final GoWriter writer;
-    private final Model model;
-    private final SymbolProvider symbolProvider;
-    private final ServiceShape service;
-    private final Walker walker;
-
-    public ValidationGenerator(
-            GoWriter writer,
-            Model model,
-            SymbolProvider symbolProvider,
-            ServiceShape service
-    ) {
-        this.writer = writer;
-        this.model = model;
-        this.symbolProvider = symbolProvider;
-        this.service = service;
-        this.walker = new Walker(this.model);
-    }
-
-    @Override
-    public void run() {
+public class ValidationGenerator implements GoIntegration {
+    private void execute(GoWriter writer, Model model, SymbolProvider symbolProvider, ServiceShape service) {
         GoValidationIndex validationIndex = model.getKnowledge(GoValidationIndex.class);
         Map<Shape, OperationShape> inputShapeToOperation = new TreeMap<>();
         validationIndex.getOperationsRequiringValidation(service).forEach(operationShape -> {
@@ -64,13 +65,18 @@ public class ValidationGenerator implements Runnable {
         });
         Set<Shape> shapesWithHelpers = validationIndex.getShapesRequiringValidationHelpers(service);
 
-        generateOperationValidationMiddleware(inputShapeToOperation);
-        generateShapeValidationFunctions(inputShapeToOperation.keySet(), shapesWithHelpers);
+        generateOperationValidationMiddleware(writer, symbolProvider, inputShapeToOperation);
+        generateShapeValidationFunctions(writer, model, symbolProvider, inputShapeToOperation.keySet(),
+                shapesWithHelpers);
     }
 
-    private void generateOperationValidationMiddleware(Map<Shape, OperationShape> operationShapeMap) {
+    private void generateOperationValidationMiddleware(
+            GoWriter writer,
+            SymbolProvider symbolProvider,
+            Map<Shape, OperationShape> operationShapeMap
+    ) {
         for (Map.Entry<Shape, OperationShape> entry : operationShapeMap.entrySet()) {
-            GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createBuildStepMiddleware(
+            GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createInitalizeStepMiddleware(
                     getOperationValidationMiddlewareName(entry.getValue()));
             String helperName = getShapeValidationFunctionName(entry.getKey(), true);
             Symbol inputSymbol = symbolProvider.toSymbol(entry.getKey());
@@ -90,7 +96,12 @@ public class ValidationGenerator implements Runnable {
         }
     }
 
-    private void generateShapeValidationFunctions(Set<Shape> operationInputShapes, Set<Shape> shapesWithHelpers) {
+    private void generateShapeValidationFunctions(
+            GoWriter writer,
+            Model model, SymbolProvider symbolProvider,
+            Set<Shape> operationInputShapes,
+            Set<Shape> shapesWithHelpers
+    ) {
         for (Shape shape : shapesWithHelpers) {
             boolean topLevelShape = operationInputShapes.contains(shape);
             String functionName = getShapeValidationFunctionName(shape, topLevelShape);
@@ -185,8 +196,15 @@ public class ValidationGenerator implements Runnable {
         return builder.toString();
     }
 
-    public static boolean requiresInputValidationMiddleware(Model model, OperationShape shape) {
-        Shape inputShape = model.expectShape(shape.getInput().get());
-        return inputShape.members().size() > 0;
+    @Override
+    public void writeAdditionalFiles(
+            GoSettings settings,
+            Model model,
+            SymbolProvider symbolProvider,
+            TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+    ) {
+        writerFactory.accept("validators.go", settings.getModuleName(), writer -> {
+            execute(writer, model, symbolProvider, settings.getService(model));
+        });
     }
 }
