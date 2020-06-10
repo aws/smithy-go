@@ -15,9 +15,11 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.List;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
@@ -39,6 +41,7 @@ final class OperationGenerator implements Runnable {
     private final Symbol operationSymbol;
     private final ApplicationProtocol applicationProtocol;
     private final ProtocolGenerator protocolGenerator;
+    private final List<GoIntegration> integrations;
 
     OperationGenerator(
             GoSettings settings,
@@ -49,7 +52,8 @@ final class OperationGenerator implements Runnable {
             OperationShape operation,
             Symbol operationSymbol,
             ApplicationProtocol applicationProtocol,
-            ProtocolGenerator protocolGenerator
+            ProtocolGenerator protocolGenerator,
+            List<GoIntegration> integrations
     ) {
         this.settings = settings;
         this.model = model;
@@ -60,6 +64,7 @@ final class OperationGenerator implements Runnable {
         this.operationSymbol = operationSymbol;
         this.applicationProtocol = applicationProtocol;
         this.protocolGenerator = protocolGenerator;
+        this.integrations = integrations;
     }
 
     @Override
@@ -96,10 +101,8 @@ final class OperationGenerator implements Runnable {
                         writer.write("if err := fn(stack); err != nil { return nil, err }");
                     });
 
-                    if (protocolGenerator != null) {
-                        // add middleware to operation stack
-                        populateOperationMiddlewareStack();
-                    }
+                    // add middleware to operation stack
+                    populateOperationMiddlewareStack();
 
                     constructHandler();
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
@@ -162,15 +165,26 @@ final class OperationGenerator implements Runnable {
      */
     private void populateOperationMiddlewareStack() {
         writer.write("");
-        // add serializer middleware
-        String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(operation.getId(),
-                protocolGenerator.getProtocolName());
-        writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
 
-        // add deserializer middleware
-        String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(),
-                protocolGenerator.getProtocolName());
-        writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+        // protocol specific middleware generation
+        if (protocolGenerator != null) {
+            // add serializer middleware
+            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(operation.getId(),
+                    protocolGenerator.getProtocolName());
+            writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+
+            // add deserializer middleware
+            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(),
+                    protocolGenerator.getProtocolName());
+            writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+        }
+
+        for (GoIntegration integration: integrations) {
+            integration.assembleMiddlewareStack(settings, model, symbolProvider, writer, operation);
+        }
+
         writer.write("");
+
     }
+
 }

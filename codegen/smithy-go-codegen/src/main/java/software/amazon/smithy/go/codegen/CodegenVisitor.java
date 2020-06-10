@@ -236,9 +236,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
             for (OperationShape operation : containedOperations) {
                 Symbol operationSymbol = symbolProvider.toSymbol(operation);
+
                 writers.useShapeWriter(operation, operationWriter -> new OperationGenerator(
                         settings, model, symbolProvider, operationWriter, service, operation,
-                        operationSymbol, applicationProtocol, protocolGenerator).run());
+                        operationSymbol, applicationProtocol, protocolGenerator, integrations).run());
             }
         });
         return null;
