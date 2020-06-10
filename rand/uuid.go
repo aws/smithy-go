@@ -31,10 +31,11 @@ func (r *UUID) GetUUID() (string, error) {
 // uuidVersion4 returns a random UUID version 4 from the byte slice provided.
 func uuidVersion4(u [16]byte) string {
 	// https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29
+
 	// 13th character is "4"
-	u[6] = (u[6] | 0x40) & 0x4F
+	u[6] = (u[6] & 0x0f) | 0x40 // Version 4
 	// 17th character is "8", "9", "a", or "b"
-	u[8] = (u[8] | 0x80) & 0xBF
+	u[8] = (u[8] & 0x3f) | 0x80 // Variant is 10
 
 	return fmt.Sprintf(`%X-%X-%X-%X-%X`, u[0:4], u[4:6], u[6:8], u[8:10], u[10:])
 }
