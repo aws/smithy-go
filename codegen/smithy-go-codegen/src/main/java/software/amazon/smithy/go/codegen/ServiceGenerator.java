@@ -74,6 +74,10 @@ final class ServiceGenerator implements Runnable {
             writer.write("options $L", CONFIG_NAME);
         });
 
+        // define randReader with default value as crypto/rand reader
+        writer.addUseImports(GoDependency.CRYPTORAND);
+        writer.write("var randReader io.Reader = cryptorand.Reader");
+
         generateConstructor(serviceSymbol);
 
         String clientId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());

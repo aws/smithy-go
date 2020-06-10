@@ -23,9 +23,12 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 
 /**
  * Generates a client operation and associated custom shapes.
@@ -135,6 +138,32 @@ final class OperationGenerator implements Runnable {
             writer.writeDocs("Metadata pertaining to the operation's result.");
             writer.write("ResultMetadata $T", metadataSymbol);
         });
+
+        for (MemberShape memberShape: inputShape.members()) {
+            if (memberShape.hasTrait(IdempotencyTokenTrait.class)) {
+                // Generate Middleware for Idempotency token trait
+                GoStackStepMiddlewareGenerator middleware =
+                        GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
+                                getIdempotencyTokenMiddlewareName(operation));
+
+                String memberName = symbolProvider.toMemberName(memberShape);
+                middleware.writeMiddleware(writer, (generator, middlewareWriter) -> {
+                    middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
+                    middlewareWriter.write("if !ok { return out, metadata, "
+                                    + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
+
+                    middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
+                        middlewareWriter.addUseImports(GoDependency.SMITHY_RAND);
+                        middlewareWriter.write("uuid := smithyrand.NewUUID(randReader)");
+                        middlewareWriter.write("v, err := uuid.GetUUID()");
+                        middlewareWriter.write("if err != nil { return out, metadata, err}");
+                        middlewareWriter.write("input.$L = &v", memberName);
+                    });
+                    middlewareWriter.write("return next.HandleInitialize(ctx, in)");
+                });
+                break;
+            }
+        }
     }
 
     private void constructStack() {
@@ -166,6 +195,16 @@ final class OperationGenerator implements Runnable {
     private void populateOperationMiddlewareStack() {
         writer.write("");
 
+        Shape inputShape = model.expectShape(operation.getInput().get());
+        for (MemberShape memberShape: inputShape.members()) {
+            if (memberShape.hasTrait(IdempotencyTokenTrait.class)) {
+                // Idempotency token Middleware
+                writer.write("stack.Initialize.Add(&$L{}, middleware.After)",
+                        getIdempotencyTokenMiddlewareName(operation));
+                break;
+            }
+        }
+
         // protocol specific middleware generation
         if (protocolGenerator != null) {
             // add serializer middleware
@@ -185,6 +224,16 @@ final class OperationGenerator implements Runnable {
 
         writer.write("");
 
+    }
+
+    /**
+     * Get Idempotency Token Middleware name.
+     *
+     * @param operationShape Operation shape for which middleware is defined.
+     * @return name of the idempotency token middleware.
+     */
+    private String getIdempotencyTokenMiddlewareName(OperationShape operationShape) {
+        return String.format("idempotencyToken_initializeOp%s", operationShape.getId().getName());
     }
 
 }
