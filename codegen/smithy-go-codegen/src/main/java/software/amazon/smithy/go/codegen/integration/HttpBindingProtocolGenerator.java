@@ -254,9 +254,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         HttpTrait httpTrait = operation.expectTrait(HttpTrait.class);
 
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
-            writer.addUseImports(SmithyGoDependency.FMT.getDependency());
-            writer.addUseImports(SmithyGoDependency.SMITHY.getDependency());
-            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING.getDependency());
+            writer.addUseImports(SmithyGoDependency.FMT);
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
 
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
@@ -278,7 +278,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
             writer.write("request.Request.URL.Path = $S", httpTrait.getUri());
             writer.write("request.Request.Method = $S", httpTrait.getMethod());
-            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING.getDependency());
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
             writer.write("restEncoder := httpbinding.NewEncoder(request.Request)");
             writer.write("");
 
@@ -286,7 +286,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             if (isOperationWithRestRequestBindings(model, operation)) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
-                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING.getDependency());
+                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
                 });
@@ -318,7 +318,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         GoWriter goWriter = context.getWriter();
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
-            writer.addUseImports(SmithyGoDependency.FMT.getDependency());
+            writer.addUseImports(SmithyGoDependency.FMT);
 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("if err != nil { return out, metadata, err }");
@@ -326,7 +326,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
-                writer.addUseImports(SmithyGoDependency.SMITHY.getDependency());
+                writer.addUseImports(SmithyGoDependency.SMITHY);
                 writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });
@@ -353,7 +353,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                 writer.write("err= $L(output, response)", deserFuncName);
                 writer.openBlock("if err != nil {", "}", () -> {
-                    writer.addUseImports(SmithyGoDependency.SMITHY.getDependency());
+                    writer.addUseImports(SmithyGoDependency.SMITHY);
                     writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                             "fmt.Errorf(\"failed to decode response with invalid Http bindings, %w\", err)"));
                 });
@@ -509,7 +509,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
 
-        writer.addUseImports(SmithyGoDependency.FMT.getDependency());
+        writer.addUseImports(SmithyGoDependency.FMT);
         writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, restEncoder,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
@@ -529,8 +529,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private Symbol getRestEncoderSymbol() {
-        return SymbolUtils.createPointableSymbolBuilder("Encoder",
-                SmithyGoDependency.SMITHY_HTTP_BINDING.getDependency()).build();
+        return SymbolUtils.createPointableSymbolBuilder("Encoder", SmithyGoDependency.SMITHY_HTTP_BINDING).build();
     }
 
     private void generateHttpBindingTimestampSerializer(
@@ -541,7 +540,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String operand,
             BiConsumer<GoWriter, String> locationEncoder
     ) {
-        writer.addUseImports(SmithyGoDependency.SMITHY_TIME.getDependency());
+        writer.addUseImports(SmithyGoDependency.SMITHY_TIME);
 
         TimestampFormatTrait.Format format = model.getKnowledge(HttpBindingIndex.class).determineTimestampFormat(
                 memberShape, location, getDocumentTimestampFormat());
@@ -828,9 +827,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         Symbol smithyHttpResponsePointableSymbol = SymbolUtils.createPointableSymbolBuilder(
-                "Response", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.getDependency()).build();
+                "Response", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
 
-        writer.addUseImports(SmithyGoDependency.FMT.getDependency());
+        writer.addUseImports(SmithyGoDependency.FMT);
 
         String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(targetShape,
                 getProtocolName());
@@ -875,12 +874,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }
                 return operand;
             case BOOLEAN:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseBool($L)", operand);
                 writer.write("if err != nil { return err }");
                 return "vv";
             case TIMESTAMP:
-                writer.addUseImports(SmithyGoDependency.SMITHY_TIME.getDependency());
+                writer.addUseImports(SmithyGoDependency.SMITHY_TIME);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
                 TimestampFormatTrait.Format format = bindingIndex.determineTimestampFormat(
                         targetShape,
@@ -889,7 +888,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 );
                 switch (format) {
                     case EPOCH_SECONDS:
-                        writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                        writer.addUseImports(SmithyGoDependency.STRCONV);
                         writer.write("f, err := strconv.ParseFloat($L, 64)", operand);
                         writer.write("if err != nil { return err }");
                         writer.write("t := smithytime.ParseEpochSeconds(f)");
@@ -907,37 +906,37 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }
                 return "t";
             case BYTE:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseInt($L, 0, 8)", operand);
                 writer.write("if err != nil { return err }");
                 return "int8(vv)";
             case SHORT:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseInt($L, 0, 16)", operand);
                 writer.write("if err != nil { return err }");
                 return "int16(vv)";
             case INTEGER:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseInt($L, 0, 32)", operand);
                 writer.write("if err != nil { return err }");
                 return "int32(vv)";
             case LONG:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseInt($L, 0, 64)", operand);
                 writer.write("if err != nil { return err }");
                 return "vv";
             case FLOAT:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseFloat($L, 32)", operand);
                 writer.write("if err != nil { return err }");
                 return "float32(vv)";
             case DOUBLE:
-                writer.addUseImports(SmithyGoDependency.STRCONV.getDependency());
+                writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseFloat($L, 64)", operand);
                 writer.write("if err != nil { return err }");
                 return "vv";
             case BIG_INTEGER:
-                writer.addUseImports(SmithyGoDependency.BIG.getDependency());
+                writer.addUseImports(SmithyGoDependency.BIG);
                 writer.write("i := big.NewInt(0)");
                 writer.write("bi, ok := i.SetString($L,0)", operand);
                 writer.openBlock("if !ok {", "}", () -> {
@@ -948,7 +947,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 });
                 return "*bi";
             case BIG_DECIMAL:
-                writer.addUseImports(SmithyGoDependency.BIG.getDependency());
+                writer.addUseImports(SmithyGoDependency.BIG);
                 writer.write("f := big.NewFloat(0)");
                 writer.write("bd, ok := f.SetString($L,0)", operand);
                 writer.openBlock("if !ok {", "}", () -> {
@@ -959,7 +958,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 });
                 return "*bd";
             case BLOB:
-                writer.addUseImports(SmithyGoDependency.BASE64.getDependency());
+                writer.addUseImports(SmithyGoDependency.BASE64);
                 writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
                 writer.write("if err != nil { return err }");
                 return "b";
@@ -987,7 +986,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         writer.write("list := make([]$P, 0, 0)", targetSymbol);
 
-        writer.addUseImports(SmithyGoDependency.STRINGS.getDependency());
+        writer.addUseImports(SmithyGoDependency.STRINGS);
         writer.openBlock("for _, i := range strings.Split($L[1:len($L)-1], $S) {",
                 "}", operand, operand, ",",
                 () -> {

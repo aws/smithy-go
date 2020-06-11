@@ -83,8 +83,8 @@ final class ServiceGenerator implements Runnable {
 
         generateConfig();
 
-        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack",
-                SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build();
+        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                .build();
         writer.write("type $L func($P) error", API_OPTIONS_FUNC_NAME, stackSymbol);
     }
 
@@ -152,7 +152,7 @@ final class ServiceGenerator implements Runnable {
 
     private void generateApplicationProtocolTypes() {
         ensureSupportedProtocol();
-        writer.addUseImports(SmithyGoDependency.NET_HTTP.getDependency());
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
         writer.openBlock("type HTTPClient interface {", "}", () -> {
             writer.write("Do(*http.Request) (*http.Response, error)");
         }).write("");

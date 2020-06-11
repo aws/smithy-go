@@ -197,7 +197,7 @@ public final class CodegenUtils {
                 return operand;
         }
 
-        writer.addUseImports(SmithyGoDependency.SMITHY_PTR.getDependency());
+        writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         return prefix + operand + suffix;
     }
 

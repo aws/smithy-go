@@ -18,33 +18,32 @@ package software.amazon.smithy.go.codegen;
 /**
  * An enum of all the built-in dependencies used by this package.
  */
-public enum SmithyGoDependency {
-
+public final class SmithyGoDependency {
     // The version in the stdlib dependencies should reflect the minimum Go version.
     // The values aren't currently used, but they could potentially used to dynamically
     // set the minimum go version.
-    BIG(stdlib("math/big")),
-    TIME(stdlib("time")),
-    FMT(stdlib("fmt")),
-    CONTEXT(stdlib("context")),
-    STRCONV(stdlib("strconv")),
-    BASE64(stdlib("encoding/base64")),
-    NET_URL(stdlib("net/url")),
-    NET_HTTP(stdlib("net/http")),
-    BYTES(stdlib("bytes")),
-    STRINGS(stdlib("strings")),
-    JSON(stdlib("encoding/json")),
-    IO(stdlib("io")),
-    IOUTIL(stdlib("io/ioutil")),
+    public static final GoDependency BIG = stdlib("math/big");
+    public static final GoDependency TIME = stdlib("time");
+    public static final GoDependency FMT = stdlib("fmt");
+    public static final GoDependency CONTEXT = stdlib("context");
+    public static final GoDependency STRCONV = stdlib("strconv");
+    public static final GoDependency BASE64 = stdlib("encoding/base64");
+    public static final GoDependency NET_URL = stdlib("net/url");
+    public static final GoDependency NET_HTTP = stdlib("net/http");
+    public static final GoDependency BYTES = stdlib("bytes");
+    public static final GoDependency STRINGS = stdlib("strings");
+    public static final GoDependency JSON = stdlib("encoding/json");
+    public static final GoDependency IO = stdlib("io");
+    public static final GoDependency IOUTIL = stdlib("io/ioutil");
 
-    SMITHY(smithy(null, "smithy")),
-    SMITHY_HTTP_TRANSPORT(smithy("transport/http", "smithyhttp")),
-    SMITHY_MIDDLEWARE(smithy("middleware")),
-    SMITHY_TIME(smithy("time", "smithytime")),
-    SMITHY_HTTP_BINDING(smithy("httpbinding")),
-    SMITHY_JSON(smithy("json", "smithyjson")),
-    SMITHY_IO(smithy("io", "smithyio")),
-    SMITHY_PTR(smithy("ptr"));
+    public static final GoDependency SMITHY = smithy(null, "smithy");
+    public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
+    public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
+    public static final GoDependency SMITHY_TIME = smithy("time", "smithytime");
+    public static final GoDependency SMITHY_HTTP_BINDING = smithy("httpbinding");
+    public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");
+    public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
+    public static final GoDependency SMITHY_PTR = smithy("ptr");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
 
@@ -52,10 +51,6 @@ public enum SmithyGoDependency {
 
     SmithyGoDependency(GoDependency dependency) {
         this.dependency = dependency;
-    }
-
-    public GoDependency getDependency() {
-        return dependency;
     }
 
     private static GoDependency stdlib(String importPath) {

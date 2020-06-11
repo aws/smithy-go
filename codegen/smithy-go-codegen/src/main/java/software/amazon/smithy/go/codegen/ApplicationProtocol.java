@@ -60,8 +60,7 @@ public final class ApplicationProtocol {
     }
 
     private static Symbol createHttpSymbol(String symbolName) {
-        return SymbolUtils.createPointableSymbolBuilder(symbolName,
-                SmithyGoDependency.SMITHY_HTTP_TRANSPORT.getDependency())
+        return SymbolUtils.createPointableSymbolBuilder(symbolName, SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
                 .build();
     }
 

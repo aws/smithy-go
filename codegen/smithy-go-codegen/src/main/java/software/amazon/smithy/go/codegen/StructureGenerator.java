@@ -105,8 +105,8 @@ final class StructureGenerator implements Runnable {
      */
     private void renderErrorStructure() {
         Symbol structureSymbol = symbolProvider.toSymbol(shape);
-        writer.addUseImports(SmithyGoDependency.SMITHY.getDependency());
-        writer.addUseImports(SmithyGoDependency.FMT.getDependency());
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addUseImports(SmithyGoDependency.FMT);
         ErrorTrait errorTrait = shape.expectTrait(ErrorTrait.class);
 
         // Write out a struct to hold the error data.
