@@ -95,7 +95,14 @@ final class OperationGenerator implements Runnable {
                     constructHandler();
 
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
-                    writer.write("if err != nil { return nil, err }");
+                    writer.openBlock("if err != nil {", "}", () ->{
+                        writer.addUseImports(GoDependency.SMITHY);
+                        writer.openBlock("return nil, &smithy.OperationError{", "}", () -> {
+                            writer.write("ServiceID: c.ServiceID(),");
+                            writer.write("OperationName: \"$T\",", operationSymbol);
+                            writer.write("Err: err,");
+                        });
+                    });
                     writer.write("out := result.($P)", outputSymbol);
                     writer.write("out.ResultMetadata = metadata");
                     writer.write("return out, nil");
