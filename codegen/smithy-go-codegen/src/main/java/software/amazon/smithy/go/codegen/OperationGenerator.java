@@ -95,7 +95,7 @@ final class OperationGenerator implements Runnable {
                     constructHandler();
 
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
-                    writer.openBlock("if err != nil {", "}", () ->{
+                    writer.openBlock("if err != nil {", "}", () -> {
                         writer.addUseImports(GoDependency.SMITHY);
                         writer.openBlock("return nil, &smithy.OperationError{", "}", () -> {
                             writer.write("ServiceID: c.ServiceID(),");
@@ -111,7 +111,8 @@ final class OperationGenerator implements Runnable {
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
         new StructureGenerator(model, symbolProvider, writer, inputShape, inputSymbol)
-                .renderStructure(() -> { }, true);
+                .renderStructure(() -> {
+                }, true);
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder(
