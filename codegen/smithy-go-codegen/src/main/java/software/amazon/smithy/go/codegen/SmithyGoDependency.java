@@ -47,10 +47,7 @@ public final class SmithyGoDependency {
 
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
 
-    private final GoDependency dependency;
-
-    SmithyGoDependency(GoDependency dependency) {
-        this.dependency = dependency;
+    private SmithyGoDependency() {
     }
 
     private static GoDependency stdlib(String importPath) {
