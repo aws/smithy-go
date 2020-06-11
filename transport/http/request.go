@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 )
 
 // Request provides the HTTP specific request structure for HTTP specific
@@ -23,6 +24,7 @@ type Request struct {
 func NewStackRequest() interface{} {
 	return &Request{
 		Request: &http.Request{
+			URL:    &url.URL{},
 			Header: http.Header{},
 		},
 	}
@@ -92,7 +94,9 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 	// likely want to defer this to the caller, and not allow the underlying
 	// http round tripper close the stream.
 
-	req.Body = ioutil.NopCloser(r.stream)
+	if r.stream != nil {
+		req.Body = ioutil.NopCloser(r.stream)
+	}
 
 	return req
 }
