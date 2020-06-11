@@ -32,7 +32,6 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
-import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -198,27 +197,8 @@ public final class CodegenUtils {
                 return operand;
         }
 
-        writer.addUseImports(GoDependency.SMITHY_PTR);
+        writer.addUseImports(SmithyGoDependency.SMITHY_PTR.getDependency());
         return prefix + operand + suffix;
-    }
-
-    /**
-     * Get SDK equivalent timestamp format name for TimestampFormatTrait.Format enum.
-     *
-     * @param format The format is TimestampFormatTrait.Format enum
-     * @return SDK equivalent timestamp format name
-     */
-    public static String getTimeStampFormatName(TimestampFormatTrait.Format format) {
-        switch (format) {
-            case DATE_TIME:
-                return "ISO8601TimeFormatName";
-            case EPOCH_SECONDS:
-                return "UnixTimeFormatName";
-            case HTTP_DATE:
-                return "RFC822TimeFormat";
-            default:
-                throw new CodegenException("unknown timestamp format found: " + format.toString());
-        }
     }
 
     /**

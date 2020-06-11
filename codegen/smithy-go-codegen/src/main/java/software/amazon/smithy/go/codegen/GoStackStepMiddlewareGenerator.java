@@ -23,9 +23,9 @@ import software.amazon.smithy.codegen.core.Symbol;
  */
 public final class GoStackStepMiddlewareGenerator {
     private static final Symbol CONTEXT_TYPE = SymbolUtils.createValueSymbolBuilder(
-            "Context", GoDependency.CONTEXT).build();
+            "Context", SmithyGoDependency.CONTEXT.getDependency()).build();
     private static final Symbol METADATA_TYPE = SymbolUtils.createValueSymbolBuilder(
-            "Metadata", GoDependency.SMITHY_MIDDLEWARE).build();
+            "Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build();
 
     private final Symbol middlewareSymbol;
     private final String handleMethodName;
@@ -55,9 +55,12 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleSerialize",
-                SymbolUtils.createValueSymbolBuilder("SerializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("SerializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("SerializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("SerializeInput",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build(),
+                SymbolUtils.createValueSymbolBuilder("SerializeOutput",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build(),
+                SymbolUtils.createValueSymbolBuilder("SerializeHandler",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build());
     }
 
     /**
@@ -69,9 +72,12 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleDeserialize",
-                SymbolUtils.createValueSymbolBuilder("DeserializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("DeserializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("DeserializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("DeserializeInput",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build(),
+                SymbolUtils.createValueSymbolBuilder("DeserializeOutput",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build(),
+                SymbolUtils.createValueSymbolBuilder("DeserializeHandler",
+                        SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build());
     }
 
     /**

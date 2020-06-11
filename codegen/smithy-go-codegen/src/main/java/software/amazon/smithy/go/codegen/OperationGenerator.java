@@ -79,7 +79,8 @@ final class OperationGenerator implements Runnable {
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
         writer.writeShapeDocs(operation);
-        Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", GoDependency.CONTEXT).build();
+        Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context",
+                SmithyGoDependency.CONTEXT.getDependency()).build();
         writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
                     constructStack();
@@ -116,7 +117,7 @@ final class OperationGenerator implements Runnable {
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder(
-                "Metadata", GoDependency.SMITHY_MIDDLEWARE).build();
+                "Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build();
         new StructureGenerator(model, symbolProvider, writer, outputShape, outputSymbol).renderStructure(() -> {
             if (outputShape.getMemberNames().size() != 0) {
                 writer.write("");
@@ -131,8 +132,8 @@ final class OperationGenerator implements Runnable {
             throw new UnsupportedOperationException(
                     "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
         }
-        writer.addUseImports(GoDependency.SMITHY_MIDDLEWARE);
-        writer.addUseImports(GoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency());
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT.getDependency());
         writer.write("stack := middleware.NewStack($S, smithyhttp.NewStackRequest)", operationSymbol.getName());
     }
 
@@ -142,9 +143,9 @@ final class OperationGenerator implements Runnable {
                     "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
         }
         Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
-                "DecorateHandler", GoDependency.SMITHY_MIDDLEWARE).build();
+                "DecorateHandler", SmithyGoDependency.SMITHY_MIDDLEWARE.getDependency()).build();
         Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
-                "NewClientHandler", GoDependency.SMITHY_HTTP_TRANSPORT).build();
+                "NewClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.getDependency()).build();
         writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
     }
 }

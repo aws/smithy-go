@@ -13,7 +13,7 @@ func TestDateTime(t *testing.T) {
 		t.Errorf("expected %v, got %v", e, a)
 	}
 
-	parseTime, err := ParseDateTimeFormat(dateTime)
+	parseTime, err := ParseDateTime(dateTime)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

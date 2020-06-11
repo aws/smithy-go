@@ -175,9 +175,9 @@ public final class SymbolUtils {
     }
 
     private static Symbol.Builder setImportedNamespace(Symbol.Builder builder, GoDependency dependency) {
-        return builder.namespace(dependency.importPath, ".")
+        return builder.namespace(dependency.getImportPath(), ".")
                 .addDependency(dependency)
-                .putProperty(NAMESPACE_ALIAS, dependency.alias);
+                .putProperty(NAMESPACE_ALIAS, dependency.getAlias());
     }
 
     /**
