@@ -16,7 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 /**
- * An enum of all the built-in dependencies used by this package.
+ * A class of constants for dependencies used by this package.
  */
 public final class SmithyGoDependency {
     // The version in the stdlib dependencies should reflect the minimum Go version.
