@@ -26,9 +26,7 @@ import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 
 /**
  * Generates a client operation and associated custom shapes.
@@ -45,6 +43,7 @@ final class OperationGenerator implements Runnable {
     private final ApplicationProtocol applicationProtocol;
     private final ProtocolGenerator protocolGenerator;
     private final List<GoIntegration> integrations;
+    private final MemberShape idempotencyTokenMemberShape;
 
     OperationGenerator(
             GoSettings settings,
@@ -56,7 +55,8 @@ final class OperationGenerator implements Runnable {
             Symbol operationSymbol,
             ApplicationProtocol applicationProtocol,
             ProtocolGenerator protocolGenerator,
-            List<GoIntegration> integrations
+            List<GoIntegration> integrations,
+            MemberShape idempotencyTokenMemberShape
     ) {
         this.settings = settings;
         this.model = model;
@@ -68,6 +68,7 @@ final class OperationGenerator implements Runnable {
         this.applicationProtocol = applicationProtocol;
         this.protocolGenerator = protocolGenerator;
         this.integrations = integrations;
+        this.idempotencyTokenMemberShape = idempotencyTokenMemberShape;
     }
 
     @Override
@@ -139,30 +140,27 @@ final class OperationGenerator implements Runnable {
             writer.write("ResultMetadata $T", metadataSymbol);
         });
 
-        for (MemberShape memberShape: inputShape.members()) {
-            if (memberShape.hasTrait(IdempotencyTokenTrait.class)) {
-                // Generate Middleware for Idempotency token trait
-                GoStackStepMiddlewareGenerator middleware =
-                        GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
-                                getIdempotencyTokenMiddlewareName(operation));
+        if (idempotencyTokenMemberShape != null) {
+            // Generate Middleware for Idempotency token trait
+            GoStackStepMiddlewareGenerator middleware =
+                    GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
+                            getIdempotencyTokenMiddlewareName(operation));
 
-                String memberName = symbolProvider.toMemberName(memberShape);
-                middleware.writeMiddleware(writer, (generator, middlewareWriter) -> {
-                    middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
-                    middlewareWriter.write("if !ok { return out, metadata, "
-                                    + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
+            String memberName = symbolProvider.toMemberName(idempotencyTokenMemberShape);
+            middleware.writeMiddleware(writer, (generator, middlewareWriter) -> {
+                middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
+                middlewareWriter.write("if !ok { return out, metadata, "
+                        + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
 
-                    middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
-                        middlewareWriter.addUseImports(GoDependency.SMITHY_RAND);
-                        middlewareWriter.write("uuid := smithyrand.NewUUID(randReader)");
-                        middlewareWriter.write("v, err := uuid.GetUUID()");
-                        middlewareWriter.write("if err != nil { return out, metadata, err}");
-                        middlewareWriter.write("input.$L = &v", memberName);
-                    });
-                    middlewareWriter.write("return next.HandleInitialize(ctx, in)");
+                middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
+                    middlewareWriter.addUseImports(GoDependency.SMITHY_RAND);
+                    middlewareWriter.write("uuid := smithyrand.NewUUID(randReader)");
+                    middlewareWriter.write("v, err := uuid.GetUUID()");
+                    middlewareWriter.write("if err != nil { return out, metadata, err}");
+                    middlewareWriter.write("input.$L = &v", memberName);
                 });
-                break;
-            }
+                middlewareWriter.write("return next.HandleInitialize(ctx, in)");
+            });
         }
     }
 
@@ -195,14 +193,9 @@ final class OperationGenerator implements Runnable {
     private void populateOperationMiddlewareStack() {
         writer.write("");
 
-        Shape inputShape = model.expectShape(operation.getInput().get());
-        for (MemberShape memberShape: inputShape.members()) {
-            if (memberShape.hasTrait(IdempotencyTokenTrait.class)) {
-                // Idempotency token Middleware
-                writer.write("stack.Initialize.Add(&$L{}, middleware.After)",
-                        getIdempotencyTokenMiddlewareName(operation));
-                break;
-            }
+        if (idempotencyTokenMemberShape != null) {
+            writer.write("stack.Initialize.Add(&$L{}, middleware.After)",
+                    getIdempotencyTokenMiddlewareName(operation));
         }
 
         // protocol specific middleware generation

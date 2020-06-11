@@ -45,6 +45,7 @@ final class ServiceGenerator implements Runnable {
     private final List<GoIntegration> integrations;
     private final List<RuntimeClientPlugin> runtimePlugins;
     private final ApplicationProtocol applicationProtocol;
+    private final Boolean supportsIdempotencyTokenTrait;
 
     ServiceGenerator(
             GoSettings settings,
@@ -54,7 +55,8 @@ final class ServiceGenerator implements Runnable {
             ServiceShape service,
             List<GoIntegration> integrations,
             List<RuntimeClientPlugin> runtimePlugins,
-            ApplicationProtocol applicationProtocol
+            ApplicationProtocol applicationProtocol,
+            Boolean supportsIdempotencyTokenTrait
     ) {
         this.settings = settings;
         this.model = model;
@@ -64,6 +66,7 @@ final class ServiceGenerator implements Runnable {
         this.integrations = integrations;
         this.runtimePlugins = runtimePlugins;
         this.applicationProtocol = applicationProtocol;
+        this.supportsIdempotencyTokenTrait = supportsIdempotencyTokenTrait;
     }
 
     @Override
@@ -74,9 +77,11 @@ final class ServiceGenerator implements Runnable {
             writer.write("options $L", CONFIG_NAME);
         });
 
-        // define randReader with default value as crypto/rand reader
-        writer.addUseImports(GoDependency.CRYPTORAND);
-        writer.write("var randReader io.Reader = cryptorand.Reader");
+        if (supportsIdempotencyTokenTrait) {
+            // define randReader with default value as crypto/rand reader
+            writer.addUseImports(GoDependency.CRYPTORAND);
+            writer.write("var randReader io.Reader = cryptorand.Reader");
+        }
 
         generateConstructor(serviceSymbol);
 
