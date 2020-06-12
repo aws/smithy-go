@@ -21,9 +21,9 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ShapeValueGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -141,7 +141,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param writer writer to write generated code with.
      */
     public void generateTestFunction(GoWriter writer) {
-        writer.addUseImports(GoDependency.TESTING);
+        writer.addUseImports(SmithyGoDependency.TESTING);
         writer.openBlock("func " + unitTestFuncNameFormat() + "(t *testing.T) {", "}", unitTestFuncNameArgs(),
                 () -> {
                     generateTestSetup(writer);
@@ -215,7 +215,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param values list of values for the query.
      */
     protected void writeQueryItemsStructField(GoWriter writer, String field, List<String> values) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.openBlock("$L: []smithytesting.QueryItem {", "},", field, () -> {
             writeQueryItemsValues(writer, values);
         });
@@ -246,7 +246,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param target name of destination variable that will be created to hold QueryItems
      */
     protected void writeQueryItemBreakout(GoWriter writer, String source, String target) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("$L := smithytesting.ParseRawQuery($L)", target, source);
     }
 
@@ -317,8 +317,8 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected void writeClientInit(GoWriter writer, Runnable httpClientInit) {
         writer.openBlock("client, err := New(Options{", "})", () -> {
             // TODO expand with other options?
-            writer.addUseImports(GoDependency.SMITHY_HTTP_TRANSPORT);
-            writer.addUseImports(GoDependency.NET_HTTP);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+            writer.addUseImports(SmithyGoDependency.NET_HTTP);
             writer.openBlock(
                     "HTTPClient: smithyhttp.ClientDoFunc(func(r *http.Request) (*http.Response, error) {",
                     "}),", httpClientInit);
@@ -353,8 +353,8 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected void writeAssertComplexEqual(
             GoWriter writer, String expect, String actual, String[] ignoreTypes
     ) {
-        writer.addUseImports(GoDependency.GO_CMP);
-        writer.addUseImports(GoDependency.GO_CMP_OPTIONS);
+        writer.addUseImports(SmithyGoDependency.GO_CMP);
+        writer.addUseImports(SmithyGoDependency.GO_CMP_OPTIONS);
         writer.writeInline("if diff := cmp.Diff($L, $L, cmpopts.IgnoreUnexported(", expect, actual);
 
         for (String ignoreType : ignoreTypes) {
@@ -379,7 +379,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     }
 
     /**
-     * Writes the assertion that a variable must not be nil
+     * Writes the assertion that a variable must not be nil.
      *
      * @param writer writer to write generated code with.
      * @param field  the variable name of the value.
@@ -398,7 +398,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     void writeAssertHasQuery(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertHasQuery(t, $L, $L)", expect, actual);
     }
 
@@ -410,7 +410,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     protected void writeAssertRequireQuery(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertHasQueryKeys(t, $L, $L)", expect, actual);
     }
 
@@ -422,7 +422,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     protected void writeAssertForbidQuery(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertNotHaveQueryKeys(t, $L, $L)", expect, actual);
     }
 
@@ -434,7 +434,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     protected void writeAssertHasHeader(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertHasHeader(t, $L, $L)", expect, actual);
     }
 
@@ -446,7 +446,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     protected void writeAssertRequireHeader(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertHasHeaderKeys(t, $L, $L)", expect, actual);
     }
 
@@ -458,7 +458,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param actual variable name with the actual values.
      */
     protected void writeAssertForbidHeader(GoWriter writer, String expect, String actual) {
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("smithytesting.AssertNotHaveHeaderKeys(t, $L, $L)", expect, actual);
     }
 

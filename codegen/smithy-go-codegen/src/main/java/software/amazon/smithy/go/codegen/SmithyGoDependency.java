@@ -36,6 +36,8 @@ public final class SmithyGoDependency {
     public static final GoDependency IO = stdlib("io");
     public static final GoDependency IOUTIL = stdlib("io/ioutil");
     public static final GoDependency CRYPTORAND = stdlib("crypto/rand", "cryptorand");
+    public static final GoDependency TESTING = stdlib("testing");
+    public static final GoDependency ERRORS = stdlib("errors");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
@@ -46,8 +48,13 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
+    public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
+
+    public static final GoDependency GO_CMP = goCmp("cmp");
+    public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
+    private static final String GO_CMP_SOURCE_PATH = "github.com/google/go-cmp";
 
     private SmithyGoDependency() {
     }
@@ -65,15 +72,26 @@ public final class SmithyGoDependency {
     }
 
     private static GoDependency smithy(String relativePath, String alias) {
-        String importPath = SMITHY_SOURCE_PATH;
+        return relativePackage(SMITHY_SOURCE_PATH, relativePath, Versions.SMITHY_GO, alias);
+    }
+
+    private static GoDependency goCmp(String relativePath) {
+        return relativePackage(GO_CMP_SOURCE_PATH, relativePath, Versions.GO_CMP, null);
+    }
+
+    private static GoDependency relativePackage(
+            String moduleImportPath, String relativePath, String version, String alias
+    ) {
+        String importPath = moduleImportPath;
         if (relativePath != null) {
             importPath = importPath + "/" + relativePath;
         }
-        return GoDependency.moduleDependency(SMITHY_SOURCE_PATH, importPath, Versions.SMITHY_GO, alias);
+        return GoDependency.moduleDependency(moduleImportPath, importPath, version, alias);
     }
 
     private static final class Versions {
         private static final String GO_STDLIB = "1.14";
+        private static final String GO_CMP = "v0.4.1";
         private static final String SMITHY_GO = "v0.0.0-20200604194311-25e885347bc8";
     }
 }

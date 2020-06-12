@@ -20,8 +20,8 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
@@ -55,7 +55,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     /**
-     * Initializes the protocol test generator
+     * Initializes the protocol test generator.
      *
      * @param model          smithy model
      * @param symbolProvider symbol provider
@@ -104,12 +104,12 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writer.write("ExpectMethod string");
         writer.write("ExpectURIPath string");
 
-        writer.addUseImports(GoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.write("ExpectQuery []smithytesting.QueryItem");
         writer.write("RequireQuery []string");
         writer.write("ForbidQuery []string");
 
-        writer.addUseImports(GoDependency.NET_HTTP);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
         writer.write("ExpectHeader http.Header");
         writer.write("RequireHeader []string");
         writer.write("ForbidHeader []string");
@@ -149,8 +149,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             String body = testCase.getBody().get();
 
             if (body.length() == 0) {
-                writer.addUseImports(GoDependency.FMT);
-                writer.addUseImports(GoDependency.IOUTIL);
+                writer.addUseImports(SmithyGoDependency.FMT);
+                writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writeStructField(writer, "BodyAssert",
                         "func(actual io.Reader) error {\n"
                                 + "  if actual == nil { return nil }\n"
@@ -163,8 +163,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             } else {
                 switch (bodyMediaType.toLowerCase()) {
                     case "application/json":
-                        writer.addUseImports(GoDependency.FMT);
-                        writer.addUseImports(GoDependency.SMITHY_TESTING);
+                        writer.addUseImports(SmithyGoDependency.FMT);
+                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
                         writeStructField(writer, "BodyAssert",
                                 "func(actual io.Reader) error {\n"
                                         + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
@@ -181,8 +181,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                         break;
 
                     case "application/xml":
-                        writer.addUseImports(GoDependency.SMITHY_TESTING);
-                        writer.addUseImports(GoDependency.FMT);
+                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+                        writer.addUseImports(SmithyGoDependency.FMT);
                         writeStructField(writer, "BodyAssert",
                                 "func(actual io.Reader) error {\n"
                                         + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
@@ -199,8 +199,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                         break;
 
                     case "application/x-www-form-urlencoded":
-                        writer.addUseImports(GoDependency.SMITHY_TESTING);
-                        writer.addUseImports(GoDependency.FMT);
+                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+                        writer.addUseImports(SmithyGoDependency.FMT);
                         writeStructField(writer, "BodyAssert",
                                 "func(actual io.Reader) error {\n"
                                         + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
@@ -221,8 +221,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                                 "Unknown protocol test bodyMediaType: `" + bodyMediaType
                                         + "`, defaulting to direct comparison.");
 
-                        writer.addUseImports(GoDependency.FMT);
-                        writer.addUseImports(GoDependency.BYTES);
+                        writer.addUseImports(SmithyGoDependency.FMT);
+                        writer.addUseImports(SmithyGoDependency.BYTES);
                         writeStructField(writer, "BodyAssert",
                                 "func(actual io.Reader) error {\n"
                                         + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
@@ -250,9 +250,9 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      */
     @Override
     protected void generateTestBody(GoWriter writer) {
-        writer.addUseImports(GoDependency.NET_HTTP);
-        writer.addUseImports(GoDependency.STRINGS);
-        writer.addUseImports(GoDependency.IOUTIL);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
+        writer.addUseImports(SmithyGoDependency.STRINGS);
+        writer.addUseImports(SmithyGoDependency.IOUTIL);
         writer.write("var actualReq *http.Request");
         writeClientInit(writer, () -> {
             writer.write("actualReq = r");
@@ -263,7 +263,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             });
         });
 
-        writer.addUseImports(GoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("result, err := client.$L(context.Background(), c.Params)", opSymbol.getName());
     }
 
@@ -289,8 +289,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertRequireHeader(writer, "c.RequireHeader", "actualReq.Header");
         writeAssertForbidHeader(writer, "c.ForbidHeader", "actualReq.Header");
 
-        writer.addUseImports(GoDependency.BYTES);
-        writer.addUseImports(GoDependency.IO);
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.addUseImports(SmithyGoDependency.IO);
         writer.openBlock("if actualReq.Body != nil {", "}", () -> {
             writer.write("defer actualReq.Body.Close()");
         });

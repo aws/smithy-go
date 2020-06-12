@@ -222,7 +222,7 @@ public final class ShapeValueGenerator {
                 throw new CodegenException("unexpected shape type " + shape.getType());
         }
 
-        writer.addUseImports(GoDependency.SMITHY_PTR);
+        writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         inner.run();
         writer.writeInline(")");
     }
@@ -236,7 +236,7 @@ public final class ShapeValueGenerator {
         Shape currentShape;
 
         /**
-         * Initializes shape value visitor
+         * Initializes shape value visitor.
          *
          * @param writer   writer to write generated code with.
          * @param valueGen shape value generator.
@@ -326,7 +326,7 @@ public final class ShapeValueGenerator {
         }
 
         /**
-         * When null nodes are encountered
+         * When null nodes are encountered.
          *
          * @param node the node
          * @return always null
@@ -343,7 +343,7 @@ public final class ShapeValueGenerator {
         }
 
         /**
-         * When number nodes are encountered
+         * When number nodes are encountered.
          *
          * @param node the node
          * @return always null
@@ -352,7 +352,7 @@ public final class ShapeValueGenerator {
         public Void numberNode(NumberNode node) {
             switch (currentShape.getType()) {
                 case TIMESTAMP:
-                    writer.addUseImports(GoDependency.SMITHY_TIME);
+                    writer.addUseImports(SmithyGoDependency.SMITHY_TIME);
                     writer.writeInline("smithytime.ParseEpochSeconds($L)", node.getValue());
                     break;
 
@@ -411,7 +411,7 @@ public final class ShapeValueGenerator {
         }
 
         private void writeInlineBigDecimalInit(GoWriter writer, Object value) {
-            writer.addUseImports(GoDependency.BIG);
+            writer.addUseImports(SmithyGoDependency.BIG);
             writer.writeInline("func() *big.Float {\n"
                             + "    i, ok := big.ParseFloat($S, 10, 200, big.ToNearestAway)\n"
                             + "    if !ok { panic(\"invalid generated param value, \" + $S) }\n"
@@ -421,7 +421,7 @@ public final class ShapeValueGenerator {
         }
 
         private void writeInlineBigIntegerInit(GoWriter writer, Object value) {
-            writer.addUseImports(GoDependency.BIG);
+            writer.addUseImports(SmithyGoDependency.BIG);
             writer.writeInline("func() *big.Int {\n"
                             + "    i, ok := new(big.Int).SetString($S, 10)\n"
                             + "    if !ok { panic(\"invalid generated param value, \" + $S) }\n"

@@ -20,8 +20,8 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.List;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -59,13 +59,14 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
     }
 
     /**
-     * Initializes the protocol test generator
+     * Initializes the protocol test generator.
      *
      * @param model          smithy model
      * @param symbolProvider symbol provider
      * @param protocolName   name of the protocol test is being generated for.
      * @param operation      operation shape the test is for.
      * @param testCases      test cases for the operation.
+     * @param error shape for response api error.
      */
     protected HttpProtocolUnitTestResponseErrorGenerator(
             Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation, Shape error,
@@ -106,7 +107,7 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
     protected void generateTestCaseParams(GoWriter writer) {
         writer.write("StatusCode int");
         // TODO authScheme
-        writer.addUseImports(GoDependency.NET_HTTP);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
 
         writer.write("Header http.Header");
         // TODO why do these exist?
@@ -158,7 +159,7 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
             writer.write("Service() string");
             writer.write("Operation() string");
         });
-        writer.addUseImports(GoDependency.ERRORS);
+        writer.addUseImports(SmithyGoDependency.ERRORS);
         writer.openBlock("if !errors.As(err, &opErr) {", "}", () -> {
             writer.write("t.Fatalf(\"expect $P operation error, got %T\", err)", errorSymbol);
         });

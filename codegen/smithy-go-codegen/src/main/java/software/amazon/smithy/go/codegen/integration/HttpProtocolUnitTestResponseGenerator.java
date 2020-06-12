@@ -20,8 +20,8 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
@@ -55,7 +55,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     }
 
     /**
-     * Initializes the protocol test generator
+     * Initializes the protocol test generator.
      *
      * @param model          smithy model
      * @param symbolProvider symbol provider
@@ -100,7 +100,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     protected void generateTestCaseParams(GoWriter writer) {
         writer.write("StatusCode int");
         // TODO authScheme
-        writer.addUseImports(GoDependency.NET_HTTP);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
 
         writer.write("Header http.Header");
         // TODO why do these exist?
@@ -145,7 +145,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     protected void generateTestBody(GoWriter writer) {
         writeClientInit(writer, () -> {
             // TODO disable required parameter validation
-            writer.addUseImports(GoDependency.IOUTIL);
+            writer.addUseImports(SmithyGoDependency.IOUTIL);
             writer.openBlock("return &http.Response{", "}, nil", () -> {
                 writeStructField(writer, "StatusCode", "c.StatusCode");
                 writeStructField(writer, "Header", "c.Header.Clone()");
@@ -158,7 +158,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
 
         writer.write("var params $T", inputSymbol);
 
-        writer.addUseImports(GoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("result, err := client.$L(context.Background(), &params)", opSymbol.getName());
     }
 
@@ -172,7 +172,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writeAssertNil(writer, "err");
         writeAssertNotNil(writer, "result");
 
-        writer.addUseImports(GoDependency.SMITHY_MIDDLEWARE);
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
         writeAssertComplexEqual(writer, "c.ExpectResult", "result", new String[]{"middleware.Metadata{}"});
 
         // TODO assertion for protocol metadata
