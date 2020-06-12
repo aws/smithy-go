@@ -55,9 +55,10 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createInitalizeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleInitialize",
-                SymbolUtils.createValueSymbolBuilder("InitializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("InitializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build());
     }
 
     /**
@@ -69,9 +70,9 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleBuild",
-                SymbolUtils.createValueSymbolBuilder("BuildInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("BuildOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("BuildHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("BuildInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build());
     }
 
     /**

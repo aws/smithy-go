@@ -37,10 +37,10 @@ import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.model.Model;
@@ -81,7 +81,7 @@ public class ValidationGenerator implements GoIntegration {
             String helperName = getShapeValidationFunctionName(entry.getKey(), true);
             Symbol inputSymbol = symbolProvider.toSymbol(entry.getKey());
             generator.writeMiddleware(writer, (g, w) -> {
-                writer.addUseImports(GoDependency.FMT);
+                writer.addUseImports(SmithyGoDependency.FMT);
                 // cast input parameters type to the input type of the operation
                 writer.write("input, ok := in.Parameters.($P)", inputSymbol);
                 writer.openBlock("if !ok {", "}", () -> {
@@ -107,7 +107,7 @@ public class ValidationGenerator implements GoIntegration {
             String functionName = getShapeValidationFunctionName(shape, topLevelShape);
             Symbol shapeSymbol = symbolProvider.toSymbol(shape);
             writer.openBlock("func $L(v $P) error {", "}", functionName, shapeSymbol, () -> {
-                writer.addUseImports(GoDependency.SMITHY);
+                writer.addUseImports(SmithyGoDependency.SMITHY);
                 writer.openBlock("if v == nil {", "}", () -> writer.write("return nil"));
                 writer.write("invalidParams := smithy.InvalidParamsError{Context: $S}", shapeSymbol.getName());
                 switch (shape.getType()) {
