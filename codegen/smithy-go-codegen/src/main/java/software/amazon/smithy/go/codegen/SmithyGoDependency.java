@@ -35,6 +35,7 @@ public final class SmithyGoDependency {
     public static final GoDependency JSON = stdlib("encoding/json");
     public static final GoDependency IO = stdlib("io");
     public static final GoDependency IOUTIL = stdlib("io/ioutil");
+    public static final GoDependency CRYPTORAND = smithy("crypto/rand", "cryptorand");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
@@ -44,6 +45,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
+    public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
 

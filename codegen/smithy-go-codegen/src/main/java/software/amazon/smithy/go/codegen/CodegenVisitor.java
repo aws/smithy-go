@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 import software.amazon.smithy.build.FileManifest;
@@ -36,11 +35,9 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
-import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -50,7 +47,6 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
-import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 
 /**
@@ -230,21 +226,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
 
-        OperationIndex operationIndex = model.getKnowledge(OperationIndex.class);
-
-        // idempotencyTokenContainerMap holds a map of operation shapeId with member shapes that are decorated
-        // with the idempotency token trait.
-        Map<ShapeId, MemberShape> idempotencyTokenContainerMap = new TreeMap<>();
-        shape.getAllOperations().stream().forEach((operation) -> {
-            StructureShape inputShape = operationIndex.getInput(operation).get();
-            for (MemberShape memberShape : inputShape.members()) {
-                if (memberShape.hasTrait(IdempotencyTokenTrait.class)) {
-                   idempotencyTokenContainerMap.put(operation, memberShape);
-                   break;
-                }
-            }
-        });
-
         writers.useShapeWriter(shape, serviceWriter -> {
             new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
                     runtimePlugins, applicationProtocol).run();
@@ -255,13 +236,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
             for (OperationShape operation : containedOperations) {
                 Symbol operationSymbol = symbolProvider.toSymbol(operation);
-                MemberShape idempotencyTokenMemberShape = idempotencyTokenContainerMap.getOrDefault(
-                        operation.getId(), null);
 
                 writers.useShapeWriter(
                         operation, operationWriter -> new OperationGenerator(settings, model, symbolProvider,
                                 operationWriter, service, operation, operationSymbol, applicationProtocol,
-                                protocolGenerator, integrations, idempotencyTokenMemberShape).run());
+                                protocolGenerator, runtimePlugins).run());
             }
         });
         return null;

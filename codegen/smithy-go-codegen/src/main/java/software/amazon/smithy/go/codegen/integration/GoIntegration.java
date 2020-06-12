@@ -23,8 +23,6 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.OperationShape;
-import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 
@@ -108,44 +106,6 @@ public interface GoIntegration {
     ) {
         // pass
     }
-
-    /**
-     * Populates operation middleware stack.
-     *
-     * This method is used to populate middleware stack inside
-     * the operation function.
-     *
-     * @param settings Settings used to generate.
-     * @param model Model to generate from.
-     * @param symbolProvider Symbol provider used for codegen.
-     * @param writer Writer that will be used.
-     * @param serviceShape Service shape of the operation.
-     * @param operationShape Operation Shape for which middleware stack is populated.
-     */
-    default void assembleMiddlewareStack(
-            GoSettings settings,
-            Model model,
-            SymbolProvider symbolProvider,
-            GoWriter writer,
-            ServiceShape serviceShape,
-            OperationShape operationShape
-    ) {
-        // pass
-    }
-
-    /**
-     * Generates a value for idempotency token.
-     *
-     * @param writer Writer that will be used.
-     * @param operand Operand to which retrieved value should be assigned
-     */
-    default void generateValueForIdempotencyToken(
-            GoWriter writer,
-            String operand
-    ) {
-        // pass
-    }
-
 
     /**
      * Writes additional files.

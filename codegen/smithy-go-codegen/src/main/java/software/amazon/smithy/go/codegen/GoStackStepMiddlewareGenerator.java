@@ -113,9 +113,12 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createInitializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleInitialize",
-                SymbolUtils.createValueSymbolBuilder("InitializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("InitializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build());
     }
 
     /**

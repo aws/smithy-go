@@ -1,2 +1,2 @@
 software.amazon.smithy.go.codegen.integration.ValidationGenerator
-software.amazon.smithy.go.codegen.provider.IdempotencyTokenValueProvider
+software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerator
