@@ -96,7 +96,7 @@ final class OperationGenerator implements Runnable {
 
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
                     writer.openBlock("if err != nil {", "}", () -> {
-                        writer.addUseImports(GoDependency.SMITHY);
+                        writer.addUseImports(SmithyGoDependency.SMITHY);
                         writer.openBlock("return nil, &smithy.OperationError{", "}", () -> {
                             writer.write("ServiceID: c.ServiceID(),");
                             writer.write("OperationName: \"$T\",", operationSymbol);
