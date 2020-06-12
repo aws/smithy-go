@@ -47,6 +47,35 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create a new InitalizeStep middleware generator with the provided type name.
+     *
+     * @param identifier is the type name to identify the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createInitalizeStepMiddleware(String identifier) {
+        return createMiddleware(identifier,
+                "HandleInitialize",
+                SymbolUtils.createValueSymbolBuilder("InitializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("InitializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build());
+    }
+
+    /**
+     * Create a new BuildStep middleware generator with the provided type name.
+     *
+     * @param identifier is the type name to identify the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String identifier) {
+        return createMiddleware(identifier,
+                "HandleBuild",
+                SymbolUtils.createValueSymbolBuilder("BuildInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("BuildHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build());
+    }
+
+    /**
      * Create a new SerializeStep middleware generator with the provided type name.
      *
      * @param identifier is the type name to identify the middleware.
