@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -293,8 +294,26 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("");
             }
 
-            // delegate the setup and usage of the document serializer function for the protocol
-            writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
+            // document bindings vs payload bindings
+            HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
+            boolean hasDocumentBindings = !httpBindingIndex
+                    .getRequestBindings(operation, HttpBinding.Location.DOCUMENT)
+                    .isEmpty();
+            Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
+                    HttpBinding.Location.PAYLOAD).stream().findFirst();
+
+
+            if (hasDocumentBindings) {
+                // delegate the setup and usage of the document serializer function for the protocol
+                writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
+
+            } else if (payloadBinding.isPresent()) {
+                // delegate the setup and usage of the payload serializer function for the protocol
+                MemberShape memberShape = payloadBinding.get().getMember();
+                writeMiddlewarePayloadSerializerDelegator(model, symbolProvider, operation, memberShape, generator,
+                        writer);
+            }
+
             writer.write("");
             writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
@@ -385,6 +404,25 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             Model model,
             SymbolProvider symbolProvider,
             OperationShape operation,
+            GoStackStepMiddlewareGenerator generator,
+            GoWriter writer
+    );
+
+    /**
+     * Generate the payload serializer logic for the serializer middleware body.
+     *
+     * @param model          the model
+     * @param symbolProvider the symbol provider
+     * @param operation      the operation
+     * @param memberShape    the payload target member
+     * @param generator      middleware generator definition
+     * @param writer         the writer within the middlware context
+     */
+    protected abstract void writeMiddlewarePayloadSerializerDelegator(
+            Model model,
+            SymbolProvider symbolProvider,
+            OperationShape operation,
+            MemberShape memberShape,
             GoStackStepMiddlewareGenerator generator,
             GoWriter writer
     );
@@ -630,6 +668,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         writeSafeOperandAccessor(model, symbolProvider, memberShape, "v", writer, (bodyWriter, operand) -> {
             HttpBinding.Location location = binding.getLocation();
+            final String locationName = binding.getLocationName().isEmpty()
+                    ? memberShape.getMemberName() : binding.getLocationName();
+
             switch (location) {
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
@@ -637,12 +678,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             writeHttpBindingSetter(model, writer, collectionMemberShape, location, operand + "[i]",
                                     (w, s) -> {
-                                        w.writeInline("encoder.AddHeader($S).$L", memberShape.getMemberName(), s);
+                                        w.writeInline("encoder.AddHeader($S).$L", locationName, s);
                                     });
                         });
                     } else {
                         writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> w.writeInline(
-                                "encoder.SetHeader($S).$L", memberShape.getMemberName(), s));
+                                "encoder.SetHeader($S).$L", locationName, s));
                     }
                     break;
                 case PREFIX_HEADERS:
@@ -668,7 +709,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     break;
                 case LABEL:
                     writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
-                        w.writeInline("if err := encoder.SetURI($S).$L", memberShape.getMemberName(), s);
+                        w.writeInline("if err := encoder.SetURI($S).$L", locationName, s);
                         w.write("; err != nil {\n"
                                 + "\treturn err\n"
                                 + "}");
@@ -679,11 +720,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
                             writeHttpBindingSetter(model, writer, collectionMember, location, operand + "[i]",
-                                    (w, s) -> w.writeInline("encoder.AddQuery($S).$L", memberShape.getMemberName(), s));
+                                    (w, s) -> {
+                                        w.writeInline("encoder.AddQuery($S).$L", locationName, s);
+                                    });
                         });
                     } else {
                         writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> w.writeInline(
-                                "encoder.SetQuery($S).$L", memberShape.getMemberName(), s));
+                                "encoder.SetQuery($S).$L", locationName, s));
                     }
                     break;
                 default:
