@@ -134,6 +134,20 @@ public interface GoIntegration {
     }
 
     /**
+     * Generates a value for idempotency token.
+     *
+     * @param writer Writer that will be used.
+     * @param operand Operand to which retrieved value should be assigned
+     */
+    default void generateValueForIdempotencyToken(
+            GoWriter writer,
+            String operand
+    ) {
+        // pass
+    }
+
+
+    /**
      * Writes additional files.
      *
      * @param settings Settings used to generate.

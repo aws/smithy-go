@@ -153,11 +153,12 @@ final class OperationGenerator implements Runnable {
                         + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
 
                 middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
-                    middlewareWriter.addUseImports(GoDependency.SMITHY_RAND);
-                    middlewareWriter.write("uuid := smithyrand.NewUUID(randReader)");
-                    middlewareWriter.write("v, err := uuid.GetUUID()");
-                    middlewareWriter.write("if err != nil { return out, metadata, err}");
-                    middlewareWriter.write("input.$L = &v", memberName);
+                    String operand = "v";
+                    integrations.forEach(goIntegration -> {
+                        goIntegration.generateValueForIdempotencyToken(middlewareWriter, operand);
+                    });
+
+                    middlewareWriter.write("input.$L = &$L", memberName, operand);
                 });
                 middlewareWriter.write("return next.HandleInitialize(ctx, in)");
             });

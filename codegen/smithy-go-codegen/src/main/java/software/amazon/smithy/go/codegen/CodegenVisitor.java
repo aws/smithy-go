@@ -246,9 +246,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         });
 
         writers.useShapeWriter(shape, serviceWriter -> {
-            boolean supportsIdempotencyTokenTrait = idempotencyTokenContainerMap.size() != 0 ? true : false;
             new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
-                    runtimePlugins, applicationProtocol, supportsIdempotencyTokenTrait).run();
+                    runtimePlugins, applicationProtocol).run();
 
             // Generate each operation for the service. We do this here instead of via the operation visitor method to
             // limit it to the operations bound to the service.
