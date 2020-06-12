@@ -23,9 +23,9 @@ import software.amazon.smithy.codegen.core.Symbol;
  */
 public final class GoStackStepMiddlewareGenerator {
     private static final Symbol CONTEXT_TYPE = SymbolUtils.createValueSymbolBuilder(
-            "Context", GoDependency.CONTEXT).build();
+            "Context", SmithyGoDependency.CONTEXT).build();
     private static final Symbol METADATA_TYPE = SymbolUtils.createValueSymbolBuilder(
-            "Metadata", GoDependency.SMITHY_MIDDLEWARE).build();
+            "Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
 
     private final Symbol middlewareSymbol;
     private final String handleMethodName;
@@ -55,9 +55,9 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleSerialize",
-                SymbolUtils.createValueSymbolBuilder("SerializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("SerializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("SerializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("SerializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("SerializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("SerializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build());
     }
 
     /**
@@ -69,9 +69,10 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String identifier) {
         return createMiddleware(identifier,
                 "HandleDeserialize",
-                SymbolUtils.createValueSymbolBuilder("DeserializeInput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("DeserializeOutput", GoDependency.SMITHY_MIDDLEWARE).build(),
-                SymbolUtils.createValueSymbolBuilder("DeserializeHandler", GoDependency.SMITHY_MIDDLEWARE).build());
+                SymbolUtils.createValueSymbolBuilder("DeserializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("DeserializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("DeserializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build());
     }
 
     /**
@@ -160,8 +161,8 @@ public final class GoStackStepMiddlewareGenerator {
         // each middleware must implement their given handlerMethodName in order to satisfy the interface for
         // their respective step.
         writer.openBlock("func (m $P) $L(ctx $T, in $T, next $T) (\n"
-                       + "\tout $T, metadata $T, err error,\n"
-                       + ") {", "}",
+                        + "\tout $T, metadata $T, err error,\n"
+                        + ") {", "}",
                 new Object[]{
                         middlewareSymbol, handleMethodName, CONTEXT_TYPE, inputType, handlerType, outputType,
                         METADATA_TYPE,

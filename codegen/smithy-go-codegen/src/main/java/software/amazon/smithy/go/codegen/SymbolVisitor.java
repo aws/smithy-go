@@ -201,8 +201,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol blobShape(BlobShape shape) {
         if (shape.hasTrait(StreamingTrait.ID)) {
-            Symbol inputVariant = SymbolUtils.createValueSymbolBuilder(shape, "Reader", GoDependency.IO).build();
-            return SymbolUtils.createValueSymbolBuilder(shape, "ReadCloser", GoDependency.IO)
+            Symbol inputVariant = SymbolUtils.createValueSymbolBuilder(shape, "Reader", SmithyGoDependency.IO).build();
+            return SymbolUtils.createValueSymbolBuilder(shape, "ReadCloser", SmithyGoDependency.IO)
                     .putProperty(SymbolUtils.INPUT_VARIANT, inputVariant)
                     .build();
         }
@@ -291,7 +291,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return SymbolUtils.createValueSymbolBuilder(shape, "Document", GoDependency.SMITHY).build();
+        return SymbolUtils.createValueSymbolBuilder(shape, "Document", SmithyGoDependency.SMITHY).build();
     }
 
     @Override
@@ -312,7 +312,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName, GoDependency.BIG).build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName, SmithyGoDependency.BIG).build();
     }
 
     @Override
@@ -399,6 +399,6 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "Time", GoDependency.TIME).build();
+        return SymbolUtils.createPointableSymbolBuilder(shape, "Time", SmithyGoDependency.TIME).build();
     }
 }

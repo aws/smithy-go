@@ -120,7 +120,7 @@ public final class GoWriter extends CodeWriter {
      */
     public GoWriter addUseImports(GoDependency goDependency) {
         dependencies.addAll(goDependency.getDependencies());
-        return addImport(goDependency.importPath, goDependency.alias);
+        return addImport(goDependency.getImportPath(), goDependency.getAlias());
     }
 
     /**

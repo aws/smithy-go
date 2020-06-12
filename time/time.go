@@ -19,10 +19,10 @@ func FormatDateTime(value time.Time) string {
 	return value.Format(dateTimeFormat)
 }
 
-// ParseDateTimeFormat parse a string as a date-time
+// ParseDateTime parse a string as a date-time
 //
 // Example: 1985-04-12T23:20:50.52Z
-func ParseDateTimeFormat(value string) (time.Time, error) {
+func ParseDateTime(value string) (time.Time, error) {
 	return time.Parse(dateTimeFormat, value)
 }
 
