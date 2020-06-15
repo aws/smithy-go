@@ -25,9 +25,12 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ShapeValueGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.node.ObjectNode;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
 
 /**
@@ -100,7 +103,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param writer writer to write generated code with.
      */
     protected void generateTestSetup(GoWriter writer) {
-        // Pass
+        if (hasIdempotencyTokenInputMember()) {
+            writer.write("origRandReader := randReader");
+            writer.write("defer func() { randReader = origRandReader }()");
+            writer.write("randReader = &smithytesting.ByteLoop{}");
+            writer.write("");
+        }
     }
 
     /**
@@ -472,5 +480,18 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected void writeShapeValueInline(GoWriter writer, Shape shape, ObjectNode params) {
         new ShapeValueGenerator(model, symbolProvider)
                 .writeShapeValueInline(writer, shape, params);
+    }
+    /**
+     * Returns if the operation has an idempotency token input member.
+     *
+     * @return if the operation has an idempotency token input member.
+     */
+    private boolean hasIdempotencyTokenInputMember() {
+        for (MemberShape member: inputShape.members()) {
+            if (member.hasTrait(IdempotencyTokenTrait.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
