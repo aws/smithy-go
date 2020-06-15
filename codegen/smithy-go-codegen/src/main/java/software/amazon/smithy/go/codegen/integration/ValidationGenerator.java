@@ -159,7 +159,8 @@ public class ValidationGenerator implements GoIntegration {
                             writer.openBlock("if err := $L(v[i]); err != nil {", "}", helperName, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
                                 writer.write(
-                                        "invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), err.(smithy.InvalidParamsError))");
+                                        "invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), "
+                                                + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
@@ -170,7 +171,8 @@ public class ValidationGenerator implements GoIntegration {
                             writer.openBlock("if err := $L(v[key]); err != nil {", "}", helperName, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
                                 writer.write(
-                                        "invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), err.(smithy.InvalidParamsError))");
+                                        "invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), "
+                                                + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
