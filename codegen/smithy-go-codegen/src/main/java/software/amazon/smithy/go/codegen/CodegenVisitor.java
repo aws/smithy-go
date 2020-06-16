@@ -92,7 +92,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
         }
 
-        // Add uniqueue operation input/output shapes
+        // Add unique operation input/output shapes
         resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
 
         model = resolvedModel;
@@ -236,9 +236,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
             for (OperationShape operation : containedOperations) {
                 Symbol operationSymbol = symbolProvider.toSymbol(operation);
-                writers.useShapeWriter(operation, operationWriter -> new OperationGenerator(
-                        settings, model, symbolProvider, operationWriter, service, operation,
-                        operationSymbol, applicationProtocol).run());
+
+                writers.useShapeWriter(
+                        operation, operationWriter -> new OperationGenerator(settings, model, symbolProvider,
+                                operationWriter, service, operation, operationSymbol, applicationProtocol,
+                                protocolGenerator, runtimePlugins).run());
             }
         });
         return null;

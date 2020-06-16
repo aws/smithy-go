@@ -15,9 +15,13 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.List;
+
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -37,6 +41,8 @@ final class OperationGenerator implements Runnable {
     private final OperationShape operation;
     private final Symbol operationSymbol;
     private final ApplicationProtocol applicationProtocol;
+    private final ProtocolGenerator protocolGenerator;
+    private final List<RuntimeClientPlugin> runtimeClientPlugins;
 
     OperationGenerator(
             GoSettings settings,
@@ -46,7 +52,9 @@ final class OperationGenerator implements Runnable {
             ServiceShape service,
             OperationShape operation,
             Symbol operationSymbol,
-            ApplicationProtocol applicationProtocol
+            ApplicationProtocol applicationProtocol,
+            ProtocolGenerator protocolGenerator,
+            List<RuntimeClientPlugin> runtimeClientPlugins
     ) {
         this.settings = settings;
         this.model = model;
@@ -56,6 +64,8 @@ final class OperationGenerator implements Runnable {
         this.operation = operation;
         this.operationSymbol = operationSymbol;
         this.applicationProtocol = applicationProtocol;
+        this.protocolGenerator = protocolGenerator;
+        this.runtimeClientPlugins = runtimeClientPlugins;
     }
 
     @Override
@@ -92,8 +102,10 @@ final class OperationGenerator implements Runnable {
                         writer.write("if err := fn(stack); err != nil { return nil, err }");
                     });
 
-                    constructHandler();
+                    // add middleware to operation stack
+                    populateOperationMiddlewareStack();
 
+                    constructHandler();
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
                     writer.openBlock("if err != nil {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.SMITHY);
@@ -146,5 +158,25 @@ final class OperationGenerator implements Runnable {
         Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
                 "NewClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
         writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
+    }
+
+
+    /**
+     * Adds middleware to the operation middleware stack.
+     */
+    private void populateOperationMiddlewareStack() {
+        runtimeClientPlugins.forEach(runtimeClientPlugin -> {
+            if (!runtimeClientPlugin.matchesService(model, service)
+                    && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
+                return;
+            }
+
+            if (runtimeClientPlugin.buildMiddlewareStack().isPresent()) {
+                runtimeClientPlugin.buildMiddlewareStack().get().applyMiddleware(
+                        writer, service, operation, protocolGenerator, "stack"
+                );
+            }
+        });
+        writer.write("");
     }
 }
