@@ -88,9 +88,7 @@ public final class ShapeValueGenerator {
 
             case UNION:
             case DOCUMENT:
-                // TODO not supported yet
-                writer.writeInline("/* union and document not supported */");
-                break;
+                throw new CodegenException("union and document types not supported");
 
             default:
                 if (params.isNullNode()) {
@@ -370,7 +368,7 @@ public final class ShapeValueGenerator {
                     break;
 
                 case BIG_DECIMAL:
-                    writeInlineBigDecimalInit(writer, node.toString());
+                    writeInlineBigDecimalInit(writer, node.getValue());
                     break;
 
                 default:
