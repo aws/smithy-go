@@ -35,7 +35,7 @@ public final class SmithyGoDependency {
     public static final GoDependency JSON = stdlib("encoding/json");
     public static final GoDependency IO = stdlib("io");
     public static final GoDependency IOUTIL = stdlib("io/ioutil");
-    public static final GoDependency CRYPTORAND = smithy("crypto/rand", "cryptorand");
+    public static final GoDependency CRYPTORAND = stdlib("crypto/rand", "cryptorand");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
@@ -54,6 +54,10 @@ public final class SmithyGoDependency {
 
     private static GoDependency stdlib(String importPath) {
         return GoDependency.standardLibraryDependency(importPath, Versions.GO_STDLIB);
+    }
+
+    private static GoDependency stdlib(String importPath, String alias) {
+        return GoDependency.standardLibraryDependency(importPath, Versions.GO_STDLIB, alias);
     }
 
     private static GoDependency smithy(String relativePath) {

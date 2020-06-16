@@ -248,6 +248,26 @@ public final class GoDependency implements SymbolDependencyContainer, Comparable
     }
 
     /**
+     * Get {@link GoDependency} representing the standard library import description.
+     *
+     * @param importPath the import path of the package
+     * @param version    the version of source module
+     * @param alias      the alias for stdlib dependency
+     * @return the dependency
+     */
+    public static GoDependency standardLibraryDependency(String importPath, String version, String alias) {
+        GoDependency.Builder builder = GoDependency.builder()
+                .type(GoDependency.Type.STANDARD_LIBRARY)
+                .importPath(importPath)
+                .version(version);
+
+        if (alias != null) {
+            builder.alias(alias);
+        }
+        return builder.build();
+    }
+
+    /**
      * Builder for {@link GoDependency}.
      */
     public static final class Builder implements SmithyBuilder<GoDependency> {

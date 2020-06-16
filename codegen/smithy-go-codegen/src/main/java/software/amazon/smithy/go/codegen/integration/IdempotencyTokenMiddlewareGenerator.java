@@ -53,6 +53,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
             middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
             middlewareWriter.write("if !ok { return out, metadata, "
                     + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
+            middlewareWriter.addUseImports(SmithyGoDependency.FMT);
 
             middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
             writer.addUseImports(SmithyGoDependency.SMITHY_RAND);
@@ -81,6 +82,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
 
         writerFactory.accept("idempotencyTokenMiddleware.go", settings.getModuleName(), writer -> {
             writer.write("var randReader io.Reader = cryptorand.Reader");
+            writer.addUseImports(SmithyGoDependency.IO);
             for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
                 ShapeId operationId = entry.getKey();
                 OperationShape operation = model.expectShape(operationId).asOperationShape().get();
