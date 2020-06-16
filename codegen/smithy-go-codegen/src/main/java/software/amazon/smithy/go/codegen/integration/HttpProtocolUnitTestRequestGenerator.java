@@ -148,96 +148,34 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         if (testCase.getBody().isPresent()) {
             String body = testCase.getBody().get();
 
+            writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+            writer.addUseImports(SmithyGoDependency.IO);
             if (body.length() == 0) {
-                writer.addUseImports(SmithyGoDependency.FMT);
-                writer.addUseImports(SmithyGoDependency.IOUTIL);
-                writeStructField(writer, "BodyAssert",
-                        "func(actual io.Reader) error {\n"
-                                + "  if actual == nil { return nil }\n"
-                                + "  b, err := ioutil.ReadAll(actual)\n"
-                                + "  if err != nil { return fmt.Errorf(\"expect no error from body\") }\n"
-                                + "  if len(b) != 0 { return fmt.Errorf(\"expect empty body, got %v\", actual) }\n"
-                                + "  return nil\n"
-                                + "}"
-                );
+                writeStructField(writer, "BodyAssert", "func(actual io.Reader) error {\n"
+                        + "   return smithytesting.CompareReaderEmpty(actual)\n"
+                        + "}");
             } else {
+                String compareFunc = "";
                 switch (bodyMediaType.toLowerCase()) {
                     case "application/json":
-                        writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
-                        writeStructField(writer, "BodyAssert",
-                                "func(actual io.Reader) error {\n"
-                                        + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
-                                        + "  b, err := ioutil.ReadAll(actual)\n"
-                                        + "  if err != nil { return fmt.Errorf(\"expect no error from body\") }\n"
-                                        + "  expect := []byte(`$L`)\n"
-                                        + "  if err := smithytesting.JSONEqual(expect, b); err != nil {\n"
-                                        + "     return fmt.Errorf(\"JSON documents not equal, %v\", err)\n"
-                                        + "  }\n"
-                                        + "  return nil\n"
-                                        + "}",
-                                body
-                        );
+                        compareFunc = String.format("return smithytesting.CompareJSONReaderBytes(actual, []byte(`%s`))",
+                                body);
                         break;
-
                     case "application/xml":
-                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
-                        writer.addUseImports(SmithyGoDependency.FMT);
-                        writeStructField(writer, "BodyAssert",
-                                "func(actual io.Reader) error {\n"
-                                        + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
-                                        + "  b, err := ioutil.ReadAll(actual)\n"
-                                        + "  if err != nil { return fmt.Errorf(\"expect no error from body\") }\n"
-                                        + "  expect := []byte(`$L`)\n"
-                                        + "  if err := smithytesting.XMLEqual(expect, b); err != nil {\n"
-                                        + "     return fmt.Errorf(\"XML documents not equal, %v\", err)\n"
-                                        + "  }\n"
-                                        + "  return nil\n"
-                                        + "}",
-                                body
-                        );
+                        compareFunc = String.format("return smithytesting.CompareXMLReaderBytes(actual, []byte(`%s`))",
+                                body);
                         break;
-
                     case "application/x-www-form-urlencoded":
-                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
-                        writer.addUseImports(SmithyGoDependency.FMT);
-                        writeStructField(writer, "BodyAssert",
-                                "func(actual io.Reader) error {\n"
-                                        + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
-                                        + "  b, err := ioutil.ReadAll(actual)\n"
-                                        + "  if err != nil { return fmt.Errorf(\"expect no error from body\") }\n"
-                                        + "  expect := []byte(`$L`)\n"
-                                        + "  if err := smithytesting.FormQueryEqual(expect, b); err != nil {\n"
-                                        + "     return fmt.Errorf(\"form query not equal, %v\", err)\n"
-                                        + "  }\n"
-                                        + "  return nil\n"
-                                        + "}",
-                                body
-                        );
+                        compareFunc = String.format(
+                                "return smithytesting.CompareURLFormReaderBytes(actual, []byte(`%s`))", body);
                         break;
-
                     default:
-                        LOGGER.warning(
-                                "Unknown protocol test bodyMediaType: `" + bodyMediaType
-                                        + "`, defaulting to direct comparison.");
-
-                        writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.addUseImports(SmithyGoDependency.BYTES);
-                        writeStructField(writer, "BodyAssert",
-                                "func(actual io.Reader) error {\n"
-                                        + "  if actual == nil { return fmt.Errorf(\"missing body\") }\n"
-                                        + "  b, err := ioutil.ReadAll(actual)\n"
-                                        + "  if err != nil { return fmt.Errorf(\"expect no error from body\") }\n"
-                                        + "  expect := []byte(`$L`)\n"
-                                        + "  if !bytes.Equal(expect, b) {\n"
-                                        + "    return fmt.Errorf(\"bytes not equal\")\n"
-                                        + "  }\n"
-                                        + "  return nil\n"
-                                        + "}",
-                                body
-                        );
+                        compareFunc = String.format("return smithytesting.CompareReaderBytes(actual, []byte(`%s`))",
+                                body);
                         break;
+
                 }
+                writeStructField(writer, "BodyAssert", "func(actual io.Reader) error {\n $L \n}", compareFunc);
             }
         }
     }
