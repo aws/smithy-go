@@ -32,8 +32,8 @@ func (l *ByteLoop) Read(p []byte) (size int, err error) {
 // Close closes the ByteLoop, and prevents any further reading.
 func (l *ByteLoop) Close() error {
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.closed = true
-	l.mu.Unlock()
 
 	return nil
 }

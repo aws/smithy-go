@@ -80,7 +80,10 @@ public final class SmithyGoDependency {
     }
 
     private static GoDependency relativePackage(
-            String moduleImportPath, String relativePath, String version, String alias
+            String moduleImportPath,
+            String relativePath,
+            String version,
+            String alias
     ) {
         String importPath = moduleImportPath;
         if (relativePath != null) {
