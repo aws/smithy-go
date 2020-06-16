@@ -16,10 +16,10 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.model.Model;
@@ -153,7 +153,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Symbol resolveFunction;
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
-        private Set<ConfigField> configFields = new TreeSet<>();
+        private Set<ConfigField> configFields = new HashSet<>();
 
         @Override
         public RuntimeClientPlugin build() {
@@ -250,7 +250,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @return Returns the builder.
          */
         public Builder configFields(Collection<ConfigField> configFields) {
-            this.configFields = new TreeSet<>(configFields);
+            this.configFields = new HashSet<>(configFields);
             return this;
         }
 

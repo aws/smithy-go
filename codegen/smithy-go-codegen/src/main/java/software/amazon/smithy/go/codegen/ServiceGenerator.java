@@ -15,9 +15,10 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -159,15 +160,19 @@ final class ServiceGenerator implements Runnable {
         });
     }
 
-    private Set<ConfigField> getAllConfigFields() {
-        Set<ConfigField> configFields = new TreeSet<>();
+    private List<ConfigField> getAllConfigFields() {
+        List<ConfigField> configFields = new ArrayList<>();
         for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
             if (!runtimeClientPlugin.matchesService(model, service)) {
                 continue;
             }
             configFields.addAll(runtimeClientPlugin.getConfigFields());
         }
-        return configFields;
+
+        return configFields.stream()
+                .distinct()
+                .sorted(Comparator.comparing(ConfigField::getName))
+                .collect(Collectors.toList());
     }
 
     private void generateApplicationProtocolConfig() {

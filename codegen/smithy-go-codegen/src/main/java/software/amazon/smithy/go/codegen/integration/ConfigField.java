@@ -24,7 +24,7 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
 /**
  * Represents a config field on a client config struct.
  */
-public class ConfigField implements ToSmithyBuilder<ConfigField>, Comparable<ConfigField> {
+public class ConfigField implements ToSmithyBuilder<ConfigField> {
     private final String name;
     private final Symbol type;
     private final String documentation;
@@ -66,11 +66,6 @@ public class ConfigField implements ToSmithyBuilder<ConfigField>, Comparable<Con
     }
 
     @Override
-    public int compareTo(ConfigField o) {
-        return this.getName().compareTo(o.getName());
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -79,12 +74,14 @@ public class ConfigField implements ToSmithyBuilder<ConfigField>, Comparable<Con
             return false;
         }
         ConfigField that = (ConfigField) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(getName(), that.getName())
+                && Objects.equals(getType(), that.getType())
+                && Objects.equals(getDocumentation(), that.getDocumentation());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(getName(), getType(), getDocumentation());
     }
 
     /**
