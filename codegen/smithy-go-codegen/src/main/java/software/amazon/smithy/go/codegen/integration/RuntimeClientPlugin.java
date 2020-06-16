@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -40,11 +42,13 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Symbol resolveFunction;
     private final BiPredicate<Model, ServiceShape> servicePredicate;
     private final OperationPredicate operationPredicate;
+    private final Set<ConfigField> configFields;
 
     private RuntimeClientPlugin(Builder builder) {
         resolveFunction = builder.resolveFunction;
         operationPredicate = builder.operationPredicate;
         servicePredicate = builder.servicePredicate;
+        configFields = builder.configFields;
     }
 
     @FunctionalInterface
@@ -109,6 +113,27 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return operationPredicate.test(model, service, operation);
     }
 
+    /**
+     * Gets the config fields that will be added to the client config by this plugin.
+     *
+     * <p>Each config field will be added to the client's Config object and will
+     * result in a corresponding getter method being added to the config. E.g.:
+     *
+     * type ClientOptions struct {
+     *     // My docs.
+     *     MyField string
+     * }
+     *
+     * func (o ClientOptions) GetMyField() string {
+     *     return o.MyField
+     * }
+     *
+     * @return Returns the config fields to add to the client config.
+     */
+    public Set<ConfigField> getConfigFields() {
+        return configFields;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -128,6 +153,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Symbol resolveFunction;
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
+        private Set<ConfigField> configFields = new HashSet<>();
 
         @Override
         public RuntimeClientPlugin build() {
@@ -202,6 +228,52 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         public Builder servicePredicate(BiPredicate<Model, ServiceShape> servicePredicate) {
             this.servicePredicate = Objects.requireNonNull(servicePredicate);
             operationPredicate = (model, service, operation) -> false;
+            return this;
+        }
+
+        /**
+         * Sets the config fields that will be added to the client config by this plugin.
+         *
+         * <p>Each config field will be added to the client's Config object and will
+         * result in a corresponding getter method being added to the config. E.g.:
+         *
+         * type ClientOptions struct {
+         *     // My docs.
+         *     MyField string
+         * }
+         *
+         * func (o ClientOptions) GetMyField() string {
+         *     return o.MyField
+         * }
+         *
+         * @param configFields The config fields to add to the client config.
+         * @return Returns the builder.
+         */
+        public Builder configFields(Collection<ConfigField> configFields) {
+            this.configFields = new HashSet<>(configFields);
+            return this;
+        }
+
+        /**
+         * Adds a config field that will be added to the client config by this plugin.
+         *
+         * <p>Each config field will be added to the client's Config object and will
+         * result in a corresponding getter method being added to the config. E.g.:
+         *
+         * type ClientOptions struct {
+         *     // My docs.
+         *     MyField string
+         * }
+         *
+         * func (o ClientOptions) GetMyField() string {
+         *     return o.MyField
+         * }
+         *
+         * @param configField The config field to add to the client config.
+         * @return Returns the builder.
+         */
+        public Builder addConfigField(ConfigField configField) {
+            this.configFields.add(configField);
             return this;
         }
     }
