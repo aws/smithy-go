@@ -100,3 +100,9 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 
 	return req
 }
+
+// RequestCloner is a function that can take an input request type and clone the request
+// for use in a subsequent retry attempt
+func RequestCloner(v interface{}) interface{} {
+	return v.(*Request).Clone()
+}
