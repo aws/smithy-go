@@ -16,8 +16,11 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
@@ -125,12 +128,25 @@ final class ServiceGenerator implements Runnable {
             );
             writer.write("APIOptions []$L", API_OPTIONS_FUNC_NAME).write("");
 
-            for (GoIntegration integration : integrations) {
-                integration.addConfigFields(settings, model, symbolProvider, writer);
+            // Add config fields to the options struct.
+            for (ConfigField configField : getAllConfigFields()) {
+                configField.getDocumentation().ifPresent(writer::writeDocs);
+                writer.write("$L $P", configField.getName(), configField.getType());
+                writer.write("");
             }
 
             generateApplicationProtocolConfig();
         }).write("");
+
+        // Add config field getters, which are useful for creating any necessary interfaces to accept
+        // some subset of the config.
+        for (ConfigField configField : getAllConfigFields()) {
+            writer.openBlock("func (o $L) Get$L() $P {", "}",
+                    CONFIG_NAME, configField.getName(), configField.getType(), () -> {
+                writer.write("return o.$L", configField.getName());
+            });
+            writer.write("");
+        }
 
         generateApplicationProtocolTypes();
 
@@ -141,6 +157,17 @@ final class ServiceGenerator implements Runnable {
             writer.write("copy(to.APIOptions, o.APIOptions)");
             writer.write("return to");
         });
+    }
+
+    private Set<ConfigField> getAllConfigFields() {
+        Set<ConfigField> configFields = new TreeSet<>();
+        for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
+            if (!runtimeClientPlugin.matchesService(model, service)) {
+                continue;
+            }
+            configFields.addAll(runtimeClientPlugin.getConfigFields());
+        }
+        return configFields;
     }
 
     private void generateApplicationProtocolConfig() {
