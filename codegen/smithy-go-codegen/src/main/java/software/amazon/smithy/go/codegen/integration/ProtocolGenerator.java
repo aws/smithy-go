@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
@@ -249,6 +250,7 @@ public interface ProtocolGenerator {
         private GoWriter writer;
         private List<GoIntegration> integrations;
         private String protocolName;
+        private GoDelegator delegator;
 
         public GoSettings getSettings() {
             return settings;
@@ -288,6 +290,14 @@ public interface ProtocolGenerator {
 
         public void setWriter(GoWriter writer) {
             this.writer = writer;
+        }
+
+        public GoDelegator getDelegator() {
+            return delegator;
+        }
+
+        public void setDelegator(GoDelegator delegator) {
+            this.delegator = delegator;
         }
 
         public List<GoIntegration> getIntegrations() {

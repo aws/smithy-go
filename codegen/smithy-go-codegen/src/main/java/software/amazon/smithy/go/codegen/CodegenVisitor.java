@@ -165,6 +165,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             context.setService(service);
             context.setSettings(settings);
             context.setSymbolProvider(symbolProvider);
+            context.setDelegator(writers);
 
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
                     + " on " + service.getId());

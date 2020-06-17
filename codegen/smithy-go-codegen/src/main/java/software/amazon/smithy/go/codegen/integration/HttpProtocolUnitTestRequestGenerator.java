@@ -82,6 +82,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writer.write("ForbidHeader []string");
 
         writer.write("BodyMediaType string");
+        writer.addUseImports(SmithyGoDependency.IO);
         writer.write("BodyAssert func(io.Reader) error");
     }
 
@@ -160,14 +161,15 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     @Override
     protected void generateTestBody(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.NET_HTTP);
-        writer.addUseImports(SmithyGoDependency.STRINGS);
-        writer.addUseImports(SmithyGoDependency.IOUTIL);
         writer.write("var actualReq *http.Request");
         writeClientInit(writer, () -> {
             writer.write("actualReq = r");
             writer.openBlock("return &http.Response{", "}, nil", () -> {
                 writeStructField(writer, "StatusCode", "200");
                 writeStructField(writer, "Header", "http.Header{}");
+
+                writer.addUseImports(SmithyGoDependency.STRINGS);
+                writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writeStructField(writer, "Body", "ioutil.NopCloser(strings.NewReader(\"\"))");
             });
         });
@@ -198,8 +200,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertRequireHeader(writer, "c.RequireHeader", "actualReq.Header");
         writeAssertForbidHeader(writer, "c.ForbidHeader", "actualReq.Header");
 
-        writer.addUseImports(SmithyGoDependency.BYTES);
-        writer.addUseImports(SmithyGoDependency.IO);
         writer.openBlock("if actualReq.Body != nil {", "}", () -> {
             writer.write("defer actualReq.Body.Close()");
         });

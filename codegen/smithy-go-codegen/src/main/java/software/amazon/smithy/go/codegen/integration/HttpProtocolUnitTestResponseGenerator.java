@@ -112,13 +112,14 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     protected void generateTestBody(GoWriter writer) {
         writeClientInit(writer, () -> {
             // TODO disable required parameter validation
-            writer.addUseImports(SmithyGoDependency.IOUTIL);
             writer.openBlock("return &http.Response{", "}, nil", () -> {
                 writeStructField(writer, "StatusCode", "c.StatusCode");
                 writeStructField(writer, "Header", "c.Header.Clone()");
 
                 // TODO move this into the Header value instead of a struct field.
                 //writeStructField(writer, "ContentType", "c.BodyMediaType");
+                writer.addUseImports(SmithyGoDependency.IOUTIL);
+                writer.addUseImports(SmithyGoDependency.BYTES);
                 writeStructField(writer, "Body", "ioutil.NopCloser(bytes.NewReader(c.Body))");
             });
         });

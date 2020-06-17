@@ -17,10 +17,13 @@ package software.amazon.smithy.go.codegen.integration;
 
 import static java.lang.String.format;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
@@ -31,7 +34,9 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
+import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestsTrait;
+import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestsTrait;
 import software.amazon.smithy.utils.IoUtils;
 
@@ -44,6 +49,7 @@ public class HttpProtocolTestGenerator {
     private final SymbolProvider symbolProvider;
     private final GoSettings settings;
     private final GoWriter writer;
+    private final GoDelegator delegator;
 
     private final Model model;
     private final ServiceShape service;
@@ -75,6 +81,7 @@ public class HttpProtocolTestGenerator {
         this.protocolName = context.getProtocolName();
         this.symbolProvider = context.getSymbolProvider();
         this.writer = context.getWriter();
+        this.delegator = context.getDelegator();
 
         this.requestTestBuilder = requestTestBuilder;
         this.responseTestBuilder = responseTestBuilder;
@@ -95,26 +102,40 @@ public class HttpProtocolTestGenerator {
 
             // 1. Generate test cases for each request.
             operation.getTrait(HttpRequestTestsTrait.class).ifPresent(trait -> {
-                // TODO filter test cases for this given protocol.
-                requestTestBuilder.model(model)
-                        .symbolProvider(symbolProvider)
-                        .protocolName(protocolName)
-                        .operation(operation)
-                        .testCases(trait.getTestCases())
-                        .build()
-                        .generateTestFunction(writer);
+                final List<HttpRequestTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
+                if (testCases.isEmpty()) {
+                    return;
+                }
+
+                delegator.useShapeTestWriter(operation, (writer) -> {
+                    LOGGER.fine(() -> format("Generating request protocol test case for %s", operation.getId()));
+                    requestTestBuilder.model(model)
+                            .symbolProvider(symbolProvider)
+                            .protocolName(protocolName)
+                            .operation(operation)
+                            .testCases(trait.getTestCases())
+                            .build()
+                            .generateTestFunction(writer);
+                });
             });
 
             // 2. Generate test cases for each response.
             operation.getTrait(HttpResponseTestsTrait.class).ifPresent(trait -> {
-                // TODO filter test cases for this given protocol.
-                responseTestBuilder.model(model)
-                        .symbolProvider(symbolProvider)
-                        .protocolName(protocolName)
-                        .operation(operation)
-                        .testCases(trait.getTestCases())
-                        .build()
-                        .generateTestFunction(writer);
+                final List<HttpResponseTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
+                if (testCases.isEmpty()) {
+                    return;
+                }
+
+                delegator.useShapeTestWriter(operation, (writer) -> {
+                    LOGGER.fine(() -> format("Generating response protocol test case for %s", operation.getId()));
+                    responseTestBuilder.model(model)
+                            .symbolProvider(symbolProvider)
+                            .protocolName(protocolName)
+                            .operation(operation)
+                            .testCases(trait.getTestCases())
+                            .build()
+                            .generateTestFunction(writer);
+                });
             });
 
             // 3. Generate test cases for each error on each operation.
@@ -124,15 +145,23 @@ public class HttpProtocolTestGenerator {
                 }
 
                 error.getTrait(HttpResponseTestsTrait.class).ifPresent(trait -> {
-                    // TODO filter test cases for this given protocol.
-                    responseErrorTestBuilder.model(model)
-                            .symbolProvider(symbolProvider)
-                            .protocolName(protocolName)
-                            .operation(operation)
-                            .error(error)
-                            .testCases(trait.getTestCases())
-                            .build()
-                            .generateTestFunction(writer);
+                    final List<HttpResponseTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
+                    if (testCases.isEmpty()) {
+                        return;
+                    }
+
+                    delegator.useShapeTestWriter(operation, (writer) -> {
+                        LOGGER.fine(() -> format("Generating response error protocol test case for %s",
+                                operation.getId()));
+                        responseErrorTestBuilder.model(model)
+                                .symbolProvider(symbolProvider)
+                                .protocolName(protocolName)
+                                .operation(operation)
+                                .error(error)
+                                .testCases(trait.getTestCases())
+                                .build()
+                                .generateTestFunction(writer);
+                    });
                 });
             }
         }
@@ -143,11 +172,13 @@ public class HttpProtocolTestGenerator {
         }
     }
 
-    // Only generate test cases when its protocol matches the target protocol.
-    private <T extends HttpMessageTestCase> void onlyIfProtocolMatches(T testCase, Runnable runnable) {
-        if (testCase.getProtocol().equals(settings.getProtocol())) {
-            LOGGER.fine(() -> format("Generating protocol test case for %s.%s", service.getId(), testCase.getId()));
-            runnable.run();
+    private <T extends HttpMessageTestCase> List<T> filterProtocolTestCases(List<T> testCases) {
+        List<T> filtered = new ArrayList<>();
+        for (T testCase : testCases) {
+            if (testCase.getProtocol().equals(settings.getProtocol())) {
+                filtered.add(testCase);
+            }
         }
+        return filtered;
     }
 }

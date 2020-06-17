@@ -164,6 +164,8 @@ public final class ShapeValueGenerator {
      * @param inner  lambda to populate the actual shape value that will be wrapped.
      */
     protected void scalarWrapShapeValue(GoWriter writer, Shape shape, Runnable inner) {
+        boolean withPtrImport = true;
+
         switch (shape.getType()) {
             case BOOLEAN:
                 writer.writeInline("ptr.Bool(");
@@ -171,6 +173,7 @@ public final class ShapeValueGenerator {
 
             case BLOB:
                 writer.writeInline("[]byte(");
+                withPtrImport = false;
                 break;
 
             case STRING:
@@ -220,7 +223,9 @@ public final class ShapeValueGenerator {
                 throw new CodegenException("unexpected shape type " + shape.getType());
         }
 
-        writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+        if (withPtrImport) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+        }
         inner.run();
         writer.writeInline(")");
     }
