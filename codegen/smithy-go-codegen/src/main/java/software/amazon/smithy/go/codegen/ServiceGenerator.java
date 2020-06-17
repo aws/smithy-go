@@ -97,9 +97,7 @@ final class ServiceGenerator implements Runnable {
                     + "Provide additional functional options to further configure the behavior "
                     + "of the client, such as changing the client's endpoint or adding custom "
                     + "middleware behavior.", serviceSymbol.getName()));
-        writer.openBlock("func New(options $L) ($P, error) {", "}",
-                CONFIG_NAME, serviceSymbol, () -> {
-
+        writer.openBlock("func New(options $L) $P {", "}", CONFIG_NAME, serviceSymbol, () -> {
             writer.write("options = options.Copy()").write("");
 
             // Run any config initialization functions registered by runtime plugins.
@@ -108,16 +106,15 @@ final class ServiceGenerator implements Runnable {
                         || !runtimeClientPlugin.getResolveFunction().isPresent()) {
                     continue;
                 }
-                writer.write("if err := $T(&options); err != nil { return nil, err }",
-                        runtimeClientPlugin.getResolveFunction().get());
+                writer.write("$T(&options)", runtimeClientPlugin.getResolveFunction().get());
                 writer.write("");
             }
 
-            writer.openBlock("client := &$T {", "}", serviceSymbol, () -> {
+            writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
                 writer.write("options: options,");
             }).write("");
 
-            writer.write("return client, nil");
+            writer.write("return client");
         });
     }
 
