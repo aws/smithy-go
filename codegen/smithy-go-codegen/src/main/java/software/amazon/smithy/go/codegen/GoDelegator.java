@@ -32,7 +32,7 @@ import software.amazon.smithy.model.shapes.Shape;
 /**
  * Manages writers for Go files.
  */
-final class GoDelegator {
+public final class GoDelegator {
 
     private final GoSettings settings;
     private final Model model;
@@ -73,8 +73,39 @@ final class GoDelegator {
      * @param shape Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
-    void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
+    public void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
+        useShapeWriter(symbol, writerConsumer);
+    }
+
+    /**
+     * Gets a previously created writer or creates a new one for the a Go test file for the associated shape.
+     *
+     * @param shape Shape to create the writer for.
+     * @param writerConsumer Consumer that accepts and works with the file.
+     */
+    public void useShapeTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        String filename = symbol.getDefinitionFile();
+
+        StringBuilder b = new StringBuilder(filename);
+        b.insert(filename.lastIndexOf(".go"), "_test");
+        filename = b.toString();
+
+        symbol = symbol.toBuilder()
+            .definitionFile(filename)
+        .build();
+
+        useShapeWriter(symbol, writerConsumer);
+    }
+
+    /**
+     * Gets a previously created writer or creates a new one if needed.
+     *
+     * @param symbol symbol to create the writer for.
+     * @param writerConsumer Consumer that accepts and works with the file.
+     */
+    private void useShapeWriter(Symbol symbol, Consumer<GoWriter> writerConsumer) {
         GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), symbol.getNamespace());
 
         // Add any needed DECLARE symbols.

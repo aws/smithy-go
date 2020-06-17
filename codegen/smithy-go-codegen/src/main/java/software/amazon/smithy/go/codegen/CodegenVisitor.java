@@ -134,6 +134,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         ShapeId protocolTrait;
         try {
             protocolTrait = settings.resolveServiceProtocol(serviceIndex, service, generators.keySet());
+            settings.setProtocol(protocolTrait);
         } catch (UnresolvableProtocolException e) {
             LOGGER.warning("Unable to find a protocol generator for " + service.getId() + ": " + e.getMessage());
             protocolTrait = null;
@@ -164,7 +165,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             context.setService(service);
             context.setSettings(settings);
             context.setSymbolProvider(symbolProvider);
+            context.setDelegator(writers);
 
+            LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
+                    + " on " + service.getId());
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
                 context.setWriter(writer);
                 protocolGenerator.generateRequestSerializers(context);
@@ -176,7 +180,15 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 protocolGenerator.generateResponseDeserializers(context);
                 protocolGenerator.generateSharedDeserializerComponents(context);
             });
+
+            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
+                    + " unit tests for " + service.getId());
+            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
+                context.setWriter(writer);
+                protocolGenerator.generateProtocolTests(context);
+            });
         }
+
 
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();
