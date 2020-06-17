@@ -53,22 +53,16 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final String protocolName;
 
     /**
-     * Initializes the abstract protocol tests geneator.
+     * Initializes the abstract protocol tests generator.
      *
-     * @param model          Smithy model.
-     * @param symbolProvider Smithy symbol provider.
-     * @param protocolName   Name of the model's protocol that will be generated.
-     * @param operation      shape for the Operation the unit test is generated for.
-     * @param testCases      Set of test cases for the operation.
+     * @param builder the builder initializing the generator.
      */
-    protected HttpProtocolUnitTestGenerator(
-            Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation, List<T> testCases
-    ) {
-        this.model = model;
-        this.symbolProvider = symbolProvider;
-        this.protocolName = protocolName;
-        this.operation = operation;
-        this.testCases = testCases;
+    protected HttpProtocolUnitTestGenerator(Builder<T> builder) {
+        this.model = builder.model;
+        this.symbolProvider = builder.symbolProvider;
+        this.protocolName = builder.protocolName;
+        this.operation = builder.operation;
+        this.testCases = builder.testCases;
 
         opSymbol = symbolProvider.toSymbol(operation);
 
@@ -501,5 +495,40 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             }
         }
         return false;
+    }
+
+    public abstract static class Builder<T extends HttpMessageTestCase> {
+        protected Model model;
+        protected SymbolProvider symbolProvider;
+        protected String protocolName;
+        protected OperationShape operation;
+        protected List<T> testCases;
+
+        public Builder<T> model(Model model) {
+            this.model = model;
+            return this;
+        }
+
+        public Builder<T> symbolProvider(SymbolProvider symbolProvider) {
+            this.symbolProvider = symbolProvider;
+            return this;
+        }
+
+        public Builder<T> protocolName(String protocolName) {
+            this.protocolName = protocolName;
+            return this;
+        }
+
+        public Builder<T> operation(OperationShape operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        public Builder<T> testCases(List<T> testCases) {
+            this.testCases = testCases;
+            return this;
+        }
+
+        abstract HttpProtocolUnitTestGenerator<T> build();
     }
 }

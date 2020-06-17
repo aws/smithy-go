@@ -33,41 +33,12 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     private static final Logger LOGGER = Logger.getLogger(HttpProtocolUnitTestRequestGenerator.class.getName());
 
     /**
-     * Builder to lazy initialize the protocol test generator with operation specific configuration.
-     */
-    public static class Builder {
-        /**
-         * Builds the test generator for the provided configuration.
-         *
-         * @param model          Smithy model.
-         * @param symbolProvider Smithy symbol provider.
-         * @param protocolName   Name of the model's protocol that will be generated.
-         * @param operation      shape for the Operation the unit test is generated for.
-         * @param testCases      Set of test cases for the operation.
-         * @return initialize protocol test generator.
-         */
-        public HttpProtocolUnitTestRequestGenerator build(
-                Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation,
-                List<HttpRequestTestCase> testCases
-        ) {
-            return new HttpProtocolUnitTestRequestGenerator(model, symbolProvider, protocolName, operation, testCases);
-        }
-    }
-
-    /**
      * Initializes the protocol test generator.
      *
-     * @param model          smithy model
-     * @param symbolProvider symbol provider
-     * @param protocolName   name of the protocol test is being generated for.
-     * @param operation      operation shape the test is for.
-     * @param testCases      test cases for the operation.
+     * @param builder the builder initializing the generator.
      */
-    protected HttpProtocolUnitTestRequestGenerator(
-            Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation,
-            List<HttpRequestTestCase> testCases
-    ) {
-        super(model, symbolProvider, protocolName, operation, testCases);
+    protected HttpProtocolUnitTestRequestGenerator(Builder builder) {
+        super(builder);
     }
 
     /**
@@ -237,5 +208,42 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                 writer.write("t.Errorf(\"expect body equal, got %v\", err)");
             });
         });
+    }
+
+    public static class Builder extends HttpProtocolUnitTestGenerator.Builder<HttpRequestTestCase> {
+        @Override
+        public Builder model(Model model) {
+            this.model = model;
+            return this;
+        }
+
+        @Override
+        public Builder symbolProvider(SymbolProvider symbolProvider) {
+            this.symbolProvider = symbolProvider;
+            return this;
+        }
+
+        @Override
+        public Builder protocolName(String protocolName) {
+            this.protocolName = protocolName;
+            return this;
+        }
+
+        @Override
+        public Builder operation(OperationShape operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        @Override
+        public Builder testCases(List<HttpRequestTestCase> testCases) {
+            this.testCases = testCases;
+            return this;
+        }
+
+        @Override
+        public HttpProtocolUnitTestRequestGenerator build() {
+            return new HttpProtocolUnitTestRequestGenerator(this);
+        }
     }
 }

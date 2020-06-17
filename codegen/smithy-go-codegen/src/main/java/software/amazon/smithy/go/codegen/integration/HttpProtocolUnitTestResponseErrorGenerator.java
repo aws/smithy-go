@@ -35,45 +35,13 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
     protected final Symbol errorSymbol;
 
     /**
-     * Builder to lazy initialize the protocol test generator with operation specific configuration.
-     */
-    public static class Builder {
-        /**
-         * Builds the test generator for the provided configuration.
-         *
-         * @param model          Smithy model.
-         * @param symbolProvider Smithy symbol provider.
-         * @param protocolName   Name of the model's protocol that will be generated.
-         * @param operation      shape for the Operation the unit test is generated for.
-         * @param error          the error shape for the test cases.
-         * @param testCases      Set of test cases for the operation.
-         * @return initialize protocol test generator.
-         */
-        public HttpProtocolUnitTestResponseErrorGenerator build(
-                Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation, Shape error,
-                List<HttpResponseTestCase> testCases
-        ) {
-            return new HttpProtocolUnitTestResponseErrorGenerator(model, symbolProvider, protocolName, operation, error,
-                    testCases);
-        }
-    }
-
-    /**
      * Initializes the protocol test generator.
      *
-     * @param model          smithy model
-     * @param symbolProvider symbol provider
-     * @param protocolName   name of the protocol test is being generated for.
-     * @param operation      operation shape the test is for.
-     * @param testCases      test cases for the operation.
-     * @param error shape for response api error.
+     * @param builder the builder initializing the generator.
      */
-    protected HttpProtocolUnitTestResponseErrorGenerator(
-            Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation, Shape error,
-            List<HttpResponseTestCase> testCases
-    ) {
-        super(model, symbolProvider, protocolName, operation, testCases);
-        this.errorShape = error;
+    protected HttpProtocolUnitTestResponseErrorGenerator(Builder builder) {
+        super(builder);
+        this.errorShape = builder.error;
         this.errorSymbol = symbolProvider.toSymbol(errorShape);
     }
 
@@ -179,5 +147,49 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
         writeAssertComplexEqual(writer, "c.ExpectError", "actualErr", new String[]{"middleware.Metadata{}"});
 
         // TODO assertion for protocol metadata
+    }
+
+    public static class Builder extends HttpProtocolUnitTestResponseGenerator.Builder {
+        protected Shape error;
+
+        @Override
+        public Builder model(Model model) {
+            this.model = model;
+            return this;
+        }
+
+        @Override
+        public Builder symbolProvider(SymbolProvider symbolProvider) {
+            this.symbolProvider = symbolProvider;
+            return this;
+        }
+
+        @Override
+        public Builder protocolName(String protocolName) {
+            this.protocolName = protocolName;
+            return this;
+        }
+
+        @Override
+        public Builder operation(OperationShape operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        public Builder error(Shape error) {
+            this.error = error;
+            return this;
+        }
+
+        @Override
+        public Builder testCases(List<HttpResponseTestCase> testCases) {
+            this.testCases = testCases;
+            return this;
+        }
+
+        @Override
+        public HttpProtocolUnitTestResponseErrorGenerator build() {
+            return new HttpProtocolUnitTestResponseErrorGenerator(this);
+        }
     }
 }

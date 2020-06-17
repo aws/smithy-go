@@ -96,15 +96,25 @@ public class HttpProtocolTestGenerator {
             // 1. Generate test cases for each request.
             operation.getTrait(HttpRequestTestsTrait.class).ifPresent(trait -> {
                 // TODO filter test cases for this given protocol.
-                requestTestBuilder.build(model, symbolProvider, protocolName, operation,
-                        trait.getTestCases()).generateTestFunction(writer);
+                requestTestBuilder.model(model)
+                        .symbolProvider(symbolProvider)
+                        .protocolName(protocolName)
+                        .operation(operation)
+                        .testCases(trait.getTestCases())
+                        .build()
+                        .generateTestFunction(writer);
             });
 
             // 2. Generate test cases for each response.
             operation.getTrait(HttpResponseTestsTrait.class).ifPresent(trait -> {
                 // TODO filter test cases for this given protocol.
-                responseTestBuilder.build(model, symbolProvider, protocolName, operation,
-                        trait.getTestCases()).generateTestFunction(writer);
+                responseTestBuilder.model(model)
+                        .symbolProvider(symbolProvider)
+                        .protocolName(protocolName)
+                        .operation(operation)
+                        .testCases(trait.getTestCases())
+                        .build()
+                        .generateTestFunction(writer);
             });
 
             // 3. Generate test cases for each error on each operation.
@@ -115,8 +125,14 @@ public class HttpProtocolTestGenerator {
 
                 error.getTrait(HttpResponseTestsTrait.class).ifPresent(trait -> {
                     // TODO filter test cases for this given protocol.
-                    responseErrorTestBuilder.build(model, symbolProvider, protocolName, operation, error,
-                            trait.getTestCases()).generateTestFunction(writer);
+                    responseErrorTestBuilder.model(model)
+                            .symbolProvider(symbolProvider)
+                            .protocolName(protocolName)
+                            .operation(operation)
+                            .error(error)
+                            .testCases(trait.getTestCases())
+                            .build()
+                            .generateTestFunction(writer);
                 });
             }
         }

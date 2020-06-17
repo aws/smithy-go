@@ -33,41 +33,12 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     private static final Logger LOGGER = Logger.getLogger(HttpProtocolUnitTestResponseGenerator.class.getName());
 
     /**
-     * Builder to lazy initialize the protocol test generator with operation specific configuration.
-     */
-    public static class Builder {
-        /**
-         * Builds the test generator for the provided configuration.
-         *
-         * @param model          Smithy model.
-         * @param symbolProvider Smithy symbol provider.
-         * @param protocolName   Name of the model's protocol that will be generated.
-         * @param operation      shape for the Operation the unit test is generated for.
-         * @param testCases      Set of test cases for the operation.
-         * @return initialize protocol test generator.
-         */
-        public HttpProtocolUnitTestResponseGenerator build(
-                Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation,
-                List<HttpResponseTestCase> testCases
-        ) {
-            return new HttpProtocolUnitTestResponseGenerator(model, symbolProvider, protocolName, operation, testCases);
-        }
-    }
-
-    /**
      * Initializes the protocol test generator.
      *
-     * @param model          smithy model
-     * @param symbolProvider symbol provider
-     * @param protocolName   name of the protocol test is being generated for.
-     * @param operation      operation shape the test is for.
-     * @param testCases      test cases for the operation.
+     * @param builder the builder initializing the generator.
      */
-    protected HttpProtocolUnitTestResponseGenerator(
-            Model model, SymbolProvider symbolProvider, String protocolName, OperationShape operation,
-            List<HttpResponseTestCase> testCases
-    ) {
-        super(model, symbolProvider, protocolName, operation, testCases);
+    protected HttpProtocolUnitTestResponseGenerator(Builder builder) {
+        super(builder);
     }
 
     /**
@@ -176,5 +147,42 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writeAssertComplexEqual(writer, "c.ExpectResult", "result", new String[]{"middleware.Metadata{}"});
 
         // TODO assertion for protocol metadata
+    }
+
+    public static class Builder extends HttpProtocolUnitTestGenerator.Builder<HttpResponseTestCase> {
+        @Override
+        public Builder model(Model model) {
+            this.model = model;
+            return this;
+        }
+
+        @Override
+        public Builder symbolProvider(SymbolProvider symbolProvider) {
+            this.symbolProvider = symbolProvider;
+            return this;
+        }
+
+        @Override
+        public Builder protocolName(String protocolName) {
+            this.protocolName = protocolName;
+            return this;
+        }
+
+        @Override
+        public Builder operation(OperationShape operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        @Override
+        public Builder testCases(List<HttpResponseTestCase> testCases) {
+            this.testCases = testCases;
+            return this;
+        }
+
+        @Override
+        public HttpProtocolUnitTestResponseGenerator build() {
+            return new HttpProtocolUnitTestResponseGenerator(this);
+        }
     }
 }
