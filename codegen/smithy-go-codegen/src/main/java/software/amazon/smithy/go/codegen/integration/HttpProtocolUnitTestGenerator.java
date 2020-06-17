@@ -317,7 +317,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param httpClientInit the lambda for configuring the API client's HTTP client.
      */
     protected void writeClientInit(GoWriter writer, Runnable httpClientInit) {
-        writer.openBlock("client, err := New(Options{", "})", () -> {
+        writer.openBlock("client := New(Options{", "})", () -> {
             // TODO need more robust determination what middleware to keep/drop
             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
             writeStructField(writer, "APIOptions", "[]APIOptionFunc{\n"
@@ -332,9 +332,6 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             writer.openBlock(
                     "HTTPClient: smithyhttp.ClientDoFunc(func(r *http.Request) (*http.Response, error) {",
                     "}),", httpClientInit);
-        });
-        writer.openBlock("if err != nil {", "}", () -> {
-            writer.write("t.Fatalf(\"expect new client without error, got %v\", err)");
         });
     }
 
