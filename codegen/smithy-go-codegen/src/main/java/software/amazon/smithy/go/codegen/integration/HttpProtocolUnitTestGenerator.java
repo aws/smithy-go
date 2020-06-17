@@ -323,7 +323,15 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     protected void writeClientInit(GoWriter writer, Runnable httpClientInit) {
         writer.openBlock("client, err := New(Options{", "})", () -> {
-            // TODO expand with other options?
+            // TODO need more robust determination what middleware to keep/drop
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+            writeStructField(writer, "APIOptions", "[]APIOptionFunc{"
+                    + "  func(s *middleware.Stack) error{\n"
+                    + "    s.Build.Clear()\n"
+                    + "    s.Finalize.Clear()\n"
+                    + "    return nil\n"
+                    + "  },\n"
+                    + "}");
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
             writer.addUseImports(SmithyGoDependency.NET_HTTP);
             writer.openBlock(

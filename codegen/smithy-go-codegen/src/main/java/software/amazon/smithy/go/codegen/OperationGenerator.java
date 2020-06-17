@@ -98,12 +98,13 @@ final class OperationGenerator implements Runnable {
                     writer.openBlock("for _, fn := range optFns {", "}", () -> {
                         writer.write("fn(&options)");
                     });
-                    writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
-                        writer.write("if err := fn(stack); err != nil { return nil, err }");
-                    });
 
                     // add middleware to operation stack
                     populateOperationMiddlewareStack();
+
+                    writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
+                        writer.write("if err := fn(stack); err != nil { return nil, err }");
+                    });
 
                     constructHandler();
                     writer.write("result, metadata, err := handler.Handle(ctx, params)");
