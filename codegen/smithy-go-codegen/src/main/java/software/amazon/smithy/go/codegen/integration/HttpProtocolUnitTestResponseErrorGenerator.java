@@ -152,27 +152,30 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
     public static class Builder extends HttpProtocolUnitTestResponseGenerator.Builder {
         protected Shape error;
 
+        // TODO should be a way not to define these override methods since they are all defined in the base Builder.
+        // the return type breaks this though since this builder adds a new builder field.
+
         @Override
         public Builder model(Model model) {
-            this.model = model;
+            super.model(model);
             return this;
         }
 
         @Override
         public Builder symbolProvider(SymbolProvider symbolProvider) {
-            this.symbolProvider = symbolProvider;
+            super.symbolProvider(symbolProvider);
             return this;
         }
 
         @Override
         public Builder protocolName(String protocolName) {
-            this.protocolName = protocolName;
+            super.protocolName(protocolName);
             return this;
         }
 
         @Override
         public Builder operation(OperationShape operation) {
-            this.operation = operation;
+            super.operation(operation);
             return this;
         }
 
@@ -183,7 +186,13 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
 
         @Override
         public Builder testCases(List<HttpResponseTestCase> testCases) {
-            this.testCases = testCases;
+            super.testCases(testCases);
+            return this;
+        }
+
+        @Override
+        public Builder addTestCases(List<HttpResponseTestCase> testCases) {
+            super.addTestCases(testCases);
             return this;
         }
 

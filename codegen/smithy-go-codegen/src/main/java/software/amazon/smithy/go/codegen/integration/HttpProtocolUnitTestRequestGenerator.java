@@ -17,13 +17,9 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.List;
 import java.util.logging.Logger;
-import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
 
 /**
@@ -129,19 +125,23 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                 String compareFunc = "";
                 switch (bodyMediaType.toLowerCase()) {
                     case "application/json":
-                        compareFunc = String.format("return smithytesting.CompareJSONReaderBytes(actual, []byte(`%s`))",
+                        compareFunc = String.format(
+                                "return smithytesting.CompareJSONReaderBytes(actual, []byte(`%s`))",
                                 body);
                         break;
                     case "application/xml":
-                        compareFunc = String.format("return smithytesting.CompareXMLReaderBytes(actual, []byte(`%s`))",
+                        compareFunc = String.format(
+                                "return smithytesting.CompareXMLReaderBytes(actual, []byte(`%s`))",
                                 body);
                         break;
                     case "application/x-www-form-urlencoded":
                         compareFunc = String.format(
-                                "return smithytesting.CompareURLFormReaderBytes(actual, []byte(`%s`))", body);
+                                "return smithytesting.CompareURLFormReaderBytes(actual, []byte(`%s`))",
+                                body);
                         break;
                     default:
-                        compareFunc = String.format("return smithytesting.CompareReaderBytes(actual, []byte(`%s`))",
+                        compareFunc = String.format(
+                                "return smithytesting.CompareReaderBytes(actual, []byte(`%s`))",
                                 body);
                         break;
 
@@ -211,36 +211,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     public static class Builder extends HttpProtocolUnitTestGenerator.Builder<HttpRequestTestCase> {
-        @Override
-        public Builder model(Model model) {
-            this.model = model;
-            return this;
-        }
-
-        @Override
-        public Builder symbolProvider(SymbolProvider symbolProvider) {
-            this.symbolProvider = symbolProvider;
-            return this;
-        }
-
-        @Override
-        public Builder protocolName(String protocolName) {
-            this.protocolName = protocolName;
-            return this;
-        }
-
-        @Override
-        public Builder operation(OperationShape operation) {
-            this.operation = operation;
-            return this;
-        }
-
-        @Override
-        public Builder testCases(List<HttpRequestTestCase> testCases) {
-            this.testCases = testCases;
-            return this;
-        }
-
         @Override
         public HttpProtocolUnitTestRequestGenerator build() {
             return new HttpProtocolUnitTestRequestGenerator(this);

@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -500,9 +501,9 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     public abstract static class Builder<T extends HttpMessageTestCase> {
         protected Model model;
         protected SymbolProvider symbolProvider;
-        protected String protocolName;
+        protected String protocolName = "";
         protected OperationShape operation;
-        protected List<T> testCases;
+        protected List<T> testCases = new ArrayList<>();
 
         public Builder<T> model(Model model) {
             this.model = model;
@@ -525,7 +526,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         }
 
         public Builder<T> testCases(List<T> testCases) {
-            this.testCases = testCases;
+            this.testCases.clear();
+            return this.addTestCases(testCases);
+        }
+
+        public Builder<T> addTestCases(List<T> testCases) {
+            this.testCases.addAll(testCases);
             return this;
         }
 

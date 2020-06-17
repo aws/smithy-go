@@ -17,13 +17,9 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.List;
 import java.util.logging.Logger;
-import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
 
 /**
@@ -150,36 +146,6 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     }
 
     public static class Builder extends HttpProtocolUnitTestGenerator.Builder<HttpResponseTestCase> {
-        @Override
-        public Builder model(Model model) {
-            this.model = model;
-            return this;
-        }
-
-        @Override
-        public Builder symbolProvider(SymbolProvider symbolProvider) {
-            this.symbolProvider = symbolProvider;
-            return this;
-        }
-
-        @Override
-        public Builder protocolName(String protocolName) {
-            this.protocolName = protocolName;
-            return this;
-        }
-
-        @Override
-        public Builder operation(OperationShape operation) {
-            this.operation = operation;
-            return this;
-        }
-
-        @Override
-        public Builder testCases(List<HttpResponseTestCase> testCases) {
-            this.testCases = testCases;
-            return this;
-        }
-
         @Override
         public HttpProtocolUnitTestResponseGenerator build() {
             return new HttpProtocolUnitTestResponseGenerator(this);
