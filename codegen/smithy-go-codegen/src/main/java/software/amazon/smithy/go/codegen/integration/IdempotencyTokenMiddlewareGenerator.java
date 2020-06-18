@@ -15,10 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -153,9 +151,6 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
-        Set<Symbol> functionArgs = new HashSet<>();
-        functionArgs.add(SymbolUtils.createValueSymbolBuilder("options").build());
-
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
                         .operationPredicate((model, service, operation) -> {
@@ -177,10 +172,9 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                         })
                         .registerMiddleware(
                                 MiddlewareRegistrar.builder()
-                                        .resolvedFunction(
-                                                SymbolUtils.createValueSymbolBuilder(
-                                                        "addIdempotencyTokenMiddleware").build())
-                                        .functionArguments(functionArgs)
+                                        .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
+                                                "addIdempotencyTokenMiddleware").build())
+                                        .functionArgument(SymbolUtils.createValueSymbolBuilder("options").build())
                                         .build()
                         )
                         .build()

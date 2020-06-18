@@ -15,10 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -192,12 +189,9 @@ final class OperationGenerator implements Runnable {
                 MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
                 writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
 
-                Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
-                if (functionArguments != null) {
-                    Set<Symbol> args = new HashSet<>(functionArguments);
-                    for (Symbol arg: args) {
-                        writer.writeInline(", $P", arg);
-                    }
+                Symbol functionArgument = middlewareRegistrar.getFunctionArgument();
+                if (functionArgument != null) {
+                        writer.writeInline(", $P", functionArgument);
                 }
                 writer.write(")");
             }

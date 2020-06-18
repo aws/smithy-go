@@ -15,8 +15,6 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Objects;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -25,11 +23,11 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
 
 public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar> {
     private final Symbol resolvedFunction;
-    private final Collection<Symbol> functionArguments;
+    private final Symbol functionArgument;
 
     public MiddlewareRegistrar(Builder builder) {
         this.resolvedFunction = builder.resolvedFunction;
-        this.functionArguments = builder.functionArguments;
+        this.functionArgument = builder.functionArgument;
     }
 
     /**
@@ -40,15 +38,15 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
     }
 
     /**
-     * @return Returns a Collection of symbols denoting the arguments of the resolved function.
+     * @return Returns a symbol denoting the argument of the resolved function.
      */
-    public Collection<Symbol> getFunctionArguments() {
-        return functionArguments;
+    public Symbol getFunctionArgument() {
+        return functionArgument;
     }
 
     @Override
     public SmithyBuilder<MiddlewareRegistrar> toBuilder() {
-        return builder().functionArguments(functionArguments).resolvedFunction(resolvedFunction);
+        return builder().functionArgument(functionArgument).resolvedFunction(resolvedFunction);
     }
 
     public static MiddlewareRegistrar.Builder builder() {
@@ -65,12 +63,12 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
         }
         MiddlewareRegistrar that = (MiddlewareRegistrar) o;
         return Objects.equals(getResolvedFunction(), that.getResolvedFunction())
-                && Objects.equals(getFunctionArguments(), that.getFunctionArguments());
+                && Objects.equals(getFunctionArgument(), that.getFunctionArgument());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getResolvedFunction(), getFunctionArguments());
+        return Objects.hash(getResolvedFunction(), getFunctionArgument());
     }
 
 
@@ -79,7 +77,7 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
      */
     public static class Builder implements SmithyBuilder<MiddlewareRegistrar> {
         private Symbol resolvedFunction;
-        private Collection<Symbol> functionArguments;
+        private Symbol functionArgument;
 
         @Override
         public MiddlewareRegistrar build() {
@@ -98,13 +96,13 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
         }
 
         /**
-         * Sets the function Arguments for the MiddlewareRegistrar function.
+         * Sets the function Argument for the MiddlewareRegistrar function.
          *
-         * @param functionArguments A Symbol representing the type of the config field.
+         * @param functionArgument A Symbol representing the argument to the middleware register function.
          * @return Returns the builder.
          */
-        public Builder functionArguments(Collection<Symbol> functionArguments) {
-            this.functionArguments = new HashSet<>(functionArguments);
+        public Builder functionArgument(Symbol functionArgument) {
+            this.functionArgument = functionArgument;
             return this;
         }
     }
