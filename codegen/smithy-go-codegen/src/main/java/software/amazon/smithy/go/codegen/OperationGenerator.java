@@ -15,11 +15,14 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-
+import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
@@ -137,6 +140,19 @@ final class OperationGenerator implements Runnable {
             writer.writeDocs("Metadata pertaining to the operation's result.");
             writer.write("ResultMetadata $T", metadataSymbol);
         });
+
+        // Generate any plugged middleware helper function
+        for (RuntimeClientPlugin plugin : runtimeClientPlugins) {
+             if (!plugin.matchesService(model, service)
+                    && !plugin.matchesOperation(model, service, operation)) {
+                 continue;
+             }
+
+             if (plugin.writeMiddlewareHelpers().isPresent()) {
+                 plugin.writeMiddlewareHelpers().get().generateMiddlewareHelper(
+                         writer, service, operation, protocolGenerator);
+             }
+        }
     }
 
     private void constructStack() {
@@ -172,10 +188,18 @@ final class OperationGenerator implements Runnable {
                 return;
             }
 
-            if (runtimeClientPlugin.buildMiddlewareStack().isPresent()) {
-                runtimeClientPlugin.buildMiddlewareStack().get().applyMiddleware(
-                        writer, service, operation, protocolGenerator, "stack"
-                );
+            if (runtimeClientPlugin.registerMiddleware().isPresent()) {
+                MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
+                writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+
+                Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+                if (functionArguments != null) {
+                    Set<Symbol> args = new HashSet<>(functionArguments);
+                    for (Symbol arg: args) {
+                        writer.writeInline(", $P", arg);
+                    }
+                }
+                writer.write(")");
             }
         });
         writer.write("");

@@ -15,8 +15,10 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -25,6 +27,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
@@ -56,15 +59,16 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
             middlewareWriter.addUseImports(SmithyGoDependency.FMT);
 
             middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
-            writer.addUseImports(SmithyGoDependency.SMITHY_RAND);
-            writer.addUseImports(SmithyGoDependency.CRYPTORAND);
-            writer.write("uuid := smithyrand.NewUUID(randReader)");
-            writer.write("v, err := uuid.GetUUID()");
-            writer.write("if err != nil { return out, metadata, err}");
-                middlewareWriter.write("input.$L = &v", memberName);
+                middlewareWriter.write("t, err := m.tokenProvider.GetToken()");
+                middlewareWriter.write(" if err != nil { return out, metadata, err }");
+                middlewareWriter.write("input.$L = &t", memberName);
             });
             middlewareWriter.write("return next.$L(ctx, in)", middlewareGenerator.getHandleMethodName());
-        });
+        }, ((generator, memberWriter) -> {
+            memberWriter.write("tokenProvider IdempotencyTokenProvider");
+        }));
+
+        writer.write("");
     }
 
     @Override
@@ -81,7 +85,13 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
         }
 
         writerFactory.accept("idempotencyTokenMiddleware.go", settings.getModuleName(), writer -> {
-            writer.write("var randReader io.Reader = cryptorand.Reader");
+            writer.write("// IdempotencyTokenProvider interface for providing idempotency token");
+            writer.openBlock("type IdempotencyTokenProvider interface {",
+                    "}", () -> {
+                    writer.write("GetToken() (string, error)");
+            });
+            writer.write("");
+
             writer.addUseImports(SmithyGoDependency.IO);
             for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
                 ShapeId operationId = entry.getKey();
@@ -143,6 +153,9 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
+        Set<Symbol> functionArgs = new HashSet<>();
+        functionArgs.add(SymbolUtils.createValueSymbolBuilder("options").build());
+
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
                         .operationPredicate((model, service, operation) -> {
@@ -151,12 +164,25 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                             }
                             return false;
                         })
-                        .buildMiddlewareStack((writer, service, operation, protocolGenerator, stackOperand) -> {
-                            writer.write("$L.Initialize.Add(&$L{},middleware.After)",
-                                    stackOperand,
-                                    getIdempotencyTokenMiddlewareName(operation));
+                        .writeMiddlewareHelpers((writer, service, operation, protocolGenerator) -> {
+                            // Generate idempotency token middleware registrar function
                             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                            writer.write("// addIdempotencyTokenMiddleware registers middleware into operation stack");
+                            writer.openBlock("func addIdempotencyTokenMiddleware("
+                                            + "stack *middleware.Stack, cfg IdempotencyTokenProvider) {",
+                                    "}", () -> {
+                                writer.write("stack.Initialize.Add(&$L{cfg},middleware.After)",
+                                        getIdempotencyTokenMiddlewareName(operation));
+                            });
                         })
+                        .registerMiddleware(
+                                MiddlewareRegistrar.builder()
+                                        .resolvedFunction(
+                                                SymbolUtils.createValueSymbolBuilder(
+                                                        "addIdempotencyTokenMiddleware").build())
+                                        .functionArguments(functionArgs)
+                                        .build()
+                        )
                         .build()
         );
     }
