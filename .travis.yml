@@ -1,8 +1,8 @@
 language: java
 sudo: true
 dist: bionic
-install: /bin/true
-before_script:
+
+install:
     - eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=1.14.x bash)"
     - echo `go env`
     - echo `which go`
