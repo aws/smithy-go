@@ -202,6 +202,64 @@ public final class CodegenUtils {
     }
 
     /**
+     * Gets a value version of the operate based on the shape type. Returns a string with dereferencing the provided
+     * operand value if needed. Shapes like Structure, maps, and slices are not dereferenced.
+     *
+     * @param writer  The writer dependencies will be added to, if needed.
+     * @param shape   The shape whose value needs to be assigned.
+     * @param operand The Operand is the value to be assigned to the symbol shape.
+     * @return The Operand, along with pointer reference if applicable
+     */
+    public static String operandValueIfScalar(GoWriter writer, Shape shape, String operand) {
+        String prefix = "";
+        String suffix = ")";
+
+        switch (shape.getType()) {
+            case STRING:
+                if (shape.hasTrait(EnumTrait.class)) {
+                    return operand;
+                }
+
+                prefix = "ptr.ToString(";
+                break;
+
+            case BOOLEAN:
+                prefix = "ptr.ToBool(";
+                break;
+
+            case BYTE:
+                prefix = "ptr.ToInt8(";
+                break;
+            case SHORT:
+                prefix = "ptr.ToInt16(";
+                break;
+            case INTEGER:
+                prefix = "ptr.ToInt32(";
+                break;
+            case LONG:
+                prefix = "ptr.ToInt64(";
+                break;
+
+            case FLOAT:
+                prefix = "ptr.ToFloat32(";
+                break;
+            case DOUBLE:
+                prefix = "ptr.ToFloat64(";
+                break;
+
+            case TIMESTAMP:
+                prefix = "ptr.ToTime(";
+                break;
+
+            default:
+                return operand;
+        }
+
+        writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+        return prefix + operand + suffix;
+    }
+
+    /**
      * Returns whether the shape should be passed by value in Go.
      *
      * @param shape the shape

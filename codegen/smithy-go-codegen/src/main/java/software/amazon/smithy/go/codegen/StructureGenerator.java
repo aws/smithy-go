@@ -21,6 +21,8 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.utils.MapUtils;
@@ -156,13 +158,35 @@ final class StructureGenerator implements Runnable {
             Symbol memberSymbol = symbolProvider.toSymbol(member);
             String getterName = "Get" + memberName;
             String haserName = "Has" + memberName;
-            writer.openBlock("func (e *$L) $L() $T {", "}",
-                    structureSymbol.getName(), getterName, memberSymbol, () -> {
-                writer.write("return *e.$L", memberName);
-            });
-            writer.openBlock("func (e *$L) $L() bool {", "}", structureSymbol.getName(), haserName, () -> {
-                writer.write("return e.$L != nil", memberName);
-            });
+
+            Shape targetShape = model.expectShape(member.getTarget());
+            Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+
+            // Getter methods return values only for scalars, pointers for all others.
+            writer.openBlock("func (e *$L) $L() " + getterReturnFormatter(targetShape) + " {", "}",
+                    structureSymbol.getName(), getterName, targetSymbol, () -> {
+                        writer.write("return $L", CodegenUtils.operandValueIfScalar(writer, targetShape,
+                                String.format("e.%s", memberName)));
+                    });
+
+            // Has methods only for pointable types
+            if (CodegenUtils.isNilAssignableToShape(model, targetShape)) {
+                writer.openBlock("func (e *$L) $L() bool {", "}", structureSymbol.getName(), haserName, () -> {
+                    writer.write("return e.$L != nil", memberName);
+                });
+            }
         }
+    }
+
+    private String getterReturnFormatter(Shape shape) {
+        if (CodegenUtils.isShapePassByValue(shape)) {
+            return "$P";
+        }
+
+        if (shape.getType() == ShapeType.STRUCTURE) {
+            return "$P";
+        }
+
+        return "$T";
     }
 }
