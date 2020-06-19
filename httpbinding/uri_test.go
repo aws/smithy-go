@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -152,5 +153,46 @@ func setURI(uv URIValue, args []interface{}) error {
 		return reflectCall(reflect.ValueOf(uv.BigDecimal), args)
 	default:
 		return fmt.Errorf("unhandled value type")
+	}
+}
+
+func TestParseURI(t *testing.T) {
+	cases := []struct {
+		Value string
+		Path  string
+		Query string
+	}{
+		{
+			Value: "/my/uri/foo/bar/baz",
+			Path:  "/my/uri/foo/bar/baz",
+			Query: "",
+		},
+		{
+			Value: "/path?requiredKey",
+			Path:  "/path",
+			Query: "requiredKey",
+		},
+		{
+			Value: "/path?",
+			Path:  "/path",
+			Query: "",
+		},
+		{
+			Value: "?",
+			Path:  "",
+			Query: "",
+		},
+	}
+
+	for i, tt := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			path, query := ParseURI(tt.Value)
+			if e, a := tt.Path, path; e != a {
+				t.Errorf("expected %v, got %v", e, a)
+			}
+			if e, a := tt.Query, query; e != a {
+				t.Errorf("expected %v, got %v", e, a)
+			}
+		})
 	}
 }

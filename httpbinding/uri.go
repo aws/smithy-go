@@ -3,6 +3,7 @@ package httpbinding
 import (
 	"math/big"
 	"strconv"
+	"strings"
 )
 
 // URIValue is used to encode named URI parameters
@@ -77,4 +78,21 @@ func (u URIValue) BigDecimal(v *big.Float) error {
 		return u.Long(i)
 	}
 	return u.modifyURI(v.Text('e', -1))
+}
+
+// ParseURI parses a Smithy HTTP binding trait URI
+func ParseURI(uri string) (path, query string) {
+	queryStart := strings.IndexRune(uri, '?')
+	if queryStart == -1 {
+		path = uri
+		return path, query
+	}
+
+	path = uri[:queryStart]
+	if queryStart+1 >= len(uri) {
+		return path, query
+	}
+	query = uri[queryStart+1:]
+
+	return path, query
 }
