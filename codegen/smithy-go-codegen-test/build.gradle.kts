@@ -31,3 +31,11 @@ dependencies {
     implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.0.2,1.1.0[")
     implementation(project(":smithy-go-codegen"))
 }
+
+// ensure built artifacts are put into the SDK's folders
+tasks.create<Exec>("verifyGoCodegen") {
+    dependsOn ("build")
+    workingDir("$buildDir/smithyprojections/smithy-go-codegen-test/source/go-codegen")
+    commandLine ("go", "test", "-run", "NONE", "./...")
+}
+tasks["build"].finalizedBy(tasks["verifyGoCodegen"])
