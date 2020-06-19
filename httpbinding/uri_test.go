@@ -186,7 +186,7 @@ func TestParseURI(t *testing.T) {
 
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			path, query := ParseURI(tt.Value)
+			path, query := SplitURI(tt.Value)
 			if e, a := tt.Path, path; e != a {
 				t.Errorf("expected %v, got %v", e, a)
 			}

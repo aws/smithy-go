@@ -277,7 +277,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
 
             writer.write("");
-            writer.write("opPath, opQuery := httpbinding.ParseURI($S)", httpTrait.getUri());
+            writer.write("opPath, opQuery := httpbinding.SplitURI($S)", httpTrait.getUri());
             writer.write("request.URL.Path = opPath");
             writer.openBlock("if len(request.URL.RawQuery) > 0 {", "", () -> {
                 writer.write("request.URL.RawQuery = \"&\" + opQuery");

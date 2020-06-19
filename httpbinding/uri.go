@@ -80,8 +80,8 @@ func (u URIValue) BigDecimal(v *big.Float) error {
 	return u.modifyURI(v.Text('e', -1))
 }
 
-// ParseURI parses a Smithy HTTP binding trait URI
-func ParseURI(uri string) (path, query string) {
+// SplitURI parses a Smithy HTTP binding trait URI
+func SplitURI(uri string) (path, query string) {
 	queryStart := strings.IndexRune(uri, '?')
 	if queryStart == -1 {
 		path = uri
