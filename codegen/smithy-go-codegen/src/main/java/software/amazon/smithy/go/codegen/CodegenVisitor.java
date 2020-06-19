@@ -199,10 +199,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         LOGGER.fine("Running go fmt");
         CodegenUtils.runCommand("go fmt", fileManifest.getBaseDir());
-
-        // TODO this should be moved to a smithy gradle task
-        LOGGER.fine("Running go build");
-        CodegenUtils.runCommand("go test -run NONE ./...", fileManifest.getBaseDir());
     }
 
     @Override
