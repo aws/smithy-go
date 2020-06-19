@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Objects;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.ToSmithyBuilder;
 
@@ -103,6 +104,16 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
          */
         public Builder functionArgument(Symbol functionArgument) {
             this.functionArgument = functionArgument;
+            return this;
+        }
+
+        /**
+         * Sets symbol that resolves to options as an argument for the resolved function.
+         *
+         * @return Returns the builder.
+         */
+        public Builder setClientOptionsAsFunctionArgument() {
+            this.functionArgument = SymbolUtils.createValueSymbolBuilder("options").build();
             return this;
         }
     }

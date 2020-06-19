@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -41,7 +40,6 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
 public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientPlugin> {
 
     private final Symbol resolveFunction;
-    private final ApplyPlugin writeMiddlewareHelpers;
     private final BiPredicate<Model, ServiceShape> servicePredicate;
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
@@ -53,28 +51,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         operationPredicate = builder.operationPredicate;
         servicePredicate = builder.servicePredicate;
         configFields = builder.configFields;
-        writeMiddlewareHelpers = builder.writeMiddlewareHelpers;
         registerMiddleware = builder.registerMiddleware;
-    }
-
-    @FunctionalInterface
-    public interface ApplyPlugin {
-
-        /**
-         * generateMiddlewareHelper generates a middleware helper function
-         * for a service or operation shape.
-         *
-         * @param writer GoWriter to write the Go code.
-         * @param service service shape to which the operation belongs.
-         * @param operation operation shape for which operation stack is defined.
-         * @param protocolGenerator Protocol generator for protocol used by service.
-         */
-        void generateMiddlewareHelper(
-                GoWriter writer,
-                ServiceShape service,
-                OperationShape operation,
-                ProtocolGenerator protocolGenerator
-        );
     }
 
 
@@ -108,21 +85,6 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return Optional.ofNullable(resolveFunction);
     }
 
-
-    /**
-     * Gets the optionally present function that builds operation middleware helpers.
-     *
-     * <p>Any configuration that a plugin requires in order to function should be
-     * checked in this function, either setting a default value if possible or
-     * returning an error if not.
-     *
-     *
-     * @return Returns the optionally present ApplyPlugin.generateMiddlewareHelper function.
-     */
-    public Optional<ApplyPlugin> writeMiddlewareHelpers() {
-        return Optional.ofNullable(writeMiddlewareHelpers);
-    }
-
     /**
      * Gets the optionally present middleware registrar object that resolves to middleware registering function.
      *
@@ -131,7 +93,6 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     public Optional<MiddlewareRegistrar> registerMiddleware() {
         return Optional.ofNullable(registerMiddleware);
     }
-
 
     /**
      * Returns true if this plugin applies to the given service.
@@ -196,7 +157,6 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
                 .resolveFunction(resolveFunction)
                 .servicePredicate(servicePredicate)
                 .operationPredicate(operationPredicate)
-                .writeMiddlewareHelpers(writeMiddlewareHelpers)
                 .registerMiddleware(registerMiddleware);
     }
 
@@ -205,7 +165,6 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public static final class Builder implements SmithyBuilder<RuntimeClientPlugin> {
         private Symbol resolveFunction;
-        private ApplyPlugin writeMiddlewareHelpers;
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new HashSet<>();
@@ -224,17 +183,6 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder resolveFunction(Symbol resolveFunction) {
             this.resolveFunction = resolveFunction;
-            return this;
-        }
-
-        /**
-         * Sets the functional interface to generate middleware registrar helper functions.
-         *
-         * @param writeMiddlewareHelpers Functional interface to generate middleware helpers
-         * @return Returns the builder.
-         */
-        public Builder writeMiddlewareHelpers(ApplyPlugin writeMiddlewareHelpers) {
-            this.writeMiddlewareHelpers = writeMiddlewareHelpers;
             return this;
         }
 

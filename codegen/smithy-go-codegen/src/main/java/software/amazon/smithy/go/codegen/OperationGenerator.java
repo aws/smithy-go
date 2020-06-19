@@ -138,18 +138,8 @@ final class OperationGenerator implements Runnable {
             writer.write("ResultMetadata $T", metadataSymbol);
         });
 
-        // Generate any plugged middleware helper function
-        for (RuntimeClientPlugin plugin : runtimeClientPlugins) {
-             if (!plugin.matchesService(model, service)
-                    && !plugin.matchesOperation(model, service, operation)) {
-                 continue;
-             }
-
-             if (plugin.writeMiddlewareHelpers().isPresent()) {
-                 plugin.writeMiddlewareHelpers().get().generateMiddlewareHelper(
-                         writer, service, operation, protocolGenerator);
-             }
-        }
+        // Generate operation protocol middleware helper function
+        generateOperationProtocolMiddlewareHelper();
     }
 
     private void constructStack() {
@@ -179,6 +169,8 @@ final class OperationGenerator implements Runnable {
      * Adds middleware to the operation middleware stack.
      */
     private void populateOperationMiddlewareStack() {
+
+        // Populate middleware's from runtime client plugins
         runtimeClientPlugins.forEach(runtimeClientPlugin -> {
             if (!runtimeClientPlugin.matchesService(model, service)
                     && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
@@ -196,6 +188,46 @@ final class OperationGenerator implements Runnable {
                 writer.write(")");
             }
         });
+
+        // generate call to serde middleware helpers
+        if (protocolGenerator != null) {
+            writer.write("$L(stack)", getOperationProtocolMiddlewareHelperName(operation));
+        }
         writer.write("");
+    }
+
+   /** Generate operation protocol middleware helper.
+    */
+    private void generateOperationProtocolMiddlewareHelper() {
+        if (protocolGenerator == null) {
+            return;
+        }
+        writer.openBlock("func $L (stack *middleware.Stack) {", "}",
+                getOperationProtocolMiddlewareHelperName(operation), () -> {
+
+            // Add request serializer middleware
+            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                    operation.getId(),
+                    protocolGenerator.getProtocolName());
+
+            writer.write("stack.Serialize.add(\"&$L{}\", stack)", serializerMiddlewareName);
+
+            // Adds response deserializer middleware
+            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                    operation.getId(),
+                    protocolGenerator.getProtocolName());
+            writer.write("stack.Deserialize.add(\"&$L{}\", stack)", deserializerMiddlewareName);
+        });
+    }
+
+    /**
+     * Get middleware helper name for Protocol middleware.
+     *
+     * @param operation Operation for which middleware helpers are generated.
+     * @return protocol middleware helper name.
+     */
+    private String getOperationProtocolMiddlewareHelperName(OperationShape operation) {
+        return String.format("add%s_serdeOp%sMiddlewares",
+                protocolGenerator.getProtocolName(), operation.getId().getName());
     }
 }
