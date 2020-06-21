@@ -95,6 +95,6 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.14";
         private static final String GO_CMP = "v0.4.1";
-        private static final String SMITHY_GO = "v0.0.0-20200619150607-5f859e65881a";
+        private static final String SMITHY_GO = "v0.0.0-20200621154245-a6f1910b5eba";
     }
 }
