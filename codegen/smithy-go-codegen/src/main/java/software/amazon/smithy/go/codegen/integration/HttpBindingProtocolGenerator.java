@@ -277,9 +277,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
 
             writer.write("");
-            writer.write("request.Request.URL.Path = $S", httpTrait.getUri());
-            writer.write("request.Request.Method = $S", httpTrait.getMethod());
-            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
+            writer.write("opPath, opQuery := httpbinding.SplitURI($S)", httpTrait.getUri());
+            writer.write("request.URL.Path = opPath");
+            writer.openBlock("if len(request.URL.RawQuery) > 0 {", "", () -> {
+                writer.write("request.URL.RawQuery = \"&\" + opQuery");
+                writer.openBlock("} else {", "}", () -> {
+                    writer.write("request.URL.RawQuery = opQuery");
+                });
+            });
+            writer.write("request.Method = $S", httpTrait.getMethod());
             writer.write("restEncoder := httpbinding.NewEncoder(request.Request)");
             writer.write("");
 
@@ -287,7 +293,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             if (isOperationWithRestRequestBindings(model, operation)) {
                 String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
                         getProtocolName());
-                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
                 });
