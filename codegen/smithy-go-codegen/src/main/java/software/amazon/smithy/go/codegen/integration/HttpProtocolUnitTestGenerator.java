@@ -626,7 +626,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         /**
          * Builder for {@link ConfigValue}.
          */
-        public static class Builder implements SmithyBuilder<ConfigValue> {
+        public static final class Builder implements SmithyBuilder<ConfigValue> {
             private String name;
             private Consumer<GoWriter> value;
 
