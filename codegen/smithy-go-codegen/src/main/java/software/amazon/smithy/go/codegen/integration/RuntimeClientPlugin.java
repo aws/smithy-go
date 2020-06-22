@@ -38,13 +38,11 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
  * build-time.
  */
 public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientPlugin> {
-
     private final Symbol resolveFunction;
     private final BiPredicate<Model, ServiceShape> servicePredicate;
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
     private final MiddlewareRegistrar registerMiddleware;
-
 
     private RuntimeClientPlugin(Builder builder) {
         resolveFunction = builder.resolveFunction;

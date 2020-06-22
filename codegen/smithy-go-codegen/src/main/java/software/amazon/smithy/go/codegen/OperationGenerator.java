@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -179,13 +181,35 @@ final class OperationGenerator implements Runnable {
 
             if (runtimeClientPlugin.registerMiddleware().isPresent()) {
                 MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
-                writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
 
-                Symbol functionArgument = middlewareRegistrar.getFunctionArgument();
-                if (functionArgument != null) {
-                        writer.writeInline(", $P", functionArgument);
+                if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null
+                        && middlewareRegistrar.getInlineRegisterMiddlewarePosition() != null) {
+                    String registerStatement = String.format("stack.%s",
+                            middlewareRegistrar.getInlineRegisterMiddlewareStatement());
+                    writer.writeInline(registerStatement);
+                    writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
+                    if (functionArguments != null) {
+                        List<Symbol> args = new ArrayList<>(functionArguments);
+                        for (Symbol arg: args) {
+                            writer.writeInline("$P", arg);
+                            if (args.iterator().hasNext()) {
+                                writer.writeInline(",");
+                            }
+                        }
+                    }
+                    writer.writeInline(")");
+                    writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+                } else {
+                    writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                    if (functionArguments != null) {
+                        List<Symbol> args = new ArrayList<>(functionArguments);
+                        for (Symbol arg: args) {
+                            writer.writeInline(", $P", arg);
+                        }
+                    }
+                    writer.write(")");
                 }
-                writer.write(")");
             }
         });
 
@@ -210,13 +234,15 @@ final class OperationGenerator implements Runnable {
                     operation.getId(),
                     protocolGenerator.getProtocolName());
 
-            writer.write("stack.Serialize.add(\"&$L{}\", stack)", serializerMiddlewareName);
+            writer.write("stack.Serialize.Add(\"&$L{}\", middleware.After)", serializerMiddlewareName);
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
 
             // Adds response deserializer middleware
             String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
                     operation.getId(),
                     protocolGenerator.getProtocolName());
-            writer.write("stack.Deserialize.add(\"&$L{}\", stack)", deserializerMiddlewareName);
+            writer.write("stack.Deserialize.Add(\"&$L{}\", middleware.After)", deserializerMiddlewareName);
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
         });
     }
 

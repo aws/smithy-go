@@ -15,39 +15,59 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Objects;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.ToSmithyBuilder;
 
-
 public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar> {
     private final Symbol resolvedFunction;
-    private final Symbol functionArgument;
+    private final Collection<Symbol> functionArguments;
+    private final String inlineRegisterMiddlewareStatement;
+    private final Symbol inlineRegisterMiddlewarePosition;
 
     public MiddlewareRegistrar(Builder builder) {
         this.resolvedFunction = builder.resolvedFunction;
-        this.functionArgument = builder.functionArgument;
+        this.functionArguments = builder.functionArguments;
+        this.inlineRegisterMiddlewareStatement = builder.inlineRegisterMiddlewareStatement;
+        this.inlineRegisterMiddlewarePosition = builder.inlineRegisterMiddlewarePosition;
     }
 
     /**
-     * @return Returns symbol that resolves to a function.
+     * @return symbol that resolves to a function.
      */
     public Symbol getResolvedFunction() {
         return resolvedFunction;
     }
 
     /**
-     * @return Returns a symbol denoting the argument of the resolved function.
+     * @return collection of symbols denoting the arguments of the resolved function.
      */
-    public Symbol getFunctionArgument() {
-        return functionArgument;
+    public Collection<Symbol> getFunctionArguments() {
+        return functionArguments;
+    }
+
+    /**
+     * @return string denoting inline middleware registration in the stack
+     */
+    public String getInlineRegisterMiddlewareStatement() {
+        return inlineRegisterMiddlewareStatement;
+    }
+
+    /**
+     * @return symbol used to define the middleware position in the stack
+     */
+    public Symbol getInlineRegisterMiddlewarePosition() {
+        return inlineRegisterMiddlewarePosition;
     }
 
     @Override
     public SmithyBuilder<MiddlewareRegistrar> toBuilder() {
-        return builder().functionArgument(functionArgument).resolvedFunction(resolvedFunction);
+        return builder().functionArguments(functionArguments).resolvedFunction(resolvedFunction);
     }
 
     public static MiddlewareRegistrar.Builder builder() {
@@ -64,12 +84,12 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
         }
         MiddlewareRegistrar that = (MiddlewareRegistrar) o;
         return Objects.equals(getResolvedFunction(), that.getResolvedFunction())
-                && Objects.equals(getFunctionArgument(), that.getFunctionArgument());
+                && Objects.equals(getFunctionArguments(), that.getFunctionArguments());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getResolvedFunction(), getFunctionArgument());
+        return Objects.hash(getResolvedFunction(), getFunctionArguments());
     }
 
 
@@ -78,7 +98,9 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
      */
     public static class Builder implements SmithyBuilder<MiddlewareRegistrar> {
         private Symbol resolvedFunction;
-        private Symbol functionArgument;
+        private Collection<Symbol> functionArguments;
+        private String inlineRegisterMiddlewareStatement;
+        private Symbol inlineRegisterMiddlewarePosition;
 
         @Override
         public MiddlewareRegistrar build() {
@@ -97,13 +119,14 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
         }
 
         /**
-         * Sets the function Argument for the MiddlewareRegistrar function.
+         * Sets the function Arguments for the MiddlewareRegistrar function.
          *
-         * @param functionArgument A Symbol representing the argument to the middleware register function.
+         * @param functionArguments A collection of symbols representing the arguments
+         *                          to the middleware register function.
          * @return Returns the builder.
          */
-        public Builder functionArgument(Symbol functionArgument) {
-            this.functionArgument = functionArgument;
+        public Builder functionArguments(Collection<Symbol> functionArguments) {
+            this.functionArguments = new ArrayList<>(functionArguments);
             return this;
         }
 
@@ -112,9 +135,72 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
          *
          * @return Returns the builder.
          */
-        public Builder setClientOptionsAsFunctionArgument() {
-            this.functionArgument = SymbolUtils.createValueSymbolBuilder("options").build();
+        public Builder useClientOptions() {
+            Collection<Symbol> args = new ArrayList<>();
+            args.add(SymbolUtils.createValueSymbolBuilder("options").build());
+            this.functionArguments = args;
             return this;
+        }
+
+        /**
+         * Adds a middleware to the middleware stack at relative position of After.
+         * @param stackStep Stack step.
+         * @return Returns the Builder.
+         */
+        public Builder registerAfter(StackStep stackStep) {
+            this.inlineRegisterMiddlewareStatement = String.format("%s.Add(", stackStep);
+            this.inlineRegisterMiddlewarePosition = getMiddlewareAfterPositionSymbol();
+            return this;
+        }
+
+        /**
+         * Adds the middleware to the middleware stack at relative position of Before.
+         * @param stackStep Stack step at which the middleware is to be register.
+         * @return Returns the Builder.
+         */
+        public Builder registerBefore(StackStep stackStep) {
+            this.inlineRegisterMiddlewareStatement = String.format("%s.Add(", stackStep);
+            this.inlineRegisterMiddlewarePosition = getMiddlewareBeforePositionSymbol();
+            return this;
+        }
+
+        private Symbol getMiddlewareAfterPositionSymbol() {
+            return SymbolUtils.createValueSymbolBuilder("After",
+                    SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+        }
+
+        private Symbol getMiddlewareBeforePositionSymbol() {
+            return SymbolUtils.createValueSymbolBuilder("Before",
+                    SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+        }
+    }
+
+    /**
+     * Represents the middleware stack step.
+     */
+    public enum StackStep {
+        INITIALIZE,
+        BUILD,
+        SERIALIZE,
+        DESERIALIZE,
+        FINALIZE;
+
+        @Override
+        public String toString() {
+            switch (this) {
+                case INITIALIZE:
+                    return "Initialize";
+                case BUILD:
+                    return "Build";
+                case SERIALIZE:
+                    return "Serialize";
+                case DESERIALIZE:
+                    return "Deserialize";
+                case FINALIZE:
+                    return "Finalize";
+                default:
+                    return "Unknown";
+            }
         }
     }
 }

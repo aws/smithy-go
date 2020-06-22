@@ -55,6 +55,11 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         String memberName = symbolProvider.toMemberName(idempotencyTokenMemberShape);
         middlewareGenerator.writeMiddleware(writer, (generator, middlewareWriter) -> {
+            // if token provider is nil, skip this middleware
+            middlewareWriter.openBlock("if m.tokenProvider == nil {", "}", () -> {
+                middlewareWriter.write("return next.$L(ctx, in)", middlewareGenerator.getHandleMethodName());
+            });
+
             middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
             middlewareWriter.write("if !ok { return out, metadata, "
                     + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
@@ -132,7 +137,6 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                         // Generate idempotency token middleware registrar function
                         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
                         String middlewareHelperName = getIdempotencyTokenMiddlewareHelperName(operation);
-                        writer.write("// addIdempotencyTokenMiddleware registers middleware into operation stack");
                         writer.openBlock("func $L("
                                         + "stack *middleware.Stack, cfg IdempotencyTokenProvider) {",
                                 "}", middlewareHelperName, () -> {
@@ -165,7 +169,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
      * @return name of the idempotency token middleware.
      */
     private String getIdempotencyTokenMiddlewareHelperName(OperationShape operationShape) {
-        return String.format("AddIdempotencyToken_op%sMiddleware", operationShape.getId().getName());
+        return String.format("addIdempotencyToken_op%sMiddleware", operationShape.getId().getName());
     }
 
     /**
