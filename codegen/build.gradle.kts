@@ -248,6 +248,10 @@ subprojects {
         tasks.withType<com.github.spotbugs.SpotBugsTask> {
             effort = "max"
             excludeFilterConfig = project.resources.text.fromFile("${project.rootDir}/config/spotbugs/filter.xml")
+            reports {
+                xml.setEnabled(false)
+                html.setEnabled(true)
+            }
         }
     }
 }
