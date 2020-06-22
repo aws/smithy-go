@@ -318,6 +318,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writeMiddlewarePayloadSerializerDelegator(model, symbolProvider, operation, memberShape, generator,
                         writer);
             }
+            // Ensure the request value is updated if modified for a document.
+            writer.write("in.Request = request");
 
             writer.write("");
             writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
