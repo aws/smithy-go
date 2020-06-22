@@ -38,7 +38,8 @@ func (r *Request) Clone() *Request {
 	return &rc
 }
 
-// RewindStream will rewind the io.Reader to the relative start position if it is an io.Seeker
+// RewindStream will rewind the io.Reader to the relative start position if it
+// is an io.Seeker.
 func (r *Request) RewindStream() error {
 	if !r.isStreamSeekable {
 		return fmt.Errorf("request stream is not seekable")
@@ -47,7 +48,8 @@ func (r *Request) RewindStream() error {
 	return err
 }
 
-// GetStream returns the request stream io.Reader
+// GetStream returns the request stream io.Reader if a stream is set. If no
+// stream is present nil will be returned.
 func (r *Request) GetStream() io.Reader {
 	return r.stream
 }
