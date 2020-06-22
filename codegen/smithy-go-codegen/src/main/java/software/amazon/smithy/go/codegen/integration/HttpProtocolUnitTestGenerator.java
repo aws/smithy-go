@@ -18,6 +18,10 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -32,6 +36,7 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
+import software.amazon.smithy.utils.SmithyBuilder;
 
 /**
  * Abstract base implementation for protocol test generators to extend in order to generate HttpMessageTestCase
@@ -52,6 +57,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final Shape outputShape;
     protected final Symbol outputSymbol;
     protected final String protocolName;
+    protected final Set<ConfigValue> clientConfigValues = new TreeSet<>();
 
     /**
      * Initializes the abstract protocol tests generator.
@@ -64,6 +70,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         this.protocolName = builder.protocolName;
         this.operation = builder.operation;
         this.testCases = builder.testCases;
+        this.clientConfigValues.addAll(builder.clientConfigValues);
 
         opSymbol = symbolProvider.toSymbol(operation);
 
@@ -210,6 +217,19 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     }
 
     /**
+     * Writes a single Go structure field key and value. Writes the field value inline from the shape and
+     * ObjectNode graph provided. Value writer is responsible for writing the proceeding comma after the value.
+     *
+     * @param writer writer to write generated code with.
+     * @param field  the field name of the struct member.
+     * @param value  inline value writer.
+     */
+    protected void writeStructField(GoWriter writer, String field, Consumer<GoWriter> value) {
+        writer.writeInline("$L: ", field);
+        value.accept(writer);
+    }
+
+    /**
      * Writes a Go structure field for a QueryItem value.
      *
      * @param writer writer to write generated code with.
@@ -319,19 +339,14 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected void writeClientInit(GoWriter writer, Runnable httpClientInit) {
         writer.openBlock("client := New(Options{", "})", () -> {
             // TODO need more robust determination what middleware to keep/drop
-            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-            writeStructField(writer, "APIOptions", "[]APIOptionFunc{\n"
-                    + "  func(s *middleware.Stack) error{\n"
-                    + "    s.Build.Clear()\n"
-                    + "    s.Finalize.Clear()\n"
-                    + "    return nil\n"
-                    + "  },\n"
-                    + "}");
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
             writer.addUseImports(SmithyGoDependency.NET_HTTP);
             writer.openBlock(
                     "HTTPClient: smithyhttp.ClientDoFunc(func(r *http.Request) (*http.Response, error) {",
                     "}),", httpClientInit);
+            for (ConfigValue value : clientConfigValues) {
+                writeStructField(writer, value.getName(), value.getValue());
+            }
         });
     }
 
@@ -501,6 +516,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         protected String protocolName = "";
         protected OperationShape operation;
         protected List<T> testCases = new ArrayList<>();
+        protected Set<ConfigValue> clientConfigValues = new TreeSet<>();
 
         public Builder<T> model(Model model) {
             this.model = model;
@@ -532,6 +548,117 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             return this;
         }
 
+        public Builder<T> clientConfigValue(ConfigValue configValue) {
+            this.clientConfigValues.add(configValue);
+            return this;
+        }
+
+        public Builder<T> clientConfigValues(Set<ConfigValue> clientConfigValues) {
+            this.clientConfigValues.clear();
+            return this.addClientConfigValues(clientConfigValues);
+        }
+
+        public Builder<T> addClientConfigValues(Set<ConfigValue> clientConfigValues) {
+            this.clientConfigValues.addAll(clientConfigValues);
+            return this;
+        }
+
         abstract HttpProtocolUnitTestGenerator<T> build();
+    }
+
+    /**
+     * Represents a test client option configuration value.
+     */
+    public static class ConfigValue implements Comparable<ConfigValue> {
+        private final String name;
+        private final Consumer<GoWriter> value;
+
+        ConfigValue(Builder builder) {
+            this.name = SmithyBuilder.requiredState("name", builder.name);
+            this.value = SmithyBuilder.requiredState("value", builder.value);
+        }
+
+        /**
+         * Get the config field name.
+         *
+         * @return the field name
+         */
+        public String getName() {
+            return name;
+        }
+
+        /**
+         * Get the inline value writer for the field.
+         *
+         * @return the inline value writer
+         */
+        public Consumer<GoWriter> getValue() {
+            return value;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        @Override
+        public int compareTo(ConfigValue o) {
+            return getName().compareTo(o.getName());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ConfigValue that = (ConfigValue) o;
+            return Objects.equals(getName(), that.getName())
+                    && Objects.equals(getValue(), that.getValue());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, value);
+        }
+
+        /**
+         * Builder for {@link ConfigValue}.
+         */
+        public static final class Builder implements SmithyBuilder<ConfigValue> {
+            private String name;
+            private Consumer<GoWriter> value;
+
+            private Builder() {
+            }
+
+            /**
+             * Set the name of the field.
+             *
+             * @param name field name
+             * @return the builder
+             */
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
+
+            /**
+             * Set the inline value writer.
+             *
+             * @param value the inline value writer
+             * @return the builder
+             */
+            public Builder value(Consumer<GoWriter> value) {
+                this.value = value;
+                return this;
+            }
+
+            @Override
+            public ConfigValue build() {
+                return new ConfigValue(this);
+            }
+        }
     }
 }
