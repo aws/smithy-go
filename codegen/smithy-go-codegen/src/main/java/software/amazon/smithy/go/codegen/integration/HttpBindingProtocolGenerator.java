@@ -683,14 +683,25 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
-                            writeHttpBindingSetter(model, writer, collectionMemberShape, location, operand + "[i]",
-                                    (w, s) -> {
-                                        w.writeInline("encoder.AddHeader($S).$L", locationName, s);
+                            // Only set non-empty non-nil header values
+                            String operandElem = operand + "[i]";
+                            writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
+                                    operandElem, writer, () -> {
+                                        writeHttpBindingSetter(model, writer, collectionMemberShape, location,
+                                                operandElem,
+                                                (w, s) -> {
+                                                    w.writeInline("encoder.AddHeader($S).$L", locationName, s);
+                                                });
+
                                     });
                         });
                     } else {
-                        writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> w.writeInline(
-                                "encoder.SetHeader($S).$L", locationName, s));
+                        // Only set non-empty non-nil header values
+                        writeHeaderOperandNotEmptyCheck(model, symbolProvider, memberShape, operand, writer, () -> {
+                            writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
+                                w.writeInline("encoder.SetHeader($S).$L", locationName, s);
+                            });
+                        });
                     }
                     break;
                 case PREFIX_HEADERS:
@@ -704,13 +715,27 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         if (valueMemberTarget instanceof CollectionShape) {
                             MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
                             bodyWriter.openBlock("for j := range $L[i] {", "}", operand, () -> {
-                                writeHttpBindingSetter(model, writer, collectionMemberShape, location,
-                                        operand + "[i][j]", (w, s) -> w.writeInline("hv.AddHeader($S).$L",
-                                                memberShape.getMemberName(), s));
+                                // Only set non-empty non-nil header values
+                                String operandElem = operand + "[i][j]";
+                                writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
+                                        operandElem, writer, () -> {
+                                            writeHttpBindingSetter(model, writer, collectionMemberShape, location,
+                                                    operandElem, (w, s) -> {
+                                                        w.writeInline("hv.AddHeader($S).$L",
+                                                                memberShape.getMemberName(), s);
+                                                    });
+                                        });
                             });
                         } else {
-                            writeHttpBindingSetter(model, writer, valueMemberShape, location, operand + "[i]",
-                                    (w, s) -> w.writeInline("hv.AddHeader($S).$L", memberShape.getMemberName(), s));
+                            // Only set non-empty non-nil header values
+                            writeHeaderOperandNotEmptyCheck(model, symbolProvider, valueMemberShape, operand + "[i]",
+                                    writer, () -> {
+                                        writeHttpBindingSetter(model, writer, valueMemberShape, location,
+                                                operand + "[i]", (w, s) -> {
+                                                    w.writeInline("hv.AddHeader($S).$L", memberShape.getMemberName(),
+                                                            s);
+                                                });
+                                    });
                         }
                     });
                     break;
@@ -726,6 +751,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
                         bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
+                            Shape collectionMemberTargetShape = model.expectShape(collectionMember.getTarget());
+                            if (!collectionMemberTargetShape.hasTrait(EnumTrait.class)) {
+                                writer.openBlock("if $L == nil { continue }", operand + "[i]");
+                            }
                             writeHttpBindingSetter(model, writer, collectionMember, location, operand + "[i]",
                                     (w, s) -> {
                                         w.writeInline("encoder.AddQuery($S).$L", locationName, s);
@@ -785,6 +814,51 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         String resolvedOperand = operand;
         writer.openBlock("if " + conditionCheck + " {", "}", () -> {
             consumer.accept(writer, resolvedOperand);
+        });
+    }
+
+    protected void writeHeaderOperandNotNilAndNotEmptyCheck(
+            Model model,
+            SymbolProvider symbolProvider,
+            MemberShape memberShape,
+            String operand,
+            GoWriter writer,
+            Runnable consumer
+    ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
+        String conditionCheck;
+        if (targetShape.hasTrait(EnumTrait.class)) {
+            conditionCheck = "len(" + operand + ") > 0";
+        } else if (targetShape.getType() == ShapeType.STRING) {
+            conditionCheck = operand + " != nil && len(*" + operand + ") > 0";
+        } else {
+            conditionCheck = operand + " != nil";
+        }
+
+        writer.openBlock("if " + conditionCheck + " {", "}", () -> {
+            consumer.run();
+        });
+    }
+
+    protected void writeHeaderOperandNotEmptyCheck(
+            Model model,
+            SymbolProvider symbolProvider,
+            MemberShape memberShape,
+            String operand,
+            GoWriter writer,
+            Runnable consumer
+    ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
+        if (targetShape.hasTrait(EnumTrait.class) || targetShape.getType() != ShapeType.STRING) {
+            consumer.run();
+            return;
+        }
+
+        String conditionCheck = "len(*" + operand + ") > 0";
+        writer.openBlock("if " + conditionCheck + " {", "}", () -> {
+            consumer.run();
         });
     }
 
