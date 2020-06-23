@@ -95,7 +95,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         // process final model
         integrations.forEach(integration -> {
-            integration.processFinalizeModel(settings, model);
+            integration.processFinalizedModel(settings, model);
         });
 
         // fetch runtime plugins

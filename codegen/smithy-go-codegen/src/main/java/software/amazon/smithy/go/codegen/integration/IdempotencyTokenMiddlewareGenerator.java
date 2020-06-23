@@ -79,7 +79,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     }
 
     @Override
-    public void processFinalizeModel(GoSettings settings, Model model) {
+    public void processFinalizedModel(GoSettings settings, Model model) {
         ServiceShape service = settings.getService(model);
         for (ShapeId operationId : service.getAllOperations()) {
             OperationShape operation = model.expectShape(operationId, OperationShape.class);

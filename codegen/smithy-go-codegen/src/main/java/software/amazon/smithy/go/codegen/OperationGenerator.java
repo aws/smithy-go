@@ -171,7 +171,6 @@ final class OperationGenerator implements Runnable {
      * Adds middleware to the operation middleware stack.
      */
     private void populateOperationMiddlewareStack() {
-
         // Populate middleware's from runtime client plugins
         runtimeClientPlugins.forEach(runtimeClientPlugin -> {
             if (!runtimeClientPlugin.matchesService(model, service)
@@ -179,37 +178,35 @@ final class OperationGenerator implements Runnable {
                 return;
             }
 
-            if (runtimeClientPlugin.registerMiddleware().isPresent()) {
-                MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
-                Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+            if (!runtimeClientPlugin.registerMiddleware().isPresent()) {
+                return;
+            }
 
-                if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null
-                        && middlewareRegistrar.getInlineRegisterMiddlewarePosition() != null) {
-                    String registerStatement = String.format("stack.%s",
-                            middlewareRegistrar.getInlineRegisterMiddlewareStatement());
-                    writer.writeInline(registerStatement);
-                    writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
-                    if (functionArguments != null) {
-                        List<Symbol> args = new ArrayList<>(functionArguments);
-                        for (Symbol arg: args) {
-                            writer.writeInline("$P", arg);
-                            if (args.iterator().hasNext()) {
-                                writer.writeInline(",");
-                            }
-                        }
+            MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
+            Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+
+            if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
+                String registerStatement = String.format("stack.%s",
+                        middlewareRegistrar.getInlineRegisterMiddlewareStatement());
+                writer.writeInline(registerStatement);
+                writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
+                if (functionArguments != null) {
+                    List<Symbol> args = new ArrayList<>(functionArguments);
+                    for (Symbol arg: args) {
+                        writer.writeInline("$P, ", arg);
                     }
-                    writer.writeInline(")");
-                    writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
-                } else {
-                    writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
-                    if (functionArguments != null) {
-                        List<Symbol> args = new ArrayList<>(functionArguments);
-                        for (Symbol arg: args) {
-                            writer.writeInline(", $P", arg);
-                        }
-                    }
-                    writer.write(")");
                 }
+                writer.writeInline(")");
+                writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+            } else {
+                writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                if (functionArguments != null) {
+                    List<Symbol> args = new ArrayList<>(functionArguments);
+                    for (Symbol arg: args) {
+                        writer.writeInline(", $P", arg);
+                    }
+                }
+                writer.write(")");
             }
         });
 
@@ -233,9 +230,7 @@ final class OperationGenerator implements Runnable {
             String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
                     operation.getId(),
                     protocolGenerator.getProtocolName());
-
             writer.write("stack.Serialize.Add(\"&$L{}\", middleware.After)", serializerMiddlewareName);
-            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
 
             // Adds response deserializer middleware
             String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(

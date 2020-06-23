@@ -153,13 +153,14 @@ public interface GoIntegration {
     }
 
     /**
-     * Finalizes the model. This plugin can be used to add RuntimeClientPlugins
+     * Processes the finalized model before runtime plugins are consumed and
+     * code generation starts. This plugin can be used to add RuntimeClientPlugins
      * to the integration's list of plugin.
      *
      * @param settings Settings used to generate.
      * @param model Model to generate from.
      */
-    default void processFinalizeModel(GoSettings settings, Model model) {
+    default void processFinalizedModel(GoSettings settings, Model model) {
         // pass
     }
 
