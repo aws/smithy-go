@@ -8,7 +8,7 @@ import (
 )
 
 func TestEncoder(t *testing.T) {
-	actual := http.Request{
+	actual := &http.Request{
 		Header: http.Header{
 			"custom-user-header": {"someValue"},
 		},
@@ -18,7 +18,7 @@ func TestEncoder(t *testing.T) {
 		},
 	}
 
-	expected := http.Request{
+	expected := &http.Request{
 		Header: map[string][]string{
 			"custom-user-header": {"someValue"},
 			"X-Amzn-Header-Foo":  {"someValue"},
@@ -31,7 +31,10 @@ func TestEncoder(t *testing.T) {
 		},
 	}
 
-	encoder := NewEncoder(&actual)
+	encoder, err := NewEncoder(actual.URL.Path, actual.URL.RawQuery, actual.Header)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 
 	// Headers
 	encoder.AddHeader("x-amzn-header-foo").String("someValue")
@@ -51,7 +54,7 @@ func TestEncoder(t *testing.T) {
 		t.Errorf("expected no err, but got %v", err)
 	}
 
-	if err := encoder.Encode(); err != nil {
+	if actual, err = encoder.Encode(actual); err != nil {
 		t.Errorf("expected no err, but got %v", err)
 	}
 
