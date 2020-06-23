@@ -189,7 +189,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertNotNil(writer, "result");
 
         writeAssertScalarEqual(writer, "c.ExpectMethod", "actualReq.Method", "method");
-        writeAssertScalarEqual(writer, "c.ExpectURIPath", "actualReq.URL.Path", "path");
+        writeAssertScalarEqual(writer, "c.ExpectURIPath", "actualReq.URL.RawPath", "path");
 
         writeQueryItemBreakout(writer, "actualReq.URL.RawQuery", "queryItems");
         writeAssertHasQuery(writer, "c.ExpectQuery", "queryItems");
