@@ -88,7 +88,9 @@ public final class ShapeValueGenerator {
 
             case UNION:
             case DOCUMENT:
-                throw new CodegenException("union and document types not supported");
+                LOGGER.warning("Skipping "+shape.getType()+" shape type not suppported, " + shape.getId());
+                writer.writeInline("nil");
+                break;
 
             default:
                 if (params.isNullNode()) {
