@@ -68,8 +68,8 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     }
 
     /**
-	 * Gets the sort order of the customization from -128 to 127, with lowest
-	 * executed first.
+     * Gets the sort order of the customization from -128 to 127, with lowest
+     * executed first.
      *
      * @return Returns the sort order, defaults to 10.
      */
