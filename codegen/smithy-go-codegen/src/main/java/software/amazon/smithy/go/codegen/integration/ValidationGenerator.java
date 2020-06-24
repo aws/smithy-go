@@ -57,16 +57,10 @@ import software.amazon.smithy.utils.StringUtils;
  */
 public class ValidationGenerator implements GoIntegration {
     /**
-     * Gets the sort order of the customization from -128 to 127.
+	 * Gets the sort order of the customization from -128 to 127, with lowest
+	 * executed first.
      *
-     * <p>Customizations are applied according to this sort order. Lower values
-     * are executed before higher values (for example, -128 comes before 0,
-     * comes before 127). Customizations default to 0, which is the middle point
-     * between the minimum and maximum order values. The customization
-     * applied later can override the runtime configurations that provided
-     * by customizations applied earlier.
-     *
-     * @return Returns the sort order, defaulting to 0.
+     * @return Returns the sort order, defaults to 20.
      */
     @Override
     public byte getOrder() {
