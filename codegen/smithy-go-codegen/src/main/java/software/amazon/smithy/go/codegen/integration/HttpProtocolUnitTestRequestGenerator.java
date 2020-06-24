@@ -168,6 +168,9 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      */
     protected void generateTestServerHandler(GoWriter writer) {
         writer.write("actualReq = r.Clone(r.Context())");
+        // Go does not set RawPath on http server if nothing is excaped
+        writer.write("if len(actualReq.URL.RawPath) == 0 { actualReq.URL.RawPath = actualReq.URL.Path }");
+
         writer.addUseImports(SmithyGoDependency.BYTES);
         writer.write("var buf bytes.Buffer");
         writer.openBlock("if _, err := io.Copy(&buf, r.Body); err != nil {", "}", () -> {
