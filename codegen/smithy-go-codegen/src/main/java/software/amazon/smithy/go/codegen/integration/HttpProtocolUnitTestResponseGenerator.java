@@ -123,7 +123,11 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writer.openBlock("if len(c.Body) != 0 {", "}", () -> {
             writer.addUseImports(SmithyGoDependency.STRCONV);
             writer.write("w.Header().Set(\"Content-Length\", strconv.Itoa(len(c.Body)))");
+        });
 
+        writer.write("w.WriteHeader(c.StatusCode)");
+
+        writer.openBlock("if len(c.Body) != 0 {", "}", () -> {
             writer.addUseImports(SmithyGoDependency.IO);
             writer.addUseImports(SmithyGoDependency.BYTES);
             writer.openBlock("if _, err := io.Copy(w, bytes.NewReader(c.Body)); err != nil {", "}", () -> {
@@ -142,7 +146,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     protected void generateTestInvokeClientOperation(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("var params $T", inputSymbol);
-        writer.write("result, err := $L.$L(context.Background(), &params)", clientName, opSymbol.getName());
+        writer.write("result, err := $L.$T(context.Background(), &params)", clientName, opSymbol);
     }
 
     /**

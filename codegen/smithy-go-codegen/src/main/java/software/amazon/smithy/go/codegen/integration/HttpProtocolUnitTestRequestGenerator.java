@@ -189,7 +189,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     @Override
     protected void generateTestInvokeClientOperation(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("result, err := $L.$L(context.Background(), c.Params)", clientName, opSymbol.getName());
+        writer.write("result, err := $L.$T(context.Background(), c.Params)", clientName, opSymbol);
     }
 
     /**
