@@ -153,29 +153,43 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     /**
+     * Hook to optionally generate additional setup needed before the test body is created.
+     *
+     * @param writer writer to write generated code with.
+     */
+    protected void generateTestBodySetup(GoWriter writer) {
+        writer.write("var actualReq *http.Request");
+    }
+
+    /**
+     * Hook to generate the HTTP response body of the protocol test.
+     *
+     * @param writer writer to write generated code with.
+     */
+    protected void generateTestServerHandler(GoWriter writer) {
+        writer.write("actualReq = r.Clone(r.Context())");
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.write("var buf bytes.Buffer");
+        writer.openBlock("if _, err := io.Copy(&buf, r.Body); err != nil {", "}", () -> {
+            writer.write("t.Errorf(\"failed to read request body, %v\", err)");
+        });
+        writer.addUseImports(SmithyGoDependency.IOUTIL);
+        writer.write("actualReq.Body = ioutil.NopCloser(&buf)");
+        writer.write("");
+
+        super.generateTestServerHandler(writer);
+    }
+
+    /**
      * Hook to generate the body of the test that will be invoked for all test cases of this operation. Should not
      * do any assertions.
      *
      * @param writer writer to write generated code with.
      */
     @Override
-    protected void generateTestBody(GoWriter writer) {
-        writer.addUseImports(SmithyGoDependency.NET_HTTP);
-        writer.write("var actualReq *http.Request");
-        writeClientInit(writer, () -> {
-            writer.write("actualReq = r");
-            writer.openBlock("return &http.Response{", "}, nil", () -> {
-                writeStructField(writer, "StatusCode", "200");
-                writeStructField(writer, "Header", "http.Header{}");
-
-                writer.addUseImports(SmithyGoDependency.STRINGS);
-                writer.addUseImports(SmithyGoDependency.IOUTIL);
-                writeStructField(writer, "Body", "ioutil.NopCloser(strings.NewReader(\"\"))");
-            });
-        });
-
+    protected void generateTestInvokeClientOperation(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("result, err := client.$L(context.Background(), c.Params)", opSymbol.getName());
+        writer.write("result, err := $L.$L(context.Background(), c.Params)", clientName, opSymbol.getName());
     }
 
     /**

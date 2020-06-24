@@ -109,25 +109,40 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
      * @param writer writer to write generated code with.
      */
     @Override
-    protected void generateTestBody(GoWriter writer) {
-        writeClientInit(writer, () -> {
-            // TODO disable required parameter validation
-            writer.openBlock("return &http.Response{", "}, nil", () -> {
-                writeStructField(writer, "StatusCode", "c.StatusCode");
-                writeStructField(writer, "Header", "c.Header.Clone()");
-
-                // TODO move this into the Header value instead of a struct field.
-                //writeStructField(writer, "ContentType", "c.BodyMediaType");
-                writer.addUseImports(SmithyGoDependency.IOUTIL);
-                writer.addUseImports(SmithyGoDependency.BYTES);
-                writeStructField(writer, "Body", "ioutil.NopCloser(bytes.NewReader(c.Body))");
+    protected void generateTestServerHandler(GoWriter writer) {
+        writer.openBlock("for k, vs := range c.Header {", "}", () -> {
+            writer.openBlock("for _, v := range vs {", "}", () -> {
+                writer.write("w.Header().Add(k, v)");
             });
         });
 
-        writer.write("var params $T", inputSymbol);
+        writer.openBlock("if len(c.BodyMediaType) != 0 && len(w.Header().Values(\"Content-Type\")) == 0 {", "}", () -> {
+            writer.write("w.Header().Set(\"Content-Type\", c.BodyMediaType)");
+        });
 
+        writer.openBlock("if len(c.Body) != 0 {", "}", () -> {
+            writer.addUseImports(SmithyGoDependency.STRCONV);
+            writer.write("w.Header().Set(\"Content-Length\", strconv.Itoa(len(c.Body)))");
+
+            writer.addUseImports(SmithyGoDependency.IO);
+            writer.addUseImports(SmithyGoDependency.BYTES);
+            writer.openBlock("if _, err := io.Copy(w, bytes.NewReader(c.Body)); err != nil {", "}", () -> {
+                writer.write("t.Errorf(\"failed to write response body, %v\", err)");
+            });
+        });
+    }
+
+    /**
+     * Hook to generate the body of the test that will be invoked for all test cases of this operation. Should not
+     * do any assertions.
+     *
+     * @param writer writer to write generated code with.
+     */
+    @Override
+    protected void generateTestInvokeClientOperation(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("result, err := client.$L(context.Background(), &params)", opSymbol.getName());
+        writer.write("var params $T", inputSymbol);
+        writer.write("result, err := $L.$L(context.Background(), &params)", clientName, opSymbol.getName());
     }
 
     /**
