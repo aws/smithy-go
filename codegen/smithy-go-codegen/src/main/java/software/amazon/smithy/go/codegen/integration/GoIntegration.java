@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
@@ -122,6 +123,23 @@ public interface GoIntegration {
             Model model,
             SymbolProvider symbolProvider,
             TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+    ) {
+        // pass
+    }
+
+    /**
+     * Writes additional files.
+     *
+     * @param settings Settings used to generate.
+     * @param model Model to generate from.
+     * @param symbolProvider Symbol provider used for codegen.
+     * @param goDelegator GoDelegator used to manage writer for the file.
+     */
+    default void writeAdditionalFiles(
+            GoSettings settings,
+            Model model,
+            SymbolProvider symbolProvider,
+            GoDelegator goDelegator
     ) {
         // pass
     }

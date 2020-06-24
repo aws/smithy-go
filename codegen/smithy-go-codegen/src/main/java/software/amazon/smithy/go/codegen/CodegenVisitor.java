@@ -164,6 +164,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (GoIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
+            integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
 
         if (protocolGenerator != null) {

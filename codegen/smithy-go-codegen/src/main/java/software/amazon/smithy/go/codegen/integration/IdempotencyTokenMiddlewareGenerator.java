@@ -19,15 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -108,7 +107,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
-            TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+            GoDelegator delegator
     ) {
         ServiceShape serviceShape = settings.getService(model);
         Map<ShapeId, MemberShape> map = getOperationsWithIdempotencyToken(model, serviceShape);
@@ -116,7 +115,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
             return;
         }
 
-        writerFactory.accept("api_client.go", settings.getModuleName(), writer -> {
+        delegator.useShapeWriter(serviceShape, (writer) -> {
             writer.write("// IdempotencyTokenProvider interface for providing idempotency token");
             writer.openBlock("type IdempotencyTokenProvider interface {",
                     "}", () -> {
@@ -128,8 +127,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
         for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
             ShapeId operationShapeId = entry.getKey();
             OperationShape operation = model.expectShape(operationShapeId, OperationShape.class);
-            writerFactory.accept(String.format("api_op_%s.go", operationShapeId.getName()), settings.getModuleName(),
-                    writer -> {
+            delegator.useShapeWriter(operation, (writer) -> {
                         // Generate idempotency token middleware
                         MemberShape memberShape = map.get(operationShapeId);
                         execute(model, writer, symbolProvider, operation, memberShape);
