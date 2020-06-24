@@ -56,6 +56,17 @@ import software.amazon.smithy.utils.StringUtils;
  * Generates Go validation middleware and shape helpers.
  */
 public class ValidationGenerator implements GoIntegration {
+    /**
+     * Gets the sort order of the customization from -128 to 127, with lowest
+     * executed first.
+     *
+     * @return Returns the sort order, defaults to 20.
+     */
+    @Override
+    public byte getOrder() {
+        return 20;
+    }
+
     private void execute(GoWriter writer, Model model, SymbolProvider symbolProvider, ServiceShape service) {
         GoValidationIndex validationIndex = model.getKnowledge(GoValidationIndex.class);
         Map<Shape, OperationShape> inputShapeToOperation = new TreeMap<>();
