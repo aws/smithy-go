@@ -286,7 +286,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 });
             });
             writer.write("request.Method = $S", httpTrait.getMethod());
-            writer.write("restEncoder := httpbinding.NewEncoder(request.Request)");
+            writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
+                    + "request.Header)");
+            writer.openBlock("if err != nil {", "}", () -> {
+                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+            });
             writer.write("");
 
             // we only generate an operations http bindings function if there are bindings
@@ -318,13 +322,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writeMiddlewarePayloadSerializerDelegator(model, symbolProvider, operation, memberShape, generator,
                         writer);
             }
-            // Ensure the request value is updated if modified for a document.
-            writer.write("in.Request = request");
 
             writer.write("");
-            writer.openBlock("if err := restEncoder.Encode(); err != nil {", "}", () -> {
-                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
-            });
+            writer.openBlock("if request.Request, err = restEncoder.Encode(request.Request); err != nil {", "}", () -> {
+                        writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                    });
+            // Ensure the request value is updated.
+            writer.write("in.Request = request");
             writer.write("");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
@@ -550,12 +554,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     throw new CodegenException("found duplicate binding entries for same response operation shape");
                 }, TreeMap::new));
 
-        Symbol restEncoder = getRestEncoderSymbol();
+        Symbol httpBindingEncoder = getHttpBindingEncoderSymbol();
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
 
         writer.addUseImports(SmithyGoDependency.FMT);
-        writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, restEncoder,
+        writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, httpBindingEncoder,
                 () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
                         writer.write("return fmt.Errorf(\"unsupported serialization of nil %T\", v)");
@@ -573,7 +577,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.write("");
     }
 
-    private Symbol getRestEncoderSymbol() {
+    private Symbol getHttpBindingEncoderSymbol() {
         return SymbolUtils.createPointableSymbolBuilder("Encoder", SmithyGoDependency.SMITHY_HTTP_BINDING).build();
     }
 

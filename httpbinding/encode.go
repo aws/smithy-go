@@ -1,6 +1,7 @@
 package httpbinding
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,8 +12,6 @@ import (
 //
 // Does not support SetFields.
 type Encoder struct {
-	req *http.Request
-
 	path, rawPath, pathBuffer []byte
 
 	query  url.Values
@@ -22,27 +21,30 @@ type Encoder struct {
 // NewEncoder creates a new encoder from the passed in request. All query and
 // header values will be added on top of the request's existing values. Overwriting
 // duplicate values.
-func NewEncoder(req *http.Request) *Encoder {
-	e := &Encoder{
-		req: req,
-
-		path:    []byte(req.URL.Path),
-		rawPath: []byte(req.URL.Path),
-		query:   req.URL.Query(),
-		header:  req.Header,
+func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
+	parseQuery, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse query string: %w", err)
 	}
 
-	return e
+	e := &Encoder{
+		path:    []byte(path),
+		rawPath: []byte(path),
+		query:   parseQuery,
+		header:  headers.Clone(),
+	}
+
+	return e, nil
 }
 
 // Encode returns a REST protocol encoder for encoding HTTP bindings
 // Returns any error if one occurred during encoding.
-func (e *Encoder) Encode() error {
-	e.req.URL.Path, e.req.URL.RawPath = string(e.path), string(e.rawPath)
-	e.req.URL.RawQuery = e.query.Encode()
-	e.req.Header = e.header
+func (e *Encoder) Encode(req *http.Request) (*http.Request, error) {
+	req.URL.Path, req.URL.RawPath = string(e.path), string(e.rawPath)
+	req.URL.RawQuery = e.query.Encode()
+	req.Header = e.header
 
-	return nil
+	return req, nil
 }
 
 // AddHeader returns a HeaderValue for appending to the given header name
