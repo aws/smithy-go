@@ -130,12 +130,62 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     abstract void generateTestCaseValues(GoWriter writer, T testCase);
 
     /**
-     * Hook to generate the body of the test that will be invoked for all test cases of this operation. Should not
-     * do any assertions.
+     * Hook to optionally generate additional setup needed before the test body is created.
      *
      * @param writer writer to write generated code with.
      */
-    abstract void generateTestBody(GoWriter writer);
+    protected void generateTestBodySetup(GoWriter writer) {
+        // pass
+    }
+
+    /**
+     * Hook to generate the HTTP response body of the protocol test. If overriding and delegating to this method must
+     * the last usage of ResponseWriter.
+     *
+     * @param writer writer to write generated code with.
+     */
+    protected void generateTestServerHandler(GoWriter writer) {
+        writer.write("w.WriteHeader(200)");
+    }
+
+    /**
+     * Hook to generate the HTTP test server that will receive requests and provide responses back to the requester.
+     *
+     * @param writer  writer to write generated code with.
+     * @param name    test server variable name
+     * @param handler lambda for writing handling of HTTP request
+     */
+    protected void generateTestServer(GoWriter writer, String name, Consumer<GoWriter> handler) {
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP_TEST);
+        writer.openBlock("$L := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){",
+                "}))", name, () -> {
+                    handler.accept(writer);
+                });
+        writer.write("defer $L.Close()", name);
+    }
+
+    /**
+     * Hook to generate the instance of the API client for the protocol test.
+     *
+     * @param writer     writer to write generated code with.
+     * @param clientName test client variable name
+     */
+    protected void generateTestClient(GoWriter writer, String clientName) {
+        writer.openBlock("$L := New(Options{", "})", clientName, () -> {
+            for (ConfigValue value : clientConfigValues) {
+                writeStructField(writer, value.getName(), value.getValue());
+            }
+        });
+    }
+
+    /**
+     * Hook to generate the client invoking the API operation of the test. Should not do any assertions.
+     *
+     * @param writer     writer to write generated code with.
+     * @param clientName name of the client variable.
+     */
+    abstract void generateTestInvokeClientOperation(GoWriter writer, String clientName);
 
     /**
      * Hook to generate the assertions for the operation's test cases. Will be in the same scope as the test body.
@@ -169,7 +219,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                     // And test case iteration/assertions
                     writer.openBlock("for name, c := range cases {", "}", () -> {
                         writer.openBlock("t.Run(name, func(t *testing.T) {", "})", () -> {
-                            generateTestBody(writer);
+                            generateTestBodySetup(writer);
+                            generateTestServer(writer, "server", this::generateTestServerHandler);
+                            generateTestClient(writer, "client");
+                            generateTestInvokeClientOperation(writer, "client");
                             generateTestAssertions(writer);
                         });
                     });
@@ -327,27 +380,6 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         for (String value : values) {
             writer.write("$S,", value);
         }
-    }
-
-    /**
-     * Writes the test's client initialization, delegating to the option initialization runnable for configuring the
-     * API client's HTTP client.
-     *
-     * @param writer         writer to write generated code with.
-     * @param httpClientInit the lambda for configuring the API client's HTTP client.
-     */
-    protected void writeClientInit(GoWriter writer, Runnable httpClientInit) {
-        writer.openBlock("client := New(Options{", "})", () -> {
-            // TODO need more robust determination what middleware to keep/drop
-            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-            writer.addUseImports(SmithyGoDependency.NET_HTTP);
-            writer.openBlock(
-                    "HTTPClient: smithyhttp.ClientDoFunc(func(r *http.Request) (*http.Response, error) {",
-                    "}),", httpClientInit);
-            for (ConfigValue value : clientConfigValues) {
-                writeStructField(writer, value.getName(), value.getValue());
-            }
-        });
     }
 
     /**
