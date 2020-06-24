@@ -88,7 +88,7 @@ public final class ShapeValueGenerator {
 
             case UNION:
             case DOCUMENT:
-                LOGGER.warning("Skipping "+shape.getType()+" shape type not suppported, " + shape.getId());
+                LOGGER.warning("Skipping " + shape.getType() + " shape type not suppported, " + shape.getId());
                 writer.writeInline("nil");
                 break;
 
