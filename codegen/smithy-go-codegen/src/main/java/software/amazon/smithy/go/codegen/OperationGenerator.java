@@ -230,13 +230,13 @@ final class OperationGenerator implements Runnable {
             String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
                     operation.getId(),
                     protocolGenerator.getProtocolName());
-            writer.write("stack.Serialize.Add(\"&$L{}\", middleware.After)", serializerMiddlewareName);
+            writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
 
             // Adds response deserializer middleware
             String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
                     operation.getId(),
                     protocolGenerator.getProtocolName());
-            writer.write("stack.Deserialize.Add(\"&$L{}\", middleware.After)", deserializerMiddlewareName);
+            writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
         });
     }
