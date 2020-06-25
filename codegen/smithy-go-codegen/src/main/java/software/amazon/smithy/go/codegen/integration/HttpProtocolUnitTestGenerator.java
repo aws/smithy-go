@@ -104,12 +104,13 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param writer writer to write generated code with.
      */
     protected void generateTestSetup(GoWriter writer) {
-        if (hasIdempotencyTokenInputMember()) {
-            writer.write("origRandReader := randReader");
-            writer.write("defer func() { randReader = origRandReader }()");
-            writer.write("randReader = &smithytesting.ByteLoop{}");
-            writer.write("");
-        }
+        // TODO: Needs fix to use IdempotencyToken GetToken()
+//        if (hasIdempotencyTokenInputMember()) {
+//            writer.write("origRandReader := randReader");
+//            writer.write("defer func() { randReader = origRandReader }()");
+//            writer.write("randReader = &smithytesting.ByteLoop{}");
+//            writer.write("");
+//        }
     }
 
     /**
