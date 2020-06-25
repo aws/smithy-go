@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 
 	"github.com/awslabs/smithy-go/middleware"
 )
@@ -52,4 +53,26 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 	}
 
 	return &Response{Response: resp}, metadata, nil
+}
+
+// WrapLogClient logs the client's HTTP request and response of a round tripped
+// request.
+func WrapLogClient(logger interface{ Logf(string, ...interface{}) }, client ClientDo, withBody bool) ClientDo {
+	return ClientDoFunc(func(r *http.Request) (*http.Response, error) {
+		b, err := httputil.DumpRequest(r, withBody)
+		logger.Logf("Request\n%v", string(b))
+
+		resp, err := client.Do(r)
+		if err != nil {
+			return nil, err
+		}
+
+		b, err = httputil.DumpResponse(resp, withBody)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dump response %w", err)
+		}
+		logger.Logf("Response\n%v", string(b))
+
+		return resp, nil
+	})
 }
