@@ -714,30 +714,32 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             .getValue();
                     Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
 
-                    bodyWriter.write("hv := encoder.Headers($S)", memberName);
-                    bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
+                    if (targetShape.getType() != ShapeType.MAP) {
+                        throw new CodegenException("Unexpected prefix headers target shape "
+                                + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
+                    }
+
+                    bodyWriter.write("hv := encoder.Headers($S)", locationName);
+                    bodyWriter.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
                         if (valueMemberTarget instanceof CollectionShape) {
                             MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
-                            bodyWriter.openBlock("for j := range $L[i] {", "}", operand, () -> {
+                            bodyWriter.openBlock("for i := range mapVal {", "}", () -> {
                                 // Only set non-empty non-nil header values
-                                String operandElem = operand + "[i][j]";
                                 writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
-                                        operandElem, writer, () -> {
+                                        "mapVal[i]", writer, () -> {
                                             writeHttpBindingSetter(model, writer, collectionMemberShape, location,
-                                                    operandElem, (w, s) -> {
-                                                        w.writeInline("hv.AddHeader($S).$L",
-                                                                memberShape.getMemberName(), s);
+                                                    "mapVal[i]", (w, s) -> {
+                                                        w.writeInline("hv.AddHeader(mapKey).$L", s);
                                                     });
                                         });
                             });
                         } else {
                             // Only set non-empty non-nil header values
-                            writeHeaderOperandNotEmptyCheck(model, symbolProvider, valueMemberShape, operand + "[i]",
-                                    writer, () -> {
+                            writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, valueMemberShape,
+                                    "mapVal", writer, () -> {
                                         writeHttpBindingSetter(model, writer, valueMemberShape, location,
-                                                operand + "[i]", (w, s) -> {
-                                                    w.writeInline("hv.AddHeader($S).$L", memberShape.getMemberName(),
-                                                            s);
+                                                "mapVal", (w, s) -> {
+                                                    w.writeInline("hv.AddHeader(mapKey).$L", s);
                                                 });
                                     });
                         }
