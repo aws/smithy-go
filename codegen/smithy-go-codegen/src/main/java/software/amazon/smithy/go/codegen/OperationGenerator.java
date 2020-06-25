@@ -15,11 +15,13 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
@@ -137,6 +139,9 @@ final class OperationGenerator implements Runnable {
             writer.writeDocs("Metadata pertaining to the operation's result.");
             writer.write("ResultMetadata $T", metadataSymbol);
         });
+
+        // Generate operation protocol middleware helper function
+        generateOperationProtocolMiddlewareHelper();
     }
 
     private void constructStack() {
@@ -166,18 +171,84 @@ final class OperationGenerator implements Runnable {
      * Adds middleware to the operation middleware stack.
      */
     private void populateOperationMiddlewareStack() {
+        // Populate middleware's from runtime client plugins
         runtimeClientPlugins.forEach(runtimeClientPlugin -> {
             if (!runtimeClientPlugin.matchesService(model, service)
                     && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
                 return;
             }
 
-            if (runtimeClientPlugin.buildMiddlewareStack().isPresent()) {
-                runtimeClientPlugin.buildMiddlewareStack().get().applyMiddleware(
-                        writer, service, operation, protocolGenerator, "stack"
-                );
+            if (!runtimeClientPlugin.registerMiddleware().isPresent()) {
+                return;
+            }
+
+            MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
+            Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+
+            if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
+                String registerStatement = String.format("stack.%s",
+                        middlewareRegistrar.getInlineRegisterMiddlewareStatement());
+                writer.writeInline(registerStatement);
+                writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
+                if (functionArguments != null) {
+                    List<Symbol> args = new ArrayList<>(functionArguments);
+                    for (Symbol arg: args) {
+                        writer.writeInline("$P, ", arg);
+                    }
+                }
+                writer.writeInline(")");
+                writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+            } else {
+                writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                if (functionArguments != null) {
+                    List<Symbol> args = new ArrayList<>(functionArguments);
+                    for (Symbol arg: args) {
+                        writer.writeInline(", $P", arg);
+                    }
+                }
+                writer.write(")");
             }
         });
+
+        // generate call to serde middleware helpers
+        if (protocolGenerator != null) {
+            writer.write("$L(stack)", getOperationProtocolMiddlewareHelperName(operation));
+        }
         writer.write("");
+    }
+
+   /** Generate operation protocol middleware helper.
+    */
+    private void generateOperationProtocolMiddlewareHelper() {
+        if (protocolGenerator == null) {
+            return;
+        }
+        writer.openBlock("func $L (stack *middleware.Stack) {", "}",
+                getOperationProtocolMiddlewareHelperName(operation), () -> {
+
+            // Add request serializer middleware
+            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                    operation.getId(),
+                    protocolGenerator.getProtocolName());
+            writer.write("stack.Serialize.Add(\"&$L{}\", middleware.After)", serializerMiddlewareName);
+
+            // Adds response deserializer middleware
+            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                    operation.getId(),
+                    protocolGenerator.getProtocolName());
+            writer.write("stack.Deserialize.Add(\"&$L{}\", middleware.After)", deserializerMiddlewareName);
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        });
+    }
+
+    /**
+     * Get middleware helper name for Protocol middleware.
+     *
+     * @param operation Operation for which middleware helpers are generated.
+     * @return protocol middleware helper name.
+     */
+    private String getOperationProtocolMiddlewareHelperName(OperationShape operation) {
+        return String.format("add%s_serdeOp%sMiddlewares",
+                protocolGenerator.getProtocolName(), operation.getId().getName());
     }
 }

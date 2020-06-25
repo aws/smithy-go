@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -39,40 +38,18 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
  * build-time.
  */
 public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientPlugin> {
-
     private final Symbol resolveFunction;
-    private final ApplyPlugin buildMiddlewareStack;
     private final BiPredicate<Model, ServiceShape> servicePredicate;
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
+    private final MiddlewareRegistrar registerMiddleware;
 
     private RuntimeClientPlugin(Builder builder) {
         resolveFunction = builder.resolveFunction;
         operationPredicate = builder.operationPredicate;
         servicePredicate = builder.servicePredicate;
         configFields = builder.configFields;
-        buildMiddlewareStack = builder.buildMiddlewareStack;
-    }
-
-    @FunctionalInterface
-    public interface ApplyPlugin {
-
-        /**
-         * applyMiddleware applies the middleware onto the Operation stack.
-         *
-         * @param writer GoWriter to write the Go code.
-         * @param service service shape to which the operation belongs.
-         * @param operation operation shape for which operation stack is defined.
-         * @param protocolGenerator Protocol generator for protocol used by service.
-         * @param stackOperand operand to denote the stack to which middleware is applied.
-         */
-        void applyMiddleware(
-                GoWriter writer,
-                ServiceShape service,
-                OperationShape operation,
-                ProtocolGenerator protocolGenerator,
-                String stackOperand
-        );
+        registerMiddleware = builder.registerMiddleware;
     }
 
 
@@ -106,21 +83,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return Optional.ofNullable(resolveFunction);
     }
 
-
     /**
-     * Gets the optionally present function that builds operation middleware stack.
+     * Gets the optionally present middleware registrar object that resolves to middleware registering function.
      *
-     * <p>Any configuration that a plugin requires in order to function should be
-     * checked in this function, either setting a default value if possible or
-     * returning an error if not.
-     *
-     *
-     * @return Returns the optionally present ApplyPlugin.applyMiddleware function.
+     * @return Returns the optionally present MiddlewareRegistrar object.
      */
-    public Optional<ApplyPlugin> buildMiddlewareStack() {
-        return Optional.ofNullable(buildMiddlewareStack);
+    public Optional<MiddlewareRegistrar> registerMiddleware() {
+        return Optional.ofNullable(registerMiddleware);
     }
-
 
     /**
      * Returns true if this plugin applies to the given service.
@@ -185,7 +155,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
                 .resolveFunction(resolveFunction)
                 .servicePredicate(servicePredicate)
                 .operationPredicate(operationPredicate)
-                .buildMiddlewareStack(buildMiddlewareStack);
+                .registerMiddleware(registerMiddleware);
     }
 
     /**
@@ -193,10 +163,10 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public static final class Builder implements SmithyBuilder<RuntimeClientPlugin> {
         private Symbol resolveFunction;
-        private ApplyPlugin buildMiddlewareStack;
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new HashSet<>();
+        private MiddlewareRegistrar registerMiddleware;
 
         @Override
         public RuntimeClientPlugin build() {
@@ -215,13 +185,13 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         }
 
         /**
-         * Sets the functional interface to build middleware stack.
+         * Registers middleware into the operation middleware stack.
          *
-         * @param buildMiddlewareStack Functional interface to apply the middleware on operation stack.
+         * @param registerMiddleware resolved middleware registrar to set.
          * @return Returns the builder.
          */
-        public Builder buildMiddlewareStack(ApplyPlugin buildMiddlewareStack) {
-            this.buildMiddlewareStack = buildMiddlewareStack;
+        public Builder registerMiddleware(MiddlewareRegistrar registerMiddleware) {
+            this.registerMiddleware = registerMiddleware;
             return this;
         }
 

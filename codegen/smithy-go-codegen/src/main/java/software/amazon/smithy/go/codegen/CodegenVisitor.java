@@ -76,10 +76,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 .forEach(integration -> {
                     LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
                     integrations.add(integration);
-                    integration.getClientPlugins().forEach(runtimePlugin -> {
-                        LOGGER.info(() -> "Adding Go runtime plugin: " + runtimePlugin);
-                        runtimePlugins.add(runtimePlugin);
-                    });
                 });
         integrations.sort(Comparator.comparingInt(GoIntegration::getOrder));
 
@@ -96,6 +92,20 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
 
         model = resolvedModel;
+
+        // process final model
+        integrations.forEach(integration -> {
+            integration.processFinalizedModel(settings, model);
+        });
+
+        // fetch runtime plugins
+        integrations.forEach(integration -> {
+            integration.getClientPlugins().forEach(runtimePlugin -> {
+                LOGGER.info(() -> "Adding Go runtime plugin: " + runtimePlugin);
+                runtimePlugins.add(runtimePlugin);
+            });
+        });
+
         modelWithoutTraitShapes = ModelTransformer.create().getModelWithoutTraitShapes(model);
 
         service = settings.getService(model);
@@ -154,6 +164,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (GoIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
+            integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
 
         if (protocolGenerator != null) {

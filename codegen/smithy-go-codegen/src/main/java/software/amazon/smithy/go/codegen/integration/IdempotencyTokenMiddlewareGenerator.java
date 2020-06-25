@@ -15,17 +15,18 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -34,37 +35,71 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
-import software.amazon.smithy.utils.ListUtils;
 
 public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
+    List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
+
     private void execute(
+            Model model,
             GoWriter writer,
             SymbolProvider symbolProvider,
             OperationShape operation,
-            MemberShape idempotencyTokenMemberShape,
-            Symbol inputSymbol
+            MemberShape idempotencyTokenMemberShape
     ) {
         GoStackStepMiddlewareGenerator middlewareGenerator =
-            GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
-                    getIdempotencyTokenMiddlewareName(operation));
+                GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
+                        getIdempotencyTokenMiddlewareName(operation));
 
+        Shape inputShape = model.expectShape(operation.getInput().get());
+        Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         String memberName = symbolProvider.toMemberName(idempotencyTokenMemberShape);
-            middlewareGenerator.writeMiddleware(writer, (generator, middlewareWriter) -> {
+        middlewareGenerator.writeMiddleware(writer, (generator, middlewareWriter) -> {
+            // if token provider is nil, skip this middleware
+            middlewareWriter.openBlock("if m.tokenProvider == nil {", "}", () -> {
+                middlewareWriter.write("return next.$L(ctx, in)", middlewareGenerator.getHandleMethodName());
+            });
+
             middlewareWriter.write("input, ok := in.Parameters.($P)", inputSymbol);
             middlewareWriter.write("if !ok { return out, metadata, "
                     + "fmt.Errorf(\"expected middleware input to be of type $P \")}", inputSymbol);
             middlewareWriter.addUseImports(SmithyGoDependency.FMT);
 
             middlewareWriter.openBlock("if input.$L == nil {", "}", memberName, () -> {
-            writer.addUseImports(SmithyGoDependency.SMITHY_RAND);
-            writer.addUseImports(SmithyGoDependency.CRYPTORAND);
-            writer.write("uuid := smithyrand.NewUUID(randReader)");
-            writer.write("v, err := uuid.GetUUID()");
-            writer.write("if err != nil { return out, metadata, err}");
-                middlewareWriter.write("input.$L = &v", memberName);
+                middlewareWriter.write("t, err := m.tokenProvider.GetToken()");
+                middlewareWriter.write(" if err != nil { return out, metadata, err }");
+                middlewareWriter.write("input.$L = &t", memberName);
             });
             middlewareWriter.write("return next.$L(ctx, in)", middlewareGenerator.getHandleMethodName());
-        });
+        }, ((generator, memberWriter) -> {
+            memberWriter.write("tokenProvider IdempotencyTokenProvider");
+        }));
+
+        writer.write("");
+    }
+
+    @Override
+    public void processFinalizedModel(GoSettings settings, Model model) {
+        ServiceShape service = settings.getService(model);
+        for (ShapeId operationId : service.getAllOperations()) {
+            OperationShape operation = model.expectShape(operationId, OperationShape.class);
+            if (getMemberWithIdempotencyToken(model, operation) == null) {
+                continue;
+            }
+
+            String getMiddlewareHelperName = getIdempotencyTokenMiddlewareHelperName(operation);
+            RuntimeClientPlugin runtimeClientPlugin = RuntimeClientPlugin.builder()
+                    .operationPredicate((predicatetModel, predicateService, predicateOperation) -> {
+                        if (operation.equals(predicateOperation)) {
+                            return true;
+                        }
+                        return false;
+                    })
+                    .registerMiddleware(MiddlewareRegistrar.builder()
+                            .resolvedFunction(SymbolUtils.createValueSymbolBuilder(getMiddlewareHelperName).build())
+                            .build())
+                    .build();
+            runtimeClientPlugins.add(runtimeClientPlugin);
+        }
     }
 
     /**
@@ -83,25 +118,47 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
-            TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+            GoDelegator delegator
     ) {
-        ServiceShape serviceShape =  settings.getService(model);
+        ServiceShape serviceShape = settings.getService(model);
         Map<ShapeId, MemberShape> map = getOperationsWithIdempotencyToken(model, serviceShape);
         if (map.size() == 0) {
             return;
         }
 
-        writerFactory.accept("idempotencyTokenMiddleware.go", settings.getModuleName(), writer -> {
-            writer.write("var randReader io.Reader = cryptorand.Reader");
-            writer.addUseImports(SmithyGoDependency.IO);
-            for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
-                ShapeId operationId = entry.getKey();
-                OperationShape operation = model.expectShape(operationId).asOperationShape().get();
-                Shape inputShape  = model.expectShape(operation.getInput().get());
-                MemberShape memberShape = entry.getValue();
-                execute(writer, symbolProvider, operation, memberShape, symbolProvider.toSymbol(inputShape));
-            }
+        delegator.useShapeWriter(serviceShape, (writer) -> {
+            writer.write("// IdempotencyTokenProvider interface for providing idempotency token");
+            writer.openBlock("type IdempotencyTokenProvider interface {",
+                    "}", () -> {
+                        writer.write("GetToken() (string, error)");
+                    });
+            writer.write("");
         });
+
+        for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
+            ShapeId operationShapeId = entry.getKey();
+            OperationShape operation = model.expectShape(operationShapeId, OperationShape.class);
+            delegator.useShapeWriter(operation, (writer) -> {
+                        // Generate idempotency token middleware
+                        MemberShape memberShape = map.get(operationShapeId);
+                        execute(model, writer, symbolProvider, operation, memberShape);
+
+                        // Generate idempotency token middleware registrar function
+                        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                        String middlewareHelperName = getIdempotencyTokenMiddlewareHelperName(operation);
+                        writer.openBlock("func $L("
+                                        + "stack *middleware.Stack, cfg IdempotencyTokenProvider) {",
+                                "}", middlewareHelperName, () -> {
+                                    writer.write("stack.Initialize.Add(&$L{cfg},middleware.After)",
+                                            getIdempotencyTokenMiddlewareName(operation));
+                                });
+                    });
+        }
+    }
+
+    @Override
+    public List<RuntimeClientPlugin> getClientPlugins() {
+        return runtimeClientPlugins;
     }
 
     /**
@@ -115,11 +172,21 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     }
 
     /**
-     * Gets a map with key as OperationId and Member shape as value for member shapes of an operation
-     * decorated with the Idempotency token trait .
+     * Get Idempotency Token Middleware Helper name.
      *
-     * @param  model Model used for generation.
-     * @param  service Service for which idempotency token map is retrieved.
+     * @param operationShape Operation shape for which middleware is defined.
+     * @return name of the idempotency token middleware.
+     */
+    private String getIdempotencyTokenMiddlewareHelperName(OperationShape operationShape) {
+        return String.format("addIdempotencyToken_op%sMiddleware", operationShape.getId().getName());
+    }
+
+    /**
+     * Gets a map with key as OperationId and Member shape as value for member shapes of an operation
+     * decorated with the Idempotency token trait.
+     *
+     * @param model   Model used for generation.
+     * @param service Service for which idempotency token map is retrieved.
      * @return map of operation shapeId as key, member shape as value.
      */
     private Map<ShapeId, MemberShape> getOperationsWithIdempotencyToken(Model model, ServiceShape service) {
@@ -137,38 +204,18 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     /**
      * Returns member shape which gets members decorated with Idempotency Token trait.
      *
-     * @param model Model used for generation.
+     * @param model     Model used for generation.
      * @param operation Operation shape consisting of member decorated with idempotency token trait.
      * @return member shape decorated with Idempotency token trait.
      */
     private MemberShape getMemberWithIdempotencyToken(Model model, OperationShape operation) {
         OperationIndex operationIndex = model.getKnowledge(OperationIndex.class);
         Shape inputShape = operationIndex.getInput(operation).get();
-        for (MemberShape member: inputShape.members()) {
+        for (MemberShape member : inputShape.members()) {
             if (member.hasTrait(IdempotencyTokenTrait.class)) {
                 return member;
             }
         }
         return null;
-    }
-
-    @Override
-    public List<RuntimeClientPlugin> getClientPlugins() {
-        return ListUtils.of(
-                RuntimeClientPlugin.builder()
-                        .operationPredicate((model, service, operation) -> {
-                            if (getMemberWithIdempotencyToken(model, operation) != null) {
-                                return true;
-                            }
-                            return false;
-                        })
-                        .buildMiddlewareStack((writer, service, operation, protocolGenerator, stackOperand) -> {
-                            writer.write("$L.Initialize.Add(&$L{},middleware.After)",
-                                    stackOperand,
-                                    getIdempotencyTokenMiddlewareName(operation));
-                            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-                        })
-                        .build()
-        );
     }
 }
