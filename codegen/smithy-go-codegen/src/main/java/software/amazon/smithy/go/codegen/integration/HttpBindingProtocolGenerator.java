@@ -995,6 +995,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String operand
     ) {
         if (targetShape.getType() != ShapeType.LIST && targetShape.getType() != ShapeType.SET) {
+            writer.addUseImports(SmithyGoDependency.STRINGS);
             writer.write("$L = strings.TrimSpace($L)", operand, operand);
         }
 
