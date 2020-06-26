@@ -65,6 +65,12 @@ func (e *Encoder) Headers(prefix string) Headers {
 	}
 }
 
+// HasHeader returns if a header with the key specified exists with one more
+// more value.
+func (e Encoder) HasHeader(Key string) bool {
+	return len(e.header.Values(Key)) != 0
+}
+
 // SetURI returns a URIValue used for setting the given path key
 func (e *Encoder) SetURI(key string) URIValue {
 	return newURIValue(&e.path, &e.rawPath, &e.pathBuffer, key)
