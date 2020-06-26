@@ -96,6 +96,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                     })
                     .registerMiddleware(MiddlewareRegistrar.builder()
                             .resolvedFunction(SymbolUtils.createValueSymbolBuilder(getMiddlewareHelperName).build())
+                            .useClientOptions()
                             .build())
                     .build();
             runtimeClientPlugins.add(runtimeClientPlugin);
