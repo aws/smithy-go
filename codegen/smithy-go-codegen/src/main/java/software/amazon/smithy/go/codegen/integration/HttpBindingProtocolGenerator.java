@@ -41,6 +41,7 @@ import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -709,9 +710,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     }
                     break;
                 case PREFIX_HEADERS:
-                    MemberShape valueMemberShape = targetShape.asMapShape()
-                            .orElseThrow(() -> new CodegenException("prefix headers must target map shape"))
-                            .getValue();
+                    MemberShape valueMemberShape = model.expectShape(targetShape.getId(), MapShape.class).getValue();
                     Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
 
                     bodyWriter.write("hv := encoder.Headers($S)", memberName);
