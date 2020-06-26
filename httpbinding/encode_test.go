@@ -62,3 +62,21 @@ func TestEncoder(t *testing.T) {
 		t.Errorf("expected %v, but got %v", expected, actual)
 	}
 }
+
+func TestEncoderHasHeader(t *testing.T) {
+	encoder, err := NewEncoder("/", "", http.Header{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if h := "I-dont-exist"; encoder.HasHeader(h) {
+		t.Errorf("expect %v not to be set", h)
+	}
+
+	encoder.AddHeader("I-do-exist").String("some value")
+
+	if h := "I-do-exist"; !encoder.HasHeader(h) {
+		t.Errorf("expect %v to be set", h)
+	}
+
+}
