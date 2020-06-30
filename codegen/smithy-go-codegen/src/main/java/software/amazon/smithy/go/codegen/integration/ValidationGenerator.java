@@ -94,8 +94,10 @@ public class ValidationGenerator implements GoIntegration {
             Map<Shape, OperationShape> operationShapeMap
     ) {
         for (Map.Entry<Shape, OperationShape> entry : operationShapeMap.entrySet()) {
-            GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createInitalizeStepMiddleware(
-                    getOperationValidationMiddlewareName(entry.getValue()));
+            GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
+                    getOperationValidationMiddlewareName(entry.getValue()),
+                    "OperationInputValidation"
+                    );
             String helperName = getShapeValidationFunctionName(entry.getKey(), true);
             Symbol inputSymbol = symbolProvider.toSymbol(entry.getKey());
             generator.writeMiddleware(writer, (g, w) -> {

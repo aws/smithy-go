@@ -28,6 +28,7 @@ public final class GoStackStepMiddlewareGenerator {
             "Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
 
     private final Symbol middlewareSymbol;
+    private final String middlewareId;
     private final String handleMethodName;
     private final Symbol inputType;
     private final Symbol outputType;
@@ -39,7 +40,8 @@ public final class GoStackStepMiddlewareGenerator {
      * @param builder the builder to create the generator with.
      */
     public GoStackStepMiddlewareGenerator(Builder builder) {
-        this.middlewareSymbol = SymbolUtils.createPointableSymbolBuilder(builder.identifier).build();
+        this.middlewareSymbol = SymbolUtils.createPointableSymbolBuilder(builder.name).build();
+        this.middlewareId = builder.id;
         this.handleMethodName = builder.handleMethodName;
         this.inputType = builder.inputType;
         this.outputType = builder.outputType;
@@ -47,13 +49,15 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Create a new InitalizeStep middleware generator with the provided type name.
+     * Create a new InitializeStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware.
+     * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createInitalizeStepMiddleware(String identifier) {
-        return createMiddleware(identifier,
+    public static GoStackStepMiddlewareGenerator createInitializeStepMiddleware(String name, String id) {
+        return createMiddleware(name,
+                id,
                 "HandleInitialize",
                 SymbolUtils.createValueSymbolBuilder("InitializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
@@ -64,11 +68,13 @@ public final class GoStackStepMiddlewareGenerator {
     /**
      * Create a new BuildStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware.
+     * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String identifier) {
-        return createMiddleware(identifier,
+    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String name, String id) {
+        return createMiddleware(name,
+                id,
                 "HandleBuild",
                 SymbolUtils.createValueSymbolBuilder("BuildInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("BuildOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
@@ -78,11 +84,12 @@ public final class GoStackStepMiddlewareGenerator {
     /**
      * Create a new SerializeStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware.
+     * @param name is the type name to identify the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String identifier) {
-        return createMiddleware(identifier,
+    public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String name, String id) {
+        return createMiddleware(name,
+                id,
                 "HandleSerialize",
                 SymbolUtils.createValueSymbolBuilder("SerializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("SerializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
@@ -92,11 +99,12 @@ public final class GoStackStepMiddlewareGenerator {
     /**
      * Create a new DeserializeStep middleware generator with the provided type name.
      *
-     * @param identifier is the type name to identify the middleware.
+     * @param name is the type name to identify the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String identifier) {
-        return createMiddleware(identifier,
+    public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String name, String id) {
+        return createMiddleware(name,
+                id,
                 "HandleDeserialize",
                 SymbolUtils.createValueSymbolBuilder("DeserializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("DeserializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
@@ -105,41 +113,26 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
-     * Create a new InitializeStep middleware generator with the provided type name.
-     *
-     * @param identifier is the type name to identify the middleware.
-     * @return the middleware generator.
-     */
-    public static GoStackStepMiddlewareGenerator createInitializeStepMiddleware(String identifier) {
-        return createMiddleware(identifier,
-                "HandleInitialize",
-                SymbolUtils.createValueSymbolBuilder("InitializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                        .build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                        .build(),
-                SymbolUtils.createValueSymbolBuilder("InitializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                        .build());
-    }
-
-    /**
      * Generates a new step middleware generator.
      *
-     * @param identifier        the name of the middleware type.
-     * @param handlerMethodName identifier method name to be implemented.
+     * @param name              the name of the middleware type.
+     * @param handlerMethodName method name to be implemented.
      * @param inputType         the middleware input type.
      * @param outputType        the middleware output type.
      * @param handlerType       the next handler type.
      * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createMiddleware(
-            String identifier,
+            String name,
+            String id,
             String handlerMethodName,
             Symbol inputType,
             Symbol outputType,
             Symbol handlerType
     ) {
         return builder()
-                .identifier(identifier)
+                .name(name)
+                .id(id)
                 .handleMethodName(handlerMethodName)
                 .inputType(inputType)
                 .outputType(outputType)
@@ -199,7 +192,7 @@ public final class GoStackStepMiddlewareGenerator {
         // each middleware step has to implement the ID function and return a unique string to identify itself with
         // here we return the name of the type
         writer.openBlock("func ($P) ID() string {", "}", middlewareSymbol, () -> {
-            writer.openBlock("return $S", middlewareSymbol);
+            writer.openBlock("return $S", middlewareId);
         });
 
         writer.write("");
@@ -243,6 +236,15 @@ public final class GoStackStepMiddlewareGenerator {
      */
     public Symbol getMiddlewareSymbol() {
         return middlewareSymbol;
+    }
+
+    /**
+     * Get the id of the middleware.
+     *
+     * @return id for the middleware.
+     */
+    public String getMiddlewareId() {
+        return middlewareId;
     }
 
     /**
@@ -294,7 +296,8 @@ public final class GoStackStepMiddlewareGenerator {
      * Builds a {@link GoStackStepMiddlewareGenerator}.
      */
     public static class Builder {
-        private String identifier;
+        private String name;
+        private String id;
         private String handleMethodName;
         private Symbol inputType;
         private Symbol outputType;
@@ -321,13 +324,24 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the identifier of the type to be generated.
+         * Set the name of the middleware type to be generated.
          *
-         * @param identifier the name to identify the middleware type.
+         * @param name the name of the middleware type.
          * @return the builder.
          */
-        public Builder identifier(String identifier) {
-            this.identifier = identifier;
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        /**
+         * Set the id for the middleware to be generated.
+         *
+         * @param id the middleware stack identifier.
+         * @return the builder.
+         */
+        public Builder id(String id) {
+            this.id = id;
             return this;
         }
 
@@ -354,7 +368,7 @@ public final class GoStackStepMiddlewareGenerator {
         }
 
         /**
-         * Set the hander type symbol reference for the middleware.
+         * Set the handler type symbol reference for the middleware.
          *
          * @param handlerType the symbol reference to the handler type.
          * @return the builder.

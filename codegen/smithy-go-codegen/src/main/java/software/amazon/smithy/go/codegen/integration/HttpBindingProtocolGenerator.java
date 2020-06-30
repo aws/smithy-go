@@ -243,8 +243,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private void generateOperationSerializerMiddleware(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
-                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()
-                ));
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
+                "OperationSerializer"
+                );
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
@@ -339,7 +340,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     // output shapes for the operation.
     private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
-                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()));
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
+                "OperationDeserializer"
+                );
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();

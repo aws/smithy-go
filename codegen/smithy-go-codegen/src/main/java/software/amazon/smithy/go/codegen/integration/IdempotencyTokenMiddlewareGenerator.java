@@ -51,7 +51,9 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     ) {
         GoStackStepMiddlewareGenerator middlewareGenerator =
                 GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
-                        getIdempotencyTokenMiddlewareName(operation));
+                        getIdempotencyTokenMiddlewareName(operation),
+                        "OperationIdempotencyTokenAutoFill"
+                        );
 
         Shape inputShape = model.expectShape(operation.getInput().get());
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
