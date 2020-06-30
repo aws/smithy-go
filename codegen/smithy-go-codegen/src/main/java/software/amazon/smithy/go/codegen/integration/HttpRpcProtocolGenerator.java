@@ -33,6 +33,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     private final boolean isErrorCodeInBody;
     private final Set<Shape> serializingDocumentShapes = new TreeSet<>();
+    private final Set<Shape> deserializingDocumentShapes = new TreeSet<>();
 
     /**
      * Creates a Http RPC protocol generator.
@@ -198,6 +199,23 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     );
 
     @Override
+    public void generateSharedDeserializerComponents(GenerationContext context) {
+        deserializingDocumentShapes.addAll(ProtocolUtils.resolveRequiredDocumentShapeSerde(
+                context.getModel(), deserializingDocumentShapes));
+        generateDocumentBodyShapeDeserializers(context, deserializingDocumentShapes);
+    }
+
+    /**
+     * Generated deserialization functions for shapes in the passed set. These functions
+     * should return a value that can then be serialized by the implementation of
+     * {@code deserializeOutputDocument}.
+     *
+     * @param context The generation context.
+     * @param shapes The shapes to generate deserialization for.
+     */
+    protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
+
+    @Override
     public void generateResponseDeserializers(GenerationContext context) {
         TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
         Set<OperationShape> containedOperations = new TreeSet<>(
@@ -210,17 +228,64 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()));
+
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Model model = context.getModel();
         StructureShape outputShape = ProtocolUtils.expectOutput(context.getModel(), operation);
+        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+        ApplicationProtocol applicationProtocol = getApplicationProtocol();
+        Symbol responseType = applicationProtocol.getResponseType();
+
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
-            // TODO: actually implement this
+            writer.addUseImports(SmithyGoDependency.FMT);
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
-            writer.write("output := &$T{}", context.getSymbolProvider().toSymbol(outputShape));
+            writer.write("response, ok := out.RawResponse.($P)", responseType);
+            writer.openBlock("if !ok {", "}", () -> {
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
+                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
+            });
+            writer.write("");
+
+            // TODO: handle errors
+
+            writer.write("output := &$T{}", outputSymbol);
             writer.write("out.Result = output");
             writer.write("");
+
+            deserializeOutputDocument(model, symbolProvider, operation, generator, writer);
+            deserializingDocumentShapes.add(ProtocolUtils.expectOutput(model, operation));
+            writer.write("");
+
             writer.write("return out, metadata, err");
         });
     }
+
+    /**
+     * Generate the document deserializer logic for the deserializer middleware body.
+     *
+     * <p>Three parameters will be available in scope:
+     * <ul>
+     *   <li>{@code output: <T>}: the type generated for the operation's output.</li>
+     *   <li>{@code response: smithyhttp.HTTPRequest}: the HTTP response received.</li>
+     *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
+     * </ul>
+     *
+     * @param model The model.
+     * @param symbolProvider The symbol provider.
+     * @param operation The operation to deserialize for.
+     * @param generator The middleware generator definition.
+     * @param writer The GoWriter to use.
+     */
+    protected abstract void deserializeOutputDocument(
+            Model model,
+            SymbolProvider symbolProvider,
+            OperationShape operation,
+            GoStackStepMiddlewareGenerator generator,
+            GoWriter writer
+    );
 }
