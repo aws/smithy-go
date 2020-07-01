@@ -30,6 +30,10 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -41,6 +45,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.model.Model;
@@ -49,13 +54,17 @@ import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Generates Go validation middleware and shape helpers.
  */
 public class ValidationGenerator implements GoIntegration {
+    private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
+
     /**
      * Gets the sort order of the customization from -128 to 127, with lowest
      * executed first.
@@ -77,6 +86,7 @@ public class ValidationGenerator implements GoIntegration {
         Set<Shape> shapesWithHelpers = validationIndex.getShapesRequiringValidationHelpers(service);
 
         generateOperationValidationMiddleware(writer, symbolProvider, inputShapeToOperation);
+        generateAddMiddlewareStackHelper(writer, symbolProvider, inputShapeToOperation.values());
         generateShapeValidationFunctions(writer, model, symbolProvider, inputShapeToOperation.keySet(),
                 shapesWithHelpers);
     }
@@ -203,7 +213,7 @@ public class ValidationGenerator implements GoIntegration {
         }
     }
 
-    public static String getOperationValidationMiddlewareName(OperationShape operationShape) {
+    private static String getOperationValidationMiddlewareName(OperationShape operationShape) {
         return "validateOp"
                 + StringUtils.capitalize(operationShape.getId().getName());
     }
@@ -218,6 +228,29 @@ public class ValidationGenerator implements GoIntegration {
         return builder.toString();
     }
 
+    private String getAddMiddlewareStackHelperFunctionName(OperationShape operationShape) {
+        return "addOp" + StringUtils.capitalize(operationShape.getId().getName()) + "ValidationMiddleware";
+    }
+
+    private void generateAddMiddlewareStackHelper(
+            GoWriter writer,
+            SymbolProvider symbolProvider,
+            Collection<OperationShape> operationShapes
+    ) {
+        Symbol smithyStack = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                .build();
+
+        for (OperationShape operationShape : operationShapes) {
+            Symbol middlewareSymbol = SymbolUtils.createPointableSymbolBuilder(getOperationValidationMiddlewareName(
+                    operationShape)).build();
+            String functionName = getAddMiddlewareStackHelperFunctionName(operationShape);
+            writer.openBlock("func $L(stack $P) error {", "}", functionName, smithyStack, () -> {
+                writer.write("return stack.Initialize.Add(&$T{}, middleware.After)", middlewareSymbol);
+            });
+            writer.write("");
+        }
+    }
+
     @Override
     public void writeAdditionalFiles(
             GoSettings settings,
@@ -228,5 +261,30 @@ public class ValidationGenerator implements GoIntegration {
         writerFactory.accept("validators.go", settings.getModuleName(), writer -> {
             execute(writer, model, symbolProvider, settings.getService(model));
         });
+    }
+
+    @Override
+    public void processFinalizedModel(GoSettings settings, Model model) {
+        GoValidationIndex validationIndex = model.getKnowledge(GoValidationIndex.class);
+        ServiceShape service = settings.getService(model);
+        Set<OperationShape> requiringValidation = validationIndex.getOperationsRequiringValidation(
+                service);
+
+        for (OperationShape operationShape : requiringValidation) {
+            String helperFunctionName = getAddMiddlewareStackHelperFunctionName(operationShape);
+            runtimeClientPlugins.add(RuntimeClientPlugin.builder()
+                    .servicePredicate((m, s) -> s.equals(service))
+                    .operationPredicate((m, s, o) -> o.equals(operationShape))
+                    .registerMiddleware(MiddlewareRegistrar.builder()
+                            .resolvedFunction(SymbolUtils.createValueSymbolBuilder(helperFunctionName)
+                                    .build())
+                            .build())
+                    .build());
+        }
+    }
+
+    @Override
+    public List<RuntimeClientPlugin> getClientPlugins() {
+        return runtimeClientPlugins;
     }
 }
