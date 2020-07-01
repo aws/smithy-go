@@ -223,7 +223,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
      * @param service Service for which idempotency token map is retrieved.
      * @return if operations use idempotency token auto fill trait.
      */
-    public static boolean haOperationsWithIdempotencyTokens(Model model, ServiceShape service) {
+    public static boolean hasOperationsWithIdempotencyToken(Model model, ServiceShape service) {
         return !getOperationsWithIdempotencyToken(model, service).isEmpty();
     }
 
