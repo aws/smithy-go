@@ -5,6 +5,23 @@ import (
 	"io"
 )
 
+// UUIDIdempotencyToken provides a utility to get idempotency tokens in the
+// UUID format.
+type UUIDIdempotencyToken struct {
+	uuid *UUID
+}
+
+// NewUUIDIdempotencyToken returns a idempotency token provider returning
+// tokens in the UUID random format using the reader provided.
+func NewUUIDIdempotencyToken(r io.Reader) *UUIDIdempotencyToken {
+	return &UUIDIdempotencyToken{uuid: NewUUID(r)}
+}
+
+// GetIdempotencyToken returns a random UUID value for Idempotency token.
+func (u UUIDIdempotencyToken) GetIdempotencyToken() (string, error) {
+	return u.uuid.GetUUID()
+}
+
 // UUID provides computing random UUID version 4 values from a random source
 // reader.
 type UUID struct {
