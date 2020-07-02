@@ -348,7 +348,7 @@ func TestRingBuffer_Reset(t *testing.T) {
 	if e, a := 0, ringBuffer.end; e != a {
 		t.Errorf("expect default end to point to %v , got %v", e, a)
 	}
-	if e, a := 10, len(ringBuffer.slice); e!=a {
+	if e, a := 10, len(ringBuffer.slice); e != a {
 		t.Errorf("expect ringBuffer capacity to be %v, got %v", e, a)
 	}
 
@@ -361,6 +361,11 @@ func TestRingBuffer_Reset(t *testing.T) {
 	if ringBuffer.size == 0 {
 		t.Errorf("expected ringBuffer to not be empty")
 	}
+
+	// Here the ringBuffer length is 10; while written string is "someThing new";
+	// The initial characters are thus overwritten by the ringbuffer.
+	// Thus the ring Buffer if completely read will have "eThing new".
+	// Here readBuffer size is 5; thus first 5 character "eThin" is read.
 	if e, a := "eThin", string(readBuffer); !strings.EqualFold(e, a) {
 		t.Errorf("expected read string to be %s, got %s", e, a)
 	}
@@ -376,16 +381,16 @@ func TestRingBuffer_Reset(t *testing.T) {
 	if e, a := 0, ringBuffer.end; e != a {
 		t.Errorf("expect default end to point to %v , got %v", e, a)
 	}
-	if e, a := 10, len(ringBuffer.slice); e!=a {
+	if e, a := 10, len(ringBuffer.slice); e != a {
 		t.Errorf("expect ringBuffer capacity to be %v, got %v", e, a)
 	}
 
 	// reading reset ring buffer
-	readCount, _ :=ringBuffer.Read(readBuffer)
+	readCount, _ := ringBuffer.Read(readBuffer)
 	if ringBuffer.size != 0 {
 		t.Errorf("expected ringBuffer to be empty")
 	}
-	if e, a := 0, readCount ; e!=a {
+	if e, a := 0, readCount; e != a {
 		t.Errorf("expected read string to be of length %v, got %v", e, a)
 	}
 }
