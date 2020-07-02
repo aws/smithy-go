@@ -85,6 +85,7 @@ public final class GoStackStepMiddlewareGenerator {
      * Create a new SerializeStep middleware generator with the provided type name.
      *
      * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String name, String id) {
@@ -100,6 +101,7 @@ public final class GoStackStepMiddlewareGenerator {
      * Create a new DeserializeStep middleware generator with the provided type name.
      *
      * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
     public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String name, String id) {
@@ -116,6 +118,7 @@ public final class GoStackStepMiddlewareGenerator {
      * Generates a new step middleware generator.
      *
      * @param name              the name of the middleware type.
+     * @param id   the unique ID for the middleware.
      * @param handlerMethodName method name to be implemented.
      * @param inputType         the middleware input type.
      * @param outputType        the middleware output type.
