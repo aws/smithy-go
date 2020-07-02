@@ -70,3 +70,10 @@ func (r *RingBuffer) Read(p []byte) (int, error) {
 	}
 	return readCount, nil
 }
+
+// Reset resets the ring buffer.
+func (r *RingBuffer) Reset() {
+	*r = RingBuffer{
+		slice: r.slice,
+	}
+}
