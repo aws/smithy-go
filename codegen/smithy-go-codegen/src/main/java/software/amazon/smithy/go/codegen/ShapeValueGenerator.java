@@ -66,6 +66,15 @@ public final class ShapeValueGenerator {
      * @param params parameters to fill the generated shape declaration.
      */
     public void writeShapeValueInline(GoWriter writer, Shape shape, Node params) {
+        if (params.isNullNode()) {
+            if (shape.isStringShape() && shape.hasTrait(EnumTrait.class)) {
+                writer.writeInline("\"\"");
+            } else {
+                writer.writeInline("nil");
+            }
+            return;
+        }
+
         switch (shape.getType()) {
             case STRUCTURE:
                 structDeclShapeValue(writer, shape.asStructureShape().get(), () -> {
@@ -88,19 +97,11 @@ public final class ShapeValueGenerator {
 
             case UNION:
             case DOCUMENT:
-                LOGGER.warning("Skipping " + shape.getType() + " shape type not suppported, " + shape.getId());
+                LOGGER.warning("Skipping " + shape.getType() + " shape type not supported, " + shape.getId());
                 writer.writeInline("nil");
                 break;
 
             default:
-                if (params.isNullNode()) {
-                    if (shape.isStringShape() && shape.hasTrait(EnumTrait.class)) {
-                        writer.writeInline("\"\"");
-                    } else {
-                        writer.writeInline("nil");
-                    }
-                    break;
-                }
 
                 scalarWrapShapeValue(writer, shape, () -> {
                     params.accept(new ShapeValueNodeVisitor(writer, this, shape));
