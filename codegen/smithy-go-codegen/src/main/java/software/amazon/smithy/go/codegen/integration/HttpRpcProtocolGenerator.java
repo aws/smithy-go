@@ -264,7 +264,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("out.Result = output");
             writer.write("");
 
-            deserializeOutputDocument(model, symbolProvider, operation, generator, writer);
+            deserializeOutputDocument(context, operation);
             deserializingDocumentShapes.add(ProtocolUtils.expectOutput(model, operation));
             writer.write("");
 
@@ -288,19 +288,10 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
      * </ul>
      *
-     * @param model The model.
-     * @param symbolProvider The symbol provider.
+     * @param context The generation context
      * @param operation The operation to deserialize for.
-     * @param generator The middleware generator definition.
-     * @param writer The GoWriter to use.
      */
-    protected abstract void deserializeOutputDocument(
-            Model model,
-            SymbolProvider symbolProvider,
-            OperationShape operation,
-            GoStackStepMiddlewareGenerator generator,
-            GoWriter writer
-    );
+    protected abstract void deserializeOutputDocument(GenerationContext context, OperationShape operation);
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();
