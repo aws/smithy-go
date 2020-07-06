@@ -58,6 +58,8 @@ import software.amazon.smithy.utils.OptionalUtils;
  * Abstract implementation useful for all protocols that use HTTP bindings.
  */
 public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator {
+    public static final String OPERATION_SERIALIZER_MIDDLEWARE_ID = "OperationSerializer";
+    public static final String OPERATION_DESERIALIZER_MIDDLEWARE_ID = "OperationDeserializer";
 
     private static final Logger LOGGER = Logger.getLogger(HttpBindingProtocolGenerator.class.getName());
 
@@ -244,7 +246,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void generateOperationSerializerMiddleware(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
                 ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
-                "OperationSerializer"
+                OPERATION_SERIALIZER_MIDDLEWARE_ID
                 );
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
@@ -341,7 +343,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
-                "OperationDeserializer"
+                OPERATION_DESERIALIZER_MIDDLEWARE_ID
                 );
 
         SymbolProvider symbolProvider = context.getSymbolProvider();

@@ -60,6 +60,8 @@ import software.amazon.smithy.utils.StringUtils;
  * Generates Go validation middleware and shape helpers.
  */
 public class ValidationGenerator implements GoIntegration {
+    public static final String OPERATION_INPUT_VALIDATION_MIDDLEWARE_ID = "OperationInputValidation";
+
     private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
 
     /**
@@ -96,7 +98,7 @@ public class ValidationGenerator implements GoIntegration {
         for (Map.Entry<Shape, OperationShape> entry : operationShapeMap.entrySet()) {
             GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
                     getOperationValidationMiddlewareName(entry.getValue()),
-                    "OperationInputValidation"
+                    OPERATION_INPUT_VALIDATION_MIDDLEWARE_ID
                     );
             String helperName = getShapeValidationFunctionName(entry.getKey(), true);
             Symbol inputSymbol = symbolProvider.toSymbol(entry.getKey());
