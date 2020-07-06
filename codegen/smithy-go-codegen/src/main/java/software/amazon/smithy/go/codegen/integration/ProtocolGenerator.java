@@ -25,9 +25,11 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.StringUtils;
@@ -225,6 +227,14 @@ public interface ProtocolGenerator {
      */
     static String getDocumentOutputDeserializerFunctionName(Shape shape, String protocol) {
         return protocol + "_deserializeOpDocument" + StringUtils.capitalize(shape.getId().getName());
+    }
+
+    static String getOperationErrorDeserFunctionName(OperationShape shape, String protocol) {
+        return protocol + "_deserializeOpError" + StringUtils.capitalize(shape.getId().getName());
+    }
+
+    static String getErrorDeserFunctionName(StructureShape shape, String protocol) {
+        return protocol + "_deserializeError" + StringUtils.capitalize(shape.getId().getName());
     }
 
     static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {

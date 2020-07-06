@@ -34,6 +34,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     private final boolean isErrorCodeInBody;
     private final Set<Shape> serializingDocumentShapes = new TreeSet<>();
     private final Set<Shape> deserializingDocumentShapes = new TreeSet<>();
+    private final Set<StructureShape> deserializingErrorShapes = new TreeSet<>();
 
     /**
      * Creates a Http RPC protocol generator.
@@ -200,6 +201,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
+        deserializingErrorShapes.forEach(error -> generateErrorDeserializer(context, error));
         deserializingDocumentShapes.addAll(ProtocolUtils.resolveRequiredDocumentShapeSerde(
                 context.getModel(), deserializingDocumentShapes));
         generateDocumentBodyShapeDeserializers(context, deserializingDocumentShapes);
@@ -231,12 +233,15 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        GoWriter writer = context.getWriter();
         StructureShape outputShape = ProtocolUtils.expectOutput(context.getModel(), operation);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
+        String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
+                operation, context.getProtocolName());
 
-        middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
+        middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY);
 
@@ -251,7 +256,9 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             });
             writer.write("");
 
-            // TODO: handle errors
+            writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
+                writer.write("return out, metadata, $L(response)", errorFunctionName);
+            });
 
             writer.write("output := &$T{}", outputSymbol);
             writer.write("out.Result = output");
@@ -263,6 +270,12 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
             writer.write("return out, metadata, err");
         });
+        writer.write("");
+
+        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
+        deserializingErrorShapes.addAll(errorShapes);
+        deserializingDocumentShapes.addAll(errorShapes);
     }
 
     /**
@@ -288,4 +301,44 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             GoStackStepMiddlewareGenerator generator,
             GoWriter writer
     );
+
+    private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
+        GoWriter writer = context.getWriter();
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        Symbol responseType = getApplicationProtocol().getResponseType();
+
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.openBlock("func $L(response $P, errorBody *bytes.Reader) error {", "}",
+                functionName, responseType, () -> deserializeError(context, shape));
+        writer.write("");
+    }
+
+    /**
+     * Writes a function body that deserializes the given error.
+     *
+     * <p>Two parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     * </ul>
+     *
+     * @param context The generation context.
+     * @param shape The error shape.
+     */
+    protected abstract void deserializeError(GenerationContext context, StructureShape shape);
+
+    /**
+     * Writes a code snippet that gets the error code and error message.
+     *
+     * <p>Four parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     *   <li>{@code errorMessage: string}: the error message initialized to a default value.</li>
+     *   <li>{@code errorCode: string}: the error code initialized to a default value.</li>
+     * </ul>
+     *
+     * @param context the generation context.
+     */
+    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context);
 }
