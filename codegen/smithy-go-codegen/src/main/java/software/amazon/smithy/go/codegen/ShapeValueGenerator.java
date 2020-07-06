@@ -66,6 +66,16 @@ public final class ShapeValueGenerator {
      * @param params parameters to fill the generated shape declaration.
      */
     public void writeShapeValueInline(GoWriter writer, Shape shape, Node params) {
+        if (params.isNullNode()) {
+            if (shape.isStringShape() && shape.hasTrait(EnumTrait.class)) {
+                Symbol enumSymbol = symbolProvider.toSymbol(shape);
+                writer.writeInline("$T($S)", enumSymbol, "");
+            } else {
+                writer.writeInline("nil");
+            }
+            return;
+        }
+
         switch (shape.getType()) {
             case STRUCTURE:
                 structDeclShapeValue(writer, shape.asStructureShape().get(), () -> {
@@ -88,19 +98,11 @@ public final class ShapeValueGenerator {
 
             case UNION:
             case DOCUMENT:
-                LOGGER.warning("Skipping " + shape.getType() + " shape type not suppported, " + shape.getId());
+                LOGGER.warning("Skipping " + shape.getType() + " shape type not supported, " + shape.getId());
                 writer.writeInline("nil");
                 break;
 
             default:
-                if (params.isNullNode()) {
-                    if (shape.isStringShape() && shape.hasTrait(EnumTrait.class)) {
-                        writer.writeInline("\"\"");
-                    } else {
-                        writer.writeInline("nil");
-                    }
-                    break;
-                }
 
                 scalarWrapShapeValue(writer, shape, () -> {
                     params.accept(new ShapeValueNodeVisitor(writer, this, shape));
@@ -179,10 +181,12 @@ public final class ShapeValueGenerator {
                 break;
 
             case STRING:
-                // Enum are not pointers, but values
+                // Enum are not pointers, but string alias values
                 if (shape.hasTrait(EnumTrait.class)) {
-                    inner.run();
-                    return;
+                    Symbol enumSymbol = symbolProvider.toSymbol(shape);
+                    writer.writeInline("$T(", enumSymbol);
+                    withPtrImport = false;
+                    break;
                 }
 
                 writer.writeInline("ptr.String(");
@@ -339,7 +343,8 @@ public final class ShapeValueGenerator {
         @Override
         public Void nullNode(NullNode node) {
             if (currentShape.getType() == ShapeType.STRING && currentShape.hasTrait(EnumTrait.class)) {
-                writer.writeInline("\"\"");
+                Symbol enumSymbol = symbolProvider.toSymbol(currentShape);
+                writer.writeInline("$T($S)", enumSymbol, "");
             } else {
                 writer.writeInline("nil");
             }
@@ -396,7 +401,6 @@ public final class ShapeValueGenerator {
             switch (currentShape.getType()) {
                 case BLOB:
                 case STRING:
-                    // TODO it would be nice if this used the enum const name instead of the literal string enum value.
                     writer.writeInline("$S", node.getValue());
                     break;
 
