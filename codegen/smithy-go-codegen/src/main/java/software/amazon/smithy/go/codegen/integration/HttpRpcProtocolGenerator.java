@@ -96,8 +96,9 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
+        GoWriter writer = context.getWriter();
 
-        middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
+        middleware.writeMiddleware(context.getWriter(), (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.SMITHY);
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
@@ -128,7 +129,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("");
 
             // delegate the setup and usage of the document serializer function for the protocol
-            serializeInputDocument(model, symbolProvider, operation, generator, writer);
+            serializeInputDocument(context, operation);
             serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
             writer.write("");
 
@@ -185,19 +186,10 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
      * </ul>
      *
-     * @param model          the model
-     * @param symbolProvider the symbol provider
-     * @param operation      the operation
-     * @param generator      middleware generator definition
-     * @param writer         the writer within the middleware context
+     * @param context The generation context.
+     * @param operation The operation to serialize for.
      */
-    protected abstract void serializeInputDocument(
-            Model model,
-            SymbolProvider symbolProvider,
-            OperationShape operation,
-            GoStackStepMiddlewareGenerator generator,
-            GoWriter writer
-    );
+    protected abstract void serializeInputDocument(GenerationContext context, OperationShape operation);
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
