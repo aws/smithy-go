@@ -39,6 +39,7 @@ import software.amazon.smithy.utils.ListUtils;
 
 public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     public static final String IDEMPOTENCY_CONFIG_NAME = "IdempotencyTokenProvider";
+    public static final String OPERATION_IDEMPOTENCY_TOKEN_MIDDLEWARE_ID = "OperationIdempotencyTokenAutoFill";
 
     List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
 
@@ -51,7 +52,9 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     ) {
         GoStackStepMiddlewareGenerator middlewareGenerator =
                 GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
-                        getIdempotencyTokenMiddlewareName(operation));
+                        getIdempotencyTokenMiddlewareName(operation),
+                        OPERATION_IDEMPOTENCY_TOKEN_MIDDLEWARE_ID
+                        );
 
         Shape inputShape = model.expectShape(operation.getInput().get());
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
