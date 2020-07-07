@@ -66,8 +66,7 @@ public final class HttpProtocolGeneratorUtils {
 
             // Copy the response body into a seekable type
             writer.write("var errorBuffer bytes.Buffer");
-            writer.write("_, err := io.Copy(&errorBuffer, response.Body)");
-            writer.openBlock("if err != nil {", "}", () -> {
+            writer.openBlock("if _, err := io.Copy(&errorBuffer, response.Body); err != nil {", "}", () -> {
                 writer.write("return &smithy.DeserializationError{Err: fmt.Errorf("
                         + "\"failed to copy error response body, %w\", err)}");
             });
