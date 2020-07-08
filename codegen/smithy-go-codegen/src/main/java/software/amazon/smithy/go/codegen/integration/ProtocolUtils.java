@@ -70,7 +70,7 @@ public final class ProtocolUtils {
                         if (processed.contains(walkedShape.getId())) {
                             return;
                         }
-                        if (REQUIRES_SERDE.contains(walkedShape.getType())) {
+                        if (requiresDocumentSerdeFunction(shape)) {
                             resolvedShapes.add(walkedShape);
                             processed.add(walkedShape.getId());
                         }
@@ -78,6 +78,18 @@ public final class ProtocolUtils {
         });
 
         return resolvedShapes;
+    }
+
+    /**
+     * Determines whether a document serde function is required for the given shape.
+     *
+     * The following shape types will require a serde function: maps, lists, sets, documents, structures, and unions.
+     *
+     * @param shape the shape
+     * @return true if the shape requires a serde function
+     */
+    public static boolean requiresDocumentSerdeFunction(Shape shape) {
+        return REQUIRES_SERDE.contains(shape.getType());
     }
 
     /**

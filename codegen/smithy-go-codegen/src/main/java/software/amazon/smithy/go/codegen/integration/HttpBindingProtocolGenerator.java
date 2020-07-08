@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -39,7 +41,6 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -83,76 +84,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateSharedSerializerComponents(GenerationContext context) {
-        serializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
-                serializeDocumentBindingShapes));
+        serializeDocumentBindingShapes.addAll(ProtocolUtils.resolveRequiredDocumentShapeSerde(
+                context.getModel(), serializeDocumentBindingShapes));
         generateDocumentBodyShapeSerializers(context, serializeDocumentBindingShapes);
-    }
-
-    /**
-     * Resolves the entire set of shapes that will require serializers, deserializers given an initial set of shapes.
-     *
-     * @param model  the model
-     * @param shapes the shapes to walk and resolve additional required serializers, deserializers for
-     * @return the complete set of shapes requiring serializers, deserializers
-     */
-    private Set<Shape> resolveRequiredDocumentShapeSerializers(Model model, Set<Shape> shapes) {
-        Set<ShapeId> processed = new TreeSet<>();
-        Set<Shape> resolvedShapes = new TreeSet<>();
-        Walker walker = new Walker(model);
-
-        shapes.forEach(shape -> {
-            processed.add(shape.getId());
-            resolvedShapes.add(shape);
-            walker.iterateShapes(shape,
-                    relationship -> {
-                        switch (relationship.getRelationshipType()) {
-                            case STRUCTURE_MEMBER:
-                            case UNION_MEMBER:
-                            case LIST_MEMBER:
-                            case SET_MEMBER:
-                            case MAP_VALUE:
-                            case MEMBER_TARGET:
-                                return true;
-                            default:
-                                return false;
-                        }
-                    })
-                    .forEachRemaining(walkedShape -> {
-                        // MemberShape type itself is not what we are interested in
-                        if (walkedShape.getType() == ShapeType.MEMBER) {
-                            return;
-                        }
-                        if (processed.contains(walkedShape.getId())) {
-                            return;
-                        }
-                        if (isShapeTypeDocumentSerializerRequired(walkedShape.getType())) {
-                            resolvedShapes.add(walkedShape);
-                            processed.add(walkedShape.getId());
-                        }
-                    });
-        });
-
-        return resolvedShapes;
-    }
-
-    /**
-     * Returns whether a document serializer, deserializer function is required to serializer the given shape type.
-     *
-     * @param shapeType the shape type
-     * @return whether the shape type requires a document serializer, deserializer function
-     */
-    protected boolean isShapeTypeDocumentSerializerRequired(ShapeType shapeType) {
-        switch (shapeType) {
-            case MAP:
-            case LIST:
-            case SET:
-            case DOCUMENT:
-            case STRUCTURE:
-            case UNION:
-                return true;
-            default:
-                return false;
-        }
     }
 
     /**
@@ -232,7 +166,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         for (HttpBinding binding : bindings) {
             Shape targetShape = model.expectShape(binding.getMember().getTarget());
             // Check if the input shape has a members that target the document or payload and require serializers
-            if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+            if (requiresDocumentSerdeFunction(targetShape)
                     && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                 serializeDocumentBindingShapes.add(targetShape);
@@ -1227,8 +1161,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
-        deserializeDocumentBindingShapes.addAll(resolveRequiredDocumentShapeSerializers(context.getModel(),
-                deserializeDocumentBindingShapes));
+        deserializeDocumentBindingShapes.addAll(ProtocolUtils.resolveRequiredDocumentShapeSerde(
+                context.getModel(), deserializeDocumentBindingShapes));
         generateDocumentBodyShapeDeserializers(context, deserializeDocumentBindingShapes);
     }
 
@@ -1245,7 +1179,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         httpBindingIndex.getResponseBindings(operation).values()
                 .forEach(binding -> {
                     Shape targetShape = model.expectShape(binding.getMember().getTarget());
-                    if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+                    if (requiresDocumentSerdeFunction(targetShape)
                             && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                             || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                         deserializeDocumentBindingShapes.add(targetShape);
@@ -1256,7 +1190,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             httpBindingIndex.getResponseBindings(errorShapeId).values()
                     .forEach(binding -> {
                         Shape targetShape = model.expectShape(binding.getMember().getTarget());
-                        if (isShapeTypeDocumentSerializerRequired(targetShape.getType())
+                        if (requiresDocumentSerdeFunction(targetShape)
                                 && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                                 || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                             deserializeDocumentBindingShapes.add(targetShape);
