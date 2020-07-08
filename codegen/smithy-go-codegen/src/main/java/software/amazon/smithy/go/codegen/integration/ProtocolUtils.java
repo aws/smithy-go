@@ -32,6 +32,9 @@ import software.amazon.smithy.utils.SetUtils;
  * Utility functions for protocol generation.
  */
 public final class ProtocolUtils {
+    public static final String OPERATION_SERIALIZER_MIDDLEWARE_ID = "OperationSerializer";
+    public static final String OPERATION_DESERIALIZER_MIDDLEWARE_ID = "OperationDeserializer";
+
     private static final Set<ShapeType> REQUIRES_SERDE = SetUtils.of(
             ShapeType.MAP, ShapeType.LIST, ShapeType.SET, ShapeType.DOCUMENT, ShapeType.STRUCTURE, ShapeType.UNION);
     private static final Set<RelationshipType> MEMBER_RELATIONSHIPS = SetUtils.of(

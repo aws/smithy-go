@@ -88,7 +88,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
-                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()));
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
+                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
@@ -221,7 +222,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
-                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()));
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
+                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
