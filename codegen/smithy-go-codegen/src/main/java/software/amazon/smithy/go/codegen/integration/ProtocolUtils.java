@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.neighbor.RelationshipType;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -87,7 +88,7 @@ public final class ProtocolUtils {
      * @return The operation's input as a structure shape.
      */
     public static StructureShape expectInput(Model model, OperationShape operation) {
-        return operation.getInput().flatMap(model::getShape).flatMap(Shape::asStructureShape)
+        return model.getKnowledge(OperationIndex.class).getInput(operation)
                 .orElseThrow(() -> new CodegenException(
                         "Expected input shape for operation " + operation.getId().toString()));
     }
@@ -100,7 +101,7 @@ public final class ProtocolUtils {
      * @return The operation's output as a structure shape.
      */
     public static StructureShape expectOutput(Model model, OperationShape operation) {
-        return operation.getOutput().flatMap(model::getShape).flatMap(Shape::asStructureShape)
+        return model.getKnowledge(OperationIndex.class).getOutput(operation)
                 .orElseThrow(() -> new CodegenException(
                         "Expected output shape for operation " + operation.getId().toString()));
     }
