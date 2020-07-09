@@ -38,6 +38,32 @@ func (r *Request) Clone() *Request {
 	return &rc
 }
 
+// StreamLength returns the number of bytes of the serialized stream attached
+// to the request and ok set. If the length cannot be determined, an error will
+// be returned.
+func (r *Request) StreamLength() (size int64, ok bool, err error) {
+	if l, ok := r.stream.(interface{ Len() int }); ok {
+		return int64(l.Len()), true, nil
+	}
+
+	if !r.isStreamSeekable {
+		return 0, false, nil
+	}
+
+	s := r.stream.(io.Seeker)
+	endOffset, err := s.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, false, err
+	}
+
+	_, err = s.Seek(r.streamStartPos, io.SeekStart)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return endOffset - r.streamStartPos, true, nil
+}
+
 // RewindStream will rewind the io.Reader to the relative start position if it
 // is an io.Seeker.
 func (r *Request) RewindStream() error {
