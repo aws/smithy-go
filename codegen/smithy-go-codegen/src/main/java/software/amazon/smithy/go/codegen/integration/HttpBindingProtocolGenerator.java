@@ -132,10 +132,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     protected abstract String getDocumentContentType();
 
-    private void generateOperationSerializer(
-            GenerationContext context,
-            OperationShape operation
-    ) {
+    private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
         generateOperationSerializerMiddleware(context, operation);
         generateOperationHttpBindingSerializer(context, operation);
         generateOperationDocumentSerializer(context, operation);
@@ -248,13 +245,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             if (hasDocumentBindings) {
                 // delegate the setup and usage of the document serializer function for the protocol
-                writeMiddlewareDocumentSerializerDelegator(model, symbolProvider, operation, generator, writer);
+                writeMiddlewareDocumentSerializerDelegator(context, operation, generator);
 
             } else if (payloadBinding.isPresent()) {
                 // delegate the setup and usage of the payload serializer function for the protocol
                 MemberShape memberShape = payloadBinding.get().getMember();
-                writeMiddlewarePayloadSerializerDelegator(model, symbolProvider, operation, memberShape, generator,
-                        writer);
+                writeMiddlewarePayloadSerializerDelegator(context, operation, memberShape, generator);
             }
 
             writer.write("");
@@ -298,7 +294,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
 
             // Error shape middleware generation
-            writeMiddlewareErrorDeserializer(writer, model, symbolProvider, operation, generator);
+            writeMiddlewareErrorDeserializer(context, operation, generator);
 
             Shape outputShape = model.expectShape(operation.getOutput()
                     .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
@@ -328,7 +324,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Output Shape Document Binding middleware generation
             if (isShapeWithResponseBindings(model, operation, HttpBinding.Location.DOCUMENT)
                     || isShapeWithResponseBindings(model, operation, HttpBinding.Location.PAYLOAD)) {
-                writeMiddlewareDocumentDeserializerDelegator(writer, model, symbolProvider, operation, generator);
+                writeMiddlewareDocumentDeserializerDelegator(context, operation, generator);
                 writer.write("");
             }
 
@@ -340,52 +336,40 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the document serializer logic for the serializer middleware body.
      *
-     * @param model          the model
-     * @param symbolProvider the symbol provider
+     * @param context the generation context
      * @param operation      the operation
      * @param generator      middleware generator definition
-     * @param writer         the writer within the middlware context
      */
     protected abstract void writeMiddlewareDocumentSerializerDelegator(
-            Model model,
-            SymbolProvider symbolProvider,
+            GenerationContext context,
             OperationShape operation,
-            GoStackStepMiddlewareGenerator generator,
-            GoWriter writer
+            GoStackStepMiddlewareGenerator generator
     );
 
     /**
      * Generate the payload serializer logic for the serializer middleware body.
      *
-     * @param model          the model
-     * @param symbolProvider the symbol provider
+     * @param context the generation context
      * @param operation      the operation
      * @param memberShape    the payload target member
      * @param generator      middleware generator definition
-     * @param writer         the writer within the middlware context
      */
     protected abstract void writeMiddlewarePayloadSerializerDelegator(
-            Model model,
-            SymbolProvider symbolProvider,
+            GenerationContext context,
             OperationShape operation,
             MemberShape memberShape,
-            GoStackStepMiddlewareGenerator generator,
-            GoWriter writer
+            GoStackStepMiddlewareGenerator generator
     );
 
     /**
      * Generate the document deserializer logic for the deserializer middleware body.
      *
-     * @param writer         the writer within the middleware context
-     * @param model          the model
-     * @param symbolProvider the symbol provider
+     * @param context the generation context
      * @param operation      the operation
      * @param generator      middleware generator definition
      */
     protected abstract void writeMiddlewareDocumentDeserializerDelegator(
-            GoWriter writer,
-            Model model,
-            SymbolProvider symbolProvider,
+            GenerationContext context,
             OperationShape operation,
             GoStackStepMiddlewareGenerator generator
     );
@@ -394,20 +378,15 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the document deserializer logic for the deserializer middleware body.
      *
-     * @param model          the model
-     * @param symbolProvider the symbol provider
+     * @param context the generation context
      * @param operation      the operation
      * @param generator      middleware generator definition
-     * @param writer         the writer within the middleware context
      */
-    protected void writeMiddlewareErrorDeserializer(
-            GoWriter writer,
-            Model model,
-            SymbolProvider symbolProvider,
+    protected abstract void writeMiddlewareErrorDeserializer(
+            GenerationContext context,
             OperationShape operation,
             GoStackStepMiddlewareGenerator generator
-    ) {
-    }
+    );
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
@@ -471,10 +450,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return false;
     }
 
-    private void generateOperationHttpBindingSerializer(
-            GenerationContext context,
-            OperationShape operation
-    ) {
+    private void generateOperationHttpBindingSerializer(GenerationContext context, OperationShape operation) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
         GoWriter writer = context.getWriter();
