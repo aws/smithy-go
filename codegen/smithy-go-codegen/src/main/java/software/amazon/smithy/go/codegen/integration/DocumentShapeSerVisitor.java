@@ -79,6 +79,45 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * <p>Implementations of this method are expected to generate a function body that
      * returns a value representing the CollectionShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * list ParameterList {
+     *     member: Parameter
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v []*types.Parameter}: the list to be serialized.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json protocols, for instance, smithy has the Value accumulator that can be passed
+     * around to build up the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_serializeDocumentParameterList(v []*types.Parameter, value smithyjson.Value) error {
+     *     array := value.Array()
+     *     defer array.Close()
+     *
+     *     for i := range v {
+     *         av := array.Value()
+     *         if vv := v[i]; vv == nil {
+     *             av.Null()
+     *             continue
+     *         }
+     *         if err := myProtocol_serializeDocumentParameter(v[i], av); err != nil {
+     *             return err
+     *         }
+     *     }
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The collection shape being generated.
      */
@@ -89,6 +128,22 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      *
      * <p>Implementations of this method are expected to generate a function body that
      * returns a value representing the DocumentShape {@code shape} parameter.
+     *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * document FooDocument
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v Document}: the document to be serialized.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json protocols, for instance, smithy has the Value accumulator that can be passed
+     * around to build up the json.
      *
      * @param context The generation context.
      * @param shape The document shape being generated.
@@ -101,6 +156,46 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * <p>Implementations of this method are expected to generate a function body that
      * returns a value representing the MapShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * map FieldMap {
+     *     key: String,
+     *     value: Field
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v map[string]*types.Field}: the map to be serialized.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json protocols, for instance, smithy has the Value accumulator that can be passed
+     * around to build up the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_serializeDocumentFieldMap(v map[string]*types.Field, value smithyjson.Value) error {
+     *     object := value.Object()
+     *     defer object.Close()
+     *
+     *     for key := range v {
+     *         om := object.Key(key)
+     *         if vv := v[key]; vv == nil {
+     *             om.Null()
+     *             continue
+     *         }
+     *         if err := myProtocol_serializeDocumentField(v[key], om); err != nil {
+     *             return err
+     *         }
+     *     }
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The map shape being generated.
      */
@@ -112,6 +207,48 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * <p>Implementations of this method are expected to generate a function body that
      * returns a value representing the StructureShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * structure Field {
+     *     FooValue: Foo,
+     *     BarValue: String,
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v *types.Field}: the structure to be serialized.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json protocols, for instance, smithy has the Value accumulator that can be passed
+     * around to build up the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_serializeDocumentField(v *types.Field, value smithyjson.Value) error {
+     *     object := value.Object()
+     *     defer object.Close()
+     *
+     *     if v.FooValue != nil {
+     *         ok := object.Key("FooValue")
+     *         if err := myProtocol_serializeDocumentFoo(v.FooValue, ok); err != nil {
+     *             return err
+     *         }
+     *     }
+     *
+     *     if v.BarValue != nil {
+     *         ok := object.Key("BarValue")
+     *         ok.String(*v.Value)
+     *     }
+     *
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The structure shape being generated.
      */
@@ -122,6 +259,49 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      *
      * <p>Implementations of this method are expected to generate a function body that
      * returns a value representing the UnionShape {@code shape} parameter.
+     *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * union Field {
+     *     FooValue: Foo,
+     *     BarValue: String,
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v types.Field}: the union to be serialized.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json protocols, for instance, smithy has the Value accumulator that can be passed
+     * around to build up the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_serializeDocumentField(v types.Field, value smithyjson.Value) error {
+     *     object := value.Object()
+     *     defer object.Close()
+     *
+     *     switch uv := v.(type) {
+     *     case *types.FieldFooValue:
+     *         ok := object.Key("FooValue")
+     *         if err := myProtocol_serializeDocumentFoo(v.FooValue, ok); err != nil {
+     *             return err
+     *         }
+     *     case *types.FieldBarValue:
+     *         ok := object.Key("BarValue")
+     *         ok.String(*v.Value)
+     *     case *types.FieldUnknown:
+     *         return fmt.Errorf("unknown member type %T for union %T", uv, v)
+     *     }
+     *
+     *     return nil
+     * }
+     * }</pre>
      *
      * @param context The generation context.
      * @param shape The union shape being generated.

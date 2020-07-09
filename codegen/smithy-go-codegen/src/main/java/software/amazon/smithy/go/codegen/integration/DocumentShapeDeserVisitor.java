@@ -85,6 +85,73 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * <p>Implementations of this method are expected to generate a function body that
      * returns the type generated for the CollectionShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * list ParameterList {
+     *     member: Parameter
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v *[]*string}: a pointer to the location the resulting list should be deserialized to.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json, for instance, you may want to pass around a {@code *json.Decoder} to handle parsing
+     * the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_deserializeDocumentParameterList(v *[]*types.Parameter, decoder *json.Decoder) error {
+     *     if v == nil {
+     *         return fmt.Errorf("unexpected nil of type %T", v)
+     *     }
+     *     startToken, err := decoder.Token()
+     *     if err == io.EOF {
+     *         return nil
+     *     }
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if startToken == nil {
+     *         return nil
+     *     }
+     *     if t, ok := startToken.(json.Delim); !ok || t != '[' {
+     *         return fmt.Errorf("expect `[` as start token")
+     *     }
+     *
+     *     var cv []*types.Parameter
+     *     if *v == nil {
+     *         cv = []*types.Parameter{}
+     *     } else {
+     *         cv = *v
+     *     }
+     *
+     *     for decoder.More() {
+     *         var col *types.Parameter
+     *         if err := myProtocol_deserializeDocumentParameter(&col, decoder); err != nil {
+     *             return err
+     *         }
+     *         cv = append(cv, col)
+     *     }
+     *
+     *     endToken, err := decoder.Token()
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if t, ok := endToken.(json.Delim); !ok || t != ']' {
+     *         return fmt.Errorf("expect `]` as end token")
+     *     }
+     *
+     *     *v = cv
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The collection shape being generated.
      */
@@ -95,6 +162,22 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      *
      * <p>Implementations of this method are expected to generate a function body that
      * returns the type generated for the DocumentShape {@code shape} parameter.
+     *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * document FooDocument
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v *Document}: a pointer to the location the resulting document should be deserialized to.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json, for instance, you may want to pass around a {@code *json.Decoder} to handle parsing
+     * the json.
      *
      * @param context The generation context.
      * @param shape The document shape being generated.
@@ -107,6 +190,85 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * <p>Implementations of this method are expected to generate a function body that
      * returns the type generated for the MapShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * map c {
+     *     key: String,
+     *     value: Field
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v *map[string]*types.FieldMap}: a pointer to the location the resulting map should
+     *   be deserialized to.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json, for instance, you may want to pass around a {@code *json.Decoder} to handle parsing
+     * the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_deserializeDocumentFieldMap(v *map[string]*types.FieldMap, decoder *json.Decoder) error {
+     *     if v == nil {
+     *         return fmt.Errorf("unexpected nil of type %T", v)
+     *     }
+     *     startToken, err := decoder.Token()
+     *     if err == io.EOF {
+     *         return nil
+     *     }
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if startToken == nil {
+     *         return nil
+     *     }
+     *     if t, ok := startToken.(json.Delim); !ok || t != '{' {
+     *         return fmt.Errorf("expect `{` as start token")
+     *     }
+     *
+     *     var mv map[string]*types.FieldMap
+     *     if *v == nil {
+     *         mv = map[string]*types.FieldMap{}
+     *     } else {
+     *         mv = *v
+     *     }
+     *
+     *     for decoder.More() {
+     *         token, err := decoder.Token()
+     *         if err != nil {
+     *             return err
+     *         }
+     *
+     *         key, ok := token.(string)
+     *         if !ok {
+     *             return fmt.Errorf("expected map-key of type string, found type %T", token)
+     *         }
+     *
+     *         var parsedVal *types.FieldMap
+     *         if err := myProtocol_deserializeDocumentFieldMap(&parsedVal, decoder); err != nil {
+     *             return err
+     *         }
+     *         mv[key] = parsedVal
+     *
+     *     }
+     *     endToken, err := decoder.Token()
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if t, ok := endToken.(json.Delim); !ok || t != '}' {
+     *         return fmt.Errorf("expect `}` as end token")
+     *     }
+     *
+     *     *v = mv
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The map shape being generated.
      */
@@ -118,6 +280,91 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * <p>Implementations of this method are expected to generate a function body that
      * returns the type generated for the StructureShape {@code shape} parameter.
      *
+     * <p>For example, given the following Smithy model:
+     *
+     * <pre>{@code
+     * structure Field {
+     *     FooValue: Foo,
+     *     BarValue: String,
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v **types.Field}: a pointer to the location the resulting structure should be deserialized to.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json, for instance, you may want to pass around a {@code *json.Decoder} to handle parsing
+     * the json.
+     *
+     * <p>The function could end up looking like:
+     *
+     * <pre>{@code
+     * func myProtocol_deserializeDocumentField(v **types.Field, decoder *json.Decoder) error {
+     *     if v == nil {
+     *         return fmt.Errorf("unexpected nil of type %T", v)
+     *     }
+     *     startToken, err := decoder.Token()
+     *     if err == io.EOF {
+     *         return nil
+     *     }
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if startToken == nil {
+     *         return nil
+     *     }
+     *     if t, ok := startToken.(json.Delim); !ok || t != '{' {
+     *         return fmt.Errorf("expect `{` as start token")
+     *     }
+     *
+     *     var sv *types.KitchenSink
+     *     if *v == nil {
+     *         sv = &types.KitchenSink{}
+     *     } else {
+     *         sv = *v
+     *     }
+     *
+     *     for decoder.More() {
+     *         t, err := decoder.Token()
+     *         if err != nil {
+     *             return err
+     *         }
+     *         switch t {
+     *         case "FooValue":
+     *             if err := myProtocol_deserializeDocumentFoo(&sv.FooValue, decoder); err != nil {
+     *                 return err
+     *             }
+     *         case "BarValue":
+     *             val, err := decoder.Token()
+     *             if err != nil {
+     *                 return err
+     *             }
+     *             if val != nil {
+     *                 jtv, ok := val.(string)
+     *                 if !ok {
+     *                     return fmt.Errorf("expected String to be of type string, got %T instead", val)
+     *                 }
+     *                 sv.BarValue = &jtv
+     *             }
+     *         default:
+     *             // Discard the unknown
+     *         }
+     *     }
+     *     endToken, err := decoder.Token()
+     *     if err != nil {
+     *         return err
+     *     }
+     *     if t, ok := endToken.(json.Delim); !ok || t != '}' {
+     *         return fmt.Errorf("expect `}` as end token")
+     *     }
+     *     *v = sv
+     *     return nil
+     * }
+     * }</pre>
+     *
      * @param context The generation context.
      * @param shape The structure shape being generated.
      */
@@ -128,6 +375,23 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      *
      * <p>Implementations of this method are expected to generate a function body that
      * returns the type generated for the UnionShape {@code shape} parameter.
+     *
+     * <pre>{@code
+     * union Field {
+     *     fooValue: Foo,
+     *     barValue: String,
+     * }
+     * }</pre>
+     *
+     * <p>The function signature for this body will return only {@code error} and have at
+     * least one parameter in scope:
+     * <ul>
+     *   <li>{@code v *Field}: a pointer to the location the resulting union should be deserialized to.</li>
+     * </ul>
+     *
+     * <p>It will also have any parameters in scope as defined by {@code getAdditionalArguments}.
+     * For json, for instance, you may want to pass around a {@code *json.Decoder} to handle parsing
+     * the json.
      *
      * @param context The generation context.
      * @param shape The union shape being generated.
