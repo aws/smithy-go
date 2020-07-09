@@ -31,20 +31,14 @@ import software.amazon.smithy.model.shapes.StructureShape;
 
 public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
-    private final boolean isErrorCodeInBody;
     private final Set<Shape> serializingDocumentShapes = new TreeSet<>();
     private final Set<Shape> deserializingDocumentShapes = new TreeSet<>();
     private final Set<StructureShape> deserializingErrorShapes = new TreeSet<>();
 
     /**
-     * Creates a Http RPC protocol generator.
-     *
-     * @param isErrorCodeInBody A boolean that indicates if the error code for the implementing protocol is located in
-     *   the error response body, meaning this generator will parse the body before attempting to load an error code.
+     * Creates an Http RPC protocol generator.
      */
-    public HttpRpcProtocolGenerator(boolean isErrorCodeInBody) {
-        this.isErrorCodeInBody = isErrorCodeInBody;
-    }
+    public HttpRpcProtocolGenerator() { }
 
     @Override
     public ApplicationProtocol getApplicationProtocol() {
