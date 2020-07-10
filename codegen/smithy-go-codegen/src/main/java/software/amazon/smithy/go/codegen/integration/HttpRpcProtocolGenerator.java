@@ -98,6 +98,10 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
 
+            // TODO: refactor the http binding encoder to be split up into its component parts
+            // This would allow most of this shared code to be split off into its own function
+            // to reduce duplication, and potentially allowing it to be a static function.
+            // For example, a HeaderBag type could handle all the headers.
             // Cast the input request to the transport request type and check for errors.
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
