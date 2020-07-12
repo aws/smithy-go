@@ -60,20 +60,19 @@ func CompareJSONReaderBytes(r io.Reader, expect []byte) error {
 	return nil
 }
 
-// CompareXMLReaderBytes compares the reader containing serialized XML
-// document. Deserializes the XML documents to determine if they are equal.
-// Return an error if the two XML documents are not equal.
+// CompareXMLReaderBytes compares the reader with expected xml byte
 func CompareXMLReaderBytes(r io.Reader, expect []byte) error {
 	if r == nil {
 		return fmt.Errorf("missing body")
 	}
+
 	actual, err := ioutil.ReadAll(r)
 	if err != nil {
-		return fmt.Errorf("unable to read, %v", err)
+		return err
 	}
 
 	if err := XMLEqual(expect, actual); err != nil {
-		return fmt.Errorf("XML documents not equal, %v", err)
+		return fmt.Errorf("XML documents not equal, %w", err)
 	}
 	return nil
 }

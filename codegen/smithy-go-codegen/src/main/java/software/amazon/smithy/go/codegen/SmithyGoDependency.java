@@ -50,6 +50,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
+    public static final GoDependency SMITHY_XML = smithy("xml", "smithyxml");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");

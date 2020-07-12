@@ -51,6 +51,8 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
+import software.amazon.smithy.model.traits.MediaTypeTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait.Format;
 import software.amazon.smithy.utils.OptionalUtils;
@@ -251,7 +253,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             } else if (payloadBinding.isPresent()) {
                 // delegate the setup and usage of the payload serializer function for the protocol
                 MemberShape memberShape = payloadBinding.get().getMember();
-                writeMiddlewarePayloadSerializerDelegator(context, operation, memberShape, generator);
+                writeMiddlewarePayloadSerializerDelegator(context, memberShape);
             }
 
             writer.write("");
@@ -373,16 +375,82 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the payload serializer logic for the serializer middleware body.
      *
-     * @param context     the generation context
-     * @param operation   the operation
-     * @param memberShape the payload target member
-     * @param generator   middleware generator definition
+     * @param context the generation context
+     * @param memberShape    the payload target member
      */
-    protected abstract void writeMiddlewarePayloadSerializerDelegator(
+    protected void writeMiddlewarePayloadSerializerDelegator(
             GenerationContext context,
-            OperationShape operation,
+            MemberShape memberShape
+    ) {
+        GoWriter writer = context.getWriter();
+        Model model = context.getModel();
+        Shape payloadShape = model.expectShape(memberShape.getTarget());
+
+        writeSafeMemberAccessor(context, memberShape, "input", s -> {
+            writer.openBlock("if !restEncoder.HasHeader(\"Content-Type\") {", "}", () -> {
+                writer.write("restEncoder.SetHeader(\"Content-Type\").String($S)",
+                        getPayloadShapeMediaType(payloadShape));
+            });
+            writer.write("");
+
+            if (payloadShape.hasTrait(StreamingTrait.class)) {
+                writer.write("payload := $L", s);
+
+            } else if (payloadShape.isBlobShape()) {
+                writer.addUseImports(SmithyGoDependency.BYTES);
+                writer.write("payload := bytes.NewReader($L)", s);
+
+            } else if (payloadShape.isStringShape()) {
+                writer.addUseImports(SmithyGoDependency.STRINGS);
+                writer.write("payload := strings.NewReader(*$L)", s);
+
+            } else {
+                writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, s);
+            }
+
+            writer.openBlock("if request, err = request.SetStream(payload); err != nil {", "}",
+                    () -> {
+                        writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                    });
+        });
+    }
+
+    /**
+     * Returns the MediaType for the payload shape derived from the MediaTypeTrait, shape type, or
+     * document content type.
+     *
+     * @param payloadShape shape bound to the payload.
+     * @return string for media type.
+     */
+    private String getPayloadShapeMediaType(Shape payloadShape) {
+        Optional<MediaTypeTrait> mediaTypeTrait = payloadShape.getTrait(MediaTypeTrait.class);
+
+        if (mediaTypeTrait.isPresent()) {
+            return mediaTypeTrait.get().getValue();
+        }
+
+        if (payloadShape.isBlobShape()) {
+            return "application/octet-stream";
+        }
+
+        if (payloadShape.isStringShape()) {
+            return "text/plain";
+        }
+
+        return getDocumentContentType();
+    }
+
+    /**
+     * Generate the payload serializers with document serializer logic for the serializer middleware body.
+     *
+     * @param context the generation context
+     * @param memberShape    the payload target member
+     * @param operand      the operand that is used to access the member value
+     */
+    protected abstract void writeMiddlewarePayloadAsDocumentSerializerDelegator(
+            GenerationContext context,
             MemberShape memberShape,
-            GoStackStepMiddlewareGenerator generator
+            String operand
     );
 
     /**
