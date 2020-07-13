@@ -85,8 +85,8 @@ func TestValue(t *testing.T) {
 			setter: func(value Value) {
 				o, closeFn := value.Array()
 				defer closeFn()
-				o.Add().String("value1")
-				o.Add().String("value2")
+				o.NewMember().String("value1")
+				o.NewMember().String("value2")
 			},
 			expected: `<member>value1</member><member>value2</member>`,
 		},

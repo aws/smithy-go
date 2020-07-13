@@ -36,11 +36,10 @@ func TestEncodeAttribute(t *testing.T) {
 	encoder := xml.NewEncoder()
 	obj := encoder.RootElement()
 
-	 obj.Key("payload", func(t *xml.TagMetadata) {
+	obj.Key("payload", func(t *xml.TagMetadata) {
 		t.AttributeName = "attrkey"
 		t.AttributeValue = "value"
 	}).Null()
-
 
 	expect := `<payload attrkey="value"></payload>`
 
@@ -290,8 +289,8 @@ func TestEncodeListString(t *testing.T) {
 
 	// build array
 	a, closeFn2 := n2.Array()
-	a.Add().String("abc")
-	a.Add().Integer(123)
+	a.NewMember().String("abc")
+	a.NewMember().Integer(123)
 
 	// close all open objects
 	closeFn2()
@@ -313,8 +312,8 @@ func TestEncodeListFlatten(t *testing.T) {
 
 	// build array
 	a := n2.FlattenedArray()
-	a.Add().String("abc")
-	a.Add().Integer(123)
+	a.NewMember().String("abc")
+	a.NewMember().Integer(123)
 
 	// close all open objects
 	closeFn1()
@@ -335,8 +334,8 @@ func TestEncodeListNamed(t *testing.T) {
 
 	// build array
 	a, closeFn2 := n2.ArrayWithCustomName("namedMember")
-	a.Add().String("abc")
-	a.Add().Integer(123)
+	a.NewMember().String("abc")
+	a.NewMember().Integer(123)
 
 	// close all open objects
 	closeFn2()
@@ -359,8 +358,8 @@ func TestEncodeListShape(t *testing.T) {
 	// build array
 	a, closeFn2 := n2.Array()
 
-	// Entries
-	e := a.Add()
+	// new member
+	e := a.NewMember()
 
 	// build entry
 	n3, closeFn3 := e.NestedElement()
@@ -393,8 +392,8 @@ func TestEncodeListFlattenShape(t *testing.T) {
 	// build array
 	a := n2.FlattenedArray()
 
-	// Entries
-	e := a.Add()
+	// new member
+	e := a.NewMember()
 
 	// build entry
 	n3, closeFn3 := e.NestedElement()
@@ -426,8 +425,8 @@ func TestEncodeListNamedShape(t *testing.T) {
 	// build array
 	a, closeFn2 := n2.ArrayWithCustomName("namedMember")
 
-	// Entries
-	e := a.Add()
+	// new member
+	e := a.NewMember()
 
 	// build entry
 	n3, closeFn3 := e.NestedElement()

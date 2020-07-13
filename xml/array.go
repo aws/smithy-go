@@ -59,7 +59,8 @@ func newFlattenedArray(w *bytes.Buffer, scratch *[]byte, openTagFn func(), close
 	return &Array{w: w, scratch: scratch, openTagFn: openTagFn, closeTagFn: closeTagFn}
 }
 
-// Add returns a Value encoder with array's element tag handler functions
-func (a *Array) Add() Value {
+// NewMember adds a new member to the XML array.
+// It returns a Value encoder with array's element tag handler functions
+func (a *Array) NewMember() Value {
 	return newValue(a.w, a.scratch, a.openTagFn, a.closeTagFn)
 }
