@@ -17,16 +17,21 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.neighbor.RelationshipType;
 import software.amazon.smithy.model.neighbor.Walker;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.utils.SetUtils;
 
 /**
@@ -116,5 +121,43 @@ public final class ProtocolUtils {
         return model.getKnowledge(OperationIndex.class).getOutput(operation)
                 .orElseThrow(() -> new CodegenException(
                         "Expected output shape for operation " + operation.getId().toString()));
+    }
+
+    /**
+     * Safely accesses a given structure member.
+     *
+     * @param context The generation context.
+     * @param member The member being accessed.
+     * @param container The name that the structure is assigned to.
+     * @param consumer A string consumer that is given the snippet to access the member value.
+     */
+    public static void writeSafeMemberAccessor(
+            GenerationContext context,
+            MemberShape member,
+            String container,
+            Consumer<String> consumer
+    ) {
+        Model model = context.getModel();
+        Shape target = model.expectShape(member.getTarget());
+        String memberName = context.getSymbolProvider().toMemberName(member);
+        String operand = container + "." + memberName;
+
+        boolean enumShape = target.hasTrait(EnumTrait.class);
+
+        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, member)) {
+            consumer.accept(operand);
+            return;
+        }
+
+        String conditionCheck;
+        if (enumShape) {
+            conditionCheck = "len(" + operand + ") > 0";
+        } else {
+            conditionCheck = operand + " != nil";
+        }
+
+        context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
+            consumer.accept(operand);
+        });
     }
 }

@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
+import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.writeSafeMemberAccessor;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -480,7 +481,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     for (Map.Entry<String, HttpBinding> entry : bindingMap.entrySet()) {
                         HttpBinding binding = entry.getValue();
-                        writeHttpBindingMember(writer, model, symbolProvider, binding);
+                        writeHttpBindingMember(context, binding);
                         writer.write("");
                     }
                     writer.write("return nil");
@@ -579,15 +580,16 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHttpBindingMember(
-            GoWriter writer,
-            Model model,
-            SymbolProvider symbolProvider,
+            GenerationContext context,
             HttpBinding binding
     ) {
+        GoWriter writer = context.getWriter();
+        Model model = context.getModel();
+        SymbolProvider symbolProvider = context.getSymbolProvider();
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
 
-        writeSafeOperandAccessor(model, symbolProvider, memberShape, "v", writer, (bodyWriter, operand) -> {
+        writeSafeMemberAccessor(context, memberShape, "v", operand -> {
             HttpBinding.Location location = binding.getLocation();
             final String locationName = binding.getLocationName().isEmpty()
                     ? memberShape.getMemberName() : binding.getLocationName();
@@ -596,7 +598,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 case HEADER:
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
-                        bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
+                        writer.openBlock("for i := range $L {", "}", operand, () -> {
                             // Only set non-empty non-nil header values
                             String operandElem = operand + "[i]";
                             writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
@@ -627,11 +629,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                                 + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
                     }
 
-                    bodyWriter.write("hv := encoder.Headers($S)", locationName);
-                    bodyWriter.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
+                    writer.write("hv := encoder.Headers($S)", locationName);
+                    writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
                         if (valueMemberTarget instanceof CollectionShape) {
                             MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
-                            bodyWriter.openBlock("for i := range mapVal {", "}", () -> {
+                            writer.openBlock("for i := range mapVal {", "}", () -> {
                                 // Only set non-empty non-nil header values
                                 writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
                                         "mapVal[i]", writer, () -> {
@@ -664,7 +666,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
                         MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
-                        bodyWriter.openBlock("for i := range $L {", "}", operand, () -> {
+                        writer.openBlock("for i := range $L {", "}", operand, () -> {
                             Shape collectionMemberTargetShape = model.expectShape(collectionMember.getTarget());
                             if (!collectionMemberTargetShape.hasTrait(EnumTrait.class)) {
                                 writer.openBlock("if $L == nil { continue }", operand + "[i]");
@@ -682,52 +684,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 default:
                     throw new CodegenException("unexpected http binding found");
             }
-        });
-    }
-
-    /**
-     * Writes a conditional check of the provided operand represented by the member shape.
-     * This check is to verify if the provided Go value was set by the user and whether the value
-     * should be serialized to the transport request.
-     *
-     * @param model          the model being generated
-     * @param symbolProvider the symbol provider
-     * @param memberShape    the member shape being accessed
-     * @param operand        the Go operand representing the member shape
-     * @param writer         the writer
-     * @param consumer       a consumer that will be given the writer to populate the accessor body
-     */
-    protected void writeSafeOperandAccessor(
-            Model model,
-            SymbolProvider symbolProvider,
-            MemberShape memberShape,
-            String operand,
-            GoWriter writer,
-            BiConsumer<GoWriter, String> consumer
-    ) {
-        Shape targetShape = model.expectShape(memberShape.getTarget());
-
-        String memberName = symbolProvider.toMemberName(memberShape);
-
-        boolean enumShape = targetShape.hasTrait(EnumTrait.class);
-
-        operand = operand + "." + memberName;
-
-        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, memberShape)) {
-            consumer.accept(writer, operand);
-            return;
-        }
-
-        String conditionCheck;
-        if (enumShape) {
-            conditionCheck = "len(" + operand + ") > 0";
-        } else {
-            conditionCheck = operand + " != nil";
-        }
-
-        String resolvedOperand = operand;
-        writer.openBlock("if " + conditionCheck + " {", "}", () -> {
-            consumer.accept(writer, resolvedOperand);
         });
     }
 
@@ -750,9 +706,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             conditionCheck = operand + " != nil";
         }
 
-        writer.openBlock("if " + conditionCheck + " {", "}", () -> {
-            consumer.run();
-        });
+        writer.openBlock("if " + conditionCheck + " {", "}", consumer);
     }
 
     protected void writeHeaderOperandNotEmptyCheck(
@@ -771,9 +725,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
 
         String conditionCheck = "len(*" + operand + ") > 0";
-        writer.openBlock("if " + conditionCheck + " {", "}", () -> {
-            consumer.run();
-        });
+        writer.openBlock("if " + conditionCheck + " {", "}", consumer);
     }
 
     /**
