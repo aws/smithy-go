@@ -4,106 +4,47 @@ import (
 	"bytes"
 )
 
+// mapKey is the default member wrapper tag name for XML Map type
 const mapKey = "entry"
 
+// Map represents the encoding of a XML map type
 type Map struct {
-	w         *bytes.Buffer
-	scratch   *[]byte
-	parentKey string
+	w          *bytes.Buffer
+	scratch    *[]byte
+	openTagFn  func()
+	closeTagFn func()
 }
 
+// newMap returns a map encoder which sets the default map
+// entry wrapper to `entry`.
+//
+// for eg. someMap : {{key:"abc", value:"123"}} is represented as
+// <someMap><entry><key>abc<key><value>123</value></entry><member>value2</member></someMap>
 func newMap(w *bytes.Buffer, scratch *[]byte) *Map {
-	return &Map{w, scratch, mapKey}
-}
-
-func newFlattenedMap(w *bytes.Buffer, scratch *[]byte, parentKey string) *Map {
-	return &Map{
-		w:         w,
-		scratch:   scratch,
-		parentKey: parentKey,
+	var openTagFn = func() {
+		writeOpenTag(w, mapKey)
+		w.WriteRune(rightAngleBracket)
 	}
-}
 
-func (m *Map) Entry() *MapEntry {
-	writeKeyTag(m.w, m.parentKey)
-	m.w.WriteRune(rightAngleBracket)
-
-	return newMapEntry(m.w, m.scratch, m.parentKey)
-}
-
-type MapEntry struct {
-	w         *bytes.Buffer
-	scratch   *[]byte
-	parentKey string
-	key       string
-}
-
-func newMapEntry(w *bytes.Buffer, scratch *[]byte, parentKey string) *MapEntry {
-	return &MapEntry{
-		w:         w,
-		scratch:   scratch,
-		parentKey: parentKey,
+	var closeTagFn = func() {
+		writeCloseTag(w, mapKey)
 	}
+
+	return &Map{w: w, scratch: scratch, openTagFn: openTagFn, closeTagFn: closeTagFn}
 }
 
-// Key adds the given named key to the XML object.
-// Returns a Value encoder that should be used to encode
-// a XML value type.
-func (m *MapEntry) Key(name string) Value {
-	m.key = name
-	writeKeyTag(m.w, m.key)
-	defer m.w.WriteRune(rightAngleBracket)
-
-	return newValueWithKey(m.w, m.scratch, name)
+// newFlattenedMap returns a map Encoder. It takes openTagFn and closeTagFn as arguments
+// The argument functions are used as a wrapper for each entry of flattened map.
+//
+// for eg. an array `someMap : {{key:"abc", value:"123"}}` is represented as
+// `<someMap><key>abc</key><value>123</value></someMap>`.
+func newFlattenedMap(w *bytes.Buffer, scratch *[]byte, openTagFn func(), closeTagFn func()) *Map {
+	return &Map{w: w, scratch: scratch, openTagFn: openTagFn, closeTagFn: closeTagFn}
 }
 
-func (m *MapEntry) Close() {
-	closeKeyTag(m.w, &m.parentKey)
+// Entry returns a Value encoder with map's element and a closeFn.
+// It writes the flattened parent wrapper start tag for each entry.
+func (m *Map) Entry() (o *Object, closeFn func()) {
+	m.openTagFn()
+	return newObject(m.w, m.scratch), m.closeTagFn
 }
-
-/*=====================================================================*/
-
-// // Flattened Map
-// type FlattenedMap struct {
-// 	w         *bytes.Buffer
-// 	scratch   *[]byte
-// 	parentKey string
-// }
-
-//
-// func (f *FlattenedMap) Entry() *FlattenedMapEntry {
-// 	// write parent key tag
-// 	writeKeyTag(f.w, f.parentKey)
-// 	f.w.WriteRune(rightAngleBracket)
-//
-// 	return newFlattenedMapEntry(f.w, f.scratch, f.parentKey)
-// }
-//
-// type FlattenedMapEntry struct {
-// 	w         *bytes.Buffer
-// 	scratch   *[]byte
-// 	parentKey string
-// 	key       string
-// }
-//
-// func newFlattenedMapEntry(w *bytes.Buffer, scratch *[]byte, parentKey string) *FlattenedMapEntry {
-// 	return &FlattenedMapEntry{
-// 		w:         w,
-// 		scratch:   scratch,
-// 		parentKey: parentKey,
-// 	}
-// }
-//
-// func (e *FlattenedMapEntry) Key(name string) Value {
-// 	e.key = name
-//
-// 	// write
-// 	writeKeyTag(e.w, e.key)
-// 	e.w.WriteRune(rightAngleBracket)
-//
-// 	return newValueWithKey(e.w, e.scratch, e.key)
-// }
-//
-// func (e *FlattenedMapEntry) Close() {
-// 	closeKeyTag(e.w, &e.parentKey)
-// }

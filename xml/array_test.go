@@ -9,9 +9,9 @@ func TestWrappedArray(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	array := newArray(buffer, &scratch)
-	array.Value().String("bar")
-	array.Value().String("baz")
+	a := newArray(buffer, &scratch)
+	a.Add().String("bar")
+	a.Add().String("baz")
 
 	e := []byte(`<member>bar</member><member>baz</member>`)
 	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {
@@ -23,9 +23,9 @@ func TestWrappedArrayWithCustomName(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	array := newArrayWithKey(buffer, &scratch, "item")
-	array.Value().String("bar")
-	array.Value().String("baz")
+	a := newArrayWithCustomName(buffer, &scratch, "item")
+	a.Add().String("bar")
+	a.Add().String("baz")
 
 	e := []byte(`<item>bar</item><item>baz</item>`)
 	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {
@@ -37,10 +37,14 @@ func TestFlattenedArray(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	array := newArrayWithKey(buffer, &scratch, "flattened")
+	a := newFlattenedArray(buffer, &scratch, func() {
+		buffer.Write([]byte("<flattened>"))
+	}, func() {
+		buffer.Write([]byte("</flattened>"))
+	})
 
-	array.Value().String("bar")
-	array.Value().String("bix")
+	a.Add().String("bar")
+	a.Add().String("bix")
 
 	e := []byte(`<flattened>bar</flattened><flattened>bix</flattened>`)
 	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {

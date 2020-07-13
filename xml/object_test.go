@@ -24,13 +24,12 @@ func TestObjectWithNameSpaceAndAttributes(t *testing.T) {
 	scratch := make([]byte, 64)
 
 	object := newObject(buffer, &scratch)
-	metadata := func() TagMetadata {
-		return TagMetadata{
-			NamespacePrefix: "newspace",
-			NamespaceURI:    "https://endpoint.com",
-			AttributeName:   "attrName",
-			AttributeValue:  "attrValue",
-		}
+
+	var metadata = func(t *TagMetadata) {
+		t.NamespacePrefix = "newspace"
+		t.NamespaceURI = "https://endpoint.com"
+		t.AttributeName = "attrName"
+		t.AttributeValue = "attrValue"
 	}
 
 	object.Key("foo", metadata).String("bar")
