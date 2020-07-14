@@ -30,6 +30,10 @@ func TestContentLengthMiddleware(t *testing.T) {
 			Stream:    strings.NewReader("hello"),
 			ExpectLen: "5",
 		},
+		"empty stream": {
+			Stream: strings.NewReader(""),
+		},
+		"nil stream": {},
 		"un-seekable and no length": {
 			Stream: &basicReader{buf: make([]byte, 10)},
 		},
@@ -68,6 +72,9 @@ func TestContentLengthMiddleware(t *testing.T) {
 
 			if e, a := c.ExpectLen, req.Header.Get("Content-Length"); e != a {
 				t.Errorf("expect %v content-length, got %v", e, a)
+			}
+			if a := req.Header.Values("Content-Length"); len(c.ExpectLen) == 0 && len(a) != 0 {
+				t.Errorf("expect no content-length header, got %v", a)
 			}
 		})
 	}

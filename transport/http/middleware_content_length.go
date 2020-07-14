@@ -42,7 +42,8 @@ func (m *ContentLengthMiddleware) HandleBuild(
 	if n, ok, err := req.StreamLength(); err != nil {
 		return out, metadata, fmt.Errorf(
 			"failed getting length of request stream, %w", err)
-	} else if ok {
+	} else if ok && n > 0 {
+		// Only set content-length header when it is a positive value.
 		req.Header.Set("Content-Length", strconv.FormatInt(n, 10))
 	}
 
