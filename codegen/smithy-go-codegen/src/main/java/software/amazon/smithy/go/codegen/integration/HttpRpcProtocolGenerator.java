@@ -115,7 +115,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 writer.write("return out, metadata, "
                         + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
                         + " in.Parameters)}");
-            }).write("");
+            });
+
+            // Allow for not handling the input if, for instance, the input has no members.
+            writer.write("_ = input");
+            writer.write("");
 
             writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
             writer.write("request.Request.Method = \"POST\"");
