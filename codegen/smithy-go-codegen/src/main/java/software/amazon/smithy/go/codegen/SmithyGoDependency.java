@@ -60,11 +60,22 @@ public final class SmithyGoDependency {
     private SmithyGoDependency() {
     }
 
-    private static GoDependency stdlib(String importPath) {
+    /**
+     * Get a {@link GoDependency} representing the standard library package import path.
+     * @param importPath standard library import path
+     * @return the {@link GoDependency} for the package import path
+     */
+    public static GoDependency stdlib(String importPath) {
         return GoDependency.standardLibraryDependency(importPath, Versions.GO_STDLIB);
     }
 
-    private static GoDependency stdlib(String importPath, String alias) {
+    /**
+     * Get a {@link GoDependency} representing the standard library package import path with the given alias.
+     * @param importPath standard library package import path
+     * @param alias the package alias
+     * @return the {@link GoDependency} for the package import path
+     */
+    public static GoDependency stdlib(String importPath, String alias) {
         return GoDependency.standardLibraryDependency(importPath, Versions.GO_STDLIB, alias);
     }
 
