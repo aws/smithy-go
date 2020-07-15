@@ -38,6 +38,42 @@ func (r *Request) Clone() *Request {
 	return &rc
 }
 
+// StreamLength returns the number of bytes of the serialized stream attached
+// to the request and ok set. If the length cannot be determined, an error will
+// be returned.
+func (r *Request) StreamLength() (size int64, ok bool, err error) {
+	if r.stream == nil {
+		return 0, true, nil
+	}
+
+	if l, ok := r.stream.(interface{ Len() int }); ok {
+		return int64(l.Len()), true, nil
+	}
+
+	if !r.isStreamSeekable {
+		return 0, false, nil
+	}
+
+	s := r.stream.(io.Seeker)
+	endOffset, err := s.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, false, err
+	}
+
+	// The reason to seek to streamStartPos instead of 0 is to ensure that the
+	// SDK only sends the stream from the starting position the user's
+	// application provided it to the SDK at. For example application opens a
+	// file, and wants to skip the first N bytes uploading the rest. The
+	// application would move the file's offset N bytes, then hand it off to
+	// the SDK to send the remaining. The SDK should respect that initial offset.
+	_, err = s.Seek(r.streamStartPos, io.SeekStart)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return endOffset - r.streamStartPos, true, nil
+}
+
 // RewindStream will rewind the io.Reader to the relative start position if it
 // is an io.Seeker.
 func (r *Request) RewindStream() error {

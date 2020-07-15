@@ -168,8 +168,15 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      */
     protected void generateTestServerHandler(GoWriter writer) {
         writer.write("actualReq = r.Clone(r.Context())");
-        // Go does not set RawPath on http server if nothing is excaped
-        writer.write("if len(actualReq.URL.RawPath) == 0 { actualReq.URL.RawPath = actualReq.URL.Path }");
+        // Go does not set RawPath on http server if nothing is escaped
+        writer.openBlock("if len(actualReq.URL.RawPath) == 0 {", "}", () -> {
+            writer.write("actualReq.URL.RawPath = actualReq.URL.Path");
+        });
+        // Go automatically removes Content-Length header setting it to the member.
+        writer.addUseImports(SmithyGoDependency.STRCONV);
+        writer.openBlock("if v := actualReq.ContentLength; v != 0 {", "}", () -> {
+            writer.write("actualReq.Header.Set(\"Content-Length\", strconv.FormatInt(v, 10))");
+        });
 
         writer.addUseImports(SmithyGoDependency.BYTES);
         writer.write("var buf bytes.Buffer");
