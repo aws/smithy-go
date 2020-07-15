@@ -49,6 +49,7 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
@@ -65,7 +66,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private final boolean isErrorCodeInBody;
     private final Set<Shape> serializeDocumentBindingShapes = new TreeSet<>();
     private final Set<Shape> deserializeDocumentBindingShapes = new TreeSet<>();
-    private final Set<ShapeId> serializeErrorBindingShapes = new TreeSet<>();
+    private final Set<StructureShape> deserializingErrorShapes = new TreeSet<>();
 
     /**
      * Creates a Http binding protocol generator.
@@ -278,6 +279,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         GoWriter goWriter = context.getWriter();
+        String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
+                operation, context.getProtocolName());
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -294,8 +297,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
             writer.write("");
 
-            // Error shape middleware generation
-            writeMiddlewareErrorDeserializer(context, operation, generator);
+            writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
+                writer.write("return out, metadata, $L(response)", errorFunctionName);
+            });
 
             Shape outputShape = model.expectShape(operation.getOutput()
                     .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
@@ -332,7 +336,27 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("return out, metadata, err");
         });
         goWriter.write("");
+
+        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
+        deserializingErrorShapes.addAll(errorShapes);
+        deserializeDocumentBindingShapes.addAll(errorShapes);
     }
+
+    /**
+     * Writes a code snippet that gets the error code and error message.
+     *
+     * <p>Four parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     *   <li>{@code errorMessage: string}: the error message initialized to a default value.</li>
+     *   <li>{@code errorCode: string}: the error code initialized to a default value.</li>
+     * </ul>
+     *
+     * @param context the generation context.
+     */
+    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context);
 
     /**
      * Generate the document serializer logic for the serializer middleware body.
@@ -370,20 +394,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param generator      middleware generator definition
      */
     protected abstract void writeMiddlewareDocumentDeserializerDelegator(
-            GenerationContext context,
-            OperationShape operation,
-            GoStackStepMiddlewareGenerator generator
-    );
-
-
-    /**
-     * Generate the document deserializer logic for the deserializer middleware body.
-     *
-     * @param context the generation context
-     * @param operation      the operation
-     * @param generator      middleware generator definition
-     */
-    protected abstract void writeMiddlewareErrorDeserializer(
             GenerationContext context,
             OperationShape operation,
             GoStackStepMiddlewareGenerator generator
@@ -745,12 +755,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             generateOperationHttpBindingDeserializer(context, operation);
             generateOperationDocumentDeserializer(context, operation);
             addOperationDocumentShapeBindersForDeserializer(context, operation);
-            addErrorShapeBinders(context, operation);
         }
 
-        for (ShapeId errorBinding : serializeErrorBindingShapes) {
-            generateErrorHttpBindingDeserializer(context, errorBinding);
-            generateErrorDocumentBindingDeserializer(context, errorBinding);
+        for (StructureShape error : deserializingErrorShapes) {
+            generateErrorHttpBindingDeserializer(context, error);
         }
     }
 
@@ -785,15 +793,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     // Generate Http Binding deserializer for operation Error shape
     private void generateErrorHttpBindingDeserializer(
             GenerationContext context,
-            ShapeId errorBinding
+            StructureShape shape
     ) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
         GoWriter writer = context.getWriter();
         HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
-        Shape errorBindingShape = model.expectShape(errorBinding);
 
-        Map<String, HttpBinding> bindingMap = bindingIndex.getResponseBindings(errorBinding).entrySet().stream()
+        Map<String, HttpBinding> bindingMap = bindingIndex.getResponseBindings(shape).entrySet().stream()
                 .filter(entry -> isRestBinding(entry.getValue().getLocation()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> {
                     throw new CodegenException("found duplicate binding entries for same error shape");
@@ -804,7 +811,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             return;
         }
 
-        generateHttpBindingShapeDeserializerFunction(writer, model, symbolProvider, errorBindingShape, bindingMap);
+        generateHttpBindingShapeDeserializerFunction(writer, model, symbolProvider, shape, bindingMap);
     }
 
     // Generates Http Binding shape deserializer function.
@@ -838,13 +845,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     }
                     writer.write("return nil");
                 });
-    }
-
-
-    private void addErrorShapeBinders(GenerationContext context, OperationShape operation) {
-        for (ShapeId errorBinding : operation.getErrors()) {
-            serializeErrorBindingShapes.add(errorBinding);
-        }
     }
 
     private String generateHttpHeaderValue(
@@ -1089,6 +1089,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateSharedDeserializerComponents(GenerationContext context) {
+        deserializingErrorShapes.forEach(error -> generateErrorDeserializer(context, error));
         deserializeDocumentBindingShapes.addAll(ProtocolUtils.resolveRequiredDocumentShapeSerde(
                 context.getModel(), deserializeDocumentBindingShapes));
         generateDocumentBodyShapeDeserializers(context, deserializeDocumentBindingShapes);
@@ -1145,11 +1146,28 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
+    private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
+        GoWriter writer = context.getWriter();
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        Symbol responseType = getApplicationProtocol().getResponseType();
+
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.openBlock("func $L(response $P, errorBody *bytes.Reader) error {", "}",
+                functionName, responseType, () -> deserializeError(context, shape));
+        writer.write("");
+    }
+
     /**
-     * Generates the error document deserializer function.
+     * Writes a function body that deserializes the given error.
      *
-     * @param context the generation context
-     * @param shapeId the error shape id for which deserializer is being generated
+     * <p>Two parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     * </ul>
+     *
+     * @param context The generation context.
+     * @param shape The error shape.
      */
-    protected abstract void generateErrorDocumentBindingDeserializer(GenerationContext context, ShapeId shapeId);
+    protected abstract void deserializeError(GenerationContext context, StructureShape shape);
 }
