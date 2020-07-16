@@ -34,3 +34,34 @@ func TestAssertJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestAssertURLFormEqual(t *testing.T) {
+	cases := map[string]struct {
+		X, Y  []byte
+		Equal bool
+	}{
+		"equal": {
+			X:     []byte(`Action=QueryMaps&Version=2020-01-08&MapArg.entry.1.key=foo&MapArg.entry.1.value=Foo&MapArg.entry.2.key=bar&MapArg.entry.2.value=Bar`),
+			Y:     []byte(`Action=QueryMaps&Version=2020-01-08&MapArg.entry.2.key=bar&MapArg.entry.2.value=Bar&MapArg.entry.1.key=foo&MapArg.entry.1.value=Foo`),
+			Equal: true,
+		},
+		"not equal": {
+			X:     []byte(`Action=QueryMaps&Version=2020-01-08&MapArg.entry.1.key=foo&MapArg.entry.1.value=Foo&MapArg.entry.2.key=bar&MapArg.entry.2.value=Bar`),
+			Y:     []byte(`Action=QueryMaps&Version=2020-01-08&MapArg.entry.1.key=foo&MapArg.entry.1.value=Foo`),
+			Equal: false,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := URLFormEqual(c.X, c.Y)
+			if c.Equal {
+				if err != nil {
+					t.Fatalf("expect form to be equal, %v", err)
+				}
+			} else if err == nil {
+				t.Fatalf("expect form to be equal, %v", err)
+			}
+		})
+	}
+}

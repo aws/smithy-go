@@ -3,6 +3,7 @@ package testing
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -65,7 +66,21 @@ func AssertXMLEqual(t T, expect, actual []byte) bool {
 // contain the same values. Returns an error if the two documents are not
 // equal.
 func URLFormEqual(expectBytes, actualBytes []byte) error {
-	return fmt.Errorf("URLFormEqual not implemented")
+	expected, err := url.ParseQuery(string(expectBytes))
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal expected bytes, %v", err)
+	}
+
+	actual, err := url.ParseQuery(string(actualBytes))
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal actual bytes, %v", err)
+	}
+
+	if diff := cmp.Diff(expected, actual); len(diff) != 0 {
+		return fmt.Errorf("Query mismatch (-expect +actual):\n%s", diff)
+	}
+
+	return nil
 }
 
 // AssertURLFormEqual compares two URLForm documents and identifies if the
