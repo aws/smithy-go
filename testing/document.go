@@ -1,11 +1,14 @@
 package testing
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/awslabs/smithy-go/testing/xml"
 )
 
 // JSONEqual compares two JSON documents and identifies if the documents contain
@@ -42,10 +45,25 @@ func AssertJSONEqual(t T, expect, actual []byte) bool {
 	return true
 }
 
-// XMLEqual compares two XML documents and identifies if the documents contain
-// the same values. Returns an error if the two documents are not equal.
+// XMLEqual asserts two xml documents by sorting the XML and comparing the strings
+// It returns an error in case of mismatch or in case of malformed xml found while sorting.
+// In case of mismatched XML, the error string will contain the diff between the two XMLs.
 func XMLEqual(expectBytes, actualBytes []byte) error {
-	return fmt.Errorf("XMLEqual not implemented")
+	actualString, err := xml.SortXML(bytes.NewBuffer(actualBytes))
+	if err != nil {
+		return err
+	}
+
+	expectedString, err := xml.SortXML(bytes.NewBuffer(expectBytes))
+	if err != nil {
+		return err
+	}
+
+	if diff := cmp.Diff(actualString, expectedString); len(diff) != 0 {
+		return fmt.Errorf("found diff while comparing the xml: %s", diff)
+	}
+
+	return nil
 }
 
 // AssertXMLEqual compares two XML documents and identifies if the documents

@@ -1,16 +1,16 @@
-package xml_testing
+package xml_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
+
+	xmltesting "github.com/awslabs/smithy-go/testing"
 )
 
-func TestAssertXMLUtil(t *testing.T) {
+func TestEqualXMLUtil(t *testing.T) {
 	cases := map[string]struct {
 		expectedXML string
 		actualXML   string
-		expectDiff  bool
 		expectErr   string
 	}{
 		"empty": {
@@ -20,7 +20,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"emptyWithDiff": {
 			expectedXML: ``,
 			actualXML:   `<Root></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"simpleXML": {
@@ -30,7 +29,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"simpleXMLWithDiff": {
 			expectedXML: `<Root></Root>`,
 			actualXML:   `<Root>abc</Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"nestedXML": {
@@ -40,13 +38,11 @@ func TestAssertXMLUtil(t *testing.T) {
 		"nestedXMLWithExpectedDiff": {
 			expectedXML: `<Root><abc>123</abc><cde>xyz</cde><pqr>234</pqr></Root>`,
 			actualXML:   `<Root><abc>123</abc><cde>xyz</cde></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"nestedXMLWithActualDiff": {
 			expectedXML: `<Root><abc>123</abc><cde>xyz</cde></Root>`,
 			actualXML:   `<Root><abc>123</abc><cde>xyz</cde><pqr>234</pqr></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"Array": {
@@ -56,13 +52,11 @@ func TestAssertXMLUtil(t *testing.T) {
 		"ArrayWithSecondDiff": {
 			expectedXML: `<Root><list><member><nested>xyz</nested></member><member><nested>123</nested></member></list></Root>`,
 			actualXML:   `<Root><list><member><nested>xyz</nested></member><member><nested>345</nested></member></list></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"ArrayWithFirstDiff": {
 			expectedXML: `<Root><list><member><nested>abc</nested></member><member><nested>345</nested></member></list></Root>`,
 			actualXML:   `<Root><list><member><nested>xyz</nested></member><member><nested>345</nested></member></list></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"ArrayWithMixedDiff": {
@@ -80,13 +74,11 @@ func TestAssertXMLUtil(t *testing.T) {
 		"MapWithFirstDiff": {
 			expectedXML: "<Root><map><entry><key>bcf</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
 			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"MapWithSecondDiff": {
 			expectedXML: "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>abc</value></entry></map></Root>",
 			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"MapWithMixedDiff": {
@@ -96,7 +88,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"MismatchCheckforKeyValue": {
 			expectedXML: "<Root><map><entry><key>cde</key><value>abc</value></entry><entry><key>abc</key><value>356</value></entry></map></Root>",
 			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"MixMapAndListNestedXML": {
@@ -106,7 +97,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"MixMapAndListNestedXMLWithDiff": {
 			expectedXML: `<Root><list>mem1</list><list>mem2</list><map><k>abc</k><v><nested><enorm>abc</enorm></nested></v><k>xyz</k><v><nested><alpha><x>gamma</x></alpha></nested></v></map></Root>`,
 			actualXML:   `<Root><list>mem1</list><list>mem2</list><map><k>abc</k><v><nested><enorm>abc</enorm></nested></v><k>xyz</k><v><nested><beta><x>gamma</x></beta></nested></v></map></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"xmlWithNamespaceAndAttr": {
@@ -120,7 +110,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"xmlAttributesWithDiff": {
 			expectedXML: `<Root atr="someAtr" attrNew="apple">v</Root>`,
 			actualXML:   `<Root attrNew="apple" atr="banana">v</Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"xmlUnorderedNamespaces": {
@@ -130,7 +119,6 @@ func TestAssertXMLUtil(t *testing.T) {
 		"xmlNamespaceWithDiff": {
 			expectedXML: `<Root xmlns:ab="https://example-diff.com" xmlns:baz="https://example2.com">v</Root>`,
 			actualXML:   `<Root xmlns:baz="https://example2.com" xmlns:ab="https://example.com">v</Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"NestedWithNamespaceAndAttributes": {
@@ -140,23 +128,21 @@ func TestAssertXMLUtil(t *testing.T) {
 		"NestedWithNamespaceAndAttributesWithDiff": {
 			expectedXML: `<Root xmlns:ab="https://example.com" xmlns:un="https://example2.com" attr="test" attr2="test2"><list>mem2</list><ab:list>mem2</ab:list><map><k>abc</k><v><nested><enorm>abc</enorm></nested></v><k>xyz</k><v><nested><alpha><x>gamma</x></alpha></nested></v></map></Root>`,
 			actualXML:   `<Root xmlns:ab="https://example.com" xmlns:un="https://example2.com" attr="test" attr2="test2"><list>mem1</list><ab:list>mem2</ab:list><map><k>abc</k><v><nested><enorm>abc</enorm></nested></v><k>xyz</k><v><nested><alpha><x>gamma</x></alpha></nested></v></map></Root>`,
-			expectDiff:  true,
 			expectErr:   "found diff",
 		},
 		"MalformedXML": {
 			expectedXML: `<Root><fmap><key>a</key><key2>a2</key2><value>v</value></fmap><fmap><key>b</key><key2>b2</key2><value>w</value></fmap></Root>`,
 			actualXML:   `<Root><fmap><key>a</key><key2>a2</key2><value>v</value></fmap><fmap><key>b</key><key2>b2</key2><value>w</value></fmap></Root>`,
 			expectErr:   "malformed xml",
-			expectDiff:  true,
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			actual := bytes.NewBuffer([]byte(c.actualXML))
-			expected := bytes.NewBuffer([]byte(c.expectedXML))
+			actual := []byte(c.actualXML)
+			expected := []byte(c.expectedXML)
 
-			equal, err := AssertXML(actual, expected)
+			err := xmltesting.XMLEqual(actual, expected)
 			if err != nil {
 				if len(c.expectErr) == 0 {
 					t.Fatalf("expected no error while parsing xml, got %v", err)
@@ -165,14 +151,6 @@ func TestAssertXMLUtil(t *testing.T) {
 				}
 			} else if len(c.expectErr) != 0 {
 				t.Fatalf("expected error %s, got none", c.expectErr)
-			}
-
-			if equal && c.expectDiff {
-				t.Fatalf("expected diff but got none")
-			}
-
-			if !equal && !c.expectDiff {
-				t.Fatalf("expected no diff but got diff: %v", err)
 			}
 		})
 	}

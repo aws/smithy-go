@@ -1,4 +1,4 @@
-package xml_testing
+package xml
 
 import (
 	"encoding/xml"
