@@ -94,28 +94,33 @@ final class ServiceGenerator implements Runnable {
 
     private void generateConstructor(Symbol serviceSymbol) {
         writer.writeDocs(String.format("New returns an initialized %s based on the functional options. "
-                    + "Provide additional functional options to further configure the behavior "
-                    + "of the client, such as changing the client's endpoint or adding custom "
-                    + "middleware behavior.", serviceSymbol.getName()));
-        writer.openBlock("func New(options $L) $P {", "}", CONFIG_NAME, serviceSymbol, () -> {
-            writer.write("options = options.Copy()").write("");
+                + "Provide additional functional options to further configure the behavior "
+                + "of the client, such as changing the client's endpoint or adding custom "
+                + "middleware behavior.", serviceSymbol.getName()));
+        Symbol optionsSymbol = SymbolUtils.createPointableSymbolBuilder(CONFIG_NAME).build();
+        writer.openBlock("func New(options $T, optFns ...func($P)) $P {", "}", optionsSymbol, optionsSymbol,
+                serviceSymbol, () -> {
+                    writer.write("options = options.Copy()").write("");
 
-            // Run any config initialization functions registered by runtime plugins.
-            for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
-                if (!runtimeClientPlugin.matchesService(model, service)
-                        || !runtimeClientPlugin.getResolveFunction().isPresent()) {
-                    continue;
-                }
-                writer.write("$T(&options)", runtimeClientPlugin.getResolveFunction().get());
-                writer.write("");
-            }
+                    // Run any config initialization functions registered by runtime plugins.
+                    for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
+                        if (!runtimeClientPlugin.matchesService(model, service)
+                                || !runtimeClientPlugin.getResolveFunction().isPresent()) {
+                            continue;
+                        }
+                        writer.write("$T(&options)", runtimeClientPlugin.getResolveFunction().get());
+                        writer.write("");
+                    }
 
-            writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
-                writer.write("options: options,");
-            }).write("");
+                    writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
+                    writer.write("");
 
-            writer.write("return client");
-        });
+                    writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
+                        writer.write("options: options,");
+                    }).write("");
+
+                    writer.write("return client");
+                });
     }
 
     private void generateConfig() {
@@ -141,8 +146,8 @@ final class ServiceGenerator implements Runnable {
         for (ConfigField configField : getAllConfigFields()) {
             writer.openBlock("func (o $L) Get$L() $P {", "}",
                     CONFIG_NAME, configField.getName(), configField.getType(), () -> {
-                writer.write("return o.$L", configField.getName());
-            });
+                        writer.write("return o.$L", configField.getName());
+                    });
             writer.write("");
         }
 
