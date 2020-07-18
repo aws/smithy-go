@@ -37,6 +37,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 
 /**
  * Generates a shape type declaration based on the parameters provided.
@@ -169,6 +170,7 @@ public final class ShapeValueGenerator {
      */
     protected void scalarWrapShapeValue(GoWriter writer, Shape shape, Runnable inner) {
         boolean withPtrImport = true;
+        String closing = ")";
 
         switch (shape.getType()) {
             case BOOLEAN:
@@ -176,20 +178,34 @@ public final class ShapeValueGenerator {
                 break;
 
             case BLOB:
-                writer.writeInline("[]byte(");
+                if (shape.hasTrait(StreamingTrait.class)) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
+                    writer.addUseImports(SmithyGoDependency.BYTES);
+                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: bytes.NewReader([]byte(");
+                    closing += ")}";
+                } else {
+                    writer.writeInline("[]byte(");
+                }
                 withPtrImport = false;
                 break;
 
             case STRING:
                 // Enum are not pointers, but string alias values
-                if (shape.hasTrait(EnumTrait.class)) {
+                if (shape.hasTrait(StreamingTrait.class)) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
+                    writer.addUseImports(SmithyGoDependency.STRINGS);
+                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: strings.NewReader(");
+                    closing += "}";
+
+                } else if (shape.hasTrait(EnumTrait.class)) {
                     Symbol enumSymbol = symbolProvider.toSymbol(shape);
                     writer.writeInline("$T(", enumSymbol);
                     withPtrImport = false;
-                    break;
+
+                } else {
+                    writer.writeInline("ptr.String(");
                 }
 
-                writer.writeInline("ptr.String(");
                 break;
 
             case TIMESTAMP:
@@ -232,8 +248,9 @@ public final class ShapeValueGenerator {
         if (withPtrImport) {
             writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         }
+
         inner.run();
-        writer.writeInline(")");
+        writer.writeInline(closing);
     }
 
     /**
