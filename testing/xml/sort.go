@@ -34,10 +34,10 @@ func (x xmlAttrSlice) Swap(i, j int) {
 }
 
 // SortXML sorts the reader's XML elements
-func SortXML(r io.Reader) (string, error) {
+func SortXML(r io.Reader, ignoreIndentation bool) (string, error) {
 	var buf bytes.Buffer
 	d := xml.NewDecoder(r)
-	root, err := XMLToStruct(d, nil)
+	root, err := XMLToStruct(d, nil, ignoreIndentation)
 	if err != nil {
 		return buf.String(), err
 	}

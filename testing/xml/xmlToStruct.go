@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 )
 
 // A XMLNode contains the values to be encoded or decoded.
@@ -38,7 +39,7 @@ func (n *XMLNode) AddChild(child *XMLNode) {
 }
 
 // XMLToStruct converts a xml.Decoder stream to XMLNode with nested values.
-func XMLToStruct(d *xml.Decoder, s *xml.StartElement) (*XMLNode, error) {
+func XMLToStruct(d *xml.Decoder, s *xml.StartElement, ignoreIndentation bool) (*XMLNode, error) {
 	out := &XMLNode{}
 
 	for {
@@ -57,7 +58,13 @@ func XMLToStruct(d *xml.Decoder, s *xml.StartElement) (*XMLNode, error) {
 
 		switch typed := tok.(type) {
 		case xml.CharData:
-			out.Text = string(typed.Copy())
+			text := string(typed.Copy())
+			if ignoreIndentation {
+				text = strings.TrimSpace(text)
+			}
+			if len(text) != 0 {
+				out.Text = text
+			}
 		case xml.StartElement:
 			el := typed.Copy()
 			out.Attr = el.Attr
@@ -70,7 +77,7 @@ func XMLToStruct(d *xml.Decoder, s *xml.StartElement) (*XMLNode, error) {
 			if slice == nil {
 				slice = []*XMLNode{}
 			}
-			node, e := XMLToStruct(d, &el)
+			node, e := XMLToStruct(d, &el, ignoreIndentation)
 			out.findNamespaces()
 			if e != nil {
 				return out, e

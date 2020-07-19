@@ -68,26 +68,26 @@ func TestEqualXMLUtil(t *testing.T) {
 			actualXML:   `<Root><list><member><nested>xyz</nested></member><member><nested>xyz</nested></member></list></Root>`,
 		},
 		"Map": {
-			expectedXML: "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
-			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
+			expectedXML: `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
+			actualXML:   `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
 		},
 		"MapWithFirstDiff": {
-			expectedXML: "<Root><map><entry><key>bcf</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
-			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
+			expectedXML: `<Root><map><entry><key>bcf</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
+			actualXML:   `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
 			expectErr:   "found diff",
 		},
 		"MapWithSecondDiff": {
-			expectedXML: "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>abc</value></entry></map></Root>",
-			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
+			expectedXML: `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>abc</value></entry></map></Root>`,
+			actualXML:   `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
 			expectErr:   "found diff",
 		},
 		"MapWithMixedDiff": {
-			expectedXML: "<Root><map><entry><key>cde</key><value>356</value></entry><entry><key>abc</key><value>123</value></entry></map></Root>",
-			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
+			expectedXML: `<Root><map><entry><key>cde</key><value>356</value></entry><entry><key>abc</key><value>123</value></entry></map></Root>`,
+			actualXML:   `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
 		},
 		"MismatchCheckforKeyValue": {
-			expectedXML: "<Root><map><entry><key>cde</key><value>abc</value></entry><entry><key>abc</key><value>356</value></entry></map></Root>",
-			actualXML:   "<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>",
+			expectedXML: `<Root><map><entry><key>cde</key><value>abc</value></entry><entry><key>abc</key><value>356</value></entry></map></Root>`,
+			actualXML:   `<Root><map><entry><key>abc</key><value>123</value></entry><entry><key>cde</key><value>356</value></entry></map></Root>`,
 			expectErr:   "found diff",
 		},
 		"MixMapAndListNestedXML": {
