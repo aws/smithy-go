@@ -1,22 +1,29 @@
 package xml
 
-import (
-	"bytes"
-)
+// writer interface used by the xml encoder to write an encoded xml
+// document in a writer.
+type writer interface {
 
-// General usage: Value is responsible for writing start tag, close tag for an xml element.
-// * If a certain value operation returns a close function.
-//   The close function must ideally be called with defer.
-//
-// * This utility is written in accordance to our design to delegate to shape serializer function
-// 	 in which a xml.Value will be passed around.
-//
-// * Resources followed: https://awslabs.github.io/smithy/1.0/spec/core/xml-traits.html#
+	// Write takes in a byte slice and returns number of bytes written and error
+	Write(p []byte) (n int, err error)
+
+	// WriteRune takes in a rune and returns number of bytes written and error
+	WriteRune(r rune) (n int, err error)
+
+	// WriteString takes in a string and returns number of bytes written and error
+	WriteString(s string) (n int, err error)
+
+	// String method returns a string
+	String() string
+
+	// Bytes return a byte slice.
+	Bytes() []byte
+}
 
 // Encoder is an XML encoder that supports construction of XML values
 // using methods.
 type Encoder struct {
-	w       *bytes.Buffer
+	w       writer
 	scratch *[]byte
 }
 
@@ -24,11 +31,10 @@ type Encoder struct {
 var noOpFn = func() {}
 
 // NewEncoder returns an XML encoder
-func NewEncoder() *Encoder {
-	writer := bytes.NewBuffer(nil)
+func NewEncoder(w writer) *Encoder {
 	scratch := make([]byte, 64)
 
-	return &Encoder{w: writer, scratch: &scratch}
+	return &Encoder{w: w, scratch: &scratch}
 }
 
 // String returns the string output of the XML encoder

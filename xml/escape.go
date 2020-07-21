@@ -1,17 +1,16 @@
-// Copyright 2016 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Copied and modified from Go 1.8 stdlib's encoding/xml
+// Copied and modified from Go 1.14 stdlib's encoding/xml
 
 package xml
 
 import (
-	"bytes"
 	"unicode/utf8"
 )
 
-// Copied from Go 1.8 stdlib's encoding/xml
+// Copied from Go 1.14 stdlib's encoding/xml
 var (
 	escQuot = []byte("&#34;") // shorter than "&quot;"
 	escApos = []byte("&#39;") // shorter than "&apos;"
@@ -39,7 +38,7 @@ func isInCharacterRange(r rune) (inrange bool) {
 // TODO: When do we need to escape the string?
 // Based on encoding/xml escapeString from the Go Standard Library.
 // https://golang.org/src/encoding/xml/xml.go
-func escapeString(e *bytes.Buffer, s string) {
+func escapeString(e writer, s string) {
 	var esc []byte
 	last := 0
 	for i := 0; i < len(s); {
@@ -82,7 +81,7 @@ func escapeString(e *bytes.Buffer, s string) {
 //
 // Based on encoding/xml escapeText from the Go Standard Library.
 // https://golang.org/src/encoding/xml/xml.go
-func escapeText(e *bytes.Buffer, s []byte) {
+func escapeText(e writer, s []byte) {
 	var esc []byte
 	last := 0
 	for i := 0; i < len(s); {

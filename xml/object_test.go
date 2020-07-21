@@ -25,22 +25,10 @@ func TestObjectWithNameSpaceAndAttributes(t *testing.T) {
 
 	object := newObject(buffer, &scratch, nil)
 
-	ns := Attr{
-		Name: Name{
-			Space: "xmlns",
-			Local: "newspace",
-		},
-		Value: "https://endpoint.com",
-	}
+	ns := NewNamespaceAttribute("newspace", "https://endpoint.com")
+	attr := NewAttribute("attrName", "attrValue")
+	attributes := []Attr{*ns, *attr}
 
-	attr := Attr{
-		Name: Name{
-			Local: "attrName",
-		},
-		Value: "attrValue",
-	}
-
-	attributes := []Attr{ns, attr}
 	object.Key("foo", &attributes).String("bar")
 	object.Key("faz", nil).String("baz")
 

@@ -1,7 +1,6 @@
 package xml
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"math"
@@ -13,7 +12,7 @@ import (
 // Value represents an XML Value type
 // XML Value types: Object, Array, Map, String, Number, Boolean, and Null.
 type Value struct {
-	w       *bytes.Buffer
+	w       writer
 	scratch *[]byte
 
 	startElement *StartElement
@@ -21,7 +20,7 @@ type Value struct {
 }
 
 // newValue returns a new Value encoder
-func newValue(w *bytes.Buffer, scratch *[]byte, startElement *StartElement, endElement *EndElement) Value {
+func newValue(w writer, scratch *[]byte, startElement *StartElement, endElement *EndElement) Value {
 	return Value{
 		w:            w,
 		scratch:      scratch,
@@ -30,7 +29,9 @@ func newValue(w *bytes.Buffer, scratch *[]byte, startElement *StartElement, endE
 	}
 }
 
-func writeStartElement(w *bytes.Buffer, el *StartElement) error {
+// writeStartElement takes in a start element and writes it.
+// It handles namespace, attributes in start element.
+func writeStartElement(w writer, el *StartElement) error {
 	if el == nil {
 		return nil
 	}
@@ -44,8 +45,8 @@ func writeStartElement(w *bytes.Buffer, el *StartElement) error {
 	w.WriteString(el.Name.Local)
 
 	for _, attr := range el.Attr {
-		if strings.EqualFold(attr.Name.Space, "xmlns") {
-			// namespace
+		// if attribute name len is zero or name.space is `xmlns`, it is a namespace attribute
+		if len(attr.Name.Local) == 0 || strings.EqualFold(attr.Name.Space, "xmlns") {
 			w.WriteRune(' ')
 			buildNamespace(w, &attr)
 		} else {
@@ -59,8 +60,19 @@ func writeStartElement(w *bytes.Buffer, el *StartElement) error {
 	return nil
 }
 
-func buildNamespace(w *bytes.Buffer, attr *Attr) {
-	w.WriteString(attr.Name.Space)
+// buildNamespace writes the namespace from a provided Attribute type
+func buildNamespace(w writer, attr *Attr) {
+	if len(attr.Name.Space) != 0 {
+		w.WriteString(attr.Name.Space)
+	} else {
+		// xmlns is the default space of a namespace.
+		// if no prefix is provided xmlns is used.
+		// for eg: `@xmlNamespace(uri: "http://foo.com")` is
+		// represented as `xmlns="http://example.com"`
+		//
+		// https://awslabs.github.io/smithy/1.0/spec/core/xml-traits.html#xmlnamespace-trait
+		w.WriteString("xmlns")
+	}
 
 	if len(attr.Name.Local) != 0 {
 		w.WriteRune(colon)
@@ -73,7 +85,8 @@ func buildNamespace(w *bytes.Buffer, attr *Attr) {
 	w.WriteRune(quote)
 }
 
-func buildAttribute(w *bytes.Buffer, attr *Attr) {
+// buildAttribute writes an attribute from a provided Attribute
+func buildAttribute(w writer, attr *Attr) {
 	w.WriteString(attr.Name.Local)
 	w.WriteRune(equals)
 	w.WriteRune(quote)
@@ -81,7 +94,8 @@ func buildAttribute(w *bytes.Buffer, attr *Attr) {
 	w.WriteRune(quote)
 }
 
-func writeEndElement(w *bytes.Buffer, el *EndElement) error {
+// writeEndElement takes in a end element and writes it.
+func writeEndElement(w writer, el *EndElement) error {
 	// If end element is nil
 	if el == nil {
 		return nil
@@ -229,51 +243,54 @@ func (xv Value) NestedElement() (o *Object) {
 	return newObject(xv.w, xv.scratch, xv.endElement)
 }
 
-// Array returns an array encoder and a close function that will close
-// the array's root element tag. By default, the members of array are
+// Array returns an array encoder. By default, the members of array are
 // wrapped with `<member>` element tag.
 func (xv Value) Array() *Array {
-	// write open tag for the parent element
+	// write start element for the array element
 	writeStartElement(xv.w, xv.startElement)
 
 	return newArray(xv.w, xv.scratch, xv.endElement, arrayMemberWrapper)
 }
 
-// ArrayWithCustomName returns an array encoder and a close function that will
-// close the array's root element tag.
-//
-// It takes name as an argument, the name will used to wrap xml array entries.
-// for eg, <someList><customName>entry1</customName><someList>
-// Here `customName` element tag will be wrapped on each array member.
+/*
+ArrayWithCustomName returns an array encoder.
+
+It takes name as an argument, the name will used to wrap xml array entries.
+for eg, <someList><customName>entry1</customName></someList>
+Here `customName` element tag will be wrapped on each array member.
+*/
 func (xv Value) ArrayWithCustomName(name string) (a *Array) {
-	// write open tag for the parent element
+	// write open tag for the array element
 	writeStartElement(xv.w, xv.startElement)
 
 	return newArray(xv.w, xv.scratch, xv.endElement, name)
 }
 
-// FlattenedArray returns a flattened array encoder. Unlike other array encoders
-// it DOES NOT return an close function.
-//
-// FlattenedArray Encoder wraps each member with array's root element tag, thus
-// flattening the array.
-//
-// for eg,`<someList>entry1</someList><someList>entry2</someList>`.
+/*
+FlattenedArray returns a flattened array encoder.
+
+FlattenedArray Encoder wraps each member with array's root element tag, thus
+flattening the array.
+
+for eg,`<someList>entry1</someList><someList>entry2</someList>`.
+*/
 func (xv Value) FlattenedArray() (a *Array) {
 	return newFlattenedArray(xv.w, xv.scratch, xv.startElement, xv.endElement)
 }
 
-// Map returns a map encoder and a close function that will close
-// the map's root element tag. By default, the map entries are
-// wrapped with `<entry>` element tag.
+/*
+Map returns a map encoder. By default, the map entries are
+wrapped with `<entry>` element tag.
+
+for eg. <entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry>
+*/
 func (xv Value) Map() *Map {
 	writeStartElement(xv.w, xv.startElement)
 	return newMap(xv.w, xv.scratch, xv.endElement)
 }
 
 /*
-FlattenedMap returns a flattened map encoder. Unlike other map encoder
-it DOES NOT return an close function.
+FlattenedMap returns a flattened map encoder.
 
 FlattenedMap Encoder wraps each entry with map's root element tag, thus
 flattening the map.
@@ -294,7 +311,7 @@ func encodeFloat(v float64, bits int) []byte {
 
 // encodeByteSlice is modified copy of json encoder's encodeByteSlice.
 // It is used to base64 encode a byte slice.
-func encodeByteSlice(w *bytes.Buffer, scratch []byte, v []byte) {
+func encodeByteSlice(w writer, scratch []byte, v []byte) {
 	if v == nil {
 		return
 	}
