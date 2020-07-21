@@ -48,6 +48,7 @@ func AssertJSONEqual(t T, expect, actual []byte) bool {
 // XMLEqual asserts two xml documents by sorting the XML and comparing the strings
 // It returns an error in case of mismatch or in case of malformed xml found while sorting.
 // In case of mismatched XML, the error string will contain the diff between the two XMLs.
+// XMLEqual ignores indentation while comparing xml.
 func XMLEqual(expectBytes, actualBytes []byte) error {
 	actualString, err := xml.SortXML(bytes.NewBuffer(actualBytes), true)
 	if err != nil {
@@ -60,7 +61,7 @@ func XMLEqual(expectBytes, actualBytes []byte) error {
 	}
 
 	if diff := cmp.Diff(actualString, expectedString); len(diff) != 0 {
-		return fmt.Errorf("found diff while comparing the xml: %s", diff)
+		return fmt.Errorf("XML mismatch (-expect +actual):\n%s", diff)
 	}
 
 	return nil
