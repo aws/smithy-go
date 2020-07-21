@@ -9,9 +9,9 @@ func TestObject(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	object := newObject(buffer, &scratch)
-	object.Key("foo").String("bar")
-	object.Key("faz").String("baz")
+	object := newObject(buffer, &scratch, nil)
+	object.Key("foo", nil).String("bar")
+	object.Key("faz", nil).String("baz")
 
 	e := []byte(`<foo>bar</foo><faz>baz</faz>`)
 	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {
@@ -23,17 +23,26 @@ func TestObjectWithNameSpaceAndAttributes(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	object := newObject(buffer, &scratch)
+	object := newObject(buffer, &scratch, nil)
 
-	var metadata = func(t *TagMetadata) {
-		t.NamespacePrefix = "newspace"
-		t.NamespaceURI = "https://endpoint.com"
-		t.AttributeName = "attrName"
-		t.AttributeValue = "attrValue"
+	ns := Attr{
+		Name: Name{
+			Space: "xmlns",
+			Local: "newspace",
+		},
+		Value: "https://endpoint.com",
 	}
 
-	object.Key("foo", metadata).String("bar")
-	object.Key("faz").String("baz")
+	attr := Attr{
+		Name: Name{
+			Local: "attrName",
+		},
+		Value: "attrValue",
+	}
+
+	attributes := []Attr{ns, attr}
+	object.Key("foo", &attributes).String("bar")
+	object.Key("faz", nil).String("baz")
 
 	e := []byte(`<foo xmlns:newspace="https://endpoint.com" attrName="attrValue">bar</foo><faz>baz</faz>`)
 	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {

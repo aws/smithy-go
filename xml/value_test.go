@@ -75,18 +75,18 @@ func TestValue(t *testing.T) {
 		},
 		"object": {
 			setter: func(value Value) {
-				o, closeFn := value.NestedElement()
-				defer closeFn()
-				o.Key("key").String("value")
+				o := value.NestedElement()
+				defer o.Close()
+				o.Key("key", nil).String("value")
 			},
 			expected: `<key>value</key>`,
 		},
 		"array": {
 			setter: func(value Value) {
-				o, closeFn := value.Array()
-				defer closeFn()
-				o.NewMember().String("value1")
-				o.NewMember().String("value2")
+				o := value.Array()
+				defer o.Close()
+				o.Member().String("value1")
+				o.Member().String("value2")
 			},
 			expected: `<member>value1</member><member>value2</member>`,
 		},
@@ -98,26 +98,26 @@ func TestValue(t *testing.T) {
 		},
 		"nullWithRoot": {
 			setter: func(value Value) {
-				o, closeFn := value.NestedElement()
-				defer closeFn()
-				o.Key("parent").Null()
+				o := value.NestedElement()
+				defer o.Close()
+				o.Key("parent", nil).Null()
 			},
 			expected: `<parent></parent>`,
 		},
 		"write text": {
 			setter: func(value Value) {
-				o, closeFn := value.NestedElement()
-				defer closeFn()
+				o := value.NestedElement()
+				defer o.Close()
 
-				o.Key("inline").Write([]byte(`{"nested":"value"}`), false)
+				o.Key("inline", nil).Write([]byte(`{"nested":"value"}`), false)
 			},
 			expected: `<inline>{"nested":"value"}</inline>`,
 		},
 		"write escaped text": {
 			setter: func(value Value) {
-				o, closeFn := value.NestedElement()
-				defer closeFn()
-				o.Key("inline").Write([]byte(`{"nested":"value"}`), true)
+				o := value.NestedElement()
+				defer o.Close()
+				o.Key("inline", nil).Write([]byte(`{"nested":"value"}`), true)
 			},
 			expected: fmt.Sprintf("<inline>{%snested%s:%svalue%s}</inline>", escQuot, escQuot, escQuot, escQuot),
 		},
@@ -162,7 +162,7 @@ func TestValue(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			var b bytes.Buffer
-			value := newValue(&b, &scratch, noOpFn, noOpFn)
+			value := newValue(&b, &scratch, nil, nil)
 
 			tt.setter(value)
 

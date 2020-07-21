@@ -3,7 +3,6 @@ package xml
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/xml"
 	"fmt"
 	"math"
 	"math/big"
@@ -17,12 +16,12 @@ type Value struct {
 	w       *bytes.Buffer
 	scratch *[]byte
 
-	startElement *xml.StartElement
-	endElement   *xml.EndElement
+	startElement *StartElement
+	endElement   *EndElement
 }
 
 // newValue returns a new Value encoder
-func newValue(w *bytes.Buffer, scratch *[]byte, startElement *xml.StartElement, endElement *xml.EndElement) Value {
+func newValue(w *bytes.Buffer, scratch *[]byte, startElement *StartElement, endElement *EndElement) Value {
 	return Value{
 		w:            w,
 		scratch:      scratch,
@@ -31,7 +30,7 @@ func newValue(w *bytes.Buffer, scratch *[]byte, startElement *xml.StartElement, 
 	}
 }
 
-func writeStartElement(w *bytes.Buffer, el *xml.StartElement) error {
+func writeStartElement(w *bytes.Buffer, el *StartElement) error {
 	if el == nil {
 		return nil
 	}
@@ -47,8 +46,10 @@ func writeStartElement(w *bytes.Buffer, el *xml.StartElement) error {
 	for _, attr := range el.Attr {
 		if strings.EqualFold(attr.Name.Space, "xmlns") {
 			// namespace
+			w.WriteRune(' ')
 			buildNamespace(w, &attr)
 		} else {
+			w.WriteRune(' ')
 			buildAttribute(w, &attr)
 		}
 	}
@@ -58,7 +59,7 @@ func writeStartElement(w *bytes.Buffer, el *xml.StartElement) error {
 	return nil
 }
 
-func buildNamespace(w *bytes.Buffer, attr *xml.Attr) {
+func buildNamespace(w *bytes.Buffer, attr *Attr) {
 	w.WriteString(attr.Name.Space)
 
 	if len(attr.Name.Local) != 0 {
@@ -67,16 +68,20 @@ func buildNamespace(w *bytes.Buffer, attr *xml.Attr) {
 	}
 
 	w.WriteRune(equals)
+	w.WriteRune(quote)
 	w.WriteString(attr.Value)
+	w.WriteRune(quote)
 }
 
-func buildAttribute(w *bytes.Buffer, attr *xml.Attr) {
+func buildAttribute(w *bytes.Buffer, attr *Attr) {
 	w.WriteString(attr.Name.Local)
 	w.WriteRune(equals)
+	w.WriteRune(quote)
 	w.WriteString(attr.Value)
+	w.WriteRune(quote)
 }
 
-func writeEndElement(w *bytes.Buffer, el *xml.EndElement) error {
+func writeEndElement(w *bytes.Buffer, el *EndElement) error {
 	// If end element is nil
 	if el == nil {
 		return nil
@@ -231,7 +236,7 @@ func (xv Value) Array() *Array {
 	// write open tag for the parent element
 	writeStartElement(xv.w, xv.startElement)
 
-	return newArray(xv.w, xv.scratch, xv.endElement)
+	return newArray(xv.w, xv.scratch, xv.endElement, arrayMemberWrapper)
 }
 
 // ArrayWithCustomName returns an array encoder and a close function that will
@@ -244,7 +249,7 @@ func (xv Value) ArrayWithCustomName(name string) (a *Array) {
 	// write open tag for the parent element
 	writeStartElement(xv.w, xv.startElement)
 
-	return newArrayWithCustomName(xv.w, xv.scratch, xv.endElement, name)
+	return newArray(xv.w, xv.scratch, xv.endElement, name)
 }
 
 // FlattenedArray returns a flattened array encoder. Unlike other array encoders

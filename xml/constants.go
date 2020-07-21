@@ -6,4 +6,5 @@ const (
 	forwardSlash      = '/'
 	colon             = ':'
 	equals            = '='
+	quote            = '"'
 )

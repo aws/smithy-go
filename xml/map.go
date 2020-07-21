@@ -2,7 +2,6 @@ package xml
 
 import (
 	"bytes"
-	"encoding/xml"
 )
 
 // mapKey is the default member wrapper tag name for XML Map type
@@ -14,10 +13,10 @@ type Map struct {
 	scratch *[]byte
 
 	memberName         string
-	memberStartElement *xml.StartElement
-	memberEndElement   *xml.EndElement
+	memberStartElement *StartElement
+	memberEndElement   *EndElement
 
-	mapEndElement *xml.EndElement
+	mapEndElement *EndElement
 }
 
 // newMap returns a map encoder which sets the default map
@@ -25,7 +24,7 @@ type Map struct {
 //
 // for eg. someMap : {{key:"abc", value:"123"}} is represented as
 // <someMap><entry><key>abc<key><value>123</value></entry><member>value2</member></someMap>
-func newMap(w *bytes.Buffer, scratch *[]byte, endElement *xml.EndElement) *Map {
+func newMap(w *bytes.Buffer, scratch *[]byte, endElement *EndElement) *Map {
 	return &Map{w: w, scratch: scratch, mapEndElement: endElement, memberName: mapKey}
 }
 
@@ -34,7 +33,7 @@ func newMap(w *bytes.Buffer, scratch *[]byte, endElement *xml.EndElement) *Map {
 //
 // for eg. an array `someMap : {{key:"abc", value:"123"}}` is represented as
 // `<someMap><key>abc</key><value>123</value></someMap>`.
-func newFlattenedMap(w *bytes.Buffer, scratch *[]byte, memberStartElement *xml.StartElement, memberEndElement *xml.EndElement) *Map {
+func newFlattenedMap(w *bytes.Buffer, scratch *[]byte, memberStartElement *StartElement, memberEndElement *EndElement) *Map {
 	return &Map{w: w, scratch: scratch, memberStartElement: memberStartElement, memberEndElement: memberEndElement}
 }
 
@@ -45,12 +44,12 @@ func (m *Map) Entry() (o *Object) {
 	end := m.memberEndElement
 
 	if start == nil {
-		start = &xml.StartElement{
-			Name: xml.Name{Local: m.memberName},
+		start = &StartElement{
+			Name: Name{Local: m.memberName},
 		}
 
-		end = &xml.EndElement{
-			Name: xml.Name{Local: m.memberName},
+		end = &EndElement{
+			Name: Name{Local: m.memberName},
 		}
 	}
 

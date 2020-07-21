@@ -2,7 +2,6 @@ package xml
 
 import (
 	"bytes"
-	"encoding/xml"
 	"strings"
 )
 
@@ -11,18 +10,18 @@ type Object struct {
 	w       *bytes.Buffer
 	scratch *[]byte
 
-	endElement *xml.EndElement
+	endElement *EndElement
 }
 
 // newObject returns a new object encoder type
-func newObject(w *bytes.Buffer, scratch *[]byte, endElement *xml.EndElement) *Object {
+func newObject(w *bytes.Buffer, scratch *[]byte, endElement *EndElement) *Object {
 	return &Object{w: w, scratch: scratch, endElement: endElement}
 }
 
 // Key returns a Value encoder that should be used to encode a XML value type.
 // It sets the given named key builder function into the XML object value encoder.
 // Key takes optional functional arguments to set tag metadata when building the element tag.
-func (o *Object) Key(name string, attr *[]xml.Attr) Value {
+func (o *Object) Key(name string, attr *[]Attr) Value {
 	var space string
 	if strings.ContainsRune(name, ':') {
 		ns := strings.SplitN(name, ":", 2)
@@ -30,12 +29,15 @@ func (o *Object) Key(name string, attr *[]xml.Attr) Value {
 		name = ns[1]
 	}
 
-	startElement := xml.StartElement{
-		Name: xml.Name{
+	startElement := StartElement{
+		Name: Name{
 			Space: space,
 			Local: name,
 		},
-		Attr: *attr,
+	}
+
+	if attr != nil {
+		startElement.Attr = *attr
 	}
 
 	endElement := startElement.End()
@@ -73,7 +75,9 @@ and Attribute value corresponds to the value.
 
 This is in accordance to https://awslabs.github.io/smithy/1.0/spec/core/xml-traits.html#xmlattribute-trait
 */
-type TagMetadata struct {
-	Namespaces map[string]string
-	Attributes map[string]string
-}
+
+// TODO: remove this
+// type TagMetadata struct {
+// 	Namespaces map[string]string
+// 	Attributes map[string]string
+// }

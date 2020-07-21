@@ -42,6 +42,6 @@ func (e Encoder) Bytes() []byte {
 }
 
 // RootElement builds a root element encoding
-func (e Encoder) RootElement(key string) Value {
-	return newObject(e.w, e.scratch, nil).Key(key, nil)
+func (e Encoder) RootElement(key string, attr *[]Attr) Value {
+	return newObject(e.w, e.scratch, nil).Key(key, attr)
 }
