@@ -4,4 +4,6 @@ const (
 	leftAngleBracket  = '<'
 	rightAngleBracket = '>'
 	forwardSlash      = '/'
+	colon             = ':'
+	equals            = '='
 )

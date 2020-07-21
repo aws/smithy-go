@@ -16,8 +16,8 @@ import (
 // Encoder is an XML encoder that supports construction of XML values
 // using methods.
 type Encoder struct {
-	w *bytes.Buffer
-	Value
+	w       *bytes.Buffer
+	scratch *[]byte
 }
 
 // noOpFn prevents panics from unexpected defer statements
@@ -28,7 +28,7 @@ func NewEncoder() *Encoder {
 	writer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
-	return &Encoder{w: writer, Value: newValue(writer, &scratch, noOpFn, noOpFn)}
+	return &Encoder{w: writer, scratch: &scratch}
 }
 
 // String returns the string output of the XML encoder
@@ -39,4 +39,9 @@ func (e Encoder) String() string {
 // Bytes returns the []byte slice of the XML encoder
 func (e Encoder) Bytes() []byte {
 	return e.w.Bytes()
+}
+
+// RootElement builds a root element encoding
+func (e Encoder) RootElement(key string) Value {
+	return newObject(e.w, e.scratch, nil).Key(key, nil)
 }

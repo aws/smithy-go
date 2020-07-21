@@ -2,72 +2,78 @@ package xml
 
 import (
 	"bytes"
+	"encoding/xml"
+	"strings"
 )
 
-// Object represents the encoding of a XML Object type
+// Object represents the encoding of structured data within an XML node
 type Object struct {
 	w       *bytes.Buffer
 	scratch *[]byte
+
+	endElement *xml.EndElement
 }
 
 // newObject returns a new object encoder type
-func newObject(w *bytes.Buffer, scratch *[]byte) *Object {
-	return &Object{w: w, scratch: scratch}
+func newObject(w *bytes.Buffer, scratch *[]byte, endElement *xml.EndElement) *Object {
+	return &Object{w: w, scratch: scratch, endElement: endElement}
 }
 
 // Key returns a Value encoder that should be used to encode a XML value type.
 // It sets the given named key builder function into the XML object value encoder.
 // Key takes optional functional arguments to set tag metadata when building the element tag.
-func (o *Object) Key(name string, opts ...func(t *TagMetadata)) Value {
-	// openTagFn is a element start tag builder function
-	var openTagFn = func() {
-		writeOpenTag(o.w, name)
-		defer o.w.WriteRune(rightAngleBracket)
-		for _, fn := range opts {
-			var m TagMetadata
-			fn(&m)
-
-			// set the namespace URI and prefix in element tag
-			if len(m.NamespacePrefix) != 0 && len(m.NamespaceURI) != 0 {
-				o.w.Write([]byte(" xmlns:" + m.NamespacePrefix + "=\"" + m.NamespaceURI + "\""))
-			}
-
-			if len(m.AttributeValue) != 0 {
-				if len(m.AttributeName) != 0 {
-					o.w.Write([]byte(" " + m.AttributeName + "=\"" + m.AttributeValue + "\""))
-				} else {
-					// attr is the default attribute name
-					o.w.Write([]byte(" attr" + "=\"" + m.AttributeValue + "\""))
-				}
-			}
-		}
+func (o *Object) Key(name string, attr *[]xml.Attr) Value {
+	var space string
+	if strings.ContainsRune(name, ':') {
+		ns := strings.SplitN(name, ":", 2)
+		space = ns[0]
+		name = ns[1]
 	}
 
-	var closeTagFn = func() {
-		writeCloseTag(o.w, name)
+	startElement := xml.StartElement{
+		Name: xml.Name{
+			Space: space,
+			Local: name,
+		},
+		Attr: *attr,
 	}
 
-	return newValue(o.w, o.scratch, openTagFn, closeTagFn)
+	endElement := startElement.End()
+
+	return newValue(o.w, o.scratch, &startElement, &endElement)
 }
 
-func writeOpenTag(w *bytes.Buffer, name string) {
-	w.WriteRune(leftAngleBracket)
-	w.Write([]byte(name))
+//
+// func writeOpenTag(w *bytes.Buffer, name string) {
+// 	w.WriteRune(leftAngleBracket)
+// 	w.Write([]byte(name))
+// }
+//
+// func writeCloseTag(w *bytes.Buffer, name string) {
+// 	w.WriteRune(leftAngleBracket)
+// 	w.WriteRune(forwardSlash)
+// 	w.Write([]byte(name))
+// 	w.WriteRune(rightAngleBracket)
+// }
+
+func (o *Object) Close() {
+	writeEndElement(o.w, o.endElement)
 }
 
-func writeCloseTag(w *bytes.Buffer, name string) {
-	w.WriteRune(leftAngleBracket)
-	w.WriteRune(forwardSlash)
-	w.Write([]byte(name))
-	w.WriteRune(rightAngleBracket)
-}
+/*
+TagMetadata represents the metadata required when building the
+xml element tag.
 
-// TagMetadata represents the metadata required when building the
-// xml element tag. You should use it to set Namespace URI and prefix,
-// Attribute name and value.
+Namespaces are stored as key value pairs in a map where Namespace URI is the key,
+and the namespace prefix corresponds to the value. The namespace prefix can be empty,
+whereas namespace URI is required if a namespace is set.
+
+Attributes are stored as key value pairs in a map where Attribute name is the key,
+and Attribute value corresponds to the value.
+
+This is in accordance to https://awslabs.github.io/smithy/1.0/spec/core/xml-traits.html#xmlattribute-trait
+*/
 type TagMetadata struct {
-	NamespacePrefix string
-	NamespaceURI    string
-	AttributeName   string
-	AttributeValue  string
+	Namespaces map[string]string
+	Attributes map[string]string
 }

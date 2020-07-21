@@ -3,10 +3,12 @@ package xml
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"math"
 	"math/big"
 	"strconv"
+	"strings"
 )
 
 // Value represents an XML Value type
@@ -15,165 +17,221 @@ type Value struct {
 	w       *bytes.Buffer
 	scratch *[]byte
 
-	openTagWriterFn  func()
-	closeTagWriterFn func()
+	startElement *xml.StartElement
+	endElement   *xml.EndElement
 }
 
 // newValue returns a new Value encoder
-func newValue(w *bytes.Buffer, scratch *[]byte, openTagWriterFn func(), closeTagWriterFn func()) Value {
+func newValue(w *bytes.Buffer, scratch *[]byte, startElement *xml.StartElement, endElement *xml.EndElement) Value {
 	return Value{
-		w:                w,
-		scratch:          scratch,
-		openTagWriterFn:  openTagWriterFn,
-		closeTagWriterFn: closeTagWriterFn,
+		w:            w,
+		scratch:      scratch,
+		startElement: startElement,
+		endElement:   endElement,
 	}
+}
+
+func writeStartElement(w *bytes.Buffer, el *xml.StartElement) error {
+	if el == nil {
+		return nil
+	}
+
+	w.WriteRune(leftAngleBracket)
+
+	if len(el.Name.Space) != 0 {
+		w.WriteString(el.Name.Space)
+		w.WriteRune(colon)
+	}
+	w.WriteString(el.Name.Local)
+
+	for _, attr := range el.Attr {
+		if strings.EqualFold(attr.Name.Space, "xmlns") {
+			// namespace
+			buildNamespace(w, &attr)
+		} else {
+			buildAttribute(w, &attr)
+		}
+	}
+
+	w.WriteRune(rightAngleBracket)
+
+	return nil
+}
+
+func buildNamespace(w *bytes.Buffer, attr *xml.Attr) {
+	w.WriteString(attr.Name.Space)
+
+	if len(attr.Name.Local) != 0 {
+		w.WriteRune(colon)
+		w.WriteString(attr.Name.Local)
+	}
+
+	w.WriteRune(equals)
+	w.WriteString(attr.Value)
+}
+
+func buildAttribute(w *bytes.Buffer, attr *xml.Attr) {
+	w.WriteString(attr.Name.Local)
+	w.WriteRune(equals)
+	w.WriteString(attr.Value)
+}
+
+func writeEndElement(w *bytes.Buffer, el *xml.EndElement) error {
+	// If end element is nil
+	if el == nil {
+		return nil
+	}
+
+	w.WriteRune(leftAngleBracket)
+	w.WriteRune(forwardSlash)
+
+	if len(el.Name.Space) != 0 {
+		w.WriteString(el.Name.Space + ":")
+	}
+	w.WriteString(el.Name.Local)
+	w.WriteRune(rightAngleBracket)
+
+	return nil
 }
 
 // String encodes v as a XML string.
 // It will auto close the xml element tag.
-func (jv Value) String(v string) {
-	jv.openTagWriterFn()
-	escapeString(jv.w, v)
-	jv.closeTagWriterFn()
+func (xv Value) String(v string) {
+	writeStartElement(xv.w, xv.startElement)
+	escapeString(xv.w, v)
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Byte encodes v as a XML number
-func (jv Value) Byte(v int8) {
-	jv.Long(int64(v))
+func (xv Value) Byte(v int8) {
+	xv.Long(int64(v))
 }
 
 // Short encodes v as a XML number
-func (jv Value) Short(v int16) {
-	jv.Long(int64(v))
+func (xv Value) Short(v int16) {
+	xv.Long(int64(v))
 }
 
 // Integer encodes v as a XML number
-func (jv Value) Integer(v int32) {
-	jv.Long(int64(v))
+func (xv Value) Integer(v int32) {
+	xv.Long(int64(v))
 }
 
 // Long encodes v as a XML number.
 // It will auto close the xml element tag.
-func (jv Value) Long(v int64) {
-	jv.openTagWriterFn()
+func (xv Value) Long(v int64) {
+	writeStartElement(xv.w, xv.startElement)
 
-	*jv.scratch = strconv.AppendInt((*jv.scratch)[:0], v, 10)
-	jv.w.Write(*jv.scratch)
+	*xv.scratch = strconv.AppendInt((*xv.scratch)[:0], v, 10)
+	xv.w.Write(*xv.scratch)
 
-	jv.closeTagWriterFn()
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Float encodes v as a XML number.
 // It will auto close the xml element tag.
-func (jv Value) Float(v float32) {
-	jv.openTagWriterFn()
-	jv.float(float64(v), 32)
-	jv.closeTagWriterFn()
+func (xv Value) Float(v float32) {
+	writeStartElement(xv.w, xv.startElement)
+	xv.float(float64(v), 32)
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Double encodes v as a XML number.
 // It will auto close the xml element tag.
-func (jv Value) Double(v float64) {
-	jv.openTagWriterFn()
-	jv.float(v, 64)
-	jv.closeTagWriterFn()
+func (xv Value) Double(v float64) {
+	writeStartElement(xv.w, xv.startElement)
+	xv.float(v, 64)
+	writeEndElement(xv.w, xv.endElement)
 }
 
-func (jv Value) float(v float64, bits int) {
-	*jv.scratch = encodeFloat(v, bits)
-	jv.w.Write(*jv.scratch)
+func (xv Value) float(v float64, bits int) {
+	*xv.scratch = encodeFloat(v, bits)
+	xv.w.Write(*xv.scratch)
 }
 
 // Boolean encodes v as a XML boolean.
 // It will auto close the xml element tag.
-func (jv Value) Boolean(v bool) {
-	jv.openTagWriterFn()
-
-	*jv.scratch = strconv.AppendBool((*jv.scratch)[:0], v)
-	jv.w.Write(*jv.scratch)
-
-	jv.closeTagWriterFn()
+func (xv Value) Boolean(v bool) {
+	writeStartElement(xv.w, xv.startElement)
+	*xv.scratch = strconv.AppendBool((*xv.scratch)[:0], v)
+	xv.w.Write(*xv.scratch)
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Base64EncodeBytes writes v as a base64 value in XML string.
 // It will auto close the xml element tag.
-func (jv Value) Base64EncodeBytes(v []byte) {
-	jv.openTagWriterFn()
-	encodeByteSlice(jv.w, (*jv.scratch)[:0], v)
-	jv.closeTagWriterFn()
+func (xv Value) Base64EncodeBytes(v []byte) {
+	writeStartElement(xv.w, xv.startElement)
+	encodeByteSlice(xv.w, (*xv.scratch)[:0], v)
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // BigInteger encodes v big.Int as XML value.
 // It will auto close the xml element tag.
-func (jv Value) BigInteger(v *big.Int) {
-	jv.openTagWriterFn()
-	jv.w.Write([]byte(v.Text(10)))
-	jv.closeTagWriterFn()
+func (xv Value) BigInteger(v *big.Int) {
+	writeStartElement(xv.w, xv.startElement)
+	xv.w.Write([]byte(v.Text(10)))
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // BigDecimal encodes v big.Float as XML value.
 // It will auto close the xml element tag.
-func (jv Value) BigDecimal(v *big.Float) {
+func (xv Value) BigDecimal(v *big.Float) {
 	if i, accuracy := v.Int64(); accuracy == big.Exact {
-		jv.Long(i)
+		xv.Long(i)
 		return
 	}
 
-	jv.openTagWriterFn()
-	jv.w.Write([]byte(v.Text('e', -1)))
-	jv.closeTagWriterFn()
+	writeStartElement(xv.w, xv.startElement)
+	xv.w.Write([]byte(v.Text('e', -1)))
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Null encodes a null element tag like <root></root>.
 // It will auto close the xml element tag.
-func (jv Value) Null() {
+func (xv Value) Null() {
 	// write open tag for the parent object
-	jv.openTagWriterFn()
+	writeStartElement(xv.w, xv.startElement)
 
 	// close tag
-	jv.closeTagWriterFn()
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // Write writes v directly to the xml document
 // if escapeXMLText is set to true, write will escape text.
 // It will auto close the xml element tag.
-func (jv Value) Write(v []byte, escapeXMLText bool) {
-	jv.openTagWriterFn()
+func (xv Value) Write(v []byte, escapeXMLText bool) {
+	writeStartElement(xv.w, xv.startElement)
 
 	// escape and write xml text
 	if escapeXMLText {
-		escapeText(jv.w, v)
+		escapeText(xv.w, v)
 	} else {
 		// write xml directly
-		jv.w.Write(v)
+		xv.w.Write(v)
 	}
 
-	jv.closeTagWriterFn()
-}
-
-// RootElement builds a root element encoding
-func (jv Value) RootElement() (o *Object) {
-	return newObject(jv.w, jv.scratch)
+	writeEndElement(xv.w, xv.endElement)
 }
 
 // NestedElement returns a nested element encoding.
 // It returns a point to element object and a close function that will
 // close the element tag.
-func (jv Value) NestedElement() (o *Object, closeFn func()) {
+func (xv Value) NestedElement() (o *Object) {
 	// write open tag for the parent object
-	jv.openTagWriterFn()
+	writeStartElement(xv.w, xv.startElement)
 
-	return newObject(jv.w, jv.scratch), jv.closeTagWriterFn
+	return newObject(xv.w, xv.scratch, xv.endElement)
 }
 
 // Array returns an array encoder and a close function that will close
 // the array's root element tag. By default, the members of array are
 // wrapped with `<member>` element tag.
-func (jv Value) Array() (a *Array, closeFn func()) {
+func (xv Value) Array() *Array {
 	// write open tag for the parent element
-	jv.openTagWriterFn()
+	writeStartElement(xv.w, xv.startElement)
 
-	return newArray(jv.w, jv.scratch), jv.closeTagWriterFn
+	return newArray(xv.w, xv.scratch, xv.endElement)
 }
 
 // ArrayWithCustomName returns an array encoder and a close function that will
@@ -182,11 +240,11 @@ func (jv Value) Array() (a *Array, closeFn func()) {
 // It takes name as an argument, the name will used to wrap xml array entries.
 // for eg, <someList><customName>entry1</customName><someList>
 // Here `customName` element tag will be wrapped on each array member.
-func (jv Value) ArrayWithCustomName(name string) (a *Array, closeFn func()) {
+func (xv Value) ArrayWithCustomName(name string) (a *Array) {
 	// write open tag for the parent element
-	jv.openTagWriterFn()
+	writeStartElement(xv.w, xv.startElement)
 
-	return newArrayWithCustomName(jv.w, jv.scratch, name), jv.closeTagWriterFn
+	return newArrayWithCustomName(xv.w, xv.scratch, xv.endElement, name)
 }
 
 // FlattenedArray returns a flattened array encoder. Unlike other array encoders
@@ -196,26 +254,28 @@ func (jv Value) ArrayWithCustomName(name string) (a *Array, closeFn func()) {
 // flattening the array.
 //
 // for eg,`<someList>entry1</someList><someList>entry2</someList>`.
-func (jv Value) FlattenedArray() (a *Array) {
-	return newFlattenedArray(jv.w, jv.scratch, jv.openTagWriterFn, jv.closeTagWriterFn)
+func (xv Value) FlattenedArray() (a *Array) {
+	return newFlattenedArray(xv.w, xv.scratch, xv.startElement, xv.endElement)
 }
 
 // Map returns a map encoder and a close function that will close
 // the map's root element tag. By default, the map entries are
 // wrapped with `<entry>` element tag.
-func (jv Value) Map() (m *Map, closeFn func()) {
-	jv.openTagWriterFn()
-	return newMap(jv.w, jv.scratch), jv.closeTagWriterFn
+func (xv Value) Map() *Map {
+	writeStartElement(xv.w, xv.startElement)
+	return newMap(xv.w, xv.scratch, xv.endElement)
 }
 
-// FlattenedMap returns a flattened map encoder. Unlike other map encoder
-// it DOES NOT return an close function.
-//
-// FlattenedMap Encoder wraps each entry with map's root element tag, thus
-// flattening the map.
-// for eg, `<someMap><key>entryKey1</key><value>entryValue1</value>`.
-func (jv Value) FlattenedMap() *Map {
-	return newFlattenedMap(jv.w, jv.scratch, jv.openTagWriterFn, jv.closeTagWriterFn)
+/*
+FlattenedMap returns a flattened map encoder. Unlike other map encoder
+it DOES NOT return an close function.
+
+FlattenedMap Encoder wraps each entry with map's root element tag, thus
+flattening the map.
+for eg, `<someMap><key>entryKey1</key><value>entryValue1</value></someMap>`.
+*/
+func (xv Value) FlattenedMap() *Map {
+	return newFlattenedMap(xv.w, xv.scratch, xv.startElement, xv.endElement)
 }
 
 // Encodes a float value as per the xml stdlib xml encoder
