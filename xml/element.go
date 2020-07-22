@@ -26,8 +26,8 @@ NewAttribute returns a pointer to an attribute.
 It takes in a local name aka attribute name, and value
 representing the attribute value.
 */
-func NewAttribute(local, value string) *Attr {
-	return &Attr{
+func NewAttribute(local, value string) Attr {
+	return Attr{
 		Name: Name{
 			Local: local,
 		},
@@ -48,7 +48,7 @@ For creating a name space attribute representing
 local = "prefix"
 value = "http://example.com"
 */
-func NewNamespaceAttribute(local, value string) *Attr {
+func NewNamespaceAttribute(local, value string) Attr {
 	attr := NewAttribute(local, value)
 
 	// default name space identifier

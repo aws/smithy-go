@@ -15,6 +15,8 @@ var (
 )
 
 func TestValue(t *testing.T) {
+	nested := StartElement{Name: Name{Local: "nested"}}
+
 	cases := map[string]struct {
 		setter   func(Value)
 		expected string
@@ -75,51 +77,40 @@ func TestValue(t *testing.T) {
 		},
 		"object": {
 			setter: func(value Value) {
-				o := value.NestedElement()
-				defer o.Close()
-				o.Key("key", nil).String("value")
+				defer value.Close()
+				value.MemberElement(&nested).String("value")
 			},
-			expected: `<key>value</key>`,
-		},
-		"array": {
-			setter: func(value Value) {
-				o := value.Array()
-				defer o.Close()
-				o.Member().String("value1")
-				o.Member().String("value2")
-			},
-			expected: `<member>value1</member><member>value2</member>`,
+			expected: `<nested>value</nested>`,
 		},
 		"null": {
 			setter: func(value Value) {
-				value.Null()
+				value.Close()
 			},
 			expected: ``,
 		},
 		"nullWithRoot": {
 			setter: func(value Value) {
-				o := value.NestedElement()
+				defer value.Close()
+				o := value.MemberElement(&nested)
 				defer o.Close()
-				o.Key("parent", nil).Null()
 			},
-			expected: `<parent></parent>`,
+			expected: `<nested></nested>`,
 		},
 		"write text": {
 			setter: func(value Value) {
-				o := value.NestedElement()
-				defer o.Close()
-
-				o.Key("inline", nil).Write([]byte(`{"nested":"value"}`), false)
+				defer value.Close()
+				o := value.MemberElement(&nested)
+				o.Write([]byte(`{"nested":"value"}`), false)
 			},
-			expected: `<inline>{"nested":"value"}</inline>`,
+			expected: `<nested>{"nested":"value"}</nested>`,
 		},
 		"write escaped text": {
 			setter: func(value Value) {
-				o := value.NestedElement()
-				defer o.Close()
-				o.Key("inline", nil).Write([]byte(`{"nested":"value"}`), true)
+				defer value.Close()
+				o := value.MemberElement(&nested)
+				o.Write([]byte(`{"nested":"value"}`), true)
 			},
-			expected: fmt.Sprintf("<inline>{%snested%s:%svalue%s}</inline>", escQuot, escQuot, escQuot, escQuot),
+			expected: fmt.Sprintf("<nested>{%snested%s:%svalue%s}</nested>", escQuot, escQuot, escQuot, escQuot),
 		},
 		"bigInteger": {
 			setter: func(value Value) {
@@ -162,13 +153,61 @@ func TestValue(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			var b bytes.Buffer
-			value := newValue(&b, &scratch, nil, nil)
 
+			root := StartElement{Name: Name{Local: "root"}}
+			value := newWrappedValue(&b, &scratch, &root)
 			tt.setter(value)
 
-			if e, a := []byte(tt.expected), b.Bytes(); bytes.Compare(e, a) != 0 {
+			if e, a := []byte("<root>"+tt.expected+"</root>"), b.Bytes(); bytes.Compare(e, a) != 0 {
 				t.Errorf("expected %+q, but got %+q", e, a)
 			}
 		})
+	}
+}
+
+func TestWrappedValue(t *testing.T) {
+	buffer := bytes.NewBuffer(nil)
+	scratch := make([]byte, 64)
+
+	func() {
+		root := StartElement{Name: Name{Local: "root"}}
+		object := newWrappedValue(buffer, &scratch, &root)
+		defer object.Close()
+
+		foo := StartElement{Name: Name{Local: "foo"}}
+		faz := StartElement{Name: Name{Local: "faz"}}
+
+		object.MemberElement(&foo).String("bar")
+		object.MemberElement(&faz).String("baz")
+	}()
+
+	e := []byte(`<root><foo>bar</foo><faz>baz</faz></root>`)
+	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {
+		t.Errorf("expected %+q, but got %+q", e, a)
+	}
+}
+
+func TestWrappedValueWithNameSpaceAndAttributes(t *testing.T) {
+	buffer := bytes.NewBuffer(nil)
+	scratch := make([]byte, 64)
+
+	func() {
+		root := StartElement{Name: Name{Local: "root"}}
+		object := newWrappedValue(buffer, &scratch, &root)
+		defer object.Close()
+
+		foo := StartElement{Name: Name{Local: "foo"}, Attr: []Attr{
+			NewNamespaceAttribute("newspace", "https://endpoint.com"),
+			NewAttribute("attrName", "attrValue"),
+		}}
+		faz := StartElement{Name: Name{Local: "faz"}}
+
+		object.MemberElement(&foo).String("bar")
+		object.MemberElement(&faz).String("baz")
+	}()
+
+	e := []byte(`<root><foo xmlns:newspace="https://endpoint.com" attrName="attrValue">bar</foo><faz>baz</faz></root>`)
+	if a := buffer.Bytes(); bytes.Compare(e, a) != 0 {
+		t.Errorf("expected %+q, but got %+q", e, a)
 	}
 }

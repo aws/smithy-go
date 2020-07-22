@@ -1,18 +1,21 @@
 package xml
 
-// mapEntryWrapper is the default member wrapper tag name for XML Map type
-const mapEntryWrapper = "entry"
+// mapEntryWrapper is the default member wrapper start element for XML Map entry
+var mapEntryWrapper = &StartElement{
+	Name: Name{Local: "entry"},
+}
 
 // Map represents the encoding of a XML map type
 type Map struct {
 	w       writer
 	scratch *[]byte
 
-	memberWrapperName  string
+	// member start element is the map entry wrapper start element
 	memberStartElement *StartElement
-	memberEndElement   *EndElement
 
-	mapEndElement *EndElement
+	// map start element is the start element for the map
+	// This is used by wrapped map serializers
+	mapStartElement *StartElement
 }
 
 // newMap returns a map encoder which sets the default map
@@ -20,8 +23,17 @@ type Map struct {
 //
 // for eg. someMap : {{key:"abc", value:"123"}} is represented as
 // <someMap><entry><key>abc<key><value>123</value></entry></someMap>
-func newMap(w writer, scratch *[]byte, endElement *EndElement) *Map {
-	return &Map{w: w, scratch: scratch, mapEndElement: endElement, memberWrapperName: mapEntryWrapper}
+// The returned Map must be closed.
+func newMap(w writer, scratch *[]byte, startElement *StartElement) *Map {
+	// write map start element
+	writeStartElement(w, startElement)
+
+	return &Map{
+		w:                  w,
+		scratch:            scratch,
+		memberStartElement: mapEntryWrapper,
+		mapStartElement:    startElement,
+	}
 }
 
 // newFlattenedMap returns a map Encoder. It takes in member start and end element as arguments.
@@ -29,33 +41,28 @@ func newMap(w writer, scratch *[]byte, endElement *EndElement) *Map {
 //
 // for eg. an array `someMap : {{key:"abc", value:"123"}}` is represented as
 // `<someMap><key>abc</key><value>123</value></someMap>`.
-func newFlattenedMap(w writer, scratch *[]byte, memberStartElement *StartElement, memberEndElement *EndElement) *Map {
-	return &Map{w: w, scratch: scratch, memberStartElement: memberStartElement, memberEndElement: memberEndElement}
+func newFlattenedMap(w writer, scratch *[]byte, memberStartElement *StartElement) *Map {
+	return &Map{
+		w:                  w,
+		scratch:            scratch,
+		memberStartElement: memberStartElement,
+	}
 }
 
 // Entry returns a Value encoder with map's element.
-// It writes the parent wrapper start tag for each entry.
-func (m *Map) Entry() (o *Object) {
-	start := m.memberStartElement
-	end := m.memberEndElement
-
-	if start == nil {
-		start = &StartElement{
-			Name: Name{Local: m.memberWrapperName},
-		}
-
-		end = &EndElement{
-			Name: Name{Local: m.memberWrapperName},
-		}
-	}
-
-	writeStartElement(m.w, start)
-
-	return newObject(m.w, m.scratch, end)
+// It writes the member wrapper start tag for each entry.
+func (m *Map) Entry() (v Value) {
+	return newWrappedValue(m.w, m.scratch, m.memberStartElement)
 }
 
-// Close closes a map. For flattened map, this function is a noOp.
+// Close closes a map.
 func (m *Map) Close() {
-	writeEndElement(m.w, m.mapEndElement)
-	m.mapEndElement = nil
+	// Flattened map close is a noOp.
+	// mapEndElement is nil for flattened map.
+	if m.mapStartElement == nil {
+		return
+	}
+
+	end := m.mapStartElement.End()
+	writeEndElement(m.w, &end)
 }

@@ -27,9 +27,6 @@ type Encoder struct {
 	scratch *[]byte
 }
 
-// noOpFn prevents panics from unexpected defer statements
-var noOpFn = func() {}
-
 // NewEncoder returns an XML encoder
 func NewEncoder(w writer) *Encoder {
 	scratch := make([]byte, 64)
@@ -48,6 +45,7 @@ func (e Encoder) Bytes() []byte {
 }
 
 // RootElement builds a root element encoding
-func (e Encoder) RootElement(key string, attr *[]Attr) Value {
-	return newObject(e.w, e.scratch, nil).Key(key, attr)
+// It writes it's start element tag. The value should be closed.
+func (e Encoder) RootElement(element *StartElement) Value {
+	return newWrappedValue(e.w, e.scratch, element)
 }

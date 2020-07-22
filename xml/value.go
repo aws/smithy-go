@@ -6,34 +6,37 @@ import (
 	"math"
 	"math/big"
 	"strconv"
-	"strings"
 )
 
 // Value represents an XML Value type
-// XML Value types: Object, Array, Map, String, Number, Boolean, and Null.
+// XML Value types: Object, Array, Map, String, Number, Boolean.
 type Value struct {
 	w       writer
 	scratch *[]byte
 
 	startElement *StartElement
-	endElement   *EndElement
 }
 
-// newValue returns a new Value encoder
-func newValue(w writer, scratch *[]byte, startElement *StartElement, endElement *EndElement) Value {
+// newValue returns a new Value encoder. newValue does NOT write the start element tag
+func newValue(w writer, scratch *[]byte, startElement *StartElement) Value {
 	return Value{
 		w:            w,
 		scratch:      scratch,
 		startElement: startElement,
-		endElement:   endElement,
 	}
+}
+
+// newWrappedValue writes the start element xml tag and returns a Value
+func newWrappedValue(w writer, scratch *[]byte, startElement *StartElement) Value {
+	writeStartElement(w, startElement)
+	return Value{w: w, scratch: scratch, startElement: startElement}
 }
 
 // writeStartElement takes in a start element and writes it.
 // It handles namespace, attributes in start element.
 func writeStartElement(w writer, el *StartElement) error {
 	if el == nil {
-		return nil
+		return fmt.Errorf("xml start element cannot be nil")
 	}
 
 	w.WriteRune(leftAngleBracket)
@@ -45,14 +48,8 @@ func writeStartElement(w writer, el *StartElement) error {
 	w.WriteString(el.Name.Local)
 
 	for _, attr := range el.Attr {
-		// if attribute name len is zero or name.space is `xmlns`, it is a namespace attribute
-		if len(attr.Name.Local) == 0 || strings.EqualFold(attr.Name.Space, "xmlns") {
-			w.WriteRune(' ')
-			buildNamespace(w, &attr)
-		} else {
-			w.WriteRune(' ')
-			buildAttribute(w, &attr)
-		}
+		w.WriteRune(' ')
+		buildAttribute(w, &attr)
 	}
 
 	w.WriteRune(rightAngleBracket)
@@ -60,33 +57,21 @@ func writeStartElement(w writer, el *StartElement) error {
 	return nil
 }
 
-// buildNamespace writes the namespace from a provided Attribute type
-func buildNamespace(w writer, attr *Attr) {
-	if len(attr.Name.Space) != 0 {
-		w.WriteString(attr.Name.Space)
-	} else {
-		// xmlns is the default space of a namespace.
-		// if no prefix is provided xmlns is used.
-		// for eg: `@xmlNamespace(uri: "http://foo.com")` is
-		// represented as `xmlns="http://example.com"`
-		//
-		// https://awslabs.github.io/smithy/1.0/spec/core/xml-traits.html#xmlnamespace-trait
-		w.WriteString("xmlns")
-	}
-
-	if len(attr.Name.Local) != 0 {
-		w.WriteRune(colon)
-		w.WriteString(attr.Name.Local)
-	}
-
-	w.WriteRune(equals)
-	w.WriteRune(quote)
-	w.WriteString(attr.Value)
-	w.WriteRune(quote)
-}
-
 // buildAttribute writes an attribute from a provided Attribute
+// For a namespace attribute, the attr.Name.Space must be defined as "xmlns".
+// https://www.w3.org/TR/REC-xml-names/#NT-DefaultAttName
 func buildAttribute(w writer, attr *Attr) {
+	// if local, space both are not empty
+	if len(attr.Name.Space) != 0 && len(attr.Name.Local) != 0 {
+		w.WriteString(attr.Name.Space)
+		w.WriteRune(colon)
+	}
+
+	// if prefix is empty, the default `xmlns` space should be used as prefix.
+	if len(attr.Name.Local) == 0 {
+		attr.Name.Local = attr.Name.Space
+	}
+
 	w.WriteString(attr.Name.Local)
 	w.WriteRune(equals)
 	w.WriteRune(quote)
@@ -96,16 +81,16 @@ func buildAttribute(w writer, attr *Attr) {
 
 // writeEndElement takes in a end element and writes it.
 func writeEndElement(w writer, el *EndElement) error {
-	// If end element is nil
 	if el == nil {
-		return nil
+		return fmt.Errorf("xml end element cannot be nil")
 	}
 
 	w.WriteRune(leftAngleBracket)
 	w.WriteRune(forwardSlash)
 
 	if len(el.Name.Space) != 0 {
-		w.WriteString(el.Name.Space + ":")
+		w.WriteString(el.Name.Space)
+		w.WriteRune(colon)
 	}
 	w.WriteString(el.Name.Local)
 	w.WriteRune(rightAngleBracket)
@@ -114,11 +99,10 @@ func writeEndElement(w writer, el *EndElement) error {
 }
 
 // String encodes v as a XML string.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) String(v string) {
-	writeStartElement(xv.w, xv.startElement)
 	escapeString(xv.w, v)
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // Byte encodes v as a XML number
@@ -137,30 +121,26 @@ func (xv Value) Integer(v int32) {
 }
 
 // Long encodes v as a XML number.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Long(v int64) {
-	writeStartElement(xv.w, xv.startElement)
-
 	*xv.scratch = strconv.AppendInt((*xv.scratch)[:0], v, 10)
 	xv.w.Write(*xv.scratch)
 
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // Float encodes v as a XML number.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Float(v float32) {
-	writeStartElement(xv.w, xv.startElement)
 	xv.float(float64(v), 32)
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // Double encodes v as a XML number.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Double(v float64) {
-	writeStartElement(xv.w, xv.startElement)
 	xv.float(v, 64)
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 func (xv Value) float(v float64, bits int) {
@@ -169,59 +149,44 @@ func (xv Value) float(v float64, bits int) {
 }
 
 // Boolean encodes v as a XML boolean.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Boolean(v bool) {
-	writeStartElement(xv.w, xv.startElement)
 	*xv.scratch = strconv.AppendBool((*xv.scratch)[:0], v)
 	xv.w.Write(*xv.scratch)
-	writeEndElement(xv.w, xv.endElement)
+
+	xv.Close()
 }
 
 // Base64EncodeBytes writes v as a base64 value in XML string.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Base64EncodeBytes(v []byte) {
-	writeStartElement(xv.w, xv.startElement)
 	encodeByteSlice(xv.w, (*xv.scratch)[:0], v)
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // BigInteger encodes v big.Int as XML value.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) BigInteger(v *big.Int) {
-	writeStartElement(xv.w, xv.startElement)
 	xv.w.Write([]byte(v.Text(10)))
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // BigDecimal encodes v big.Float as XML value.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) BigDecimal(v *big.Float) {
 	if i, accuracy := v.Int64(); accuracy == big.Exact {
 		xv.Long(i)
 		return
 	}
 
-	writeStartElement(xv.w, xv.startElement)
 	xv.w.Write([]byte(v.Text('e', -1)))
-	writeEndElement(xv.w, xv.endElement)
-}
-
-// Null encodes a null element tag like <root></root>.
-// It will auto close the xml element tag.
-func (xv Value) Null() {
-	// write open tag for the parent object
-	writeStartElement(xv.w, xv.startElement)
-
-	// close tag
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
 // Write writes v directly to the xml document
 // if escapeXMLText is set to true, write will escape text.
-// It will auto close the xml element tag.
+// It will auto close the parent xml element tag.
 func (xv Value) Write(v []byte, escapeXMLText bool) {
-	writeStartElement(xv.w, xv.startElement)
-
 	// escape and write xml text
 	if escapeXMLText {
 		escapeText(xv.w, v)
@@ -230,26 +195,32 @@ func (xv Value) Write(v []byte, escapeXMLText bool) {
 		xv.w.Write(v)
 	}
 
-	writeEndElement(xv.w, xv.endElement)
+	xv.Close()
 }
 
-// NestedElement returns a nested element encoding.
-// It returns a point to element object and a close function that will
-// close the element tag.
-func (xv Value) NestedElement() (o *Object) {
-	// write open tag for the parent object
-	writeStartElement(xv.w, xv.startElement)
+// MemberElement returns a structure or simple shape member element encoding.
+// It returns a Value. Member Element should be used for Nested structure or simple elements.
+// A call to MemberElement will write nested element tags directly using the
+// provided start element. The value returned by MemberElement should be closed.
+func (xv Value) MemberElement(element *StartElement) Value {
+	return newWrappedValue(xv.w, xv.scratch, element)
+}
 
-	return newObject(xv.w, xv.scratch, xv.endElement)
+// CollectionElement returns a collection shape member element encoding.
+// This method should be used to get Value when encoding a map or an array.
+// Unlike MemberElement, CollectionElement will NOT write element tags
+// directly for the associated start element.
+// The Value returned by the Collection Element does not need to be closed.
+func (xv Value) CollectionElement(element *StartElement) Value {
+	return newValue(xv.w, xv.scratch, element)
 }
 
 // Array returns an array encoder. By default, the members of array are
 // wrapped with `<member>` element tag.
+//
+// for eg,`<someList><member>entry</member><member>entry2</member></someList>`.
 func (xv Value) Array() *Array {
-	// write start element for the array element
-	writeStartElement(xv.w, xv.startElement)
-
-	return newArray(xv.w, xv.scratch, xv.endElement, arrayMemberWrapper)
+	return newArray(xv.w, xv.scratch, &arrayMemberWrapper, xv.startElement)
 }
 
 /*
@@ -259,11 +230,8 @@ It takes name as an argument, the name will used to wrap xml array entries.
 for eg, <someList><customName>entry1</customName></someList>
 Here `customName` element tag will be wrapped on each array member.
 */
-func (xv Value) ArrayWithCustomName(name string) (a *Array) {
-	// write open tag for the array element
-	writeStartElement(xv.w, xv.startElement)
-
-	return newArray(xv.w, xv.scratch, xv.endElement, name)
+func (xv Value) ArrayWithCustomName(element *StartElement) (a *Array) {
+	return newArray(xv.w, xv.scratch, element, xv.startElement)
 }
 
 /*
@@ -275,18 +243,17 @@ flattening the array.
 for eg,`<someList>entry1</someList><someList>entry2</someList>`.
 */
 func (xv Value) FlattenedArray() (a *Array) {
-	return newFlattenedArray(xv.w, xv.scratch, xv.startElement, xv.endElement)
+	return newFlattenedArray(xv.w, xv.scratch, xv.startElement)
 }
 
 /*
 Map returns a map encoder. By default, the map entries are
 wrapped with `<entry>` element tag.
 
-for eg. <entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry>
+for eg. <someMap><entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry></someMap>
 */
 func (xv Value) Map() *Map {
-	writeStartElement(xv.w, xv.startElement)
-	return newMap(xv.w, xv.scratch, xv.endElement)
+	return newMap(xv.w, xv.scratch, xv.startElement)
 }
 
 /*
@@ -297,7 +264,7 @@ flattening the map.
 for eg, `<someMap><key>entryKey1</key><value>entryValue1</value></someMap>`.
 */
 func (xv Value) FlattenedMap() *Map {
-	return newFlattenedMap(xv.w, xv.scratch, xv.startElement, xv.endElement)
+	return newFlattenedMap(xv.w, xv.scratch, xv.startElement)
 }
 
 // Encodes a float value as per the xml stdlib xml encoder
@@ -336,4 +303,10 @@ func encodeByteSlice(w writer, scratch []byte, v []byte) {
 		enc.Write(v)
 		enc.Close()
 	}
+}
+
+// Close closes the value
+func (xv Value) Close() {
+	end := xv.startElement.End()
+	writeEndElement(xv.w, &end)
 }

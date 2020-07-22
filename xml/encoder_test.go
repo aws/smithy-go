@@ -7,25 +7,32 @@ import (
 	"github.com/awslabs/smithy-go/xml"
 )
 
+var root = xml.StartElement{Name: xml.Name{Local: "root"}}
+
 func TestEncoder(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		root := encoder.RootElement("Root", nil)
-		obj := root.NestedElement()
+		root := encoder.RootElement(&root)
+		defer root.Close()
 
-		obj.Key("stringKey", nil).String("stringValue")
-		obj.Key("integerKey", nil).Integer(1024)
-		obj.Key("floatKey", nil).Float(3.14)
-		defer obj.Close()
+		stringKey := xml.StartElement{Name: xml.Name{Local: "stringKey"}}
+		integerKey := xml.StartElement{Name: xml.Name{Local: "integerKey"}}
+		floatKey := xml.StartElement{Name: xml.Name{Local: "floatKey"}}
+		foo := xml.StartElement{Name: xml.Name{Local: "foo"}}
+		byteSlice := xml.StartElement{Name: xml.Name{Local: "byteSlice"}}
 
-		vk := obj.Key("foo", nil).NestedElement()
-		vk.Key("byteSlice", nil).String("Zm9vIGJhcg==")
-		defer vk.Close()
+		root.MemberElement(&stringKey).String("stringValue")
+		root.MemberElement(&integerKey).Integer(1024)
+		root.MemberElement(&floatKey).Float(3.14)
+
+		ns := root.MemberElement(&foo)
+		defer ns.Close()
+		ns.MemberElement(&byteSlice).String("Zm9vIGJhcg==")
 	}()
 
-	e := []byte(`<Root><stringKey>stringValue</stringKey><integerKey>1024</integerKey><floatKey>3.14</floatKey><foo><byteSlice>Zm9vIGJhcg==</byteSlice></foo></Root>`)
+	e := []byte(`<root><stringKey>stringValue</stringKey><integerKey>1024</integerKey><floatKey>3.14</floatKey><foo><byteSlice>Zm9vIGJhcg==</byteSlice></foo></root>`)
 	verify(t, encoder, e)
 }
 
@@ -33,12 +40,19 @@ func TestEncodeAttribute(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
 
-	obj := encoder.RootElement("payload", &[]xml.Attr{
-		*xml.NewAttribute("attrkey", "value"),
-	})
-	obj.Null()
+	func() {
+		r := xml.StartElement{
+			Name: xml.Name{Local: "payload", Space: "baz"},
+			Attr: []xml.Attr{
+				xml.NewAttribute("attrkey", "value"),
+			},
+		}
 
-	expect := `<payload attrkey="value"></payload>`
+		obj := encoder.RootElement(&r)
+		obj.String("")
+	}()
+
+	expect := `<baz:payload attrkey="value"></baz:payload>`
 
 	verify(t, encoder, []byte(expect))
 }
@@ -46,44 +60,51 @@ func TestEncodeAttribute(t *testing.T) {
 func TestEncodeNamespace(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
-	root := encoder.RootElement("payload", nil)
 
 	func() {
-		n := root.NestedElement()
+		root := encoder.RootElement(&root)
+		defer root.Close()
+
+		key := xml.StartElement{
+			Name: xml.Name{Local: "namespace"},
+			Attr: []xml.Attr{
+				xml.NewNamespaceAttribute("prefix", "https://example.com"),
+			},
+		}
+
+		n := root.MemberElement(&key)
 		defer n.Close()
 
-		// nested `namespace` shape
-		n1 := n.Key("namespace", &[]xml.Attr{
-			*xml.NewNamespaceAttribute("prefix", "https://example.com"),
-		}).NestedElement()
-		defer n1.Close()
-
-		n1.Key("prefixed", nil).String("abc")
+		prefix := xml.StartElement{Name: xml.Name{Local: "user"}}
+		n.MemberElement(&prefix).String("abc")
 	}()
 
-	e := []byte(`<payload><namespace xmlns:prefix="https://example.com"><prefixed>abc</prefixed></namespace></payload>`)
+	e := []byte(`<root><namespace xmlns:prefix="https://example.com"><user>abc</user></namespace></root>`)
 	verify(t, encoder, e)
 }
 
 func TestEncodeEmptyNamespacePrefix(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
-	root := encoder.RootElement("payload", nil)
-
 	func() {
-		n := root.NestedElement()
+		root := encoder.RootElement(&root)
+		defer root.Close()
+
+		key := xml.StartElement{
+			Name: xml.Name{Local: "namespace"},
+			Attr: []xml.Attr{
+				xml.NewNamespaceAttribute("", "https://example.com"),
+			},
+		}
+
+		n := root.MemberElement(&key)
 		defer n.Close()
 
-		// nested `namespace` shape
-		n1 := n.Key("namespace", &[]xml.Attr{
-			*xml.NewNamespaceAttribute("", "https://example.com"),
-		}).NestedElement()
-		defer n1.Close()
-
-		n1.Key("prefixed", nil).String("abc")
+		prefix := xml.StartElement{Name: xml.Name{Local: "user"}}
+		n.MemberElement(&prefix).String("abc")
 	}()
 
-	e := []byte(`<payload><namespace xmlns="https://example.com"><prefixed>abc</prefixed></namespace></payload>`)
+	e := []byte(`<root><namespace xmlns="https://example.com"><user>abc</user></namespace></root>`)
 	verify(t, encoder, e)
 }
 
@@ -102,20 +123,20 @@ func TestEncodeNestedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		o := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// nested `nested` shape
-		n1 := o.NestedElement()
+		nested := xml.StartElement{Name: xml.Name{Local: "nested"}}
+		n1 := r.MemberElement(&nested)
 		defer n1.Close()
 
-		v := n1.Key("nested", nil)
 		// nested `value` shape
-		n2 := v.NestedElement()
-		n2.Key("value", nil).String("expected value")
-		defer n2.Close()
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
+		n1.MemberElement(&value).String("expected value")
 	}()
 
-	e := []byte(`<payload><nested><value>expected value</value></nested></payload>`)
+	e := []byte(`<root><nested><value>expected value</value></nested></root>`)
 	defer verify(t, encoder, e)
 }
 
@@ -124,70 +145,75 @@ func TestEncodeMapString(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		o := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// nested `mapStr` shape
-		n1 := o.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapstr", nil).Map()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapstr"}}
+		m := r.CollectionElement(&mapstr).Map()
 		defer m.Close()
 
+		key := xml.StartElement{Name: xml.Name{Local: "key"}}
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
+
 		e := m.Entry()
-		e.Key("key", nil).String("abc")
-		e.Key("value", nil).Integer(123)
 		defer e.Close()
+		e.MemberElement(&key).String("abc")
+		e.MemberElement(&value).Integer(123)
 	}()
 
-	ex := []byte(`<payload><mapstr><entry><key>abc</key><value>123</value></entry></mapstr></payload>`)
+	ex := []byte(`<root><mapstr><entry><key>abc</key><value>123</value></entry></mapstr></root>`)
 	verify(t, encoder, ex)
 }
 
 func TestEncodeMapFlatten(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
-	o := encoder.RootElement("payload", nil)
 
 	func() {
+		r := encoder.RootElement(&root)
+		defer r.Close()
 		// nested `mapStr` shape
-		n1 := o.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapstr", nil).FlattenedMap()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapstr"}}
+		m := r.CollectionElement(&mapstr).FlattenedMap()
 		defer m.Close()
 
+		key := xml.StartElement{Name: xml.Name{Local: "key"}}
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
+
 		e := m.Entry()
-		e.Key("key", nil).String("abc")
-		e.Key("value", nil).Integer(123)
+		e.MemberElement(&key).String("abc")
+		e.MemberElement(&value).Integer(123)
 		defer e.Close()
 
 	}()
 
-	ex := []byte(`<payload><mapstr><key>abc</key><value>123</value></mapstr></payload>`)
+	ex := []byte(`<root><mapstr><key>abc</key><value>123</value></mapstr></root>`)
 	verify(t, encoder, ex)
 }
 
 func TestEncodeMapNamed(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
-	o := encoder.RootElement("payload", nil)
 
 	func() {
+		r := encoder.RootElement(&root)
+		defer r.Close()
 		// nested `mapStr` shape
-		n1 := o.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapNamed", nil).Map()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapNamed"}}
+		m := r.CollectionElement(&mapstr).Map()
 		defer m.Close()
 
-		// entry
+		key := xml.StartElement{Name: xml.Name{Local: "namedKey"}}
+		value := xml.StartElement{Name: xml.Name{Local: "namedValue"}}
+
 		e := m.Entry()
-		e.Key("namedKey", nil).String("abc")
-		e.Key("namedValue", nil).Integer(123)
+		e.MemberElement(&key).String("abc")
+		e.MemberElement(&value).Integer(123)
 		defer e.Close()
 	}()
 
-	ex := []byte(`<payload><mapNamed><entry><namedKey>abc</namedKey><namedValue>123</namedValue></entry></mapNamed></payload>`)
+	ex := []byte(`<root><mapNamed><entry><namedKey>abc</namedKey><namedValue>123</namedValue></entry></mapNamed></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -196,25 +222,27 @@ func TestEncodeMapShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		o := encoder.RootElement("payload", nil)
-
+		r := encoder.RootElement(&root)
+		defer r.Close()
 		// nested `mapStr` shape
-		n1 := o.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapShape", nil).Map()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapShape"}}
+		m := r.CollectionElement(&mapstr).Map()
 		defer m.Close()
+
+		key := xml.StartElement{Name: xml.Name{Local: "key"}}
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		e := m.Entry()
 		defer e.Close()
+		e.MemberElement(&key).String("abc")
+		n1 := e.MemberElement(&value)
+		defer n1.Close()
 
-		e.Key("key", nil).String("abc")
-		n2 := e.Key("value", nil).NestedElement()
-		defer n2.Close()
-		n2.Key("shapeVal", nil).Integer(1)
+		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
+		n1.MemberElement(&shapeVal).Integer(1)
 	}()
 
-	ex := []byte(`<payload><mapShape><entry><key>abc</key><value><shapeVal>1</shapeVal></value></entry></mapShape></payload>`)
+	ex := []byte(`<root><mapShape><entry><key>abc</key><value><shapeVal>1</shapeVal></value></entry></mapShape></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -223,25 +251,26 @@ func TestEncodeMapFlattenShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		root := encoder.RootElement("payload", nil)
-
+		r := encoder.RootElement(&root)
+		defer r.Close()
 		// nested `mapStr` shape
-		n1 := root.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapShape", nil).FlattenedMap()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapShape"}}
+		m := r.CollectionElement(&mapstr).FlattenedMap()
 		defer m.Close()
+
+		key := xml.StartElement{Name: xml.Name{Local: "key"}}
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		e := m.Entry()
 		defer e.Close()
+		e.MemberElement(&key).String("abc")
+		n1 := e.MemberElement(&value)
+		defer n1.Close()
 
-		e.Key("key", nil).String("abc")
-		n2 := e.Key("value", nil).NestedElement()
-		defer n2.Close()
-		n2.Key("shapeVal", nil).Integer(1)
+		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
+		n1.MemberElement(&shapeVal).Integer(1)
 	}()
-
-	ex := []byte(`<payload><mapShape><key>abc</key><value><shapeVal>1</shapeVal></value></mapShape></payload>`)
+	ex := []byte(`<root><mapShape><key>abc</key><value><shapeVal>1</shapeVal></value></mapShape></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -250,25 +279,27 @@ func TestEncodeMapNamedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		root := encoder.RootElement("payload", nil)
-
+		r := encoder.RootElement(&root)
+		defer r.Close()
 		// nested `mapStr` shape
-		n1 := root.NestedElement()
-		defer n1.Close()
-
-		m := n1.Key("mapNamedShape", nil).Map()
+		mapstr := xml.StartElement{Name: xml.Name{Local: "mapNamedShape"}}
+		m := r.CollectionElement(&mapstr).Map()
 		defer m.Close()
+
+		key := xml.StartElement{Name: xml.Name{Local: "namedKey"}}
+		value := xml.StartElement{Name: xml.Name{Local: "namedValue"}}
 
 		e := m.Entry()
 		defer e.Close()
+		e.MemberElement(&key).String("abc")
+		n1 := e.MemberElement(&value)
+		defer n1.Close()
 
-		e.Key("namedKey", nil).String("abc")
-		n2 := e.Key("namedValue", nil).NestedElement()
-		defer n2.Close()
-		n2.Key("shapeVal", nil).Integer(1)
+		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
+		n1.MemberElement(&shapeVal).Integer(1)
 	}()
 
-	ex := []byte(`<payload><mapNamedShape><entry><namedKey>abc</namedKey><namedValue><shapeVal>1</shapeVal></namedValue></entry></mapNamedShape></payload>`)
+	ex := []byte(`<root><mapNamedShape><entry><namedKey>abc</namedKey><namedValue><shapeVal>1</shapeVal></namedValue></entry></mapNamedShape></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -277,20 +308,19 @@ func TestEncodeListString(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
-
-		a := n1.Key("liststr", nil).Array()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
+		a := r.CollectionElement(&liststr).Array()
 		defer a.Close()
 
 		a.Member().String("abc")
 		a.Member().Integer(123)
 	}()
 
-	ex := []byte(`<payload><liststr><member>abc</member><member>123</member></liststr></payload>`)
+	ex := []byte(`<root><liststr><member>abc</member><member>123</member></liststr></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -299,20 +329,19 @@ func TestEncodeListFlatten(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
-
-		a := n1.Key("liststr", nil).FlattenedArray()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
+		a := r.CollectionElement(&liststr).FlattenedArray()
 		defer a.Close()
 
 		a.Member().String("abc")
 		a.Member().Integer(123)
 	}()
 
-	ex := []byte(`<payload><liststr>abc</liststr><liststr>123</liststr></payload>`)
+	ex := []byte(`<root><liststr>abc</liststr><liststr>123</liststr></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -321,19 +350,21 @@ func TestEncodeListNamed(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := n1.Key("liststr", nil).ArrayWithCustomName("namedMember")
+		namedMember := xml.StartElement{Name: xml.Name{Local: "namedMember"}}
+		a := r.CollectionElement(&liststr).ArrayWithCustomName(&namedMember)
 		defer a.Close()
 
 		a.Member().String("abc")
 		a.Member().Integer(123)
 	}()
-	ex := []byte(`<payload><liststr><namedMember>abc</namedMember><namedMember>123</namedMember></liststr></payload>`)
+
+	ex := []byte(`<root><liststr><namedMember>abc</namedMember><namedMember>123</namedMember></liststr></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -342,27 +373,27 @@ func TestEncodeListShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := n1.Key("liststr", nil).Array()
+		a := r.CollectionElement(&liststr).Array()
 		defer a.Close()
 
-		// build entry
-		n2 := a.Member().NestedElement()
-		n2.Key("value", nil).String("abc")
-		n2.Close()
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
-		// build next entry
-		n3 := a.Member().NestedElement()
-		n3.Key("value", nil).Integer(123)
-		n3.Close()
+		m1 := a.Member()
+		m1.MemberElement(&value).String("abc")
+		m1.Close()
+
+		m2 := a.Member()
+		m2.MemberElement(&value).Integer(123)
+		m2.Close()
 	}()
 
-	ex := []byte(`<payload><liststr><member><value>abc</value></member><member><value>123</value></member></liststr></payload>`)
+	ex := []byte(`<root><liststr><member><value>abc</value></member><member><value>123</value></member></liststr></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -371,26 +402,27 @@ func TestEncodeListFlattenShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := n1.Key("liststr", nil).FlattenedArray()
+		a := r.CollectionElement(&liststr).FlattenedArray()
 		defer a.Close()
-		// build entry
-		n2 := a.Member().NestedElement()
-		n2.Key("value", nil).String("abc")
-		n2.Close()
 
-		// build next entry
-		n3 := a.Member().NestedElement()
-		n3.Key("value", nil).Integer(123)
-		n3.Close()
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
+
+		m1 := a.Member()
+		m1.MemberElement(&value).String("abc")
+		m1.Close()
+
+		m2 := a.Member()
+		m2.MemberElement(&value).Integer(123)
+		m2.Close()
 	}()
 
-	ex := []byte(`<payload><liststr><value>abc</value></liststr><liststr><value>123</value></liststr></payload>`)
+	ex := []byte(`<root><liststr><value>abc</value></liststr><liststr><value>123</value></liststr></root>`)
 	verify(t, encoder, ex)
 }
 
@@ -399,26 +431,27 @@ func TestEncodeListNamedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement("payload", nil)
+		r := encoder.RootElement(&root)
+		defer r.Close()
 
 		// Object key `liststr`
-		n1 := r.NestedElement()
-		defer n1.Close()
+		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := n1.Key("liststr", nil).ArrayWithCustomName("namedMember")
+		namedMember := xml.StartElement{Name: xml.Name{Local: "namedMember"}}
+		a := r.CollectionElement(&liststr).ArrayWithCustomName(&namedMember)
 		defer a.Close()
 
-		// build entry
-		n2 := a.Member().NestedElement()
-		n2.Key("value", nil).String("abc")
-		n2.Close()
+		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
-		// build next entry
-		n3 := a.Member().NestedElement()
-		n3.Key("value", nil).Integer(123)
-		n3.Close()
+		m1 := a.Member()
+		m1.MemberElement(&value).String("abc")
+		m1.Close()
+
+		m2 := a.Member()
+		m2.MemberElement(&value).Integer(123)
+		m2.Close()
 	}()
 
-	ex := []byte(`<payload><liststr><namedMember><value>abc</value></namedMember><namedMember><value>123</value></namedMember></liststr></payload>`)
+	ex := []byte(`<root><liststr><namedMember><value>abc</value></namedMember><namedMember><value>123</value></namedMember></liststr></root>`)
 	verify(t, encoder, ex)
 }
