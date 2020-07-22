@@ -11,7 +11,7 @@ func TestWrappedMap(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "map"}}
-		m := newMap(buffer, &scratch, &root)
+		m := newMap(buffer, &scratch, root)
 		defer m.Close()
 
 		key := StartElement{Name: Name{Local: "key"}}
@@ -19,20 +19,20 @@ func TestWrappedMap(t *testing.T) {
 
 		// map entry
 		e := m.Entry()
-		e.MemberElement(&key).String("example-key1")
-		e.MemberElement(&value).String("example1")
+		e.MemberElement(key).String("example-key1")
+		e.MemberElement(value).String("example1")
 		e.Close()
 
 		// map entry
 		e = m.Entry()
-		e.MemberElement(&key).String("example-key2")
-		e.MemberElement(&value).String("example2")
+		e.MemberElement(key).String("example-key2")
+		e.MemberElement(value).String("example2")
 		e.Close()
 
 		// map entry
 		e = m.Entry()
-		e.MemberElement(&key).String("example-key3")
-		e.MemberElement(&value).String("example3")
+		e.MemberElement(key).String("example-key3")
+		e.MemberElement(value).String("example3")
 		e.Close()
 	}()
 
@@ -48,7 +48,7 @@ func TestFlattenedMapWithCustomName(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "flatMap"}}
-		m := newFlattenedMap(buffer, &scratch, &root)
+		m := newFlattenedMap(buffer, &scratch, root)
 		defer m.Close()
 
 		key := StartElement{Name: Name{Local: "key"}}
@@ -56,20 +56,20 @@ func TestFlattenedMapWithCustomName(t *testing.T) {
 
 		// map entry
 		e := m.Entry()
-		e.MemberElement(&key).String("example-key1")
-		e.MemberElement(&value).String("example1")
+		e.MemberElement(key).String("example-key1")
+		e.MemberElement(value).String("example1")
 		e.Close()
 
 		// map entry
 		e = m.Entry()
-		e.MemberElement(&key).String("example-key2")
-		e.MemberElement(&value).String("example2")
+		e.MemberElement(key).String("example-key2")
+		e.MemberElement(value).String("example2")
 		e.Close()
 
 		// map entry
 		e = m.Entry()
-		e.MemberElement(&key).String("example-key3")
-		e.MemberElement(&value).String("example3")
+		e.MemberElement(key).String("example-key3")
+		e.MemberElement(value).String("example3")
 		e.Close()
 	}()
 

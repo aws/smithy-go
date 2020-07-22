@@ -46,6 +46,6 @@ func (e Encoder) Bytes() []byte {
 
 // RootElement builds a root element encoding
 // It writes it's start element tag. The value should be closed.
-func (e Encoder) RootElement(element *StartElement) Value {
+func (e Encoder) RootElement(element StartElement) Value {
 	return newWrappedValue(e.w, e.scratch, element)
 }

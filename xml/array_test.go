@@ -5,13 +5,12 @@ import (
 	"testing"
 )
 
-
 func TestWrappedArray(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	scratch := make([]byte, 64)
 
 	root := StartElement{Name: Name{Local: "array"}}
-	a := newArray(buffer, &scratch, &arrayMemberWrapper, &root)
+	a := newArray(buffer, &scratch, arrayMemberWrapper, root)
 	a.Member().String("bar")
 	a.Member().String("baz")
 	a.Close()
@@ -28,7 +27,7 @@ func TestWrappedArrayWithCustomName(t *testing.T) {
 
 	root := StartElement{Name: Name{Local: "array"}}
 	item := StartElement{Name: Name{Local: "item"}}
-	a := newArray(buffer, &scratch, &item, &root)
+	a := newArray(buffer, &scratch, item, root)
 	a.Member().String("bar")
 	a.Member().String("baz")
 	a.Close()
@@ -44,7 +43,7 @@ func TestFlattenedArray(t *testing.T) {
 	scratch := make([]byte, 64)
 
 	root := StartElement{Name: Name{Local: "array"}}
-	a := newFlattenedArray(buffer, &scratch, &root)
+	a := newFlattenedArray(buffer, &scratch, root)
 	a.Member().String("bar")
 	a.Member().String("bix")
 	a.Close()

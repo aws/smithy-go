@@ -78,7 +78,7 @@ func TestValue(t *testing.T) {
 		"object": {
 			setter: func(value Value) {
 				defer value.Close()
-				value.MemberElement(&nested).String("value")
+				value.MemberElement(nested).String("value")
 			},
 			expected: `<nested>value</nested>`,
 		},
@@ -91,7 +91,7 @@ func TestValue(t *testing.T) {
 		"nullWithRoot": {
 			setter: func(value Value) {
 				defer value.Close()
-				o := value.MemberElement(&nested)
+				o := value.MemberElement(nested)
 				defer o.Close()
 			},
 			expected: `<nested></nested>`,
@@ -99,7 +99,7 @@ func TestValue(t *testing.T) {
 		"write text": {
 			setter: func(value Value) {
 				defer value.Close()
-				o := value.MemberElement(&nested)
+				o := value.MemberElement(nested)
 				o.Write([]byte(`{"nested":"value"}`), false)
 			},
 			expected: `<nested>{"nested":"value"}</nested>`,
@@ -107,7 +107,7 @@ func TestValue(t *testing.T) {
 		"write escaped text": {
 			setter: func(value Value) {
 				defer value.Close()
-				o := value.MemberElement(&nested)
+				o := value.MemberElement(nested)
 				o.Write([]byte(`{"nested":"value"}`), true)
 			},
 			expected: fmt.Sprintf("<nested>{%snested%s:%svalue%s}</nested>", escQuot, escQuot, escQuot, escQuot),
@@ -152,10 +152,9 @@ func TestValue(t *testing.T) {
 
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
-			var b bytes.Buffer
-
+			b := bytes.NewBuffer(nil)
 			root := StartElement{Name: Name{Local: "root"}}
-			value := newWrappedValue(&b, &scratch, &root)
+			value := newWrappedValue(b, &scratch, root)
 			tt.setter(value)
 
 			if e, a := []byte("<root>"+tt.expected+"</root>"), b.Bytes(); bytes.Compare(e, a) != 0 {
@@ -171,14 +170,14 @@ func TestWrappedValue(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "root"}}
-		object := newWrappedValue(buffer, &scratch, &root)
+		object := newWrappedValue(buffer, &scratch, root)
 		defer object.Close()
 
 		foo := StartElement{Name: Name{Local: "foo"}}
 		faz := StartElement{Name: Name{Local: "faz"}}
 
-		object.MemberElement(&foo).String("bar")
-		object.MemberElement(&faz).String("baz")
+		object.MemberElement(foo).String("bar")
+		object.MemberElement(faz).String("baz")
 	}()
 
 	e := []byte(`<root><foo>bar</foo><faz>baz</faz></root>`)
@@ -193,7 +192,7 @@ func TestWrappedValueWithNameSpaceAndAttributes(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "root"}}
-		object := newWrappedValue(buffer, &scratch, &root)
+		object := newWrappedValue(buffer, &scratch, root)
 		defer object.Close()
 
 		foo := StartElement{Name: Name{Local: "foo"}, Attr: []Attr{
@@ -202,8 +201,8 @@ func TestWrappedValueWithNameSpaceAndAttributes(t *testing.T) {
 		}}
 		faz := StartElement{Name: Name{Local: "faz"}}
 
-		object.MemberElement(&foo).String("bar")
-		object.MemberElement(&faz).String("baz")
+		object.MemberElement(foo).String("bar")
+		object.MemberElement(faz).String("baz")
 	}()
 
 	e := []byte(`<root><foo xmlns:newspace="https://endpoint.com" attrName="attrValue">bar</foo><faz>baz</faz></root>`)

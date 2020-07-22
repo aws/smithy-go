@@ -14,7 +14,7 @@ func TestEncoder(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		root := encoder.RootElement(&root)
+		root := encoder.RootElement(root)
 		defer root.Close()
 
 		stringKey := xml.StartElement{Name: xml.Name{Local: "stringKey"}}
@@ -23,13 +23,13 @@ func TestEncoder(t *testing.T) {
 		foo := xml.StartElement{Name: xml.Name{Local: "foo"}}
 		byteSlice := xml.StartElement{Name: xml.Name{Local: "byteSlice"}}
 
-		root.MemberElement(&stringKey).String("stringValue")
-		root.MemberElement(&integerKey).Integer(1024)
-		root.MemberElement(&floatKey).Float(3.14)
+		root.MemberElement(stringKey).String("stringValue")
+		root.MemberElement(integerKey).Integer(1024)
+		root.MemberElement(floatKey).Float(3.14)
 
-		ns := root.MemberElement(&foo)
+		ns := root.MemberElement(foo)
 		defer ns.Close()
-		ns.MemberElement(&byteSlice).String("Zm9vIGJhcg==")
+		ns.MemberElement(byteSlice).String("Zm9vIGJhcg==")
 	}()
 
 	e := []byte(`<root><stringKey>stringValue</stringKey><integerKey>1024</integerKey><floatKey>3.14</floatKey><foo><byteSlice>Zm9vIGJhcg==</byteSlice></foo></root>`)
@@ -48,7 +48,7 @@ func TestEncodeAttribute(t *testing.T) {
 			},
 		}
 
-		obj := encoder.RootElement(&r)
+		obj := encoder.RootElement(r)
 		obj.String("")
 	}()
 
@@ -62,7 +62,7 @@ func TestEncodeNamespace(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		root := encoder.RootElement(&root)
+		root := encoder.RootElement(root)
 		defer root.Close()
 
 		key := xml.StartElement{
@@ -72,11 +72,11 @@ func TestEncodeNamespace(t *testing.T) {
 			},
 		}
 
-		n := root.MemberElement(&key)
+		n := root.MemberElement(key)
 		defer n.Close()
 
 		prefix := xml.StartElement{Name: xml.Name{Local: "user"}}
-		n.MemberElement(&prefix).String("abc")
+		n.MemberElement(prefix).String("abc")
 	}()
 
 	e := []byte(`<root><namespace xmlns:prefix="https://example.com"><user>abc</user></namespace></root>`)
@@ -87,7 +87,7 @@ func TestEncodeEmptyNamespacePrefix(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	encoder := xml.NewEncoder(b)
 	func() {
-		root := encoder.RootElement(&root)
+		root := encoder.RootElement(root)
 		defer root.Close()
 
 		key := xml.StartElement{
@@ -97,11 +97,11 @@ func TestEncodeEmptyNamespacePrefix(t *testing.T) {
 			},
 		}
 
-		n := root.MemberElement(&key)
+		n := root.MemberElement(key)
 		defer n.Close()
 
 		prefix := xml.StartElement{Name: xml.Name{Local: "user"}}
-		n.MemberElement(&prefix).String("abc")
+		n.MemberElement(prefix).String("abc")
 	}()
 
 	e := []byte(`<root><namespace xmlns="https://example.com"><user>abc</user></namespace></root>`)
@@ -123,17 +123,17 @@ func TestEncodeNestedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// nested `nested` shape
 		nested := xml.StartElement{Name: xml.Name{Local: "nested"}}
-		n1 := r.MemberElement(&nested)
+		n1 := r.MemberElement(nested)
 		defer n1.Close()
 
 		// nested `value` shape
 		value := xml.StartElement{Name: xml.Name{Local: "value"}}
-		n1.MemberElement(&value).String("expected value")
+		n1.MemberElement(value).String("expected value")
 	}()
 
 	e := []byte(`<root><nested><value>expected value</value></nested></root>`)
@@ -145,12 +145,12 @@ func TestEncodeMapString(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapstr"}}
-		m := r.CollectionElement(&mapstr).Map()
+		m := r.CollectionElement(mapstr).Map()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "key"}}
@@ -158,8 +158,8 @@ func TestEncodeMapString(t *testing.T) {
 
 		e := m.Entry()
 		defer e.Close()
-		e.MemberElement(&key).String("abc")
-		e.MemberElement(&value).Integer(123)
+		e.MemberElement(key).String("abc")
+		e.MemberElement(value).Integer(123)
 	}()
 
 	ex := []byte(`<root><mapstr><entry><key>abc</key><value>123</value></entry></mapstr></root>`)
@@ -171,19 +171,19 @@ func TestEncodeMapFlatten(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapstr"}}
-		m := r.CollectionElement(&mapstr).FlattenedMap()
+		m := r.CollectionElement(mapstr).FlattenedMap()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "key"}}
 		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		e := m.Entry()
-		e.MemberElement(&key).String("abc")
-		e.MemberElement(&value).Integer(123)
+		e.MemberElement(key).String("abc")
+		e.MemberElement(value).Integer(123)
 		defer e.Close()
 
 	}()
@@ -197,19 +197,19 @@ func TestEncodeMapNamed(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapNamed"}}
-		m := r.CollectionElement(&mapstr).Map()
+		m := r.CollectionElement(mapstr).Map()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "namedKey"}}
 		value := xml.StartElement{Name: xml.Name{Local: "namedValue"}}
 
 		e := m.Entry()
-		e.MemberElement(&key).String("abc")
-		e.MemberElement(&value).Integer(123)
+		e.MemberElement(key).String("abc")
+		e.MemberElement(value).Integer(123)
 		defer e.Close()
 	}()
 
@@ -222,11 +222,11 @@ func TestEncodeMapShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapShape"}}
-		m := r.CollectionElement(&mapstr).Map()
+		m := r.CollectionElement(mapstr).Map()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "key"}}
@@ -234,12 +234,12 @@ func TestEncodeMapShape(t *testing.T) {
 
 		e := m.Entry()
 		defer e.Close()
-		e.MemberElement(&key).String("abc")
-		n1 := e.MemberElement(&value)
+		e.MemberElement(key).String("abc")
+		n1 := e.MemberElement(value)
 		defer n1.Close()
 
 		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
-		n1.MemberElement(&shapeVal).Integer(1)
+		n1.MemberElement(shapeVal).Integer(1)
 	}()
 
 	ex := []byte(`<root><mapShape><entry><key>abc</key><value><shapeVal>1</shapeVal></value></entry></mapShape></root>`)
@@ -251,11 +251,11 @@ func TestEncodeMapFlattenShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapShape"}}
-		m := r.CollectionElement(&mapstr).FlattenedMap()
+		m := r.CollectionElement(mapstr).FlattenedMap()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "key"}}
@@ -263,12 +263,12 @@ func TestEncodeMapFlattenShape(t *testing.T) {
 
 		e := m.Entry()
 		defer e.Close()
-		e.MemberElement(&key).String("abc")
-		n1 := e.MemberElement(&value)
+		e.MemberElement(key).String("abc")
+		n1 := e.MemberElement(value)
 		defer n1.Close()
 
 		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
-		n1.MemberElement(&shapeVal).Integer(1)
+		n1.MemberElement(shapeVal).Integer(1)
 	}()
 	ex := []byte(`<root><mapShape><key>abc</key><value><shapeVal>1</shapeVal></value></mapShape></root>`)
 	verify(t, encoder, ex)
@@ -279,11 +279,11 @@ func TestEncodeMapNamedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 		// nested `mapStr` shape
 		mapstr := xml.StartElement{Name: xml.Name{Local: "mapNamedShape"}}
-		m := r.CollectionElement(&mapstr).Map()
+		m := r.CollectionElement(mapstr).Map()
 		defer m.Close()
 
 		key := xml.StartElement{Name: xml.Name{Local: "namedKey"}}
@@ -291,12 +291,12 @@ func TestEncodeMapNamedShape(t *testing.T) {
 
 		e := m.Entry()
 		defer e.Close()
-		e.MemberElement(&key).String("abc")
-		n1 := e.MemberElement(&value)
+		e.MemberElement(key).String("abc")
+		n1 := e.MemberElement(value)
 		defer n1.Close()
 
 		shapeVal := xml.StartElement{Name: xml.Name{Local: "shapeVal"}}
-		n1.MemberElement(&shapeVal).Integer(1)
+		n1.MemberElement(shapeVal).Integer(1)
 	}()
 
 	ex := []byte(`<root><mapNamedShape><entry><namedKey>abc</namedKey><namedValue><shapeVal>1</shapeVal></namedValue></entry></mapNamedShape></root>`)
@@ -308,12 +308,12 @@ func TestEncodeListString(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
-		a := r.CollectionElement(&liststr).Array()
+		a := r.CollectionElement(liststr).Array()
 		defer a.Close()
 
 		a.Member().String("abc")
@@ -329,12 +329,12 @@ func TestEncodeListFlatten(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
-		a := r.CollectionElement(&liststr).FlattenedArray()
+		a := r.CollectionElement(liststr).FlattenedArray()
 		defer a.Close()
 
 		a.Member().String("abc")
@@ -350,14 +350,14 @@ func TestEncodeListNamed(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
 		namedMember := xml.StartElement{Name: xml.Name{Local: "namedMember"}}
-		a := r.CollectionElement(&liststr).ArrayWithCustomName(&namedMember)
+		a := r.CollectionElement(liststr).ArrayWithCustomName(namedMember)
 		defer a.Close()
 
 		a.Member().String("abc")
@@ -373,23 +373,23 @@ func TestEncodeListShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := r.CollectionElement(&liststr).Array()
+		a := r.CollectionElement(liststr).Array()
 		defer a.Close()
 
 		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		m1 := a.Member()
-		m1.MemberElement(&value).String("abc")
+		m1.MemberElement(value).String("abc")
 		m1.Close()
 
 		m2 := a.Member()
-		m2.MemberElement(&value).Integer(123)
+		m2.MemberElement(value).Integer(123)
 		m2.Close()
 	}()
 
@@ -402,23 +402,23 @@ func TestEncodeListFlattenShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
 
-		a := r.CollectionElement(&liststr).FlattenedArray()
+		a := r.CollectionElement(liststr).FlattenedArray()
 		defer a.Close()
 
 		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		m1 := a.Member()
-		m1.MemberElement(&value).String("abc")
+		m1.MemberElement(value).String("abc")
 		m1.Close()
 
 		m2 := a.Member()
-		m2.MemberElement(&value).Integer(123)
+		m2.MemberElement(value).Integer(123)
 		m2.Close()
 	}()
 
@@ -431,24 +431,23 @@ func TestEncodeListNamedShape(t *testing.T) {
 	encoder := xml.NewEncoder(b)
 
 	func() {
-		r := encoder.RootElement(&root)
+		r := encoder.RootElement(root)
 		defer r.Close()
 
 		// Object key `liststr`
 		liststr := xml.StartElement{Name: xml.Name{Local: "liststr"}}
-
 		namedMember := xml.StartElement{Name: xml.Name{Local: "namedMember"}}
-		a := r.CollectionElement(&liststr).ArrayWithCustomName(&namedMember)
+		a := r.CollectionElement(liststr).ArrayWithCustomName(namedMember)
 		defer a.Close()
 
 		value := xml.StartElement{Name: xml.Name{Local: "value"}}
 
 		m1 := a.Member()
-		m1.MemberElement(&value).String("abc")
+		m1.MemberElement(value).String("abc")
 		m1.Close()
 
 		m2 := a.Member()
-		m2.MemberElement(&value).Integer(123)
+		m2.MemberElement(value).Integer(123)
 		m2.Close()
 	}()
 

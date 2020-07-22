@@ -11,11 +11,11 @@ type Array struct {
 	scratch *[]byte
 
 	// member start element is the array member wrapper start element
-	memberStartElement *StartElement
+	memberStartElement StartElement
 
 	// array start element is the start element for the array
 	// This is used by wrapped array serializers
-	arrayStartElement *StartElement
+	arrayStartElement StartElement
 }
 
 // newArray returns an array encoder. It takes in a member wrapper name
@@ -23,7 +23,7 @@ type Array struct {
 //
 // for eg. an array ["value1", "value2"] is represented as
 // <List><member>value1</member><member>value2</member></List>
-func newArray(w writer, scratch *[]byte, memberStartElement *StartElement, arrayStartElement *StartElement) *Array {
+func newArray(w writer, scratch *[]byte, memberStartElement StartElement, arrayStartElement StartElement) *Array {
 	writeStartElement(w, arrayStartElement)
 	return &Array{
 		w:                  w,
@@ -38,7 +38,7 @@ func newArray(w writer, scratch *[]byte, memberStartElement *StartElement, array
 //
 // for eg. an array `someList: ["value1", "value2"]` is represented as
 // <someList>value1</someList><someList>value2</someList>.
-func newFlattenedArray(w writer, scratch *[]byte, memberStartElement *StartElement) *Array {
+func newFlattenedArray(w writer, scratch *[]byte, memberStartElement StartElement) *Array {
 	return &Array{w: w, scratch: scratch, memberStartElement: memberStartElement}
 }
 
@@ -52,10 +52,9 @@ func (a *Array) Member() Value {
 func (a *Array) Close() {
 	// Flattened Map close is noOp.
 	// arrayStartElement will be nil in case of flattened map
-	if a.arrayStartElement == nil {
+	if a.arrayStartElement.isZero() {
 		return
 	}
 
-	end := a.arrayStartElement.End()
-	writeEndElement(a.w, &end)
+	writeEndElement(a.w, a.arrayStartElement.End())
 }

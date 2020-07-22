@@ -75,7 +75,17 @@ func (e StartElement) End() EndElement {
 	return EndElement{e.Name}
 }
 
+// returns true if start element local name is empty
+func (e StartElement) isZero() bool {
+	return len(e.Name.Local) == 0
+}
+
 // An EndElement represents an XML end element.
 type EndElement struct {
 	Name Name
+}
+
+// returns true if end element local name is empty
+func (e EndElement) isZero() bool {
+	return len(e.Name.Local) == 0
 }

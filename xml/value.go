@@ -14,11 +14,11 @@ type Value struct {
 	w       writer
 	scratch *[]byte
 
-	startElement *StartElement
+	startElement StartElement
 }
 
 // newValue returns a new Value encoder. newValue does NOT write the start element tag
-func newValue(w writer, scratch *[]byte, startElement *StartElement) Value {
+func newValue(w writer, scratch *[]byte, startElement StartElement) Value {
 	return Value{
 		w:            w,
 		scratch:      scratch,
@@ -27,15 +27,15 @@ func newValue(w writer, scratch *[]byte, startElement *StartElement) Value {
 }
 
 // newWrappedValue writes the start element xml tag and returns a Value
-func newWrappedValue(w writer, scratch *[]byte, startElement *StartElement) Value {
+func newWrappedValue(w writer, scratch *[]byte, startElement StartElement) Value {
 	writeStartElement(w, startElement)
 	return Value{w: w, scratch: scratch, startElement: startElement}
 }
 
 // writeStartElement takes in a start element and writes it.
 // It handles namespace, attributes in start element.
-func writeStartElement(w writer, el *StartElement) error {
-	if el == nil {
+func writeStartElement(w writer, el StartElement) error {
+	if el.isZero() {
 		return fmt.Errorf("xml start element cannot be nil")
 	}
 
@@ -80,8 +80,8 @@ func buildAttribute(w writer, attr *Attr) {
 }
 
 // writeEndElement takes in a end element and writes it.
-func writeEndElement(w writer, el *EndElement) error {
-	if el == nil {
+func writeEndElement(w writer, el EndElement) error {
+	if el.isZero() {
 		return fmt.Errorf("xml end element cannot be nil")
 	}
 
@@ -202,7 +202,7 @@ func (xv Value) Write(v []byte, escapeXMLText bool) {
 // It returns a Value. Member Element should be used for Nested structure or simple elements.
 // A call to MemberElement will write nested element tags directly using the
 // provided start element. The value returned by MemberElement should be closed.
-func (xv Value) MemberElement(element *StartElement) Value {
+func (xv Value) MemberElement(element StartElement) Value {
 	return newWrappedValue(xv.w, xv.scratch, element)
 }
 
@@ -211,7 +211,7 @@ func (xv Value) MemberElement(element *StartElement) Value {
 // Unlike MemberElement, CollectionElement will NOT write element tags
 // directly for the associated start element.
 // The Value returned by the Collection Element does not need to be closed.
-func (xv Value) CollectionElement(element *StartElement) Value {
+func (xv Value) CollectionElement(element StartElement) Value {
 	return newValue(xv.w, xv.scratch, element)
 }
 
@@ -220,17 +220,17 @@ func (xv Value) CollectionElement(element *StartElement) Value {
 //
 // for eg,`<someList><member>entry</member><member>entry2</member></someList>`.
 func (xv Value) Array() *Array {
-	return newArray(xv.w, xv.scratch, &arrayMemberWrapper, xv.startElement)
+	return newArray(xv.w, xv.scratch, arrayMemberWrapper, xv.startElement)
 }
 
 /*
 ArrayWithCustomName returns an array encoder.
 
 It takes name as an argument, the name will used to wrap xml array entries.
-for eg, <someList><customName>entry1</customName></someList>
+for eg, `<someList><customName>entry1</customName></someList>`
 Here `customName` element tag will be wrapped on each array member.
 */
-func (xv Value) ArrayWithCustomName(element *StartElement) (a *Array) {
+func (xv Value) ArrayWithCustomName(element StartElement) *Array {
 	return newArray(xv.w, xv.scratch, element, xv.startElement)
 }
 
@@ -242,7 +242,7 @@ flattening the array.
 
 for eg,`<someList>entry1</someList><someList>entry2</someList>`.
 */
-func (xv Value) FlattenedArray() (a *Array) {
+func (xv Value) FlattenedArray() *Array {
 	return newFlattenedArray(xv.w, xv.scratch, xv.startElement)
 }
 
@@ -250,7 +250,7 @@ func (xv Value) FlattenedArray() (a *Array) {
 Map returns a map encoder. By default, the map entries are
 wrapped with `<entry>` element tag.
 
-for eg. <someMap><entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry></someMap>
+for eg. `<someMap><entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry></someMap>`
 */
 func (xv Value) Map() *Map {
 	return newMap(xv.w, xv.scratch, xv.startElement)
@@ -307,6 +307,5 @@ func encodeByteSlice(w writer, scratch []byte, v []byte) {
 
 // Close closes the value
 func (xv Value) Close() {
-	end := xv.startElement.End()
-	writeEndElement(xv.w, &end)
+	writeEndElement(xv.w, xv.startElement.End())
 }
