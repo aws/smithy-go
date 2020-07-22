@@ -14,6 +14,8 @@ type QueryValue struct {
 	append bool
 }
 
+// NewQueryValue creates a new QueryValue which enables encoding
+// a query value into the given url.Values.
 func NewQueryValue(query url.Values, key string, append bool) QueryValue {
 	return QueryValue{
 		query:  query,
