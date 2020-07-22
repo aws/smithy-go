@@ -78,10 +78,10 @@ func (e *Encoder) SetURI(key string) URIValue {
 
 // SetQuery returns a QueryValue used for setting the given query key
 func (e *Encoder) SetQuery(key string) QueryValue {
-	return newQueryValue(e.query, key, false)
+	return NewQueryValue(e.query, key, false)
 }
 
 // AddQuery returns a QueryValue used for appending the given query key
 func (e *Encoder) AddQuery(key string) QueryValue {
-	return newQueryValue(e.query, key, true)
+	return NewQueryValue(e.query, key, true)
 }
