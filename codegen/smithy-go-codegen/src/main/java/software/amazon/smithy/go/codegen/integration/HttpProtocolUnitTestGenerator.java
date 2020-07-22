@@ -402,16 +402,17 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected void writeAssertComplexEqual(
             GoWriter writer, String expect, String actual, String[] ignoreTypes
     ) {
-        writer.addUseImports(SmithyGoDependency.GO_CMP);
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
         writer.addUseImports(SmithyGoDependency.GO_CMP_OPTIONS);
-        writer.writeInline("if diff := cmp.Diff($L, $L, cmpopts.IgnoreUnexported(", expect, actual);
+
+        writer.writeInline("if err := smithytesting.CompareValues($L, $L, cmpopts.IgnoreUnexported(", expect, actual);
 
         for (String ignoreType : ignoreTypes) {
             writer.write("$L,", ignoreType);
         }
 
-        writer.writeInline(")); len(diff) != 0 {");
-        writer.write("   t.Errorf(\"expect $L value match:\\n%s\", diff)", expect);
+        writer.writeInline(")); err != nil {");
+        writer.write("   t.Errorf(\"expect $L value match:\\n%v\", err)", expect);
         writer.write("}");
     }
 
