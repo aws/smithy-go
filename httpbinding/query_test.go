@@ -189,7 +189,7 @@ func TestQueryValue(t *testing.T) {
 				tt.values = url.Values{}
 			}
 
-			qv := newQueryValue(tt.values, queryKey, tt.append)
+			qv := NewQueryValue(tt.values, queryKey, tt.append)
 
 			if err := setQueryValue(qv, tt.args); err != nil {
 				t.Fatalf("expected no error, got %v", err)

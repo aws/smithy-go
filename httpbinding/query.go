@@ -14,7 +14,7 @@ type QueryValue struct {
 	append bool
 }
 
-func newQueryValue(query url.Values, key string, append bool) QueryValue {
+func NewQueryValue(query url.Values, key string, append bool) QueryValue {
 	return QueryValue{
 		query:  query,
 		key:    key,
