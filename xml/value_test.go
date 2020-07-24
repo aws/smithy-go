@@ -43,7 +43,6 @@ func TestValue(t *testing.T) {
 			setter: func(value Value) {
 				value.Double(1e20)
 			},
-			// TODO: verify correctness, this was originally 1e+20
 			expected: `100000000000000000000`,
 		},
 		"float exponent component": {

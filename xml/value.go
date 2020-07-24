@@ -14,8 +14,10 @@ type Value struct {
 	w       writer
 	scratch *[]byte
 
+	// xml start element is the associated start element for the Value
 	startElement StartElement
 
+	// indicates if the Value represents a flattened shape
 	isFlattened bool
 }
 
@@ -107,17 +109,20 @@ func (xv Value) String(v string) {
 	xv.Close()
 }
 
-// Byte encodes v as a XML number
+// Byte encodes v as a XML number.
+// It will auto close the parent xml element tag.
 func (xv Value) Byte(v int8) {
 	xv.Long(int64(v))
 }
 
-// Short encodes v as a XML number
+// Short encodes v as a XML number.
+// It will auto close the parent xml element tag.
 func (xv Value) Short(v int16) {
 	xv.Long(int64(v))
 }
 
-// Integer encodes v as a XML number
+// Integer encodes v as a XML number.
+// It will auto close the parent xml element tag.
 func (xv Value) Integer(v int32) {
 	xv.Long(int64(v))
 }
@@ -200,21 +205,23 @@ func (xv Value) Write(v []byte, escapeXMLText bool) {
 	xv.Close()
 }
 
-// MemberElement returns a structure or simple shape member element encoding.
-// It returns a Value. Member Element should be used for Nested structure or simple elements.
+// MemberElement does member element encoding. It returns a Value.
+// Member Element method should be used for all shapes except flattened shapes.
+//
 // A call to MemberElement will write nested element tags directly using the
 // provided start element. The value returned by MemberElement should be closed.
 func (xv Value) MemberElement(element StartElement) Value {
 	v := newWrappedValue(xv.w, xv.scratch, element)
-	v.isFlattened = xv.isFlattened
 	return v
 }
 
-// FlattenedElement returns a collection shape member element encoding.
-// This method should be used to get Value when encoding a map or an array.
-// Unlike MemberElement, CollectionElement will NOT write element tags
+// FlattenedElement returns flattened element encoding. It returns a Value.
+// This method should be used for flattened shapes.
+//
+// Unlike MemberElement, flattened element will NOT write element tags
 // directly for the associated start element.
-// The Value returned by the Collection Element does not need to be closed.
+//
+// The value returned by the FlattenedElement does not need to be closed.
 func (xv Value) FlattenedElement(element StartElement) Value {
 	v := newValue(xv.w, xv.scratch, element)
 	v.isFlattened = true
@@ -223,8 +230,8 @@ func (xv Value) FlattenedElement(element StartElement) Value {
 
 // Array returns an array encoder. By default, the members of array are
 // wrapped with `<member>` element tag.
-//
-// for eg,`<someList><member>entry</member><member>entry2</member></someList>`.
+// If value is marked as flattened, the start element is used to wrap the members instead of
+// the `<member>` element.
 func (xv Value) Array() *Array {
 	return newArray(xv.w, xv.scratch, arrayMemberWrapper, xv.startElement, xv.isFlattened)
 }
@@ -232,46 +239,24 @@ func (xv Value) Array() *Array {
 /*
 ArrayWithCustomName returns an array encoder.
 
-It takes name as an argument, the name will used to wrap xml array entries.
+It takes named start element as an argument, the named start element will used to wrap xml array entries.
 for eg, `<someList><customName>entry1</customName></someList>`
-Here `customName` element tag will be wrapped on each array member.
+Here `customName` named start element will be wrapped on each array member.
 */
 func (xv Value) ArrayWithCustomName(element StartElement) *Array {
 	return newArray(xv.w, xv.scratch, element, xv.startElement, xv.isFlattened)
 }
 
 /*
-FlattenedArray returns a flattened array encoder.
-
-FlattenedArray Encoder wraps each member with array's root element tag, thus
-flattening the array.
-
-for eg,`<someList>entry1</someList><someList>entry2</someList>`.
-*/
-// func (xv Value) FlattenedArray() *Array {
-// 	return newFlattenedArray(xv.w, xv.scratch, xv.startElement)
-// }
-
-/*
 Map returns a map encoder. By default, the map entries are
 wrapped with `<entry>` element tag.
 
-for eg. `<someMap><entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry></someMap>`
+If value is marked as flattened, the start element is used to wrap the entry instead of
+the `<member>` element.
 */
 func (xv Value) Map() *Map {
 	return newMap(xv.w, xv.scratch, xv.startElement, xv.isFlattened)
 }
-
-/*
-FlattenedMap returns a flattened map encoder.
-
-FlattenedMap Encoder wraps each entry with map's root element tag, thus
-flattening the map.
-for eg, `<someMap><key>entryKey1</key><value>entryValue1</value></someMap>`.
-*/
-// func (xv Value) FlattenedMap() *Map {
-// 	return newFlattenedMap(xv.w, xv.scratch, xv.startElement)
-// }
 
 // Encodes a float value as per the xml stdlib xml encoder
 func encodeFloat(dst []byte, v float64, bits int) []byte {
@@ -338,13 +323,7 @@ func (xv Value) IsFlattened() bool {
 	return xv.isFlattened
 }
 
-// SetFlattened will indicate the value is for flattened.
-// func (xv Value) SetFlattened() Value {
-// 	xv.isFlattened = true
-// 	return xv
-// }
-
-// Close closes the value
+// Close closes the value.
 func (xv Value) Close() {
 	writeEndElement(xv.w, xv.startElement.End())
 }
