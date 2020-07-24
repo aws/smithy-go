@@ -151,31 +151,6 @@ final class StructureGenerator implements Runnable {
             fault = "smithy.FaultServer";
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
-
-        // Write out convenience getter / haser methods
-        for (MemberShape member : shape.getAllMembers().values()) {
-            String memberName = symbolProvider.toMemberName(member);
-            Symbol memberSymbol = symbolProvider.toSymbol(member);
-            String getterName = "Get" + memberName;
-            String haserName = "Has" + memberName;
-
-            Shape targetShape = model.expectShape(member.getTarget());
-            Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
-
-            // Getter methods return values only for scalars, pointers for all others.
-            writer.openBlock("func (e *$L) $L() " + getterReturnFormatter(targetShape) + " {", "}",
-                    structureSymbol.getName(), getterName, targetSymbol, () -> {
-                        writer.write("return $L", CodegenUtils.operandValueIfScalar(writer, targetShape,
-                                String.format("e.%s", memberName)));
-                    });
-
-            // Has methods only for pointable types
-            if (CodegenUtils.isNilAssignableToShape(model, targetShape)) {
-                writer.openBlock("func (e *$L) $L() bool {", "}", structureSymbol.getName(), haserName, () -> {
-                    writer.write("return e.$L != nil", memberName);
-                });
-            }
-        }
     }
 
     private String getterReturnFormatter(Shape shape) {
