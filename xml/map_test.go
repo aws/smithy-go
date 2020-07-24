@@ -11,8 +11,7 @@ func TestWrappedMap(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "map"}}
-		m := newMap(buffer, &scratch, root)
-		defer m.Close()
+		m := newMap(buffer, &scratch, root, false)
 
 		key := StartElement{Name: Name{Local: "key"}}
 		value := StartElement{Name: Name{Local: "value"}}
@@ -36,7 +35,7 @@ func TestWrappedMap(t *testing.T) {
 		e.Close()
 	}()
 
-	ex := []byte(`<map><entry><key>example-key1</key><value>example1</value></entry><entry><key>example-key2</key><value>example2</value></entry><entry><key>example-key3</key><value>example3</value></entry></map>`)
+	ex := []byte(`<entry><key>example-key1</key><value>example1</value></entry><entry><key>example-key2</key><value>example2</value></entry><entry><key>example-key3</key><value>example3</value></entry>`)
 	if a := buffer.Bytes(); bytes.Compare(ex, a) != 0 {
 		t.Errorf("expected %+q, but got %+q", ex, a)
 	}
@@ -48,8 +47,7 @@ func TestFlattenedMapWithCustomName(t *testing.T) {
 
 	func() {
 		root := StartElement{Name: Name{Local: "flatMap"}}
-		m := newFlattenedMap(buffer, &scratch, root)
-		defer m.Close()
+		m := newMap(buffer, &scratch, root, true)
 
 		key := StartElement{Name: Name{Local: "key"}}
 		value := StartElement{Name: Name{Local: "value"}}

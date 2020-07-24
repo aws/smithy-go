@@ -210,14 +210,14 @@ func (xv Value) MemberElement(element StartElement) Value {
 	return v
 }
 
-// CollectionElement returns a collection shape member element encoding.
+// FlattenedElement returns a collection shape member element encoding.
 // This method should be used to get Value when encoding a map or an array.
 // Unlike MemberElement, CollectionElement will NOT write element tags
 // directly for the associated start element.
 // The Value returned by the Collection Element does not need to be closed.
-func (xv Value) CollectionElement(element StartElement) Value {
+func (xv Value) FlattenedElement(element StartElement) Value {
 	v := newValue(xv.w, xv.scratch, element)
-	v.isFlattened = xv.isFlattened
+	v.isFlattened = true
 	return v
 }
 
@@ -226,7 +226,7 @@ func (xv Value) CollectionElement(element StartElement) Value {
 //
 // for eg,`<someList><member>entry</member><member>entry2</member></someList>`.
 func (xv Value) Array() *Array {
-	return newArray(xv.w, xv.scratch, arrayMemberWrapper, xv.startElement)
+	return newArray(xv.w, xv.scratch, arrayMemberWrapper, xv.startElement, xv.isFlattened)
 }
 
 /*
@@ -237,7 +237,7 @@ for eg, `<someList><customName>entry1</customName></someList>`
 Here `customName` element tag will be wrapped on each array member.
 */
 func (xv Value) ArrayWithCustomName(element StartElement) *Array {
-	return newArray(xv.w, xv.scratch, element, xv.startElement)
+	return newArray(xv.w, xv.scratch, element, xv.startElement, xv.isFlattened)
 }
 
 /*
@@ -248,9 +248,9 @@ flattening the array.
 
 for eg,`<someList>entry1</someList><someList>entry2</someList>`.
 */
-func (xv Value) FlattenedArray() *Array {
-	return newFlattenedArray(xv.w, xv.scratch, xv.startElement)
-}
+// func (xv Value) FlattenedArray() *Array {
+// 	return newFlattenedArray(xv.w, xv.scratch, xv.startElement)
+// }
 
 /*
 Map returns a map encoder. By default, the map entries are
@@ -259,7 +259,7 @@ wrapped with `<entry>` element tag.
 for eg. `<someMap><entry><k>entry1</k><v>value1</v></entry><entry><k>entry2</k><v>value2</v></entry></someMap>`
 */
 func (xv Value) Map() *Map {
-	return newMap(xv.w, xv.scratch, xv.startElement)
+	return newMap(xv.w, xv.scratch, xv.startElement, xv.isFlattened)
 }
 
 /*
@@ -269,9 +269,9 @@ FlattenedMap Encoder wraps each entry with map's root element tag, thus
 flattening the map.
 for eg, `<someMap><key>entryKey1</key><value>entryValue1</value></someMap>`.
 */
-func (xv Value) FlattenedMap() *Map {
-	return newFlattenedMap(xv.w, xv.scratch, xv.startElement)
-}
+// func (xv Value) FlattenedMap() *Map {
+// 	return newFlattenedMap(xv.w, xv.scratch, xv.startElement)
+// }
 
 // Encodes a float value as per the xml stdlib xml encoder
 func encodeFloat(dst []byte, v float64, bits int) []byte {
@@ -333,16 +333,16 @@ func encodeByteSlice(w writer, scratch []byte, v []byte) {
 	}
 }
 
+// IsFlattened returns true if value is for flattened shape.
 func (xv Value) IsFlattened() bool {
 	return xv.isFlattened
 }
 
-// TODO: fix this
-func (xv Value) SetFlattened() Value {
-	v := xv
-	v.isFlattened = true
-	return v
-}
+// SetFlattened will indicate the value is for flattened.
+// func (xv Value) SetFlattened() Value {
+// 	xv.isFlattened = true
+// 	return xv
+// }
 
 // Close closes the value
 func (xv Value) Close() {
