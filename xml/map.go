@@ -16,6 +16,8 @@ type Map struct {
 	// map start element is the start element for the map
 	// This is used by wrapped map serializers
 	mapStartElement StartElement
+
+	isFlattened bool
 }
 
 // newMap returns a map encoder which sets the default map
@@ -46,13 +48,16 @@ func newFlattenedMap(w writer, scratch *[]byte, memberStartElement StartElement)
 		w:                  w,
 		scratch:            scratch,
 		memberStartElement: memberStartElement,
+		isFlattened:        true,
 	}
 }
 
 // Entry returns a Value encoder with map's element.
 // It writes the member wrapper start tag for each entry.
-func (m *Map) Entry() (v Value) {
-	return newWrappedValue(m.w, m.scratch, m.memberStartElement)
+func (m *Map) Entry() Value {
+	v := newWrappedValue(m.w, m.scratch, m.memberStartElement)
+	v.isFlattened = m.isFlattened
+	return v
 }
 
 // Close closes a map.

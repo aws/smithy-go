@@ -15,6 +15,8 @@ type Value struct {
 	scratch *[]byte
 
 	startElement StartElement
+
+	isFlattened bool
 }
 
 // newValue returns a new Value encoder. newValue does NOT write the start element tag
@@ -144,7 +146,7 @@ func (xv Value) Double(v float64) {
 }
 
 func (xv Value) float(v float64, bits int) {
-	*xv.scratch = encodeFloat(v, bits)
+	*xv.scratch = encodeFloat((*xv.scratch)[:0], v, bits)
 	xv.w.Write(*xv.scratch)
 }
 
@@ -203,7 +205,9 @@ func (xv Value) Write(v []byte, escapeXMLText bool) {
 // A call to MemberElement will write nested element tags directly using the
 // provided start element. The value returned by MemberElement should be closed.
 func (xv Value) MemberElement(element StartElement) Value {
-	return newWrappedValue(xv.w, xv.scratch, element)
+	v := newWrappedValue(xv.w, xv.scratch, element)
+	v.isFlattened = xv.isFlattened
+	return v
 }
 
 // CollectionElement returns a collection shape member element encoding.
@@ -212,7 +216,9 @@ func (xv Value) MemberElement(element StartElement) Value {
 // directly for the associated start element.
 // The Value returned by the Collection Element does not need to be closed.
 func (xv Value) CollectionElement(element StartElement) Value {
-	return newValue(xv.w, xv.scratch, element)
+	v := newValue(xv.w, xv.scratch, element)
+	v.isFlattened = xv.isFlattened
+	return v
 }
 
 // Array returns an array encoder. By default, the members of array are
@@ -268,12 +274,34 @@ func (xv Value) FlattenedMap() *Map {
 }
 
 // Encodes a float value as per the xml stdlib xml encoder
-func encodeFloat(v float64, bits int) []byte {
+func encodeFloat(dst []byte, v float64, bits int) []byte {
 	if math.IsInf(v, 0) || math.IsNaN(v) {
 		panic(fmt.Sprintf("invalid float value: %s", strconv.FormatFloat(v, 'g', -1, bits)))
 	}
 
-	return []byte(strconv.FormatFloat(v, 'g', -1, bits))
+	// return []byte(strconv.FormatFloat(v, 'g', -1, bits))
+
+	abs := math.Abs(v)
+	fmt := byte('f')
+
+	if abs != 0 {
+		if bits == 64 && (abs < 1e-6 || abs >= 1e21) || bits == 32 && (float32(abs) < 1e-6 || float32(abs) >= 1e21) {
+			fmt = 'e'
+		}
+	}
+
+	dst = strconv.AppendFloat(dst, v, fmt, -1, bits)
+
+	if fmt == 'e' {
+		// clean up e-09 to e-9
+		n := len(dst)
+		if n >= 4 && dst[n-4] == 'e' && dst[n-3] == '-' && dst[n-2] == '0' {
+			dst[n-2] = dst[n-1]
+			dst = dst[:n-1]
+		}
+	}
+
+	return dst
 }
 
 // encodeByteSlice is modified copy of json encoder's encodeByteSlice.
@@ -303,6 +331,17 @@ func encodeByteSlice(w writer, scratch []byte, v []byte) {
 		enc.Write(v)
 		enc.Close()
 	}
+}
+
+func (xv Value) IsFlattened() bool {
+	return xv.isFlattened
+}
+
+// TODO: fix this
+func (xv Value) SetFlattened() Value {
+	v := xv
+	v.isFlattened = true
+	return v
 }
 
 // Close closes the value
