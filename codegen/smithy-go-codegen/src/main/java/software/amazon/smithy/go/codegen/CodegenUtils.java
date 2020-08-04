@@ -319,34 +319,11 @@ public final class CodegenUtils {
      * @param shape the list or set shape.
      * @return The unpacked CollectionShape.
      */
-    public static CollectionShape asCollectionShape(Shape shape) {
-        switch (shape.getType()) {
-            case LIST:
-                return shape.asListShape().get();
-            case SET:
-                return shape.asSetShape().get();
-            default:
-                throw new CodegenException(
-                        "expect list or set shape type, got " + shape.getType() + ", " + shape.getId());
+    public static CollectionShape expectCollectionShape(Shape shape) {
+        if (shape instanceof CollectionShape) {
+            return (CollectionShape) (shape);
         }
-    }
 
-    /**
-     * Returns the collection's member shape if the shape type is a collection. Throws and exception if the passed in
-     * shape is not a list or set.
-     *
-     * @param shape the list or set shape to get the member from.
-     * @return member shape of the list or set.
-     */
-    public static MemberShape getShapeCollectionMember(Shape shape) {
-        switch (shape.getType()) {
-            case LIST:
-                return shape.asListShape().get().getMember();
-            case SET:
-                return shape.asSetShape().get().getMember();
-            default:
-                throw new CodegenException(
-                        "expect list or set shape type, got " + shape.getType() + ", " + shape.getId());
-        }
+        throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
     }
 }

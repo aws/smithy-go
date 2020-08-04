@@ -528,7 +528,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
-    private boolean isHttpDateTimestampHeader(Model model, HttpBinding.Location location, MemberShape memberShape) {
+    private boolean isHttpDateTimestamp(Model model, HttpBinding.Location location, MemberShape memberShape) {
         Shape targetShape = model.expectShape(memberShape.getTarget().toShapeId());
         if (targetShape.getType() != ShapeType.TIMESTAMP) {
             return false;
@@ -931,7 +931,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case SET:
             case LIST:
                 // handle list/Set as target shape
-                MemberShape targetValueListMemberShape = CodegenUtils.getShapeCollectionMember(targetShape);
+                MemberShape targetValueListMemberShape = CodegenUtils.expectCollectionShape(targetShape).getMember();
                 return getHttpHeaderCollectionDeserializer(writer, model, symbolProvider, targetValueListMemberShape,
                         binding,
                         operand);
@@ -1060,16 +1060,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @return returns operand for accessing the header values
      */
     private String writeHeaderValueAccessor(
-            GoWriter writer, Model model, Shape targetShape, HttpBinding binding, String operand
+            GoWriter writer,
+            Model model,
+            Shape targetShape,
+            HttpBinding binding,
+            String operand
     ) {
         switch (targetShape.getType()) {
             case LIST:
             case SET:
-                writerHeaderListValuesSplit(writer, model, CodegenUtils.asCollectionShape(targetShape), binding,
+                writerHeaderListValuesSplit(writer, model, CodegenUtils.expectCollectionShape(targetShape), binding,
                         operand);
                 break;
             default:
-                // TODO should this be the first or last header value received?
+                // Always use first element in header, ignores if there are multiple headers with this key.
                 operand += "[0]";
                 break;
         }
@@ -1094,7 +1098,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.openBlock("{", "}", () -> {
             writer.write("var err error");
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-            if (isHttpDateTimestampHeader(model, binding.getLocation(), shape.getMember())) {
+            if (isHttpDateTimestamp(model, binding.getLocation(), shape.getMember())) {
                 writer.write("$L, err = smithyhttp.SplitHTTPDateTimestampHeaderListValues($L)", operand, operand);
             } else {
                 writer.write("$L, err = smithyhttp.SplitHeaderListValues($L)", operand, operand);
