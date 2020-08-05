@@ -26,6 +26,7 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -309,5 +310,20 @@ public final class CodegenUtils {
         }
 
         return !shape.hasTrait(EnumTrait.class);
+    }
+
+    /**
+     * Returns the shape unpacked as a CollectionShape. Throws and exception if the passed in
+     * shape is not a list or set.
+     *
+     * @param shape the list or set shape.
+     * @return The unpacked CollectionShape.
+     */
+    public static CollectionShape expectCollectionShape(Shape shape) {
+        if (shape instanceof CollectionShape) {
+            return (CollectionShape) (shape);
+        }
+
+        throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
     }
 }

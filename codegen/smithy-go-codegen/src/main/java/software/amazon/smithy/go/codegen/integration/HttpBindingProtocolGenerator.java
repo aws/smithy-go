@@ -360,9 +360,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the document serializer logic for the serializer middleware body.
      *
-     * @param context the generation context
-     * @param operation      the operation
-     * @param generator      middleware generator definition
+     * @param context   the generation context
+     * @param operation the operation
+     * @param generator middleware generator definition
      */
     protected abstract void writeMiddlewareDocumentSerializerDelegator(
             GenerationContext context,
@@ -373,10 +373,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the payload serializer logic for the serializer middleware body.
      *
-     * @param context the generation context
-     * @param operation      the operation
-     * @param memberShape    the payload target member
-     * @param generator      middleware generator definition
+     * @param context     the generation context
+     * @param operation   the operation
+     * @param memberShape the payload target member
+     * @param generator   middleware generator definition
      */
     protected abstract void writeMiddlewarePayloadSerializerDelegator(
             GenerationContext context,
@@ -388,9 +388,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the document deserializer logic for the deserializer middleware body.
      *
-     * @param context the generation context
-     * @param operation      the operation
-     * @param generator      middleware generator definition
+     * @param context   the generation context
+     * @param operation the operation
+     * @param generator middleware generator definition
      */
     protected abstract void writeMiddlewareDocumentDeserializerDelegator(
             GenerationContext context,
@@ -526,6 +526,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             default:
                 throw new CodegenException("Unknown timestamp format");
         }
+    }
+
+    private boolean isHttpDateTimestamp(Model model, HttpBinding.Location location, MemberShape memberShape) {
+        Shape targetShape = model.expectShape(memberShape.getTarget().toShapeId());
+        if (targetShape.getType() != ShapeType.TIMESTAMP) {
+            return false;
+        }
+
+        TimestampFormatTrait.Format format = model.getKnowledge(HttpBindingIndex.class).determineTimestampFormat(
+                memberShape, location, getDocumentTimestampFormat());
+
+        return format == Format.HTTP_DATE;
     }
 
     private void writeHttpBindingSetter(
@@ -808,10 +820,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
-            Shape targetShape,
+            MemberShape memberShape,
             HttpBinding binding,
             String operand
     ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
         if (targetShape.getType() != ShapeType.LIST && targetShape.getType() != ShapeType.SET) {
             writer.addUseImports(SmithyGoDependency.STRINGS);
             writer.write("$L = strings.TrimSpace($L)", operand, operand);
@@ -834,7 +848,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.addUseImports(SmithyGoDependency.SMITHY_TIME);
                 HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
                 TimestampFormatTrait.Format format = bindingIndex.determineTimestampFormat(
-                        targetShape,
+                        memberShape,
                         binding.getLocation(),
                         Format.HTTP_DATE
                 );
@@ -915,14 +929,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("if err != nil { return err }");
                 return "b";
             case SET:
-                // handle set as target shape
-                Shape targetValueSetShape = model.expectShape(targetShape.asSetShape().get().getMember().getTarget());
-                return getHttpHeaderCollectionDeserializer(writer, model, symbolProvider, targetValueSetShape, binding,
-                        operand);
             case LIST:
-                // handle list as target shape
-                Shape targetValueListShape = model.expectShape(targetShape.asListShape().get().getMember().getTarget());
-                return getHttpHeaderCollectionDeserializer(writer, model, symbolProvider, targetValueListShape, binding,
+                // handle list/Set as target shape
+                MemberShape targetValueListMemberShape = CodegenUtils.expectCollectionShape(targetShape).getMember();
+                return getHttpHeaderCollectionDeserializer(writer, model, symbolProvider, targetValueListMemberShape,
+                        binding,
                         operand);
             default:
                 throw new CodegenException("unexpected shape type " + targetShape.getType());
@@ -933,26 +944,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
-            Shape targetShape,
+            MemberShape memberShape,
             HttpBinding binding,
             String operand
     ) {
+        Shape targetShape = model.expectShape(memberShape.getTarget());
         Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
         writer.write("var list []$P", targetSymbol);
 
         String operandValue = operand + "Val";
         writer.openBlock("for _, $L := range $L {", "}", operandValue, operand, () -> {
-            // TODO does not support Timestamp datetime formatted header lists
-            writer.addUseImports(SmithyGoDependency.STRINGS);
-            String operandValueSplit = operandValue + "Part";
-            writer.openBlock("for _, $L := range strings.Split($L, \",\") {", "}", operandValueSplit, operandValue,
-                    () -> {
-                        String value = generateHttpHeaderValue(writer, model, symbolProvider, targetShape, binding,
-                                operandValueSplit);
-                        writer.write("list = append(list, $L)",
-                                CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
-                    });
-
+            String value = generateHttpHeaderValue(writer, model, symbolProvider, memberShape, binding,
+                    operandValue);
+            writer.write("list = append(list, $L)",
+                    CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
         });
         return "list";
     }
@@ -969,13 +974,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         switch (binding.getLocation()) {
             case HEADER:
-                writeHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
+                writeHeaderDeserializerFunction(writer, model, symbolProvider, memberName, memberShape, binding);
                 break;
             case PREFIX_HEADERS:
                 if (!targetShape.isMapShape()) {
                     throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
                 }
-                writePrefixHeaderDeserializerFunction(writer, model, symbolProvider, memberName, targetShape, binding);
+                writePrefixHeaderDeserializerFunction(writer, model, symbolProvider, memberName, memberShape, binding);
                 break;
             default:
                 throw new CodegenException("unexpected http binding found");
@@ -987,17 +992,17 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             Model model,
             SymbolProvider symbolProvider,
             String memberName,
-            Shape targetShape,
+            MemberShape memberShape,
             HttpBinding binding
     ) {
         writer.openBlock("if headerValues := response.Header.Values($S); len(headerValues) != 0 {", "}",
                 binding.getLocationName(), () -> {
+                    Shape targetShape = model.expectShape(memberShape.getTarget());
+
                     String operand = "headerValues";
-                    if (targetShape.getType() != ShapeType.LIST && targetShape.getType() != ShapeType.SET) {
-                        // TODO should this be the first or last header value received?
-                        operand += "[0]";
-                    }
-                    String value = generateHttpHeaderValue(writer, model, symbolProvider, targetShape, binding,
+                    operand = writeHeaderValueAccessor(writer, model, targetShape, binding, operand);
+
+                    String value = generateHttpHeaderValue(writer, model, symbolProvider, memberShape, binding,
                             operand);
                     writer.write("v.$L = $L", memberName,
                             CodegenUtils.generatePointerValueIfPointable(writer, targetShape, value));
@@ -1009,10 +1014,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             Model model,
             SymbolProvider symbolProvider,
             String memberName,
-            Shape targetShape,
+            MemberShape memberShape,
             HttpBinding binding
     ) {
         String prefix = binding.getLocationName();
+        Shape targetShape = model.expectShape(memberShape.getTarget());
 
         MemberShape valueMemberShape = targetShape.asMapShape()
                 .orElseThrow(() -> new CodegenException("prefix headers must target map shape"))
@@ -1032,15 +1038,74 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         });
 
                         String operand = "headerValues";
-                        if (valueMemberTarget.getType() != ShapeType.LIST
-                                && valueMemberTarget.getType() != ShapeType.SET) {
-                            operand += "[0]";
-                        }
-                        String value = generateHttpHeaderValue(writer, model, symbolProvider, valueMemberTarget,
+                        operand = writeHeaderValueAccessor(writer, model, targetShape, binding, operand);
+
+                        String value = generateHttpHeaderValue(writer, model, symbolProvider, valueMemberShape,
                                 binding, operand);
                         writer.write("v.$L[headerKey[lenPrefix:]] = $L", memberName,
                                 CodegenUtils.generatePointerValueIfPointable(writer, valueMemberTarget, value));
                     });
+        });
+    }
+
+    /**
+     * Returns the header value accessor operand, and also if the target shape is a list/set will write the splitting
+     * of the header values by comma(,) utility helper.
+     *
+     * @param writer      writer
+     * @param model       smithy model
+     * @param targetShape target shape
+     * @param binding     http binding location
+     * @param operand     operand of the header values.
+     * @return returns operand for accessing the header values
+     */
+    private String writeHeaderValueAccessor(
+            GoWriter writer,
+            Model model,
+            Shape targetShape,
+            HttpBinding binding,
+            String operand
+    ) {
+        switch (targetShape.getType()) {
+            case LIST:
+            case SET:
+                writerHeaderListValuesSplit(writer, model, CodegenUtils.expectCollectionShape(targetShape), binding,
+                        operand);
+                break;
+            default:
+                // Always use first element in header, ignores if there are multiple headers with this key.
+                operand += "[0]";
+                break;
+        }
+
+        return operand;
+    }
+
+    /**
+     * Writes the utility to split split comma separate header values into a single list for consistent iteration. Also
+     * has special case handling for HttpDate timestamp format when serialized as a header list. Assigns the split
+     * header values back to the same operand name.
+     *
+     * @param writer  writer
+     * @param model   smithy model
+     * @param shape   target collection shape
+     * @param binding http binding location
+     * @param operand operand of the header values.
+     */
+    private void writerHeaderListValuesSplit(
+            GoWriter writer, Model model, CollectionShape shape, HttpBinding binding, String operand
+    ) {
+        writer.openBlock("{", "}", () -> {
+            writer.write("var err error");
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+            if (isHttpDateTimestamp(model, binding.getLocation(), shape.getMember())) {
+                writer.write("$L, err = smithyhttp.SplitHTTPDateTimestampHeaderListValues($L)", operand, operand);
+            } else {
+                writer.write("$L, err = smithyhttp.SplitHeaderListValues($L)", operand, operand);
+            }
+            writer.openBlock("if err != nil {", "}", () -> {
+                writer.write("return err");
+            });
         });
     }
 
@@ -1119,7 +1184,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * </ul>
      *
      * @param context The generation context.
-     * @param shape The error shape.
+     * @param shape   The error shape.
      */
     protected abstract void deserializeError(GenerationContext context, StructureShape shape);
 }
