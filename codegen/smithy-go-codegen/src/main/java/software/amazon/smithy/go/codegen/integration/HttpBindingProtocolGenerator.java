@@ -298,6 +298,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
             writer.write("");
 
+            // generate shared code for error and document or payload deserialization function
+                // * this shared code should be responsible for skipping xml preamble
+            // generate condition for response error
+            // Do other response type also start with Error as start element?
+
             writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
                 writer.write("return out, metadata, $L(response)", errorFunctionName);
             });
