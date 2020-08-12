@@ -22,3 +22,12 @@ matrix:
     - language: go
       go: 1.14.x
       script: go test -v ./...
+
+    - language: go
+      go: 1.15.x
+      script: go test -v ./...
+
+  allow_failures:
+    - language: go
+      go: tip
+      script: go test -v ./...
