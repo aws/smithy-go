@@ -12,8 +12,6 @@ import (
 type XMLNodeDecoder struct {
 	Decoder *xml.Decoder
 	StartEl xml.StartElement
-
-	Level int
 }
 
 // NewXMLNodeDecoder returns a ptr to an initialized XMLNodeDecoder
@@ -31,9 +29,9 @@ func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 	for {
 		token, e := d.Decoder.Token()
 		if e != nil {
-			if e == io.EOF {
-				return
-			}
+			// if e == io.EOF {
+			// 	return
+			// }
 			return t, done, e
 		}
 
@@ -79,6 +77,7 @@ func (d *XMLNodeDecoder) Value() (c []byte, done bool, err error) {
 	return c, done, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
 }
 
+// TODO: rename RootElement to XMLRootElement
 // RootElement takes in a decoder and returns the first start element within the xml body.
 // This function is useful in fetching the start element of an XML response and ignore the
 // comments and preamble

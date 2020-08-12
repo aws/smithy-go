@@ -280,8 +280,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         GoWriter goWriter = context.getWriter();
-        String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
-                operation, context.getProtocolName());
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -298,14 +296,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
             writer.write("");
 
-            // generate shared code for error and document or payload deserialization function
-                // * this shared code should be responsible for skipping xml preamble
-            // generate condition for response error
-            // Do other response type also start with Error as start element?
-
-            writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
-                writer.write("return out, metadata, $L(response)", errorFunctionName);
-            });
+            // Handle operation error response
+            handleOperationErrorResponse(context, operation);
 
             Shape outputShape = model.expectShape(operation.getOutput()
                     .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
@@ -343,11 +335,35 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         });
         goWriter.write("");
 
-        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
-                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
+        Set<StructureShape> errorShapes = generateErrorDispatcher(context, operation);
         deserializingErrorShapes.addAll(errorShapes);
         deserializeDocumentBindingShapes.addAll(errorShapes);
     }
+
+    /**
+     * Generates a function that handles error deserialization by getting the error code then
+     * dispatching to the error-specific deserializer.
+     *
+     * @param context The generation context.
+     * @param operation The operation to generate for.
+     * @return A set of all error structure shapes for the operation that were dispatched to.
+     */
+    protected abstract Set<StructureShape> generateErrorDispatcher(GenerationContext context, OperationShape operation);
+
+    /**
+     * Writes a code snippet that handles an operation's error response. handleOperationResponseError
+     * handles checking for an error in a `response` and delegating to appropriate error deserializer functions.
+     *
+     * <p>Two parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     * </ul>
+     *
+     * @param context the generation context
+     * @param operation the operation for which error response is to be handled.
+     */
+    protected abstract void handleOperationErrorResponse(GenerationContext context, OperationShape operation);
 
     /**
      * Writes a code snippet that gets the error code and error message.
@@ -361,8 +377,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * </ul>
      *
      * @param context the generation context.
+     * @param operation the operation shape for which error message code is to be deserialized.
      */
-    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context);
+    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context, OperationShape operation);
 
     /**
      * Generate the document serializer logic for the serializer middleware body.
@@ -1236,19 +1253,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
-    private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
-        GoWriter writer = context.getWriter();
-        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
-        Symbol responseType = getApplicationProtocol().getResponseType();
-
-        writer.addUseImports(SmithyGoDependency.BYTES);
-        writer.openBlock("func $L(response $P, errorBody *bytes.Reader) error {", "}",
-                functionName, responseType, () -> deserializeError(context, shape));
-        writer.write("");
-    }
+//    private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
+//        GoWriter writer = context.getWriter();
+//        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+//        Symbol responseType = getApplicationProtocol().getResponseType();
+//
+//        writer.addUseImports(SmithyGoDependency.BYTES);
+//        writer.openBlock("func $L(response $P, errorBody *bytes.Reader) error {", "}",
+//                functionName, responseType, () -> deserializeError(context, shape));
+//        writer.write("");
+//    }
 
     /**
-     * Writes a function body that deserializes the given error.
+     * Writes a function that deserializes the given error.
      *
      * <p>Two parameters will be available in scope:
      * <ul>
@@ -1259,5 +1276,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context The generation context.
      * @param shape   The error shape.
      */
-    protected abstract void deserializeError(GenerationContext context, StructureShape shape);
+    protected abstract void generateErrorDeserializer(GenerationContext context, StructureShape shape);
+
+//    /**
+//     * Writes a function body that deserializes the given error.
+//     *
+//     * <p>Two parameters will be available in scope:
+//     * <ul>
+//     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+//     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+//     * </ul>
+//     *
+//     * @param context The generation context.
+//     * @param shape   The error shape.
+//     */
+//    protected abstract void deserializeError(GenerationContext context, StructureShape shape);
 }

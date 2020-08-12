@@ -17,7 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -45,11 +45,11 @@ public final class HttpProtocolGeneratorUtils {
      *                                  and {@code errorMessage} variables from the http response.
      * @return A set of all error structure shapes for the operation that were dispatched to.
      */
-    static Set<StructureShape> generateErrorDispatcher(
+    public static Set<StructureShape> generateJsonErrorDispatcher(
             GenerationContext context,
             OperationShape operation,
             Symbol responseType,
-            Consumer<GenerationContext> errorMessageCodeGenerator
+            BiConsumer<GenerationContext, OperationShape> errorMessageCodeGenerator
     ) {
         GoWriter writer = context.getWriter();
         Set<StructureShape> errorShapes = new TreeSet<>();
@@ -76,7 +76,7 @@ public final class HttpProtocolGeneratorUtils {
             writer.write("");
 
             // Dispatch to the message/code generator to try to get the specific code and message.
-            errorMessageCodeGenerator.accept(context);
+            errorMessageCodeGenerator.accept(context, operation);
 
             writer.openBlock("switch errorCode {", "}", () -> {
                 new TreeSet<>(operation.getErrors()).forEach(errorId -> {
@@ -101,6 +101,102 @@ public final class HttpProtocolGeneratorUtils {
             });
         });
         writer.write("");
+
+        return errorShapes;
+    }
+
+
+    /**
+     * Generates a function that handles error deserialization by getting the error code then
+     * dispatching to the error-specific deserializer.
+     *
+     * If the error code does not map to a known error, a generic error will be returned using
+     * the error code and error message discovered in the response.
+     *
+     * The default error message and code are both "UnknownError".
+     *
+     * @param context The generation context.
+     * @param operation The operation to generate for.
+     * @param responseType The response type for the HTTP protocol.
+     * @param errorMessageCodeGenerator A consumer that generates a snippet that sets the {@code errorCode}
+     *                                  and {@code errorMessage} variables from the http response.
+     * @return A set of all error structure shapes for the operation that were dispatched to.
+     */
+    public static Set<StructureShape> generateXmlErrorDispatcher(
+            GenerationContext context,
+            OperationShape operation,
+            Symbol responseType,
+            BiConsumer<GenerationContext, OperationShape> errorMessageCodeGenerator
+    ) {
+        GoWriter writer = context.getWriter();
+        Set<StructureShape> errorShapes = new TreeSet<>();
+
+        String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
+                operation, context.getProtocolName());
+
+        writer.addUseImports(SmithyGoDependency.SMITHY_DECODING);
+        writer.addUseImports(SmithyGoDependency.IO);
+
+        writer.openBlock("func $L(response $P) error {", "}",
+                errorFunctionName, responseType, () -> {
+
+            writer.addUseImports(SmithyGoDependency.BYTES);
+            writer.addUseImports(SmithyGoDependency.IO);
+            writer.write("defer response.Body.Close()");
+            writer.write("");
+
+            // Copy the response body into a seekable type
+            writer.write("var errorBuffer bytes.Buffer");
+            writer.openBlock("if _, err := io.Copy(&errorBuffer, response.Body); err != nil {", "}", () -> {
+            writer.write("return &smithy.DeserializationError{Err: fmt.Errorf("
+                         + "\"failed to copy error response body, %w\", err)}");
+            });
+            writer.write("errorBody := bytes.NewReader(errorBuffer.Bytes())");
+            writer.insertTrailingNewline();
+
+            // Dispatch to the message/code generator to try to get the specific code and message.
+            errorMessageCodeGenerator.accept(context, operation);
+
+            writer.openBlock("switch errorCode {", "}", () -> {
+                new TreeSet<>(operation.getErrors()).forEach(errorId -> {
+                    StructureShape error = context.getModel().expectShape(errorId).asStructureShape().get();
+                    errorShapes.add(error);
+                    String errorDeserFunctionName = ProtocolGenerator.getErrorDeserFunctionName(
+                            error, context.getProtocolName());
+                    writer.openBlock("case $S:", "", errorId.getName(), () -> {
+                        writer.addUseImports(SmithyGoDependency.XML);
+                        writer.write("rootDecoder := xml.NewDecoder(errorBody)");
+
+                        writer.write("// fetch the root element ignoring comments and preamble");
+                        writer.write("t, err  := smithydecoding.RootElement(rootDecoder)");
+
+                        writer.addUseImports(SmithyGoDependency.IO);
+                        writer.write("if err == io.EOF { err = nil }");
+                        writer.openBlock("if err != nil {", "}", () -> {
+                            writer.write("return fmt.Errorf("
+                                    + "\"error fetching the start element of xml response body: %w\", err)");
+                        });
+                        writer.write("decoder := smithydecoding.NewXMLNodeDecoder(rootDecoder, t)");
+                        writer.insertTrailingNewline();
+                        writer.write("return $L(decoder, response)", errorDeserFunctionName);
+                    });
+                });
+
+                // Create a generic error
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.openBlock("default:", "", () -> {
+                    writer.openBlock("if len(errorCode) ==0 {", "}", () -> {
+                        writer.write("errorCode = \"UnknownError\"");
+                    });
+                    writer.openBlock("genericError := &smithy.GenericAPIError{", "}", () -> {
+                        writer.write("Code: errorCode,");
+                        writer.write("Message: errorCode,");
+                    });
+                    writer.write("return genericError");
+                });
+            });
+        });
+        writer.insertTrailingNewline();
 
         return errorShapes;
     }

@@ -264,8 +264,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         });
         writer.write("");
 
-        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
-                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
+        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateJsonErrorDispatcher(
+                context, operation, responseType, (c, s) -> writeErrorMessageCodeDeserializer(c, s));
         deserializingErrorShapes.addAll(errorShapes);
         deserializingDocumentShapes.addAll(errorShapes);
     }
@@ -322,6 +322,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * </ul>
      *
      * @param context the generation context.
+     * @param operation the operation shape for which error message code is to be deserialized.
      */
-    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context);
+    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context, OperationShape operation);
 }
