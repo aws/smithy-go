@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -49,7 +50,7 @@ public final class HttpProtocolGeneratorUtils {
             GenerationContext context,
             OperationShape operation,
             Symbol responseType,
-            BiConsumer<GenerationContext, OperationShape> errorMessageCodeGenerator
+            Consumer<GenerationContext> errorMessageCodeGenerator
     ) {
         GoWriter writer = context.getWriter();
         Set<StructureShape> errorShapes = new TreeSet<>();
@@ -76,7 +77,7 @@ public final class HttpProtocolGeneratorUtils {
             writer.write("");
 
             // Dispatch to the message/code generator to try to get the specific code and message.
-            errorMessageCodeGenerator.accept(context, operation);
+            errorMessageCodeGenerator.accept(context);
 
             writer.openBlock("switch errorCode {", "}", () -> {
                 new TreeSet<>(operation.getErrors()).forEach(errorId -> {

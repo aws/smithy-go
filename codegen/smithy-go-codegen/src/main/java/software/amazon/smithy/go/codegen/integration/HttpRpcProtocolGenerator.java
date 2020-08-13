@@ -264,11 +264,20 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         });
         writer.write("");
 
-        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateJsonErrorDispatcher(
-                context, operation, responseType, (c, s) -> writeErrorMessageCodeDeserializer(c, s));
+        Set<StructureShape> errorShapes = generateErrorDispatcher(context, operation);
         deserializingErrorShapes.addAll(errorShapes);
         deserializingDocumentShapes.addAll(errorShapes);
     }
+
+    /**
+     * Generates a function that handles error deserialization by getting the error code then
+     * dispatching to the error-specific deserializer.
+     *
+     * @param context The generation context.
+     * @param operation The operation to generate for.
+     * @return A set of all error structure shapes for the operation that were dispatched to.
+     */
+    protected abstract Set<StructureShape> generateErrorDispatcher(GenerationContext context, OperationShape operation);
 
     /**
      * Generate the document deserializer logic for the deserializer middleware body.
@@ -309,20 +318,4 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * @param shape The error shape.
      */
     protected abstract void deserializeError(GenerationContext context, StructureShape shape);
-
-    /**
-     * Writes a code snippet that gets the error code and error message.
-     *
-     * <p>Four parameters will be available in scope:
-     * <ul>
-     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
-     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
-     *   <li>{@code errorMessage: string}: the error message initialized to a default value.</li>
-     *   <li>{@code errorCode: string}: the error code initialized to a default value.</li>
-     * </ul>
-     *
-     * @param context the generation context.
-     * @param operation the operation shape for which error message code is to be deserialized.
-     */
-    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context, OperationShape operation);
 }

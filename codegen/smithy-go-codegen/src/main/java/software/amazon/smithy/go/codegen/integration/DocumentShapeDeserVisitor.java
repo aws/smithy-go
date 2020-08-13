@@ -370,15 +370,6 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      */
     protected abstract void deserializeStructure(GenerationContext context, StructureShape shape);
 
-//    /**
-//     *  TODO: documentation
-//     * @param context
-//     * @param shape
-//     */
-//    abstract void deserializeAdditionalFunction(GenerationContext context, Shape shape);
-//
-//    ;
-
     /**
      * Writes the code needed to deserialize a union in the document of a response.
      *
@@ -424,37 +415,6 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
 
         Symbol symbol = symbolProvider.toSymbol(shape);
         String functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(shape, context.getProtocolName());
-
-        String additionalArguments = getAdditionalArguments().entrySet().stream()
-                .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))
-                .collect(Collectors.joining());
-
-        writer.openBlock("func $L(v *$P$L) error {", "}", functionName, symbol, additionalArguments, () -> {
-            writer.addUseImports(SmithyGoDependency.FMT);
-            writer.openBlock("if v == nil {", "}", () -> {
-                writer.write("return fmt.Errorf(\"unexpected nil of type %T\", v)");
-            });
-            functionBody.accept(context, shape);
-        }).write("");
-    }
-
-    /**
-     * Generates a function for deserializing the output shape, dispatching body handling
-     * to the supplied function.
-     *
-     * @param shape The shape to generate a deserializer for.
-     * @param functionName The functionName for the generated function.
-     * @param functionBody An implementation that will generate a function body to
-     *                     deserialize the shape.
-     */
-    protected final void generateDeserFunction(
-            Shape shape,
-            String functionName,
-            BiConsumer<GenerationContext, Shape> functionBody
-    ) {
-        SymbolProvider symbolProvider = context.getSymbolProvider();
-        GoWriter writer = context.getWriter();
-        Symbol symbol = symbolProvider.toSymbol(shape);
 
         String additionalArguments = getAdditionalArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))
@@ -526,7 +486,6 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
     @Override
     public final Void mapShape(MapShape shape) {
         generateDeserFunction(shape, (c, s) -> deserializeMap(c, s.asMapShape().get()));
-//        deserializeAdditionalFunction(context, shape);
         return null;
     }
 
