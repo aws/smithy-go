@@ -7,8 +7,6 @@ import (
 	"io/ioutil"
 )
 
-// TODO: write tests for this util func
-
 // GetXMLResponseErrorCode returns the error code from an xml error response body
 func GetXMLResponseErrorCode(r io.Reader, noErrorWrapping bool) (string, error) {
 	rb, err := ioutil.ReadAll(r)

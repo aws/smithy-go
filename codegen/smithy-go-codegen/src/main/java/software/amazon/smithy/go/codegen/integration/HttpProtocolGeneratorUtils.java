@@ -17,7 +17,6 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -106,7 +105,6 @@ public final class HttpProtocolGeneratorUtils {
         return errorShapes;
     }
 
-
     /**
      * Generates a function that handles error deserialization by getting the error code then
      * dispatching to the error-specific deserializer.
@@ -127,7 +125,7 @@ public final class HttpProtocolGeneratorUtils {
             GenerationContext context,
             OperationShape operation,
             Symbol responseType,
-            BiConsumer<GenerationContext, OperationShape> errorMessageCodeGenerator
+            Consumer<GenerationContext> errorMessageCodeGenerator
     ) {
         GoWriter writer = context.getWriter();
         Set<StructureShape> errorShapes = new TreeSet<>();
@@ -156,7 +154,7 @@ public final class HttpProtocolGeneratorUtils {
             writer.insertTrailingNewline();
 
             // Dispatch to the message/code generator to try to get the specific code and message.
-            errorMessageCodeGenerator.accept(context, operation);
+            errorMessageCodeGenerator.accept(context);
 
             writer.openBlock("switch errorCode {", "}", () -> {
                 new TreeSet<>(operation.getErrors()).forEach(errorId -> {
@@ -166,20 +164,20 @@ public final class HttpProtocolGeneratorUtils {
                             error, context.getProtocolName());
                     writer.openBlock("case $S:", "", errorId.getName(), () -> {
                         writer.addUseImports(SmithyGoDependency.XML);
-                        writer.write("rootDecoder := xml.NewDecoder(errorBody)");
-
-                        writer.write("// fetch the root element ignoring comments and preamble");
-                        writer.write("t, err  := smithydecoding.RootElement(rootDecoder)");
-
-                        writer.addUseImports(SmithyGoDependency.IO);
-                        writer.write("if err == io.EOF { err = nil }");
-                        writer.openBlock("if err != nil {", "}", () -> {
-                            writer.write("return fmt.Errorf("
-                                    + "\"error fetching the start element of xml response body: %w\", err)");
+                        initializeXmlDecoder(writer, "errorBody");
+                        writer.openBlock("if err := $L(decoder, response); err != nil {",
+                                "}", errorDeserFunctionName, () -> {
+                            writer.openBlock("if de, ok := err.(*smithy.DeserializationError); ok {", "}",  () -> {
+                                writer.addUseImports(SmithyGoDependency.BYTES);
+                                writer.addUseImports(SmithyGoDependency.SMITHY);
+                                writer.write("var snapshot bytes.Buffer");
+                                writer.write("io.Copy(&snapshot, ringBuffer)");
+                                writer.write("de.Snapshot = snapshot.Bytes()");
+                                writer.write("return de");
+                            });
+                            writer.write("return err");
                         });
-                        writer.write("decoder := smithydecoding.NewXMLNodeDecoder(rootDecoder, t)");
-                        writer.insertTrailingNewline();
-                        writer.write("return $L(decoder, response)", errorDeserFunctionName);
+                        writer.write("return nil");
                     });
                 });
 
@@ -200,5 +198,45 @@ public final class HttpProtocolGeneratorUtils {
         writer.insertTrailingNewline();
 
         return errorShapes;
+    }
+
+    // TODO: These should be rearranged. Keeping it here as not sure where these will go.
+    //  Might be useful to rearrange when working with ec2 query or query deser.
+
+    // initializeXmlDecoder generates stub code to initialize xml decoder
+    private static void initializeXmlDecoder(GoWriter writer, String bodyLocation) {
+        // Use a ring buffer and tee reader to help in pinpointing any deserialization errors.
+        writer.addUseImports(SmithyGoDependency.SMITHY_IO);
+        writer.write("buff := make([]byte, 1024)");
+        writer.write("ringBuffer := smithyio.NewRingBuffer(buff)");
+        writer.insertTrailingNewline();
+
+        writer.addUseImports(SmithyGoDependency.IO);
+        writer.addUseImports(SmithyGoDependency.XML);
+        writer.addUseImports(SmithyGoDependency.SMITHY_DECODING);
+        writer.write("body := io.TeeReader($L, ringBuffer)", bodyLocation);
+        writer.write("rootDecoder := xml.NewDecoder(body)");
+        writer.write("t, err := smithydecoding.FetchXmlRootElement(rootDecoder)");
+
+        handleXmlDecodeError(writer, "error fetching the start element of xml response error body", "");
+
+        writer.write("decoder := smithydecoding.NewXMLNodeDecoder(rootDecoder, t)");
+        writer.insertTrailingNewline();
+    }
+
+    // handleXmlDecodeError handles the xml deserialization error wrapping
+    private static void handleXmlDecodeError(GoWriter writer, String errorStatement, String returnExtras) {
+        writer.addUseImports(SmithyGoDependency.IO);
+        writer.openBlock("if err != nil && err != io.EOF {", "}", () -> {
+            writer.addUseImports(SmithyGoDependency.BYTES);
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.write("var snapshot bytes.Buffer");
+            writer.write("io.Copy(&snapshot, ringBuffer)");
+            writer.openBlock("return $L&smithy.DeserializationError {", "}", returnExtras, () -> {
+                String st = "fmt.Errorf(\"" + errorStatement + "%w\",err)";
+                writer.write(String.format("Err : %s,", st));
+                writer.write("Snapshot: snapshot.Bytes(),");
+            });
+        }).write("");
     }
 }

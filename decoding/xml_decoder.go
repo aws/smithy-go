@@ -3,7 +3,6 @@ package decoding
 import (
 	"encoding/xml"
 	"fmt"
-	"io"
 )
 
 // XMLNodeDecoder is a XML decoder wrapper that is responsible to decoding
@@ -29,9 +28,6 @@ func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 	for {
 		token, e := d.Decoder.Token()
 		if e != nil {
-			// if e == io.EOF {
-			// 	return
-			// }
 			return t, done, e
 		}
 
@@ -44,8 +40,8 @@ func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 			return t, false, err
 		}
 
-		// skip token if it is a comment or preamble or empty space value due to indentation? or if it's a value and is not expected
-		// TODO: should we check for presence of non empty char data (value) and raise an error?
+		// skip token if it is a comment or preamble or empty space value due to indentation
+		// or if it's a value and is not expected
 	}
 
 	return
@@ -57,9 +53,6 @@ func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 func (d *XMLNodeDecoder) Value() (c []byte, done bool, err error) {
 	t, e := d.Decoder.Token()
 	if e != nil {
-		if e == io.EOF {
-			return
-		}
 		return c, done, e
 	}
 
@@ -77,11 +70,10 @@ func (d *XMLNodeDecoder) Value() (c []byte, done bool, err error) {
 	return c, done, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
 }
 
-// TODO: rename RootElement to XMLRootElement
-// RootElement takes in a decoder and returns the first start element within the xml body.
+// FetchXmlRootElement takes in a decoder and returns the first start element within the xml body.
 // This function is useful in fetching the start element of an XML response and ignore the
 // comments and preamble
-func RootElement(decoder *xml.Decoder) (startElement xml.StartElement, err error) {
+func FetchXmlRootElement(decoder *xml.Decoder) (startElement xml.StartElement, err error) {
 	for {
 		t, e := decoder.Token()
 		if e != nil {
