@@ -113,6 +113,12 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 	return res.Result, metadata, err
 }
 
+// Get retrieves the middleware identified by id. If the middleware is not present, returns false.
+func (s *BuildStep) Get(id string) (BuildMiddleware, bool) {
+	get, ok := s.ids.Get(id)
+	return get.(BuildMiddleware), ok
+}
+
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *BuildStep) Add(m BuildMiddleware, pos RelativePosition) error {

@@ -64,6 +64,12 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 	return nil
 }
 
+// Get returns the ider identified by id. If ider is not present, returns false
+func (g *orderedIDs) Get(id string) (ider, bool) {
+	v, ok := g.items[id]
+	return v, ok
+}
+
 // Swap removes the item by id, replacing it with the new item. Returns error
 // if the original item doesn't exist.
 func (g *orderedIDs) Swap(id string, m ider) (ider, error) {

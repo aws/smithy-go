@@ -115,6 +115,12 @@ func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, nex
 	return res.Result, metadata, err
 }
 
+// Get retrieves the middleware identified by id. If the middleware is not present, returns false.
+func (s *FinalizeStep) Get(id string) (FinalizeMiddleware, bool) {
+	get, ok := s.ids.Get(id)
+	return get.(FinalizeMiddleware), ok
+}
+
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *FinalizeStep) Add(m FinalizeMiddleware, pos RelativePosition) error {

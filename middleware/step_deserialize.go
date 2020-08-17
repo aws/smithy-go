@@ -121,6 +121,12 @@ func (s *DeserializeStep) HandleMiddleware(ctx context.Context, in interface{}, 
 	return res.Result, metadata, err
 }
 
+// Get retrieves the middleware identified by id. If the middleware is not present, returns false.
+func (s *DeserializeStep) Get(id string) (DeserializeMiddleware, bool) {
+	get, ok := s.ids.Get(id)
+	return get.(DeserializeMiddleware), ok
+}
+
 // Add injects the middleware to the relative position of the middleware group.
 // Returns an error if the middleware already exists.
 func (s *DeserializeStep) Add(m DeserializeMiddleware, pos RelativePosition) error {
