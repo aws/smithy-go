@@ -15,14 +15,17 @@ func NewUserAgentBuilder() *UserAgentBuilder {
 	return &UserAgentBuilder{sb: &strings.Builder{}}
 }
 
+// AddComponent adds the named component/product to the agent string
 func (u *UserAgentBuilder) AddComponent(name string) {
 	u.appendTo(name)
 }
 
+// AddVersionedComponent adds the named component/product to the agent string with the annotated version.
 func (u *UserAgentBuilder) AddVersionedComponent(name, version string) {
 	u.appendTo(fmt.Sprintf("%s/%s", name, version))
 }
 
+// Build returns the constructed User-Agent string. May be called multiple times.
 func (u *UserAgentBuilder) Build() string {
 	return u.sb.String()
 }
