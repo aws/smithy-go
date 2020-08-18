@@ -41,7 +41,7 @@ func replacePathElement(path, fieldBuf []byte, key, val string, escape bool) ([]
 	}
 
 	if escape {
-		val = escapePath(val, encodeSep)
+		val = EscapePath(val, encodeSep)
 	}
 
 	if path[end] != uriTokenStop {
@@ -78,9 +78,8 @@ func replacePathElement(path, fieldBuf []byte, key, val string, escape bool) ([]
 	return path, fieldBuf, nil
 }
 
-// copied from rest.EscapePath
-// escapes part of a URL path in Amazon style
-func escapePath(path string, encodeSep bool) string {
+// EscapePath escapes part of a URL path in Amazon style.
+func EscapePath(path string, encodeSep bool) string {
 	var buf bytes.Buffer
 	for i := 0; i < len(path); i++ {
 		c := path[i]
