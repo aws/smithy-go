@@ -60,8 +60,6 @@ public final class HttpProtocolGeneratorUtils {
         writer.openBlock("func $L(response $P) error {", "}", errorFunctionName, responseType, () -> {
             writer.addUseImports(SmithyGoDependency.BYTES);
             writer.addUseImports(SmithyGoDependency.IO);
-            writer.write("defer response.Body.Close()");
-            writer.write("");
 
             // Copy the response body into a seekable type
             writer.write("var errorBuffer bytes.Buffer");
