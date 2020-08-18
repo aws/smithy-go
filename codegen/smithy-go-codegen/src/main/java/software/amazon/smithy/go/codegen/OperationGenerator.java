@@ -171,6 +171,12 @@ final class OperationGenerator implements Runnable {
      * Adds middleware to the operation middleware stack.
      */
     private void populateOperationMiddlewareStack() {
+        // generate call to serde middleware helpers, these need to be generated first since other middleware will be
+        // added relative to them.
+        if (protocolGenerator != null) {
+            writer.write("$L(stack)", getOperationProtocolMiddlewareHelperName(operation));
+        }
+
         // Populate middleware's from runtime client plugins
         runtimeClientPlugins.forEach(runtimeClientPlugin -> {
             if (!runtimeClientPlugin.matchesService(model, service)
@@ -192,7 +198,7 @@ final class OperationGenerator implements Runnable {
                 writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
                 if (functionArguments != null) {
                     List<Symbol> args = new ArrayList<>(functionArguments);
-                    for (Symbol arg: args) {
+                    for (Symbol arg : args) {
                         writer.writeInline("$P, ", arg);
                     }
                 }
@@ -202,23 +208,19 @@ final class OperationGenerator implements Runnable {
                 writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
                 if (functionArguments != null) {
                     List<Symbol> args = new ArrayList<>(functionArguments);
-                    for (Symbol arg: args) {
+                    for (Symbol arg : args) {
                         writer.writeInline(", $P", arg);
                     }
                 }
                 writer.write(")");
             }
         });
-
-        // generate call to serde middleware helpers
-        if (protocolGenerator != null) {
-            writer.write("$L(stack)", getOperationProtocolMiddlewareHelperName(operation));
-        }
         writer.write("");
     }
 
-   /** Generate operation protocol middleware helper.
-    */
+    /**
+     * Generate operation protocol middleware helper.
+     */
     private void generateOperationProtocolMiddlewareHelper() {
         if (protocolGenerator == null) {
             return;
@@ -226,19 +228,19 @@ final class OperationGenerator implements Runnable {
         writer.openBlock("func $L (stack *middleware.Stack) {", "}",
                 getOperationProtocolMiddlewareHelperName(operation), () -> {
 
-            // Add request serializer middleware
-            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
-                    operation.getId(),
-                    protocolGenerator.getProtocolName());
-            writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+                    // Add request serializer middleware
+                    String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                            operation.getId(),
+                            protocolGenerator.getProtocolName());
+                    writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
 
-            // Adds response deserializer middleware
-            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
-                    operation.getId(),
-                    protocolGenerator.getProtocolName());
-            writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
-            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        });
+                    // Adds response deserializer middleware
+                    String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                            operation.getId(),
+                            protocolGenerator.getProtocolName());
+                    writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+                    writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                });
     }
 
     /**
