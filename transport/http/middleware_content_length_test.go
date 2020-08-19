@@ -55,7 +55,7 @@ func TestContentLengthMiddleware(t *testing.T) {
 			var m ContentLengthMiddleware
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},
-				nopBuildHandler{},
+				nopBuildHandler,
 			)
 			if len(c.ExpectErr) != 0 {
 				if err == nil {
@@ -93,7 +93,7 @@ func TestContentLengthMiddleware_HeaderSet(t *testing.T) {
 	var m ContentLengthMiddleware
 	_, _, err = m.HandleBuild(context.Background(),
 		middleware.BuildInput{Request: req},
-		nopBuildHandler{},
+		nopBuildHandler,
 	)
 	if err != nil {
 		t.Fatalf("expect middleware to run, %v", err)
@@ -104,13 +104,10 @@ func TestContentLengthMiddleware_HeaderSet(t *testing.T) {
 	}
 }
 
-type nopBuildHandler struct{}
-
-func (nopBuildHandler) HandleBuild(ctx context.Context, in middleware.BuildInput) (
-	out middleware.BuildOutput, metadata middleware.Metadata, err error,
-) {
+var nopBuildHandler = middleware.BuildHandlerFunc(func(ctx context.Context, input middleware.BuildInput) (
+	out middleware.BuildOutput, metadata middleware.Metadata, err error) {
 	return out, metadata, nil
-}
+})
 
 type basicReader struct {
 	buf []byte
