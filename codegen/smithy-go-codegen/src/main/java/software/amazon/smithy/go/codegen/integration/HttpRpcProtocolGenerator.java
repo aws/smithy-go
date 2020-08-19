@@ -120,7 +120,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
             writer.write("request.Request.Method = \"POST\"");
             writer.write("httpBindingEncoder, err := httpbinding.NewEncoder(request.URL.Path, "
-                    +  "request.URL.RawQuery, request.Header)");
+                    + "request.URL.RawQuery, request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
@@ -160,16 +160,16 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
      * </ul>
      *
-     * @param context The generation context.
+     * @param context   The generation context.
      * @param operation The operation being generated.
-     * @param writer The writer to use.
+     * @param writer    The writer to use.
      */
     protected void writeDefaultHeaders(GenerationContext context, OperationShape operation, GoWriter writer) {}
 
     /**
      * Provides the request path for the operation.
      *
-     * @param context The generation context.
+     * @param context   The generation context.
      * @param operation The operation being generated.
      * @return The path to send HTTP requests to.
      */
@@ -185,7 +185,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
      * </ul>
      *
-     * @param context The generation context.
+     * @param context   The generation context.
      * @param operation The operation to serialize for.
      */
     protected abstract void serializeInputDocument(GenerationContext context, OperationShape operation);
@@ -204,7 +204,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * {@code deserializeOutputDocument}.
      *
      * @param context The generation context.
-     * @param shapes The shapes to generate deserialization for.
+     * @param shapes  The shapes to generate deserialization for.
      */
     protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
@@ -264,20 +264,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         });
         writer.write("");
 
-        Set<StructureShape> errorShapes = generateErrorDispatcher(context, operation);
+        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
         deserializingErrorShapes.addAll(errorShapes);
         deserializingDocumentShapes.addAll(errorShapes);
     }
-
-    /**
-     * Generates a function that handles error deserialization by getting the error code then
-     * dispatching to the error-specific deserializer.
-     *
-     * @param context The generation context.
-     * @param operation The operation to generate for.
-     * @return A set of all error structure shapes for the operation that were dispatched to.
-     */
-    protected abstract Set<StructureShape> generateErrorDispatcher(GenerationContext context, OperationShape operation);
 
     /**
      * Generate the document deserializer logic for the deserializer middleware body.
@@ -289,7 +280,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      *   <li>{@code ctx: context.Context}: a type containing context and tools for type serde.</li>
      * </ul>
      *
-     * @param context The generation context
+     * @param context   The generation context
      * @param operation The operation to deserialize for.
      */
     protected abstract void deserializeOutputDocument(GenerationContext context, OperationShape operation);
@@ -315,7 +306,22 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * </ul>
      *
      * @param context The generation context.
-     * @param shape The error shape.
+     * @param shape   The error shape.
      */
     protected abstract void deserializeError(GenerationContext context, StructureShape shape);
+
+    /**
+     * Writes a code snippet that gets the error code and error message.
+     *
+     * <p>Four parameters will be available in scope:
+     * <ul>
+     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
+     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
+     *   <li>{@code errorMessage: string}: the error message initialized to a default value.</li>
+     *   <li>{@code errorCode: string}: the error code initialized to a default value.</li>
+     * </ul>
+     *
+     * @param context the generation context.
+     */
+    protected abstract void writeErrorMessageCodeDeserializer(GenerationContext context);
 }
