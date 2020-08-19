@@ -183,7 +183,7 @@ func (h decoratedInitializeHandler) HandleInitialize(ctx context.Context, in Ini
 }
 
 // InitializeHandlerFunc provides a wrapper around a function to be used as an initialize middleware handler.
-type InitializeHandlerFunc func(ctx context.Context, in InitializeInput) (InitializeOutput, Metadata, error)
+type InitializeHandlerFunc func(context.Context, InitializeInput) (InitializeOutput, Metadata, error)
 
 // HandleInitialize calls the wrapped function with the provided arguments.
 func (i InitializeHandlerFunc) HandleInitialize(ctx context.Context, in InitializeInput) (InitializeOutput, Metadata, error) {
