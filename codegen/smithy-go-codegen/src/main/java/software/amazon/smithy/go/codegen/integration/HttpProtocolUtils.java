@@ -40,7 +40,6 @@ public final class HttpProtocolUtils {
     private HttpProtocolUtils() {
     }
 
-
     /**
      * Returns a set of RuntimePlugs to close the HTTP operation response. Uses the servicePredicate parameter to
      * filter the RuntimePlugins to protocols that are relevant.
@@ -48,7 +47,9 @@ public final class HttpProtocolUtils {
      * @param servicePredicate service filter
      * @return RuntimePlugins
      */
-    public static List<RuntimeClientPlugin> getCloseResponseClientPlugins(BiPredicate<Model, ServiceShape> servicePredicate) {
+    public static List<RuntimeClientPlugin> getCloseResponseClientPlugins(
+            BiPredicate<Model, ServiceShape> servicePredicate
+    ) {
         return ListUtils.of(
                 // Add deserialization middleware to close the response in case of errors.
                 RuntimeClientPlugin.builder()
