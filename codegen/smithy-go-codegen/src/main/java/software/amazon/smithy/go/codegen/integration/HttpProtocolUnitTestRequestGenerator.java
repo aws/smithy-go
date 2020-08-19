@@ -224,9 +224,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertRequireHeader(writer, "c.RequireHeader", "actualReq.Header");
         writeAssertForbidHeader(writer, "c.ForbidHeader", "actualReq.Header");
 
-        writer.openBlock("if actualReq.Body != nil {", "}", () -> {
-            writer.write("defer actualReq.Body.Close()");
-        });
         writer.openBlock("if c.BodyAssert != nil {", "}", () -> {
             writer.openBlock("if err := c.BodyAssert(actualReq.Body); err != nil {", "}", () -> {
                 writer.write("t.Errorf(\"expect body equal, got %v\", err)");
