@@ -7,12 +7,12 @@ import (
 
 // UserAgentBuilder is a builder for a HTTP User-Agent string.
 type UserAgentBuilder struct {
-	sb *strings.Builder
+	sb strings.Builder
 }
 
 // NewUserAgentBuilder returns a new UserAgentBuilder.
 func NewUserAgentBuilder() *UserAgentBuilder {
-	return &UserAgentBuilder{sb: &strings.Builder{}}
+	return &UserAgentBuilder{sb: strings.Builder{}}
 }
 
 // AddKey adds the named component/product to the agent string
