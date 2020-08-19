@@ -181,3 +181,11 @@ func (h decoratedFinalizeHandler) HandleFinalize(ctx context.Context, in Finaliz
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleFinalize(ctx, in, h.Next)
 }
+
+// FinalizeHandlerFunc provides a wrapper around a function to be used as a finalize middleware handler.
+type FinalizeHandlerFunc func(ctx context.Context, in FinalizeInput) (FinalizeOutput, Metadata, error)
+
+// HandleFinalize invokes the wrapped function with the given arguments.
+func (f FinalizeHandlerFunc) HandleFinalize(ctx context.Context, in FinalizeInput) (FinalizeOutput, Metadata, error) {
+	return f(ctx, in)
+}

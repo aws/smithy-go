@@ -189,3 +189,11 @@ func (h decoratedSerializeHandler) HandleSerialize(ctx context.Context, in Seria
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleSerialize(ctx, in, h.Next)
 }
+
+// SerializeHandlerFunc provides a wrapper around a function to be used as a serialize middleware handler.
+type SerializeHandlerFunc func(context.Context, SerializeInput) (SerializeOutput, Metadata, error)
+
+// HandleSerialize calls the wrapped function with the provided arguments.
+func (s SerializeHandlerFunc) HandleSerialize(ctx context.Context, in SerializeInput) (SerializeOutput, Metadata, error) {
+	return s(ctx, in)
+}
