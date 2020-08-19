@@ -118,6 +118,9 @@ func (s *FinalizeStep) HandleMiddleware(ctx context.Context, in interface{}, nex
 // Get retrieves the middleware identified by id. If the middleware is not present, returns false.
 func (s *FinalizeStep) Get(id string) (FinalizeMiddleware, bool) {
 	get, ok := s.ids.Get(id)
+	if !ok {
+		return nil, false
+	}
 	return get.(FinalizeMiddleware), ok
 }
 

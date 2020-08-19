@@ -116,6 +116,9 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 // Get retrieves the middleware identified by id. If the middleware is not present, returns false.
 func (s *BuildStep) Get(id string) (BuildMiddleware, bool) {
 	get, ok := s.ids.Get(id)
+	if !ok {
+		return nil, false
+	}
 	return get.(BuildMiddleware), ok
 }
 
