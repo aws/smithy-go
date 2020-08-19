@@ -19,36 +19,40 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiPredicate;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.ListUtils;
 
-public class CloseResponseMiddlewareGenerator implements GoIntegration {
-    /**
-     * Gets the sort order of the customization from -128 to 127, with lowest
-     * executed first.
-     *
-     * @return Returns the sort order, defaults to -40.
-     */
-    @Override
-    public byte getOrder() {
-        return 127;
+/**
+ * Provides a set of RuntimePlugins to ensure that a HTTP response is closed when it needs to be needed. This should be
+ * used by all HTTP based protocols to ensure that the response body is closed, and any errors are checked. This
+ * ensures that connections are not leaked by the underlying HTTP client.
+ */
+public final class HttpCloseResponseMiddleware {
+    private HttpCloseResponseMiddleware() {
     }
 
-    @Override
-    public List<RuntimeClientPlugin> getClientPlugins() {
+
+    /**
+     * Returns a set of RuntimePlugs to close the HTTP operation response. Uses the servicePredicate parameter to
+     * filter the RuntimePlugins to protocols that are relevant.
+     *
+     * @param servicePredicate service filter
+     * @return RuntimePlugins
+     */
+    public static List<RuntimeClientPlugin> getClientPlugins(BiPredicate<Model, ServiceShape> servicePredicate) {
         return ListUtils.of(
                 // Add deserialization middleware to close the response in case of errors.
                 RuntimeClientPlugin.builder()
-                        .servicePredicate((model, service) -> {
-                            // TODO is HTTP based protocol
-                            return true;
-                        })
+                        .servicePredicate(servicePredicate)
                         .registerMiddleware(MiddlewareRegistrar.builder()
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
                                         "AddErrorCloseResponseBodyMiddleware", SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
@@ -59,10 +63,7 @@ public class CloseResponseMiddlewareGenerator implements GoIntegration {
 
                 // Add deserialization middleware to close the response for non-output-streaming operations.
                 RuntimeClientPlugin.builder()
-                        .servicePredicate((model, service) -> {
-                            // TODO is HTTP based protocol
-                            return true;
-                        })
+                        .servicePredicate(servicePredicate)
                         .operationPredicate((model, service, operation) -> {
                             // TODO operation output NOT event stream
 
