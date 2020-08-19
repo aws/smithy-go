@@ -36,8 +36,8 @@ import software.amazon.smithy.utils.ListUtils;
  * used by all HTTP based protocols to ensure that the response body is closed, and any errors are checked. This
  * ensures that connections are not leaked by the underlying HTTP client.
  */
-public final class HttpCloseResponseMiddleware {
-    private HttpCloseResponseMiddleware() {
+public final class HttpProtocolUtils {
+    private HttpProtocolUtils() {
     }
 
 
@@ -48,7 +48,7 @@ public final class HttpCloseResponseMiddleware {
      * @param servicePredicate service filter
      * @return RuntimePlugins
      */
-    public static List<RuntimeClientPlugin> getClientPlugins(BiPredicate<Model, ServiceShape> servicePredicate) {
+    public static List<RuntimeClientPlugin> getCloseResponseClientPlugins(BiPredicate<Model, ServiceShape> servicePredicate) {
         return ListUtils.of(
                 // Add deserialization middleware to close the response in case of errors.
                 RuntimeClientPlugin.builder()
