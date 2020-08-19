@@ -187,3 +187,13 @@ func (h decoratedDeserializeHandler) HandleDeserialize(ctx context.Context, in D
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleDeserialize(ctx, in, h.Next)
 }
+
+// DeserializeHandlerFunc provides a wrapper around a function to be used as a deserialize middleware handler.
+type DeserializeHandlerFunc func(context.Context, DeserializeInput) (DeserializeOutput, Metadata, error)
+
+// HandleDeserialize invokes the wrapped function with the given arguments.
+func (d DeserializeHandlerFunc) HandleDeserialize(ctx context.Context, in DeserializeInput) (DeserializeOutput, Metadata, error) {
+	return d(ctx, in)
+}
+
+var _ DeserializeHandler = DeserializeHandlerFunc(nil)

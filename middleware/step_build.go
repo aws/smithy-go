@@ -179,3 +179,13 @@ func (h decoratedBuildHandler) HandleBuild(ctx context.Context, in BuildInput) (
 	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleBuild(ctx, in, h.Next)
 }
+
+// BuildHandlerFunc provides a wrapper around a function to be used as a build middleware handler.
+type BuildHandlerFunc func(context.Context, BuildInput) (BuildOutput, Metadata, error)
+
+// HandleBuild invokes the wrapped function with the provided arguments.
+func (b BuildHandlerFunc) HandleBuild(ctx context.Context, in BuildInput) (BuildOutput, Metadata, error) {
+	return b(ctx, in)
+}
+
+var _ BuildHandler = BuildHandlerFunc(nil)
