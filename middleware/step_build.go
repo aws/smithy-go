@@ -187,3 +187,5 @@ type BuildHandlerFunc func(context.Context, BuildInput) (BuildOutput, Metadata, 
 func (b BuildHandlerFunc) HandleBuild(ctx context.Context, in BuildInput) (BuildOutput, Metadata, error) {
 	return b(ctx, in)
 }
+
+var _ BuildHandler = BuildHandlerFunc(nil)

@@ -195,3 +195,5 @@ type DeserializeHandlerFunc func(context.Context, DeserializeInput) (Deserialize
 func (d DeserializeHandlerFunc) HandleDeserialize(ctx context.Context, in DeserializeInput) (DeserializeOutput, Metadata, error) {
 	return d(ctx, in)
 }
+
+var _ DeserializeHandler = DeserializeHandlerFunc(nil)

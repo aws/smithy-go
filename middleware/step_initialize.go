@@ -189,3 +189,5 @@ type InitializeHandlerFunc func(context.Context, InitializeInput) (InitializeOut
 func (i InitializeHandlerFunc) HandleInitialize(ctx context.Context, in InitializeInput) (InitializeOutput, Metadata, error) {
 	return i(ctx, in)
 }
+
+var _ InitializeHandler = InitializeHandlerFunc(nil)

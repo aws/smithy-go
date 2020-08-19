@@ -197,3 +197,5 @@ type SerializeHandlerFunc func(context.Context, SerializeInput) (SerializeOutput
 func (s SerializeHandlerFunc) HandleSerialize(ctx context.Context, in SerializeInput) (SerializeOutput, Metadata, error) {
 	return s(ctx, in)
 }
+
+var _ SerializeHandler = SerializeHandlerFunc(nil)

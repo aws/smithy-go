@@ -189,3 +189,5 @@ type FinalizeHandlerFunc func(context.Context, FinalizeInput) (FinalizeOutput, M
 func (f FinalizeHandlerFunc) HandleFinalize(ctx context.Context, in FinalizeInput) (FinalizeOutput, Metadata, error) {
 	return f(ctx, in)
 }
+
+var _ FinalizeHandler = FinalizeHandlerFunc(nil)
