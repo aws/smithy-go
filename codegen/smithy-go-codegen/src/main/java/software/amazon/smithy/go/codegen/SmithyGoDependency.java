@@ -39,6 +39,7 @@ public final class SmithyGoDependency {
     public static final GoDependency CRYPTORAND = stdlib("crypto/rand", "cryptorand");
     public static final GoDependency TESTING = stdlib("testing");
     public static final GoDependency ERRORS = stdlib("errors");
+    public static final GoDependency XML = stdlib("encoding/xml");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");

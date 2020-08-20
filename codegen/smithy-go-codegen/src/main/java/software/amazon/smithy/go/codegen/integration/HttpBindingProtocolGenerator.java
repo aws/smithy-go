@@ -280,6 +280,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         GoWriter goWriter = context.getWriter();
+
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
                 operation, context.getProtocolName());
 

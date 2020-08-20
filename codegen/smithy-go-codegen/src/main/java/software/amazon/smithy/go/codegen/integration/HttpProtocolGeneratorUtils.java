@@ -45,7 +45,7 @@ public final class HttpProtocolGeneratorUtils {
      *                                  and {@code errorMessage} variables from the http response.
      * @return A set of all error structure shapes for the operation that were dispatched to.
      */
-    static Set<StructureShape> generateErrorDispatcher(
+     static Set<StructureShape> generateErrorDispatcher(
             GenerationContext context,
             OperationShape operation,
             Symbol responseType,
@@ -78,13 +78,14 @@ public final class HttpProtocolGeneratorUtils {
             // Dispatch to the message/code generator to try to get the specific code and message.
             errorMessageCodeGenerator.accept(context);
 
-            writer.openBlock("switch errorCode {", "}", () -> {
+            writer.openBlock("switch {", "}", () -> {
                 new TreeSet<>(operation.getErrors()).forEach(errorId -> {
                     StructureShape error = context.getModel().expectShape(errorId).asStructureShape().get();
                     errorShapes.add(error);
                     String errorDeserFunctionName = ProtocolGenerator.getErrorDeserFunctionName(
                             error, context.getProtocolName());
-                    writer.openBlock("case $S:", "", errorId.getName(), () -> {
+                    writer.addUseImports(SmithyGoDependency.STRINGS);
+                    writer.openBlock("case strings.EqualFold($S, errorCode):", "", errorId.getName(), () -> {
                         writer.write("return $L(response, errorBody)", errorDeserFunctionName);
                     });
                 });

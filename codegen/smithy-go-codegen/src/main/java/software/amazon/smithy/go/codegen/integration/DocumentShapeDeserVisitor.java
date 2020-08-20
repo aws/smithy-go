@@ -41,8 +41,8 @@ import software.amazon.smithy.model.shapes.UnionShape;
 /**
  * Visitor to generate deserialization functions for shapes in protocol document bodies.
  *
- * Visitor methods for aggregate types are final and will generate functions that dispatch
- * their loading from the body to the matching abstract method.
+ * Visitor methods for aggregate types except maps and collections are final and will
+ * generate functions that dispatch their loading from the body to the matching abstract method.
  *
  * Visitor methods for all other types will default to not generating deserialization
  * functions. This may be overwritten by downstream implementations if the protocol requires
@@ -472,7 +472,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * @return null
      */
     @Override
-    public final Void listShape(ListShape shape) {
+    public Void listShape(ListShape shape) {
         generateDeserFunction(shape, (c, s) -> deserializeCollection(c, s.asListShape().get()));
         return null;
     }
@@ -484,7 +484,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * @return null
      */
     @Override
-    public final Void mapShape(MapShape shape) {
+    public Void mapShape(MapShape shape) {
         generateDeserFunction(shape, (c, s) -> deserializeMap(c, s.asMapShape().get()));
         return null;
     }
@@ -496,7 +496,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * @return null
      */
     @Override
-    public final Void setShape(SetShape shape) {
+    public Void setShape(SetShape shape) {
         generateDeserFunction(shape, (c, s) -> deserializeCollection(c, s.asSetShape().get()));
         return null;
     }
