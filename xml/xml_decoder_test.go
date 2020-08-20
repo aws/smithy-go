@@ -67,7 +67,7 @@ func TestXMLNodeDecoder_Token(t *testing.T) {
 					t.Fatalf("expected error to contain %v, found %v", e, a.Error())
 				}
 			}
-			nodeDecoder := NewNodeDecoder(xmlDecoder, st)
+			nodeDecoder := WrapNodeDecoder(xmlDecoder, st)
 			token, done, err := nodeDecoder.Token()
 			if err != nil {
 				if len(c.expectedError) == 0 {
@@ -101,7 +101,7 @@ func TestXMLNodeDecoder_TokenExample(t *testing.T) {
 	}
 
 	// nodeDecoder will track <Struct> tag as root node of the document
-	nodeDecoder := NewNodeDecoder(xmlDecoder, st)
+	nodeDecoder := WrapNodeDecoder(xmlDecoder, st)
 
 	// Retrieves <Response> tag
 	token, done, err := nodeDecoder.Token()
@@ -185,7 +185,7 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 					t.Fatalf("expected error to contain %v, found %v", e, a.Error())
 				}
 			}
-			nodeDecoder := NewNodeDecoder(xmlDecoder, st)
+			nodeDecoder := WrapNodeDecoder(xmlDecoder, st)
 			token, done, err := nodeDecoder.Value()
 			if err != nil {
 				if len(c.expectedError) == 0 {

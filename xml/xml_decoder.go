@@ -13,9 +13,9 @@ type NodeDecoder struct {
 	StartEl xml.StartElement
 }
 
-// NewNodeDecoder returns a ptr to an initialized XMLNodeDecoder
-func NewNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) *NodeDecoder {
-	return &NodeDecoder{
+// WrapNodeDecoder returns an initialized XMLNodeDecoder
+func WrapNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) NodeDecoder {
+	return NodeDecoder{
 		Decoder: decoder,
 		StartEl: startEl,
 	}
@@ -24,7 +24,7 @@ func NewNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) *NodeDecoder
 // Token on a Node Decoder returns a xml StartElement. It returns a boolean that indicates the
 // a token is the node decoder's end node token; and an error which indicates any error
 // that occurred while retrieving the start element
-func (d *NodeDecoder) Token() (t xml.StartElement, done bool, err error) {
+func (d NodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 	for {
 		token, e := d.Decoder.Token()
 		if e != nil {
@@ -50,7 +50,7 @@ func (d *NodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 // Value provides an abstraction to retrieve char data value within an xml element.
 // The method will return an error if it encounters a nested xml element instead of char data.
 // This method should only be used to retrieve simple type or blob shape values as []byte.
-func (d *NodeDecoder) Value() (c []byte, done bool, err error) {
+func (d NodeDecoder) Value() (c []byte, done bool, err error) {
 	t, e := d.Decoder.Token()
 	if e != nil {
 		return c, done, e

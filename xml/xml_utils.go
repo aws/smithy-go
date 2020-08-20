@@ -15,7 +15,7 @@ func GetResponseErrorCode(r io.Reader, noErrorWrapping bool) (string, error) {
 	}
 
 	if noErrorWrapping {
-		var errResponse errorWrapper
+		var errResponse errorBody
 		err := xml.Unmarshal(rb, &errResponse)
 		if err != nil {
 			return "", fmt.Errorf("error while fetching xml error response code: %w", err)
@@ -30,10 +30,15 @@ func GetResponseErrorCode(r io.Reader, noErrorWrapping bool) (string, error) {
 	return errResponse.Err.Code, nil
 }
 
+// errorResponse represents the outer error response body
+// i.e. <ErrorResponse>...</ErrorResponse>
 type errorResponse struct {
-	Err errorWrapper `xml:"Error"`
+	Err errorBody `xml:"Error"`
 }
 
-type errorWrapper struct {
+// errorBody represents the inner error body is wrapped by <ErrorResponse> tag
+// eg. if error response is <ErrorResponse><Error>...</Error><ErrorResponse>
+// here errorBody represents <Error>...</Error>
+type errorBody struct {
 	Code string `xml:"Code"`
 }
