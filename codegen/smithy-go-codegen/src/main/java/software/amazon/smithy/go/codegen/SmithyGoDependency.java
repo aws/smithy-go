@@ -50,6 +50,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
+    public static final GoDependency SMITHY_XML = smithy("xml", "smithyxml");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");
@@ -107,6 +108,6 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.14";
         private static final String GO_CMP = "v0.4.1";
-        private static final String SMITHY_GO = "v0.0.0-20200819234259-983434bb17eb";
+        private static final String SMITHY_GO = "v0.0.0-20200820043901-ef309bba027a";
     }
 }
