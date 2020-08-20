@@ -1,4 +1,4 @@
-package httpbinding
+package http
 
 import "testing"
 
