@@ -1,21 +1,21 @@
-package decoding
+package xml
 
 import (
 	"encoding/xml"
 	"fmt"
 )
 
-// XMLNodeDecoder is a XML decoder wrapper that is responsible to decoding
+// NodeDecoder is a XML decoder wrapper that is responsible to decoding
 // a single XML Node element and it's nested member elements. This wrapper decoder
 // takes in the start element of the top level node being decoded.
-type XMLNodeDecoder struct {
+type NodeDecoder struct {
 	Decoder *xml.Decoder
 	StartEl xml.StartElement
 }
 
-// NewXMLNodeDecoder returns a ptr to an initialized XMLNodeDecoder
-func NewXMLNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) *XMLNodeDecoder {
-	return &XMLNodeDecoder{
+// NewNodeDecoder returns a ptr to an initialized XMLNodeDecoder
+func NewNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) *NodeDecoder {
+	return &NodeDecoder{
 		Decoder: decoder,
 		StartEl: startEl,
 	}
@@ -24,7 +24,7 @@ func NewXMLNodeDecoder(decoder *xml.Decoder, startEl xml.StartElement) *XMLNodeD
 // Token on a Node Decoder returns a xml StartElement. It returns a boolean that indicates the
 // a token is the node decoder's end node token; and an error which indicates any error
 // that occurred while retrieving the start element
-func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
+func (d *NodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 	for {
 		token, e := d.Decoder.Token()
 		if e != nil {
@@ -50,7 +50,7 @@ func (d *XMLNodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 // Value provides an abstraction to retrieve char data value within an xml element.
 // The method will return an error if it encounters a nested xml element instead of char data.
 // This method should only be used to retrieve simple type or blob shape values as []byte.
-func (d *XMLNodeDecoder) Value() (c []byte, done bool, err error) {
+func (d *NodeDecoder) Value() (c []byte, done bool, err error) {
 	t, e := d.Decoder.Token()
 	if e != nil {
 		return c, done, e
@@ -70,10 +70,10 @@ func (d *XMLNodeDecoder) Value() (c []byte, done bool, err error) {
 	return c, done, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
 }
 
-// FetchXmlRootElement takes in a decoder and returns the first start element within the xml body.
+// FetchRootElement takes in a decoder and returns the first start element within the xml body.
 // This function is useful in fetching the start element of an XML response and ignore the
 // comments and preamble
-func FetchXmlRootElement(decoder *xml.Decoder) (startElement xml.StartElement, err error) {
+func FetchRootElement(decoder *xml.Decoder) (startElement xml.StartElement, err error) {
 	for {
 		t, e := decoder.Token()
 		if e != nil {

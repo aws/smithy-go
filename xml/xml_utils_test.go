@@ -1,4 +1,4 @@
-package decoding
+package xml
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestGetXMLResponseErrorCode(t *testing.T) {
+func TestGetResponseErrorCode(t *testing.T) {
 	cases := map[string]struct {
 		errorResponse          io.Reader
 		noErrorWrappingEnabled bool
@@ -40,7 +40,7 @@ func TestGetXMLResponseErrorCode(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			errorcode, err := GetXMLResponseErrorCode(c.errorResponse, c.noErrorWrappingEnabled)
+			errorcode, err := GetResponseErrorCode(c.errorResponse, c.noErrorWrappingEnabled)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}

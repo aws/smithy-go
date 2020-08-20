@@ -1,4 +1,4 @@
-package decoding
+package xml
 
 import (
 	"encoding/xml"
@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 )
 
-// GetXMLResponseErrorCode returns the error code from an xml error response body
-func GetXMLResponseErrorCode(r io.Reader, noErrorWrapping bool) (string, error) {
+// GetResponseErrorCode returns the error code from an xml error response body
+func GetResponseErrorCode(r io.Reader, noErrorWrapping bool) (string, error) {
 	rb, err := ioutil.ReadAll(r)
 	if err != nil {
 		return "", err

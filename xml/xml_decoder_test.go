@@ -1,4 +1,4 @@
-package decoding
+package xml
 
 import (
 	"bytes"
@@ -57,7 +57,7 @@ func TestXMLNodeDecoder_Token(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			xmlDecoder := xml.NewDecoder(c.responseBody)
-			st, err := FetchXmlRootElement(xmlDecoder)
+			st, err := FetchRootElement(xmlDecoder)
 			if err != nil {
 				if len(c.expectedError) == 0 {
 					t.Fatalf("Expected no error, got %v", err)
@@ -67,7 +67,7 @@ func TestXMLNodeDecoder_Token(t *testing.T) {
 					t.Fatalf("expected error to contain %v, found %v", e, a.Error())
 				}
 			}
-			nodeDecoder := NewXMLNodeDecoder(xmlDecoder, st)
+			nodeDecoder := NewNodeDecoder(xmlDecoder, st)
 			token, done, err := nodeDecoder.Token()
 			if err != nil {
 				if len(c.expectedError) == 0 {
@@ -95,13 +95,13 @@ func TestXMLNodeDecoder_TokenExample(t *testing.T) {
 
 	xmlDecoder := xml.NewDecoder(responseBody)
 	// Fetches <Struct> tag as start element.
-	st, err := FetchXmlRootElement(xmlDecoder)
+	st, err := FetchRootElement(xmlDecoder)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// nodeDecoder will track <Struct> tag as root node of the document
-	nodeDecoder := NewXMLNodeDecoder(xmlDecoder, st)
+	nodeDecoder := NewNodeDecoder(xmlDecoder, st)
 
 	// Retrieves <Response> tag
 	token, done, err := nodeDecoder.Token()
@@ -175,7 +175,7 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			xmlDecoder := xml.NewDecoder(c.responseBody)
-			st, err := FetchXmlRootElement(xmlDecoder)
+			st, err := FetchRootElement(xmlDecoder)
 			if err != nil {
 				if len(c.expectedError) == 0 {
 					t.Fatalf("Expected no error, got %v", err)
@@ -185,7 +185,7 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 					t.Fatalf("expected error to contain %v, found %v", e, a.Error())
 				}
 			}
-			nodeDecoder := NewXMLNodeDecoder(xmlDecoder, st)
+			nodeDecoder := NewNodeDecoder(xmlDecoder, st)
 			token, done, err := nodeDecoder.Value()
 			if err != nil {
 				if len(c.expectedError) == 0 {
@@ -286,7 +286,7 @@ func Test_FetchXMLRootElement(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			decoder := xml.NewDecoder(c.responseBody)
-			st, err := FetchXmlRootElement(decoder)
+			st, err := FetchRootElement(decoder)
 			if err != nil {
 				if len(c.expectedError) == 0 {
 					t.Fatalf("Expected no error, got %v", err)
