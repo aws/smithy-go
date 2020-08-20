@@ -19,8 +19,9 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.UnionShape;
-import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Renders unions and type aliases for all their members.
@@ -51,48 +52,41 @@ public class UnionGenerator implements Runnable {
             writer.write("is$L()", symbol.getName());
         }).write("");
 
-        // Create type aliases for each member that satisfy the interface.
+        // Create structs for each member that satisfy the interface.
         for (MemberShape member : shape.getAllMembers().values()) {
             Symbol memberSymbol = symbolProvider.toSymbol(member);
             String exportedMemberName = symbol.getName() + symbolProvider.toMemberName(member);
-            String unExportedMemberName = StringUtils.uncapitalize(exportedMemberName);
+            Shape target = model.expectShape(member.getTarget());
 
-            // Create an interface for the member
+            // Create the member's concrete type
             writer.writeMemberDocs(model, member);
-            writer.openBlock("type $L interface {", "}", exportedMemberName, () -> {
-                writer.write("$L", symbol.getName());
-                writer.write("is$L()", exportedMemberName);
-                writer.write("Value() $T", memberSymbol);
+            writer.openBlock("type $L struct {", "}", exportedMemberName, () -> {
+                // Union members can't have null values, so for simple shapes we don't
+                // use pointers. We have to use pointers for complex shapes since,
+                // for example, we could still have a map that's empty or which has
+                // null values.
+                if (target instanceof SimpleShape) {
+                    writer.write("Value $T", memberSymbol);
+                } else {
+                    writer.write("Value $P", memberSymbol);
+                }
             });
 
-            writer.openBlock("func As$L(v $T) $L {", "}", exportedMemberName, memberSymbol, exportedMemberName, () -> {
-                writer.write("return $L{value: v}", unExportedMemberName);
-            });
-
-            // Create the member's un-exported concrete type
-            writer.openBlock("type $L struct {", "}", unExportedMemberName, () -> {
-                writer.write("value $T", memberSymbol);
-            });
-
-            writer.write("func ($L) is$L() {}", unExportedMemberName, symbol.getName());
-            writer.write("func ($L) is$L() {}", unExportedMemberName, exportedMemberName);
-            writer.openBlock("func (v $L) Value() $T {", "}", unExportedMemberName, memberSymbol, () -> {
-                writer.write("return v.value");
-            });
+            writer.write("func ($L) is$L() {}", exportedMemberName, symbol.getName());
         }
 
         // Creates a fallback type for use when an unknown member is found. This
         // could be the result of an outdated client, for example.
-        writer.writeDocs(symbol.getName()
-                + "Unknown is returned when a union member is returned over the wire, but has an unknown tag.");
-        writer.openBlock("type $LUnknown struct {", "}", symbol.getName(), () -> {
-            // The tag (member) name received over the wire. Necessary for re-serialization.
-            writer.write("tag string");
+        String unknownStructName = symbol.getName() + "Unknown";
+        writer.writeDocs(unknownStructName
+                + " is returned when a union member is returned over the wire, but has an unknown tag.");
+        writer.openBlock("type $L struct {", "}", unknownStructName, () -> {
+            // The tag (member) name received over the wire.
+            writer.write("Tag string");
             // The value received.
-            writer.write("value []byte");
+            writer.write("Value []byte");
         });
-        writer.write("func (v $LUnknown) is$L() {}", symbol.getName(), symbol.getName())
-                .write("func (v $LUnknown) Value() []byte { return v.value }", symbol.getName())
-                .write("func (v $LUnknown) Tag() string { return v.tag }", symbol.getName());
+
+        writer.write("func (v $L) is$L() {}", unknownStructName, symbol.getName());
     }
 }

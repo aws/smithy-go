@@ -385,7 +385,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol unionShape(UnionShape shape) {
         String name = getDefaultShapeName(shape);
-        return SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName)
+        return SymbolUtils.createValueSymbolBuilder(shape, name, typesPackageName)
                 .definitionFile("./types/types.go")
                 .build();
     }
