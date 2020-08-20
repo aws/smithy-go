@@ -17,6 +17,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -36,6 +38,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 
@@ -98,6 +101,9 @@ public final class ShapeValueGenerator {
                 break;
 
             case UNION:
+                unionDeclShapeValue(writer, shape.asUnionShape().get(), params.expectObjectNode());
+                break;
+
             case DOCUMENT:
                 LOGGER.warning("Skipping " + shape.getType() + " shape type not supported, " + shape.getId());
                 writer.writeInline("nil");
@@ -124,6 +130,33 @@ public final class ShapeValueGenerator {
         writer.write("&$T{", symbol);
         inner.run();
         writer.writeInline("}");
+    }
+
+    /**
+     * Writes the declaration for a Go union.
+     *
+     * @param writer writer to write generated code with.
+     * @param shape  the union shape.
+     * @param params the params.
+     */
+    protected void unionDeclShapeValue(GoWriter writer, UnionShape shape, ObjectNode params) {
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        for (Map.Entry<StringNode, Node> entry : params.getMembers().entrySet()) {
+            Optional<MemberShape> member = shape.getMember(entry.getKey().toString());
+            if (member.isPresent()) {
+                Shape target = model.expectShape(member.get().getTarget());
+                String exportedMemberName = symbol.getName() + symbolProvider.toMemberName(member.get());
+                Symbol castingFunction = SymbolUtils.createValueSymbolBuilder(
+                        "As" + exportedMemberName,
+                        symbol.getNamespace()
+                ).build();
+
+                writer.writeInline("$T(", castingFunction);
+                writeShapeValueInline(writer, target, entry.getValue());
+                writer.writeInline(")");
+            }
+            return;
+        }
     }
 
     /**
