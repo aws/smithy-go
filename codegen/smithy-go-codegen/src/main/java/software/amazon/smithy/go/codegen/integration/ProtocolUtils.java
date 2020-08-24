@@ -30,8 +30,10 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SetUtils;
 
 /**
@@ -159,5 +161,16 @@ public final class ProtocolUtils {
         context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
             consumer.accept(operand);
         });
+    }
+
+    /**
+     * Determines whether a given shape will use a pointer when the shape is used as a union value.
+     *
+     * @param shape the shape to check
+     * @return true if the shape should use pointers
+     */
+    public static boolean usesPointerWhenUnionValue(Shape shape) {
+        return !(shape instanceof SimpleShape) || shape.isBlobShape() || shape.hasTrait(EnumTrait.class)
+                || shape.hasTrait(StreamingTrait.class);
     }
 }
