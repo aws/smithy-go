@@ -37,6 +37,7 @@ import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
@@ -104,7 +105,7 @@ public final class ShapeValueGenerator {
                 break;
 
             default:
-                scalarWrapShapeValue(writer, shape, params);
+                writeScalarPointerInline(writer, shape, params);
         }
     }
 
@@ -136,15 +137,18 @@ public final class ShapeValueGenerator {
             Optional<MemberShape> member = shape.getMember(entry.getKey().toString());
             if (member.isPresent()) {
                 Shape target = model.expectShape(member.get().getTarget());
-                String exportedMemberName = symbol.getName() + symbolProvider.toMemberName(member.get());
-                Symbol castingFunction = SymbolUtils.createValueSymbolBuilder(
-                        "As" + exportedMemberName,
+                Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(
+                        symbol.getName() + symbolProvider.toMemberName(member.get()),
                         symbol.getNamespace()
                 ).build();
 
-                writer.writeInline("$T(", castingFunction);
-                writeShapeValueInline(writer, target, entry.getValue());
-                writer.writeInline(")");
+                writer.writeInline("$T{Value: ", memberSymbol);
+                if (target instanceof SimpleShape) {
+                    writeScalarValueInline(writer, target, entry.getValue());
+                } else {
+                    writeShapeValueInline(writer, target, entry.getValue());
+                }
+                writer.writeInline("}");
             }
             return;
         }
@@ -192,10 +196,9 @@ public final class ShapeValueGenerator {
      * @param shape  scalar shape.
      * @param params parameters to fill the generated shape declaration.
      */
-    protected void scalarWrapShapeValue(GoWriter writer, Shape shape, Node params) {
+    protected void writeScalarPointerInline(GoWriter writer, Shape shape, Node params) {
         boolean withPtrImport = true;
         String closing = ")";
-        ShapeValueNodeVisitor visitor = new ShapeValueNodeVisitor(writer, this, shape);
 
         switch (shape.getType()) {
             case BOOLEAN:
@@ -203,30 +206,15 @@ public final class ShapeValueGenerator {
                 break;
 
             case BLOB:
-                if (shape.hasTrait(StreamingTrait.class)) {
-                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
-                    writer.addUseImports(SmithyGoDependency.BYTES);
-                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: bytes.NewReader([]byte(");
-                    closing += ")}";
-                } else {
-                    writer.writeInline("[]byte(");
-                }
+                closing = "";
                 withPtrImport = false;
                 break;
 
             case STRING:
                 // Enum are not pointers, but string alias values
-                if (shape.hasTrait(StreamingTrait.class)) {
-                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
-                    writer.addUseImports(SmithyGoDependency.STRINGS);
-                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: strings.NewReader(");
-                    closing += "}";
-
-                } else if (shape.hasTrait(EnumTrait.class)) {
-                    Symbol enumSymbol = symbolProvider.toSymbol(shape);
-                    writer.writeInline("$T(", enumSymbol);
+                if (shape.hasTrait(StreamingTrait.class) || shape.hasTrait(EnumTrait.class)) {
+                    closing = "";
                     withPtrImport = false;
-
                 } else {
                     writer.writeInline("ptr.String(");
                 }
@@ -263,7 +251,7 @@ public final class ShapeValueGenerator {
 
             case BIG_INTEGER:
             case BIG_DECIMAL:
-                params.accept(visitor);
+                writeScalarValueInline(writer, shape, params);
                 return;
 
             default:
@@ -274,7 +262,44 @@ public final class ShapeValueGenerator {
             writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         }
 
-        params.accept(visitor);
+        writeScalarValueInline(writer, shape, params);
+        writer.writeInline(closing);
+    }
+
+    protected void writeScalarValueInline(GoWriter writer, Shape shape, Node params) {
+        String closing = "";
+        switch (shape.getType()) {
+            case BLOB:
+                if (shape.hasTrait(StreamingTrait.class)) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
+                    writer.addUseImports(SmithyGoDependency.BYTES);
+                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: bytes.NewReader([]byte(");
+                    closing = "))}";
+                } else {
+                    writer.writeInline("[]byte(");
+                    closing = ")";
+                }
+                break;
+
+            case STRING:
+                // Enum are not pointers, but string alias values
+                if (shape.hasTrait(StreamingTrait.class)) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_IO);
+                    writer.addUseImports(SmithyGoDependency.STRINGS);
+                    writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: strings.NewReader(");
+                    closing = ")}";
+
+                } else if (shape.hasTrait(EnumTrait.class)) {
+                    Symbol enumSymbol = symbolProvider.toSymbol(shape);
+                    writer.writeInline("$T(", enumSymbol);
+                    closing = ")";
+                }
+                break;
+
+            default:
+                break;
+        }
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
         writer.writeInline(closing);
     }
 
