@@ -82,22 +82,16 @@ public final class ShapeValueGenerator {
 
         switch (shape.getType()) {
             case STRUCTURE:
-                structDeclShapeValue(writer, shape.asStructureShape().get(), () -> {
-                    params.accept(new ShapeValueNodeVisitor(writer, this, shape));
-                });
+                structDeclShapeValue(writer, shape.asStructureShape().get(), params);
                 break;
 
             case SET:
             case LIST:
-                listDeclShapeValue(writer, (CollectionShape) shape, () -> {
-                    params.accept(new ShapeValueNodeVisitor(writer, this, shape));
-                });
+                listDeclShapeValue(writer, (CollectionShape) shape, params);
                 break;
 
             case MAP:
-                mapDeclShapeValue(writer, shape.asMapShape().get(), () -> {
-                    params.accept(new ShapeValueNodeVisitor(writer, this, shape));
-                });
+                mapDeclShapeValue(writer, shape.asMapShape().get(), params);
                 break;
 
             case UNION:
@@ -110,10 +104,7 @@ public final class ShapeValueGenerator {
                 break;
 
             default:
-
-                scalarWrapShapeValue(writer, shape, () -> {
-                    params.accept(new ShapeValueNodeVisitor(writer, this, shape));
-                });
+                scalarWrapShapeValue(writer, shape, params);
         }
     }
 
@@ -121,14 +112,14 @@ public final class ShapeValueGenerator {
      * Writes the declaration for a Go structure. Delegates to the runner for member fields within the structure.
      *
      * @param writer writer to write generated code with.
-     * @param shape  the structure shpae
-     * @param inner  lambda to populate struct member fields.
+     * @param shape  the structure shape
+     * @param params parameters to fill the generated shape declaration.
      */
-    protected void structDeclShapeValue(GoWriter writer, StructureShape shape, Runnable inner) {
+    protected void structDeclShapeValue(GoWriter writer, StructureShape shape, Node params) {
         Symbol symbol = symbolProvider.toSymbol(shape);
 
         writer.write("&$T{", symbol);
-        inner.run();
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
         writer.writeInline("}");
     }
 
@@ -164,14 +155,14 @@ public final class ShapeValueGenerator {
      *
      * @param writer writer to write generated code with.
      * @param shape  the collection shape
-     * @param inner  lambda to populate collection member fields.
+     * @param params parameters to fill the generated shape declaration.
      */
-    protected void listDeclShapeValue(GoWriter writer, CollectionShape shape, Runnable inner) {
+    protected void listDeclShapeValue(GoWriter writer, CollectionShape shape, Node params) {
         Shape memberShape = model.expectShape(shape.getMember().getTarget());
         Symbol memberSymbol = symbolProvider.toSymbol(memberShape);
 
         writer.write("[]$P{", memberSymbol);
-        inner.run();
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
         writer.writeInline("}");
     }
 
@@ -180,9 +171,9 @@ public final class ShapeValueGenerator {
      *
      * @param writer writer to write generated code with.
      * @param shape  the map shape.
-     * @param inner  lambda to populate map key/value fields.
+     * @param params parameters to fill the generated shape declaration.
      */
-    protected void mapDeclShapeValue(GoWriter writer, MapShape shape, Runnable inner) {
+    protected void mapDeclShapeValue(GoWriter writer, MapShape shape, Node params) {
         Shape valueShape = model.expectShape(shape.getValue().getTarget());
         Shape keyShape = model.expectShape(shape.getKey().getTarget());
 
@@ -190,7 +181,7 @@ public final class ShapeValueGenerator {
         Symbol keySymbol = symbolProvider.toSymbol(keyShape);
 
         writer.write("map[$T]$P{", keySymbol, valueSymbol);
-        inner.run();
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
         writer.writeInline("}");
     }
 
@@ -199,11 +190,12 @@ public final class ShapeValueGenerator {
      *
      * @param writer writer to write generated code with.
      * @param shape  scalar shape.
-     * @param inner  lambda to populate the actual shape value that will be wrapped.
+     * @param params parameters to fill the generated shape declaration.
      */
-    protected void scalarWrapShapeValue(GoWriter writer, Shape shape, Runnable inner) {
+    protected void scalarWrapShapeValue(GoWriter writer, Shape shape, Node params) {
         boolean withPtrImport = true;
         String closing = ")";
+        ShapeValueNodeVisitor visitor = new ShapeValueNodeVisitor(writer, this, shape);
 
         switch (shape.getType()) {
             case BOOLEAN:
@@ -271,7 +263,7 @@ public final class ShapeValueGenerator {
 
             case BIG_INTEGER:
             case BIG_DECIMAL:
-                inner.run();
+                params.accept(visitor);
                 return;
 
             default:
@@ -282,7 +274,7 @@ public final class ShapeValueGenerator {
             writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         }
 
-        inner.run();
+        params.accept(visitor);
         writer.writeInline(closing);
     }
 
