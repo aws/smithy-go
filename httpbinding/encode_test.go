@@ -80,3 +80,49 @@ func TestEncoderHasHeader(t *testing.T) {
 	}
 
 }
+
+func TestEncodeContentLength(t *testing.T) {
+	cases := map[string]struct {
+		headerValue string
+		expected    int64
+		wantErr     bool
+	}{
+		"valid number": {
+			headerValue: "1024",
+			expected:    1024,
+		},
+		"invalid number": {
+			headerValue: "1024.5",
+			wantErr:     true,
+		},
+		"not a number": {
+			headerValue: "NaN",
+			wantErr:     true,
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			encoder, err := NewEncoder("/", "", http.Header{})
+			if err != nil {
+				t.Fatalf("expect no error, got %v", err)
+			}
+
+			encoder.SetHeader("Content-Length").String(tt.headerValue)
+
+			req := &http.Request{URL: &url.URL{}}
+			req, err = encoder.Encode(req)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("unexpected error value wantErr=%v", tt.wantErr)
+			} else if tt.wantErr {
+				return
+			}
+			if e, a := tt.expected, req.ContentLength; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+			if v := req.Header.Get("Content-Length"); len(v) > 0 {
+				t.Errorf("expect header not to be set")
+			}
+		})
+	}
+}
