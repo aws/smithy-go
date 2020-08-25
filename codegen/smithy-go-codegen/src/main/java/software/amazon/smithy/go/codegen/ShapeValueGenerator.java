@@ -142,7 +142,7 @@ public final class ShapeValueGenerator {
                         symbol.getNamespace()
                 ).build();
 
-                writer.writeInline("$T{Value: ", memberSymbol);
+                writer.writeInline("&$T{Value: ", memberSymbol);
                 if (target instanceof SimpleShape) {
                     writeScalarValueInline(writer, target, entry.getValue());
                 } else {

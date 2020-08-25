@@ -73,7 +73,7 @@ public class UnionGenerator implements Runnable {
                 }
             });
 
-            writer.write("func ($L) is$L() {}", exportedMemberName, symbol.getName());
+            writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
         }
 
         // Creates a fallback type for use when an unknown member is found. This
@@ -88,6 +88,6 @@ public class UnionGenerator implements Runnable {
             writer.write("Value []byte");
         });
 
-        writer.write("func (v $L) is$L() {}", unknownStructName, symbol.getName());
+        writer.write("func (*$L) is$L() {}", unknownStructName, symbol.getName());
     }
 }
