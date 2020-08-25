@@ -134,8 +134,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private void reserveUnionMemberNames(Model model, ReservedWordsBuilder builder) {
         model.shapes(UnionShape.class).forEach(union -> {
             for (MemberShape member : union.getAllMembers().values()) {
-                String memberName = String.format("%sMember%s",
-                        getDefaultShapeName(union), getDefaultMemberName(member));
+                String memberName = formatUnionMemberName(union, member);
                 builder.put(memberName, escapeWithTrailingUnderscore(memberName));
             }
         });
@@ -199,7 +198,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public String toMemberName(MemberShape shape) {
-        String memberName = escaper.escapeMemberName(getDefaultMemberName(shape));
+        String memberName = getDefaultMemberName(shape);
+        Shape container = model.expectShape(shape.getContainer());
+        if (container.isUnionShape()) {
+            memberName = formatUnionMemberName(container.asUnionShape().get(), shape);
+        }
+        memberName = escaper.escapeMemberName(memberName);
 
         // Escape words reserved for the specific container.
         if (structureSpecificMemberEscapers.containsKey(shape.getContainer())) {
@@ -211,6 +215,10 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
             memberName = errorMemberEscaper.escapeMemberName(memberName);
         }
         return memberName;
+    }
+
+    private String formatUnionMemberName(UnionShape union, MemberShape member) {
+        return String.format("%sMember%s", getDefaultShapeName(union), getDefaultMemberName(member));
     }
 
     private String getDefaultMemberName(MemberShape shape) {
