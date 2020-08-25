@@ -14,21 +14,21 @@ import (
 func TestContentLengthMiddleware(t *testing.T) {
 	cases := map[string]struct {
 		Stream    io.Reader
-		ExpectLen string
+		ExpectLen int64
 		ExpectErr string
 	}{
 		// Cases
 		"bytes.Reader": {
 			Stream:    bytes.NewReader(make([]byte, 10)),
-			ExpectLen: "10",
+			ExpectLen: 10,
 		},
 		"bytes.Buffer": {
 			Stream:    bytes.NewBuffer(make([]byte, 10)),
-			ExpectLen: "10",
+			ExpectLen: 10,
 		},
 		"strings.Reader": {
 			Stream:    strings.NewReader("hello"),
-			ExpectLen: "5",
+			ExpectLen: 5,
 		},
 		"empty stream": {
 			Stream: strings.NewReader(""),
@@ -68,13 +68,8 @@ func TestContentLengthMiddleware(t *testing.T) {
 				t.Fatalf("expect no error, got %v", err)
 			}
 
-			t.Logf("request Content-Length:%v", req.Header.Get("Content-Length"))
-
-			if e, a := c.ExpectLen, req.Header.Get("Content-Length"); e != a {
+			if e, a := c.ExpectLen, req.ContentLength; e != a {
 				t.Errorf("expect %v content-length, got %v", e, a)
-			}
-			if a := req.Header.Values("Content-Length"); len(c.ExpectLen) == 0 && len(a) != 0 {
-				t.Errorf("expect no content-length header, got %v", a)
 			}
 		})
 	}
