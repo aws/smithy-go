@@ -164,12 +164,12 @@ public final class ProtocolUtils {
     }
 
     /**
-     * Determines whether a given shape will use a pointer when the shape is used as a union value.
+     * Determines whether a given shape will use a scalar when the shape is used as a union value.
      *
      * @param shape the shape to check
-     * @return true if the shape should use pointers
+     * @return false if the shape should use pointers
      */
-    public static boolean usesPointerWhenUnionValue(Shape shape) {
+    public static boolean usesScalarWhenUnionValue(Shape shape) {
         return !(shape instanceof SimpleShape) || shape.isBlobShape() || shape.hasTrait(EnumTrait.class)
                 || shape.hasTrait(StreamingTrait.class);
     }
