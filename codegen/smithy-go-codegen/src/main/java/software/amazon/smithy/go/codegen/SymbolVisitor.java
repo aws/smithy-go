@@ -84,7 +84,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         this.rootModuleName = rootModuleName;
         this.typesPackageName = rootModuleName + "/types";
 
-        ReservedWords reservedWords = new ReservedWordsBuilder()
+        // Reserve the generated names for union members, including the unknown case.
+        ReservedWordsBuilder reservedNames = new ReservedWordsBuilder()
+                .put(UnionGenerator.UNKNOWN_MEMBER_NAME,
+                        escapeWithTrailingUnderscore(UnionGenerator.UNKNOWN_MEMBER_NAME));
+        reserveUnionMemberNames(model, reservedNames);
+
+        ReservedWords reservedMembers = new ReservedWordsBuilder()
                 // Since Go only exports names if the first character is upper case and all
                 // the go reserved words are lower case, it's functionally impossible to conflict,
                 // so we only need to protect against common names. As of now there's only one.
@@ -96,7 +102,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .forEach(this::reserveInterfaceMemberAccessors);
 
         escaper = ReservedWordSymbolProvider.builder()
-                .memberReservedWords(reservedWords)
+                .nameReservedWords(reservedNames.build())
+                .memberReservedWords(reservedMembers)
                 // Only escape words when the symbol has a definition file to
                 // prevent escaping intentional references to built-in types.
                 .escapePredicate((shape, symbol) -> !StringUtils.isEmpty(symbol.getDefinitionFile()))
@@ -111,9 +118,27 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .build();
 
         errorMemberEscaper = ReservedWordSymbolProvider.builder()
-                .memberReservedWords(ReservedWords.compose(reservedWords, reservedErrorMembers))
+                .memberReservedWords(ReservedWords.compose(reservedMembers, reservedErrorMembers))
                 .escapePredicate((shape, symbol) -> !StringUtils.isEmpty(symbol.getDefinitionFile()))
                 .buildEscaper();
+    }
+
+    /**
+     * Reserves generated member names for unions.
+     *
+     * <p>These have the format {UnionName}Member{MemberName}.
+     *
+     * @param model The model whose unions should be reserved.
+     * @param builder A reserved words builder to add on to.
+     */
+    private void reserveUnionMemberNames(Model model, ReservedWordsBuilder builder) {
+        model.shapes(UnionShape.class).forEach(union -> {
+            for (MemberShape member : union.getAllMembers().values()) {
+                String memberName = String.format("%sMember%s",
+                        getDefaultShapeName(union), getDefaultMemberName(member));
+                builder.put(memberName, escapeWithTrailingUnderscore(memberName));
+            }
+        });
     }
 
     private boolean supportsInheritance(Shape shape) {
