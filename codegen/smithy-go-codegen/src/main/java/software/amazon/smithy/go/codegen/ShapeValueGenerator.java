@@ -138,7 +138,7 @@ public final class ShapeValueGenerator {
             if (member.isPresent()) {
                 Shape target = model.expectShape(member.get().getTarget());
                 Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(
-                        symbol.getName() + symbolProvider.toMemberName(member.get()),
+                        String.format("%sMember%s", symbol.getName(), symbolProvider.toMemberName(member.get())),
                         symbol.getNamespace()
                 ).build();
 

@@ -55,7 +55,8 @@ public class UnionGenerator implements Runnable {
         // Create structs for each member that satisfy the interface.
         for (MemberShape member : shape.getAllMembers().values()) {
             Symbol memberSymbol = symbolProvider.toSymbol(member);
-            String exportedMemberName = symbol.getName() + symbolProvider.toMemberName(member);
+            String exportedMemberName = String.format(
+                    "%sMember%s", symbol.getName(), symbolProvider.toMemberName(member));
             Shape target = model.expectShape(member.getTarget());
 
             // Create the member's concrete type
