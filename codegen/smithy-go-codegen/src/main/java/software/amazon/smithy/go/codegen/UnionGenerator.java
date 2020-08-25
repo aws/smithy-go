@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Collection;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -27,6 +28,7 @@ import software.amazon.smithy.model.shapes.UnionShape;
  * Renders unions and type aliases for all their members.
  */
 public class UnionGenerator implements Runnable {
+    public static final String UNKNOWN_MEMBER_NAME = "UnknownUnionMember";
 
     private final Model model;
     private final SymbolProvider symbolProvider;
@@ -75,19 +77,33 @@ public class UnionGenerator implements Runnable {
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
         }
+    }
 
+    /**
+     * Generates a struct for unknown union values that applies to every union in the given set.
+     *
+     * @param writer The writer to write the union to.
+     * @param unions A set of unions whose interfaces the union should apply to.
+     * @param symbolProvider A symbol provider used to get the symbols for the unions.
+     */
+    public static void generateUnknownUnion(
+            GoWriter writer,
+            Collection<UnionShape> unions,
+            SymbolProvider symbolProvider
+    ) {
         // Creates a fallback type for use when an unknown member is found. This
         // could be the result of an outdated client, for example.
-        String unknownStructName = symbol.getName() + "Unknown";
-        writer.writeDocs(unknownStructName
+        writer.writeDocs(UNKNOWN_MEMBER_NAME
                 + " is returned when a union member is returned over the wire, but has an unknown tag.");
-        writer.openBlock("type $L struct {", "}", unknownStructName, () -> {
+        writer.openBlock("type $L struct {", "}", UNKNOWN_MEMBER_NAME, () -> {
             // The tag (member) name received over the wire.
             writer.write("Tag string");
             // The value received.
             writer.write("Value []byte");
         });
 
-        writer.write("func (*$L) is$L() {}", unknownStructName, symbol.getName());
+        for (UnionShape union : unions) {
+            writer.write("func (*$L) is$L() {}", UNKNOWN_MEMBER_NAME, symbolProvider.toSymbol(union).getName());
+        }
     }
 }

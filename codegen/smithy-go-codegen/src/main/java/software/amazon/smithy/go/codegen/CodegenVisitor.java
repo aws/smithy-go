@@ -26,6 +26,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -48,6 +49,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
+import software.amazon.smithy.utils.OptionalUtils;
 
 /**
  * Orchestrates Go client generation.
@@ -160,6 +162,17 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         for (Shape shape : serviceShapes) {
             shape.accept(this);
+        }
+
+        // Generate a struct to handle unknown tags in unions
+        List<UnionShape> unions = serviceShapes.stream()
+                .map(Shape::asUnionShape)
+                .flatMap(OptionalUtils::stream)
+                .collect(Collectors.toList());
+        if (!unions.isEmpty()) {
+            writers.useShapeWriter(unions.get(0), writer -> {
+                UnionGenerator.generateUnknownUnion(writer, unions, symbolProvider);
+            });
         }
 
         for (GoIntegration integration : integrations) {
