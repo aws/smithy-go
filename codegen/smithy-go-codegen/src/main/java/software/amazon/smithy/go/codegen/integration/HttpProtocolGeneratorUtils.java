@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Collection;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -22,7 +23,11 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
+import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.HttpBinding;
+import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 public final class HttpProtocolGeneratorUtils {
@@ -104,5 +109,26 @@ public final class HttpProtocolGeneratorUtils {
         writer.write("");
 
         return errorShapes;
+    }
+
+    /**
+     * Returns whether a shape has response bindings for the provided HttpBinding location.
+     * The shape can be an operation shape, error shape or an output shape.
+     *
+     * @param model    the model
+     * @param shape    the shape with possible presence of response bindings
+     * @param location the HttpBinding location for response binding
+     * @return boolean indicating presence of response bindings in the shape for provided location
+     */
+    public static boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
+        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+                .getResponseBindings(shape).values();
+
+        for (HttpBinding binding : bindings) {
+            if (binding.getLocation() == location) {
+                return true;
+            }
+        }
+        return false;
     }
 }

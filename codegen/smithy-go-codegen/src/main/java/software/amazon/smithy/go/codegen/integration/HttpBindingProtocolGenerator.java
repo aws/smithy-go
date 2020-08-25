@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.isShapeWithResponseBindings;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.writeSafeMemberAccessor;
 
@@ -502,27 +503,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         for (HttpBinding binding : bindings) {
             if (isRestBinding(binding.getLocation())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Returns whether a shape has response bindings for the provided HttpBinding location.
-     * The shape can be an operation shape, error shape or an output shape.
-     *
-     * @param model    the model
-     * @param shape    the shape with possible presence of response bindings
-     * @param location the HttpBinding location for response binding
-     * @return boolean indicating presence of response bindings in the shape for provided location
-     */
-    protected boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
-        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
-                .getResponseBindings(shape).values();
-
-        for (HttpBinding binding : bindings) {
-            if (binding.getLocation() == location) {
                 return true;
             }
         }
