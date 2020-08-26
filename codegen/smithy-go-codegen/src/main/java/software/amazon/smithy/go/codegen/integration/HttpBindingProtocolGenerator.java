@@ -653,7 +653,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         GoWriter writer = context.getWriter();
         Model model = context.getModel();
-        SymbolProvider symbolProvider = context.getSymbolProvider();
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
 
@@ -664,29 +663,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             switch (location) {
                 case HEADER:
-                    if (targetShape instanceof CollectionShape) {
-                        MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
-                        writer.openBlock("for i := range $L {", "}", operand, () -> {
-                            // Only set non-empty non-nil header values
-                            String operandElem = operand + "[i]";
-                            writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
-                                    operandElem, writer, () -> {
-                                        writeHttpBindingSetter(model, writer, collectionMemberShape, location,
-                                                operandElem,
-                                                (w, s) -> {
-                                                    w.writeInline("encoder.AddHeader($S).$L", locationName, s);
-                                                });
-
-                                    });
-                        });
-                    } else {
-                        // Only set non-empty non-nil header values
-                        writeHeaderOperandNotEmptyCheck(model, symbolProvider, memberShape, operand, writer, () -> {
-                            writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
-                                w.writeInline("encoder.SetHeader($S).$L", locationName, s);
-                            });
-                        });
-                    }
+                    writer.write("locationName := $S", locationName);
+                    writeHeaderBinding(context, memberShape, operand, location, "locationName", "encoder");
                     break;
                 case PREFIX_HEADERS:
                     MemberShape valueMemberShape = model.expectShape(targetShape.getId(), MapShape.class).getValue();
@@ -699,28 +677,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     writer.write("hv := encoder.Headers($S)", locationName);
                     writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
-                        if (valueMemberTarget instanceof CollectionShape) {
-                            MemberShape collectionMemberShape = ((CollectionShape) valueMemberTarget).getMember();
-                            writer.openBlock("for i := range mapVal {", "}", () -> {
-                                // Only set non-empty non-nil header values
-                                writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape,
-                                        "mapVal[i]", writer, () -> {
-                                            writeHttpBindingSetter(model, writer, collectionMemberShape, location,
-                                                    "mapVal[i]", (w, s) -> {
-                                                        w.writeInline("hv.AddHeader(mapKey).$L", s);
-                                                    });
-                                        });
-                            });
-                        } else {
-                            // Only set non-empty non-nil header values
-                            writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, valueMemberShape,
-                                    "mapVal", writer, () -> {
-                                        writeHttpBindingSetter(model, writer, valueMemberShape, location,
-                                                "mapVal", (w, s) -> {
-                                                    w.writeInline("hv.AddHeader(mapKey).$L", s);
-                                                });
-                                    });
-                        }
+                        writeHeaderBinding(context, valueMemberShape, "mapVal", location, "mapKey", "hv");
                     });
                     break;
                 case LABEL:
@@ -753,6 +710,54 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     throw new CodegenException("unexpected http binding found");
             }
         });
+    }
+
+    private void writeHeaderBinding(
+            GenerationContext context,
+            MemberShape memberShape,
+            String operand,
+            HttpBinding.Location location,
+            String locationName,
+            String dest
+    ) {
+        GoWriter writer = context.getWriter();
+        Model model = context.getModel();
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+
+        if (!(targetShape instanceof CollectionShape)) {
+            // Only set non-empty non-nil header values
+            writeHeaderOperandNotEmptyCheck(model, symbolProvider, memberShape, operand, writer, () -> {
+                String op = conditionallyBase64Encode(writer, targetShape, operand);
+                writeHttpBindingSetter(model, writer, memberShape, location, op, (w, s) -> {
+                    w.writeInline("$L.SetHeader($L).$L", dest, locationName, s);
+                });
+            });
+            return;
+        }
+
+        MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
+        writer.openBlock("for i := range $L {", "}", operand, () -> {
+            // Only set non-empty non-nil header values
+            String indexedOperand = operand + "[i]";
+            writeHeaderOperandNotNilAndNotEmptyCheck(model, symbolProvider, collectionMemberShape, indexedOperand,
+                    writer, () -> {
+                        String op = conditionallyBase64Encode(writer, targetShape, indexedOperand);
+                        writeHttpBindingSetter(model, writer, collectionMemberShape, location, op, (w, s) -> {
+                            w.writeInline("$L.AddHeader($L).$L", dest, locationName, s);
+                        });
+                    });
+        });
+    }
+
+    private String conditionallyBase64Encode(GoWriter writer, Shape targetShape, String operand) {
+        // MediaType strings written to headers must be base64 encoded
+        if (targetShape.isStringShape() && targetShape.hasTrait(MediaTypeTrait.class)) {
+            writer.addUseImports(SmithyGoDependency.BASE64);
+            writer.write("encoded := ptr.String(base64.StdEncoding.EncodeToString([]byte(*$L)))", operand);
+            return "encoded";
+        }
+        return operand;
     }
 
     protected void writeHeaderOperandNotNilAndNotEmptyCheck(
@@ -886,6 +891,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 if (targetShape.hasTrait(EnumTrait.class)) {
                     value = String.format("types.%s(%s)", targetShape.getId().getName(), operand);
                     return value;
+                }
+                // MediaType strings must be base-64 encoded when sent in headers.
+                if (targetShape.hasTrait(MediaTypeTrait.class)) {
+                    writer.addUseImports(SmithyGoDependency.BASE64);
+                    writer.write("b, err := base64.StdEncoding.DecodeString($L)", operand);
+                    writer.write("if err != nil { return err }");
+                    return "string(b)";
                 }
                 return operand;
             case BOOLEAN:
