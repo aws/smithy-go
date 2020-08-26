@@ -68,6 +68,14 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
+        String clientId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
+        for (GoIntegration integration : integrations) {
+            clientId = integration.processClientId(settings, model, clientId);
+        }
+
+        writer.write("const ClientID = $S", clientId);
+        writer.write("");
+
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
         writer.writeShapeDocs(service);
         writer.openBlock("type $T struct {", "}", serviceSymbol, () -> {
@@ -76,14 +84,8 @@ final class ServiceGenerator implements Runnable {
 
         generateConstructor(serviceSymbol);
 
-        String clientId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
-        String clientTitle = service.getTrait(TitleTrait.class).map(StringTrait::getValue).orElse(clientId);
-
-        writer.writeDocs("ServiceID returns the name of the identifier for the service API.");
-        writer.write("func (c $P) ServiceID() string { return $S }", serviceSymbol, clientId);
-
-        writer.writeDocs("ServiceName returns the full service title.");
-        writer.write("func (c $P) ServiceName() string { return $S }", serviceSymbol, clientTitle);
+        writer.writeDocs("ClientID returns the name of the identifier for the service API.");
+        writer.write("func (c $P) ClientID() string { return ClientID }", serviceSymbol);
 
         generateConfig();
 

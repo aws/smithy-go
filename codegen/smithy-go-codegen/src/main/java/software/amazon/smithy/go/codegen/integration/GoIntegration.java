@@ -17,8 +17,10 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -189,5 +191,18 @@ public interface GoIntegration {
      */
     default List<RuntimeClientPlugin> getClientPlugins() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Processes the given ClientId and may return a unmodified, modified, or repacelemt value.
+     *
+     *
+     * @param settings Settings used to generate
+     * @param model model to generate from
+     * @param clientId the clientId
+     * @return the new clientId
+     */
+    default String processClientId(GoSettings settings, Model model, String clientId) {
+        return clientId;
     }
 }
