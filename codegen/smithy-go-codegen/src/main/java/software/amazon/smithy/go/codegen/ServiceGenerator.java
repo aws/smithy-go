@@ -26,8 +26,6 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.traits.StringTrait;
-import software.amazon.smithy.model.traits.TitleTrait;
 
 /**
  * Generates a service client and configuration.
