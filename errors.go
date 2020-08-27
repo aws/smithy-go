@@ -42,13 +42,13 @@ var _ APIError = (*GenericAPIError)(nil)
 // OperationError decorates an underlying error which occurred while invoking
 // an operation with names of the operation and API.
 type OperationError struct {
-	ServiceID     string
+	ClientID      string
 	OperationName string
 	Err           error
 }
 
 // Service returns the name of the API service the error occurred with.
-func (e *OperationError) Service() string { return e.ServiceID }
+func (e *OperationError) Service() string { return e.ClientID }
 
 // Operation returns the name of the API operation the error occurred with.
 func (e *OperationError) Operation() string { return e.OperationName }
@@ -57,7 +57,7 @@ func (e *OperationError) Operation() string { return e.OperationName }
 func (e *OperationError) Unwrap() error { return e.Err }
 
 func (e *OperationError) Error() string {
-	return fmt.Sprintf("operation error %s: %s, %v", e.ServiceID, e.OperationName, e.Err)
+	return fmt.Sprintf("operation error %s: %s, %v", e.ClientID, e.OperationName, e.Err)
 }
 
 // DeserializationError provides a wrapper for and error that occurs during
