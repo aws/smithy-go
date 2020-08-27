@@ -40,7 +40,11 @@ func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
 	return e, nil
 }
 
-// Encode returns a REST protocol encoder for encoding HTTP bindings
+// Encode returns a REST protocol encoder for encoding HTTP bindings.
+//
+// Due net/http requiring `Content-Length` to be specified on the http.Request#ContentLength directly. Encode
+// will look for whether the header is present, and if so will remove it and set the respective value on http.Request.
+//
 // Returns any error if one occurred during encoding.
 func (e *Encoder) Encode(req *http.Request) (*http.Request, error) {
 	req.URL.Path, req.URL.RawPath = string(e.path), string(e.rawPath)
