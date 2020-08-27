@@ -753,6 +753,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private String conditionallyBase64Encode(GoWriter writer, Shape targetShape, String operand) {
         // MediaType strings written to headers must be base64 encoded
         if (targetShape.isStringShape() && targetShape.hasTrait(MediaTypeTrait.class)) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
             writer.addUseImports(SmithyGoDependency.BASE64);
             writer.write("encoded := ptr.String(base64.StdEncoding.EncodeToString([]byte(*$L)))", operand);
             return "encoded";
