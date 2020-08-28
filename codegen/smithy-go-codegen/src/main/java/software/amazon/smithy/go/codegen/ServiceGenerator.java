@@ -66,7 +66,7 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
-        String serviceId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
+        String serviceId = settings.getService().toString();
         for (GoIntegration integration : integrations) {
             serviceId = integration.processServiceId(settings, model, serviceId);
         }
