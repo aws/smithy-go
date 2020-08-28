@@ -192,15 +192,14 @@ public interface GoIntegration {
     }
 
     /**
-     * Processes the given ClientId and may return a unmodified, modified, or repacelemt value.
-     *
+     * Processes the given serviceId and may return a unmodified, modified, or replacement value.
      *
      * @param settings Settings used to generate
      * @param model model to generate from
-     * @param clientId the clientId
-     * @return the new clientId
+     * @param serviceId the serviceId
+     * @return the new serviceId
      */
-    default String processServiceId(GoSettings settings, Model model, String clientId) {
-        return clientId;
+    default String processServiceId(GoSettings settings, Model model, String serviceId) {
+        return serviceId;
     }
 }
