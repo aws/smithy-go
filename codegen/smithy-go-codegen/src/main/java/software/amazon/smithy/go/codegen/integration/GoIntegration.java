@@ -200,7 +200,7 @@ public interface GoIntegration {
      * @param clientId the clientId
      * @return the new clientId
      */
-    default String processClientId(GoSettings settings, Model model, String clientId) {
+    default String processServiceId(GoSettings settings, Model model, String clientId) {
         return clientId;
     }
 }

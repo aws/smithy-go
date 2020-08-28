@@ -66,12 +66,12 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
-        String clientId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
+        String serviceId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
         for (GoIntegration integration : integrations) {
-            clientId = integration.processClientId(settings, model, clientId);
+            serviceId = integration.processServiceId(settings, model, serviceId);
         }
 
-        writer.write("const ClientID = $S", clientId);
+        writer.write("const ServiceID = $S", serviceId);
         writer.write("");
 
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
@@ -81,10 +81,6 @@ final class ServiceGenerator implements Runnable {
         });
 
         generateConstructor(serviceSymbol);
-
-        writer.writeDocs("ClientID returns the name of the identifier for the service API.");
-        writer.write("func (c $P) ClientID() string { return ClientID }", serviceSymbol);
-
         generateConfig();
 
         Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
