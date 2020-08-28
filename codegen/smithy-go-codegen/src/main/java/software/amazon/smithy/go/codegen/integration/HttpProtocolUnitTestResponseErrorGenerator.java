@@ -131,7 +131,7 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
         writer.openBlock("if !errors.As(err, &opErr) {", "}", () -> {
             writer.write("t.Fatalf(\"expect $P operation error, got %T\", err)", errorSymbol);
         });
-        writer.openBlock("if e, a := client.ServiceID(), opErr.Service(); e != a {", "}", () -> {
+        writer.openBlock("if e, a := ServiceID, opErr.Service(); e != a {", "}", () -> {
             writer.write("t.Errorf(\"expect %v operation service name, got %v\", e, a)");
         });
         writer.openBlock("if e, a := $S, opErr.Operation(); e != a {", "}", opSymbol.getName(), () -> {

@@ -190,4 +190,16 @@ public interface GoIntegration {
     default List<RuntimeClientPlugin> getClientPlugins() {
         return Collections.emptyList();
     }
+
+    /**
+     * Processes the given serviceId and may return a unmodified, modified, or replacement value.
+     *
+     * @param settings Settings used to generate
+     * @param model model to generate from
+     * @param serviceId the serviceId
+     * @return the new serviceId
+     */
+    default String processServiceId(GoSettings settings, Model model, String serviceId) {
+        return serviceId;
+    }
 }

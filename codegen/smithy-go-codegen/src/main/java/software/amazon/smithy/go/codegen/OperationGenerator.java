@@ -113,7 +113,7 @@ final class OperationGenerator implements Runnable {
                     writer.openBlock("if err != nil {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.SMITHY);
                         writer.openBlock("return nil, &smithy.OperationError{", "}", () -> {
-                            writer.write("ServiceID: c.ServiceID(),");
+                            writer.write("ServiceID: ServiceID,");
                             writer.write("OperationName: \"$T\",", operationSymbol);
                             writer.write("Err: err,");
                         });

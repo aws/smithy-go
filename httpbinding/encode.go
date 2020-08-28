@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+const contentLengthHeader = "Content-Length"
 
 // An Encoder provides encoding of REST URI path, query, and header components
 // of an HTTP request. Can also encode a stream as the payload.
@@ -37,11 +40,26 @@ func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
 	return e, nil
 }
 
-// Encode returns a REST protocol encoder for encoding HTTP bindings
+// Encode returns a REST protocol encoder for encoding HTTP bindings.
+//
+// Due net/http requiring `Content-Length` to be specified on the http.Request#ContentLength directly. Encode
+// will look for whether the header is present, and if so will remove it and set the respective value on http.Request.
+//
 // Returns any error if one occurred during encoding.
 func (e *Encoder) Encode(req *http.Request) (*http.Request, error) {
 	req.URL.Path, req.URL.RawPath = string(e.path), string(e.rawPath)
 	req.URL.RawQuery = e.query.Encode()
+
+	// net/http ignores Content-Length header and requires it to be set on http.Request
+	if v := e.header.Get(contentLengthHeader); len(v) > 0 {
+		iv, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		req.ContentLength = iv
+		e.header.Del(contentLengthHeader)
+	}
+
 	req.Header = e.header
 
 	return req, nil

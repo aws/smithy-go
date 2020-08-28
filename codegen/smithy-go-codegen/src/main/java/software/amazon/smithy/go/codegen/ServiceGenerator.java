@@ -26,8 +26,6 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.traits.StringTrait;
-import software.amazon.smithy.model.traits.TitleTrait;
 
 /**
  * Generates a service client and configuration.
@@ -68,6 +66,14 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
+        String serviceId = settings.getService().toString();
+        for (GoIntegration integration : integrations) {
+            serviceId = integration.processServiceId(settings, model, serviceId);
+        }
+
+        writer.write("const ServiceID = $S", serviceId);
+        writer.write("");
+
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
         writer.writeShapeDocs(service);
         writer.openBlock("type $T struct {", "}", serviceSymbol, () -> {
@@ -75,16 +81,6 @@ final class ServiceGenerator implements Runnable {
         });
 
         generateConstructor(serviceSymbol);
-
-        String clientId = CodegenUtils.getDefaultPackageImportName(settings.getModuleName());
-        String clientTitle = service.getTrait(TitleTrait.class).map(StringTrait::getValue).orElse(clientId);
-
-        writer.writeDocs("ServiceID returns the name of the identifier for the service API.");
-        writer.write("func (c $P) ServiceID() string { return $S }", serviceSymbol, clientId);
-
-        writer.writeDocs("ServiceName returns the full service title.");
-        writer.write("func (c $P) ServiceName() string { return $S }", serviceSymbol, clientTitle);
-
         generateConfig();
 
         Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
