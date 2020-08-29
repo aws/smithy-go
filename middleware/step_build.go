@@ -153,6 +153,11 @@ func (s *BuildStep) Remove(id string) error {
 	return s.ids.Remove(id)
 }
 
+// List returns a list of the middleware in the step.
+func (s *BuildStep) List() []string {
+	return s.ids.List()
+}
+
 // Clear removes all middleware in the step.
 func (s *BuildStep) Clear() {
 	s.ids.Clear()

@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"io"
+	"strings"
 )
 
 // Stack provides protocol and transport agnostic set of middleware split into
@@ -105,4 +107,103 @@ func (s *Stack) HandleMiddleware(ctx context.Context, input interface{}, next Ha
 	)
 
 	return h.Handle(ctx, input)
+}
+
+// List returns a list of all middleware in the stack by step.
+func (s *Stack) List() []string {
+	var l []string
+	l = append(l, s.id)
+
+	l = append(l, s.Initialize.ID())
+	l = append(l, s.Initialize.List()...)
+
+	l = append(l, s.Serialize.ID())
+	l = append(l, s.Serialize.List()...)
+
+	l = append(l, s.Build.ID())
+	l = append(l, s.Build.List()...)
+
+	l = append(l, s.Finalize.ID())
+	l = append(l, s.Finalize.List()...)
+
+	l = append(l, s.Deserialize.ID())
+	l = append(l, s.Deserialize.List()...)
+
+	return l
+}
+
+func (s *Stack) String() string {
+	var b strings.Builder
+
+	w := &indentWriter{w: &b}
+
+	w.WriteLine(s.id)
+	w.Push()
+
+	writeStepItems(w, s.Initialize)
+	writeStepItems(w, s.Serialize)
+	writeStepItems(w, s.Build)
+	writeStepItems(w, s.Finalize)
+	writeStepItems(w, s.Deserialize)
+
+	return b.String()
+}
+
+type stackStepper interface {
+	ID() string
+	List() []string
+}
+
+func writeStepItems(w *indentWriter, s stackStepper) {
+	type lister interface {
+		List() []string
+	}
+
+	w.WriteLine(s.ID())
+	w.Push()
+
+	defer w.Pop()
+
+	// ignore stack to prevent circular iterations
+	if _, ok := s.(*Stack); ok {
+		return
+	}
+
+	for _, id := range s.List() {
+		w.WriteLine(id)
+	}
+}
+
+type stringWriter interface {
+	io.Writer
+	WriteString(string) (int, error)
+	WriteRune(rune) (int, error)
+}
+
+type indentWriter struct {
+	w     stringWriter
+	depth int
+}
+
+const indentDepth = "\t\t\t\t\t\t\t\t\t\t"
+
+func (w *indentWriter) Push() {
+	w.depth++
+}
+
+func (w *indentWriter) Pop() {
+	w.depth--
+	if w.depth < 0 {
+		w.depth = 0
+	}
+}
+
+func (w *indentWriter) WriteLine(v string) {
+	w.w.WriteString(indentDepth[:w.depth])
+
+	v = strings.ReplaceAll(v, "\n", "\\n")
+	v = strings.ReplaceAll(v, "\r", "\\r")
+
+	w.w.WriteString(v)
+	w.w.WriteRune('\n')
 }
