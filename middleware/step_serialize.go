@@ -200,7 +200,6 @@ var _ SerializeHandler = (*decoratedSerializeHandler)(nil)
 func (h decoratedSerializeHandler) HandleSerialize(ctx context.Context, in SerializeInput) (
 	out SerializeOutput, metadata Metadata, err error,
 ) {
-	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleSerialize(ctx, in, h.Next)
 }
 

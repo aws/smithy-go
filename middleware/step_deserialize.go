@@ -198,7 +198,6 @@ var _ DeserializeHandler = (*decoratedDeserializeHandler)(nil)
 func (h decoratedDeserializeHandler) HandleDeserialize(ctx context.Context, in DeserializeInput) (
 	out DeserializeOutput, metadata Metadata, err error,
 ) {
-	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleDeserialize(ctx, in, h.Next)
 }
 
