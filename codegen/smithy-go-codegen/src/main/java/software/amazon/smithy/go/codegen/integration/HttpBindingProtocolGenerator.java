@@ -56,6 +56,7 @@ import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait.Format;
+import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.OptionalUtils;
 
 
@@ -663,7 +664,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             switch (location) {
                 case HEADER:
-                    writer.write("locationName := $S", locationName);
+                    writer.write("locationName := $S", getCanonicalHeader(locationName));
                     writeHeaderBinding(context, memberShape, operand, location, "locationName", "encoder");
                     break;
                 case PREFIX_HEADERS:
@@ -675,7 +676,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                                 + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
                     }
 
-                    writer.write("hv := encoder.Headers($S)", locationName);
+                    writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
                     writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
                         writeHeaderBinding(context, valueMemberShape, "mapVal", location, "mapKey", "hv");
                     });
@@ -1249,4 +1250,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param shape   The error shape.
      */
     protected abstract void deserializeError(GenerationContext context, StructureShape shape);
+
+    /**
+     * Converts the first letter and any letter following a hyphen to upper case. The remaining letters are lower cased.
+     *
+     * @param key the header
+     * @return the canonical header
+     */
+    private String getCanonicalHeader(String key) {
+        char[] chars = key.toCharArray();
+        boolean upper = true;
+        for (int i = 0; i < chars.length; i++) {
+            char c = chars[i];
+            c = upper ? Character.toUpperCase(c) : Character.toLowerCase(c);
+            chars[i] = c;
+            upper = c == '-';
+        }
+        return new String(chars);
+    }
 }
