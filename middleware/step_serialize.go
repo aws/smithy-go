@@ -163,6 +163,11 @@ func (s *SerializeStep) Remove(id string) error {
 	return s.ids.Remove(id)
 }
 
+// List returns a list of the middleware in the step.
+func (s *SerializeStep) List() []string {
+	return s.ids.List()
+}
+
 // Clear removes all middleware in the step.
 func (s *SerializeStep) Clear() {
 	s.ids.Clear()

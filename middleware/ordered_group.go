@@ -107,6 +107,14 @@ func (g *orderedIDs) Remove(id string) error {
 	return nil
 }
 
+func (g *orderedIDs) List() []string {
+	items := g.order.List()
+	order := make([]string, len(items))
+	copy(order, items)
+
+	return order
+}
+
 // Clear removes all entries.
 func (g *orderedIDs) Clear() {
 	g.order.Clear()
@@ -115,7 +123,7 @@ func (g *orderedIDs) Clear() {
 
 // GetOrder returns the item in the order it should be invoked in.
 func (g *orderedIDs) GetOrder() []interface{} {
-	order := g.order.GetOrder()
+	order := g.order.List()
 	ordered := make([]interface{}, len(order))
 	for i := 0; i < len(order); i++ {
 		ordered[i] = g.items[order[i]]
@@ -191,6 +199,10 @@ func (s *relativeOrder) Remove(id string) error {
 	return nil
 }
 
+func (s *relativeOrder) List() []string {
+	return s.order
+}
+
 func (s *relativeOrder) Clear() {
 	s.order = s.order[0:0]
 }
@@ -203,7 +215,11 @@ func (s *relativeOrder) insert(i int, id string, pos RelativePosition) error {
 		s.order[i] = id
 
 	case After:
-		s.order = append(s.order, id)
+		if i == len(s.order)-1 {
+			s.order = append(s.order, id)
+		} else {
+			s.order = append(s.order[:i+1], append([]string{id}, s.order[i+1:]...)...)
+		}
 
 	default:
 		return fmt.Errorf("invalid position, %v", int(pos))
@@ -219,12 +235,4 @@ func (s *relativeOrder) has(id string) (i int, found bool) {
 		}
 	}
 	return 0, false
-}
-
-// GetOrder returns the order of the item.
-func (s *relativeOrder) GetOrder() []string {
-	order := make([]string, len(s.order))
-	copy(order, s.order)
-
-	return order
 }
