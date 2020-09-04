@@ -170,10 +170,6 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         return symbolName + "_";
     }
 
-    private String getDefaultShapeName(Shape shape) {
-        return StringUtils.capitalize(shape.getId().getName());
-    }
-
     @Override
     public Symbol toSymbol(Shape shape) {
         Symbol symbol = shape.accept(this);
@@ -221,9 +217,29 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         return String.format("%sMember%s", getDefaultShapeName(union), getDefaultMemberName(member));
     }
 
-    private String getDefaultMemberName(MemberShape shape) {
-        return StringUtils.capitalize(shape.getMemberName());
+    private String getDefaultShapeName(Shape shape) {
+        return StringUtils.capitalize(removeLeadingUnderscores(shape.getId().getName()));
     }
+
+    private String getDefaultMemberName(MemberShape shape) {
+        return StringUtils.capitalize(removeLeadingUnderscores(shape.getMemberName()));
+    }
+
+    private String removeLeadingUnderscores(String value) {
+        if (!value.startsWith("_")) {
+            return value;
+        }
+
+        int i;
+        for (i = 0; i < value.length(); i++) {
+            if (value.charAt(i) != '_') {
+                break;
+            }
+        }
+
+        return value.substring(i);
+    }
+
 
     private boolean isErrorMember(MemberShape shape) {
         return model.getShape(shape.getContainer())

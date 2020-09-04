@@ -207,7 +207,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
      * @param service Service for which idempotency token map is retrieved.
      * @return map of operation shapeId as key, member shape as value.
      */
-    private static Map<ShapeId, MemberShape> getOperationsWithIdempotencyToken(Model model, ServiceShape service) {
+    public static Map<ShapeId, MemberShape> getOperationsWithIdempotencyToken(Model model, ServiceShape service) {
         Map<ShapeId, MemberShape> map = new TreeMap<>();
         service.getAllOperations().stream().forEach((operation) -> {
             OperationShape operationShape = model.expectShape(operation).asOperationShape().get();
