@@ -1,6 +1,9 @@
 package io
 
-import "io"
+import (
+	"bytes"
+	"io"
+)
 
 // RingBuffer struct satisfies io.ReadWrite interface.
 //
@@ -69,6 +72,13 @@ func (r *RingBuffer) Read(p []byte) (int, error) {
 		}
 	}
 	return readCount, nil
+}
+
+// Bytes returns a copy of the RingBuffer's bytes.
+func (r RingBuffer) Bytes() []byte {
+	var b bytes.Buffer
+	io.Copy(&b, &r)
+	return b.Bytes()
 }
 
 // Reset resets the ring buffer.
