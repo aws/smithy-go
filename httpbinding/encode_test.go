@@ -21,8 +21,8 @@ func TestEncoder(t *testing.T) {
 	expected := &http.Request{
 		Header: map[string][]string{
 			"custom-user-header": {"someValue"},
-			"X-Amzn-Header-Foo":  {"someValue"},
-			"X-Amzn-Meta-Foo":    {"someValue"},
+			"x-amzn-header-foo":  {"someValue"},
+			"x-amzn-meta-foo":    {"someValue"},
 		},
 		URL: &url.URL{
 			Path:     "/some/someValue/path",
@@ -69,7 +69,7 @@ func TestEncoderHasHeader(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if h := "I-dont-exist"; encoder.HasHeader(h) {
+	if h := "i-dont-exist"; encoder.HasHeader(h) {
 		t.Errorf("expect %v not to be set", h)
 	}
 
