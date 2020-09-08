@@ -378,8 +378,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the payload serializer logic for the serializer middleware body.
      *
-     * @param context the generation context
-     * @param memberShape    the payload target member
+     * @param context     the generation context
+     * @param memberShape the payload target member
      */
     protected void writeMiddlewarePayloadSerializerDelegator(
             GenerationContext context,
@@ -446,9 +446,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     /**
      * Generate the payload serializers with document serializer logic for the serializer middleware body.
      *
-     * @param context the generation context
-     * @param memberShape    the payload target member
-     * @param operand      the operand that is used to access the member value
+     * @param context     the generation context
+     * @param memberShape the payload target member
+     * @param operand     the operand that is used to access the member value
      */
     protected abstract void writeMiddlewarePayloadAsDocumentSerializerDelegator(
             GenerationContext context,
@@ -677,8 +677,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     }
 
                     writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
+                    writer.addUseImports(SmithyGoDependency.NET_HTTP);
                     writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
-                        writeHeaderBinding(context, valueMemberShape, "mapVal", location, "mapKey", "hv");
+                        writeHeaderBinding(context, valueMemberShape, "mapVal", location,
+                                "http.CanonicalHeaderKey(mapKey)", "hv");
                     });
                     break;
                 case LABEL:
