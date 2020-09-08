@@ -226,7 +226,7 @@ public final class GoWriter extends CodeWriter {
      */
     public GoWriter writeDocs(String docs) {
         String wrappedDoc = StringUtils.wrap(DocumentationConverter.convert(docs), docWrapLength);
-        writeDocs(() -> write(wrappedDoc));
+        writeDocs(() -> write(wrappedDoc.replace("$", "$$")));
         return this;
     }
 
