@@ -56,7 +56,6 @@ import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait;
 import software.amazon.smithy.model.traits.TimestampFormatTrait.Format;
-import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.OptionalUtils;
 
 
