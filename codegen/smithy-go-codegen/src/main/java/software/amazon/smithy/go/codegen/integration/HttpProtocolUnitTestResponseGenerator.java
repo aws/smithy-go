@@ -17,6 +17,7 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -102,38 +103,61 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writeStructField(writer, "ExpectResult", outputShape, testCase.getParams());
     }
 
-    /**
-     * Hook to generate the body of the test that will be invoked for all test cases of this operation. Should not
-     * do any assertions.
-     *
-     * @param writer writer to write generated code with.
-     */
     @Override
-    protected void generateTestServerHandler(GoWriter writer) {
+    protected void generateTestClient(GoWriter writer, String clientName) {
+        writer.openBlock("$L := New(Options{", "})", clientName, () -> {
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+            writer.openBlock("HTTPClient: smithyhttp.ClientDoFunc(func(r *http.Request) (*http.Response, error) {",
+                    "}),", () -> generateResponse(writer));
+            for (ConfigValue value : clientConfigValues) {
+                writeStructField(writer, value.getName(), value.getValue());
+            }
+        });
+    }
+
+    @Override
+    protected void generateTestServer(GoWriter writer, String name, Consumer<GoWriter> handler) {
+        // We aren't using a test server, but we do need a URL to set.
+        writer.write("url := \"http://localhost:8888/\"");
+    }
+
+    /**
+     * Generates a Response object to return for testing.
+     *
+     * @param writer The writer to write generated code with.
+     */
+    protected void generateResponse(GoWriter writer) {
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
+        writer.write("headers := http.Header{}");
         writer.openBlock("for k, vs := range c.Header {", "}", () -> {
             writer.openBlock("for _, v := range vs {", "}", () -> {
-                writer.write("w.Header().Add(k, v)");
+                writer.write("headers.Add(k, v)");
             });
         });
 
-        writer.openBlock("if len(c.BodyMediaType) != 0 && len(w.Header().Values(\"Content-Type\")) == 0 {", "}", () -> {
-            writer.write("w.Header().Set(\"Content-Type\", c.BodyMediaType)");
+        writer.openBlock("if len(c.BodyMediaType) != 0 && len(headers.Values(\"Content-Type\")) == 0 {", "}", () -> {
+            writer.write("headers.Set(\"Content-Type\", c.BodyMediaType)");
         });
 
-        writer.openBlock("if len(c.Body) != 0 {", "}", () -> {
-            writer.addUseImports(SmithyGoDependency.STRCONV);
-            writer.write("w.Header().Set(\"Content-Length\", strconv.Itoa(len(c.Body)))");
+        writer.openBlock("response := &http.Response{", "}", () -> {
+            writer.write("StatusCode: c.StatusCode,");
+            writer.write("Header: headers,");
+            writer.write("Request: r,");
         });
 
-        writer.write("w.WriteHeader(c.StatusCode)");
-
-        writer.openBlock("if len(c.Body) != 0 {", "}", () -> {
-            writer.addUseImports(SmithyGoDependency.IO);
-            writer.addUseImports(SmithyGoDependency.BYTES);
-            writer.openBlock("if _, err := io.Copy(w, bytes.NewReader(c.Body)); err != nil {", "}", () -> {
-                writer.write("t.Errorf(\"failed to write response body, %v\", err)");
-            });
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.addUseImports(SmithyGoDependency.IOUTIL);
+        writer.openBlock("if len(c.Body) != 0 {", "} else {", () -> {
+            writer.write("response.ContentLength = int64(len(c.Body))");
+            writer.write("response.Body = ioutil.NopCloser(bytes.NewReader(c.Body))");
         });
+        writer.openBlock("", "}", () -> {
+            // We have to set this special sentinel value for no body, or anything that relies on there being
+            // a value set will panic.
+            writer.write("response.Body = http.NoBody");
+        });
+
+        writer.write("return response, nil");
     }
 
     /**
