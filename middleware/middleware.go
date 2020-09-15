@@ -54,7 +54,6 @@ type decoratedHandler struct {
 func (m decoratedHandler) Handle(ctx context.Context, input interface{}) (
 	output interface{}, metadata Metadata, err error,
 ) {
-	ctx = RecordMiddleware(ctx, m.With.ID())
 	return m.With.HandleMiddleware(ctx, input, m.Next)
 }
 

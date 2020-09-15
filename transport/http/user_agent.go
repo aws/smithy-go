@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -22,7 +21,7 @@ func (u *UserAgentBuilder) AddKey(key string) {
 
 // AddKeyValue adds the named key to the agent string with the given value.
 func (u *UserAgentBuilder) AddKeyValue(key, value string) {
-	u.appendTo(fmt.Sprintf("%s/%s", key, value))
+	u.appendTo(key + "/" + value)
 }
 
 // Build returns the constructed User-Agent string. May be called multiple times.

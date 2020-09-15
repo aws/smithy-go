@@ -1,9 +1,11 @@
 package rand
 
 import (
-	"fmt"
+	"encoding/hex"
 	"io"
 )
+
+const dash byte = '-'
 
 // UUIDIdempotencyToken provides a utility to get idempotency tokens in the
 // UUID format.
@@ -54,5 +56,17 @@ func uuidVersion4(u [16]byte) string {
 	// 17th character is "8", "9", "a", or "b"
 	u[8] = (u[8] & 0x3f) | 0x80 // Variant is 10
 
-	return fmt.Sprintf(`%X-%X-%X-%X-%X`, u[0:4], u[4:6], u[6:8], u[8:10], u[10:])
+	var scratch [36]byte
+
+	hex.Encode(scratch[:8], u[0:4])
+	scratch[8] = dash
+	hex.Encode(scratch[9:13], u[4:6])
+	scratch[13] = dash
+	hex.Encode(scratch[14:18], u[6:8])
+	scratch[18] = dash
+	hex.Encode(scratch[19:23], u[8:10])
+	scratch[23] = dash
+	hex.Encode(scratch[24:], u[10:])
+
+	return string(scratch[:])
 }

@@ -192,7 +192,6 @@ var _ FinalizeHandler = (*decoratedFinalizeHandler)(nil)
 func (h decoratedFinalizeHandler) HandleFinalize(ctx context.Context, in FinalizeInput) (
 	out FinalizeOutput, metadata Metadata, err error,
 ) {
-	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleFinalize(ctx, in, h.Next)
 }
 

@@ -41,9 +41,9 @@ func newHeaderValue(header http.Header, key string, append bool) HeaderValue {
 
 func (h HeaderValue) modifyHeader(value string) {
 	if h.append {
-		h.header.Add(h.key, value)
+		h.header[h.key] = append(h.header[h.key], value)
 	} else {
-		h.header.Set(h.key, value)
+		h.header[h.key] = append(h.header[h.key][:0], value)
 	}
 }
 

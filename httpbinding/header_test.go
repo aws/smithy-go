@@ -10,7 +10,7 @@ import (
 
 func TestHeaderValue(t *testing.T) {
 	const keyName = "test-key"
-	const expectedKeyName = "Test-Key"
+	const expectedKeyName = "test-key"
 
 	cases := map[string]struct {
 		header   http.Header
@@ -205,7 +205,7 @@ func TestHeaderValue(t *testing.T) {
 }
 
 func TestHeaders(t *testing.T) {
-	const prefix = "x-amzn-meta-"
+	const prefix = "X-Amzn-Meta-"
 	cases := map[string]struct {
 		headers  http.Header
 		values   map[string]string
@@ -217,8 +217,8 @@ func TestHeaders(t *testing.T) {
 				"X-Amzn-Meta-Foo": {"bazValue"},
 			},
 			values: map[string]string{
-				"foo":   "fooValue",
-				" bar ": "barValue",
+				"Foo":   "fooValue",
+				" Bar ": "barValue",
 			},
 			expected: http.Header{
 				"X-Amzn-Meta-Foo": {"fooValue"},
@@ -230,8 +230,8 @@ func TestHeaders(t *testing.T) {
 				"X-Amzn-Meta-Foo": {"bazValue"},
 			},
 			values: map[string]string{
-				"foo":   "fooValue",
-				" bar ": "barValue",
+				"Foo":   "fooValue",
+				" Bar ": "barValue",
 			},
 			append: true,
 			expected: http.Header{

@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -44,13 +43,11 @@ func mockKeyGet(md MetadataReader, key int) string {
 }
 
 type mockHandler struct {
-	calledMiddleware []string
 }
 
 func (m *mockHandler) Handle(ctx context.Context, input interface{}) (
 	output interface{}, metadata Metadata, err error,
 ) {
-	m.calledMiddleware = GetMiddlewareIDs(ctx)
 	return nil, metadata, nil
 }
 
@@ -66,19 +63,6 @@ func TestDecorateHandler(t *testing.T) {
 	_, metadata, err := h.Handle(context.Background(), struct{}{})
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
-	}
-
-	if e, a := 3, len(mockHandler.calledMiddleware); e != a {
-		t.Errorf("expect %v middleware, got %v", e, a)
-	}
-
-	expect := []string{
-		"mock middleware 0",
-		"mock middleware 1",
-		"mock middleware 2",
-	}
-	if e, a := expect, mockHandler.calledMiddleware; !reflect.DeepEqual(e, a) {
-		t.Errorf("expect:\n%v\nactual:\n%v", e, a)
 	}
 
 	expectMeta := map[int]interface{}{

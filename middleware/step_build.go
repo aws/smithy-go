@@ -190,7 +190,6 @@ var _ BuildHandler = (*decoratedBuildHandler)(nil)
 func (h decoratedBuildHandler) HandleBuild(ctx context.Context, in BuildInput) (
 	out BuildOutput, metadata Metadata, err error,
 ) {
-	ctx = RecordMiddleware(ctx, h.With.ID())
 	return h.With.HandleBuild(ctx, in, h.Next)
 }
 
