@@ -475,7 +475,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         return location == HttpBinding.Location.HEADER
                 || location == HttpBinding.Location.PREFIX_HEADERS
                 || location == HttpBinding.Location.LABEL
-                || location == HttpBinding.Location.QUERY;
+                || location == HttpBinding.Location.QUERY
+                || location == HttpBinding.Location.RESPONSE_CODE;
     }
 
     // returns whether an operation shape has Rest Request Bindings
@@ -1048,6 +1049,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     throw new CodegenException("unexpected prefix-header shape type found in Http bindings");
                 }
                 writePrefixHeaderDeserializerFunction(writer, model, symbolProvider, memberName, memberShape, binding);
+                break;
+            case RESPONSE_CODE:
+                writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+                writer.write("v.$L = ptr.Int32(int32(response.StatusCode))", memberName);
                 break;
             default:
                 throw new CodegenException("unexpected http binding found");
