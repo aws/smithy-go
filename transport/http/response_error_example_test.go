@@ -104,11 +104,13 @@ func ExampleResponseError() {
 
 		var respErr *ResponseError
 		if errors.As(err, &respErr) {
+			fmt.Printf("response status: %v\n", respErr.HTTPStatusCode())
 			fmt.Printf("response header: %v\n", respErr.HTTPResponse().Header.Get("Extra-Header"))
 		}
 	}
 
 	// Output:
 	// request failed: FooException, some message about the error
+	// response status: 404
 	// response header: foo value
 }
