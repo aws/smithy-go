@@ -77,6 +77,11 @@ func (r *Request) StreamLength() (size int64, ok bool, err error) {
 // RewindStream will rewind the io.Reader to the relative start position if it
 // is an io.Seeker.
 func (r *Request) RewindStream() error {
+	// If there is no stream there is nothing to rewind.
+	if r.stream == nil {
+		return nil
+	}
+
 	if !r.isStreamSeekable {
 		return fmt.Errorf("request stream is not seekable")
 	}
