@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.setEndpointPrefix;
+
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -116,6 +118,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                         + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
                         + " in.Parameters)}");
             }).write("");
+
+            setEndpointPrefix(context, operation);
 
             writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
             writer.write("request.Request.Method = \"POST\"");

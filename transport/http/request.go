@@ -16,6 +16,7 @@ type Request struct {
 	stream           io.Reader
 	isStreamSeekable bool
 	streamStartPos   int64
+	HostPrefix       string
 }
 
 // NewStackRequest returns an initialized request ready to populated with the
@@ -139,6 +140,11 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 
 	if r.stream != nil {
 		req.Body = ioutil.NopCloser(r.stream)
+	}
+
+	// Add the host prefix
+	if len(r.HostPrefix) != 0 {
+		req.URL.Host = r.HostPrefix + req.URL.Host
 	}
 
 	return req

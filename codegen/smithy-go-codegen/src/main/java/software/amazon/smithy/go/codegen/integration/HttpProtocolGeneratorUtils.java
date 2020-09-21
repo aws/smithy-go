@@ -20,15 +20,20 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
+import software.amazon.smithy.model.pattern.SmithyPattern;
+import software.amazon.smithy.model.pattern.SmithyPattern.Segment;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.EndpointTrait;
 
 public final class HttpProtocolGeneratorUtils {
 
@@ -130,5 +135,37 @@ public final class HttpProtocolGeneratorUtils {
             }
         }
         return false;
+    }
+
+    public static void setEndpointPrefix(GenerationContext context, OperationShape operation) {
+        if (!operation.hasTrait(EndpointTrait.ID)) {
+            return;
+        }
+        GoWriter writer = context.getWriter();
+
+        SmithyPattern pattern = operation.expectTrait(EndpointTrait.class).getHostPrefix();
+        if (pattern.getLabels().isEmpty()) {
+            writer.write("request.HostPrefix = $S", pattern.toString());
+            return;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (Segment segment : pattern.getSegments()) {
+            if (!segment.isLabel()) {
+                builder.append(segment.toString());
+            } else {
+                builder.append("%s");
+            }
+        }
+
+        writer.writeInline("request.HostPrefix = fmt.Sprintf($S", builder.toString());
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        StructureShape input = ProtocolUtils.expectInput(context.getModel(), operation);
+        for (Segment segment : pattern.getLabels()) {
+            MemberShape member = input.getMember(segment.getContent()).get();
+            // hostLabel members MUST be required so we don't have to worry about nil-checking
+            writer.writeInline(", *input.$L", symbolProvider.toMemberName(member));
+        }
+        writer.write(")");
     }
 }
