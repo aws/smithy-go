@@ -116,3 +116,22 @@ func (e *SerializationError) Error() string {
 
 // Unwrap returns the underlying Error in SerializationError
 func (e *SerializationError) Unwrap() error { return e.Err }
+
+// CanceledError is the error that will be returned by an API request that was
+// canceled. API operations given a Context may return this error when
+// canceled.
+type CanceledError struct {
+	Err error
+}
+
+// CanceledError returns true to satisfy interfaces checking for canceled errors.
+func (*CanceledError) CanceledError() bool { return true }
+
+// Unwrap returns the underlying error, if there was one.
+func (e *CanceledError) Unwrap() error {
+	return e.Err
+}
+
+func (e *CanceledError) Error() string {
+	return fmt.Sprintf("canceled, %v", e.Err)
+}
