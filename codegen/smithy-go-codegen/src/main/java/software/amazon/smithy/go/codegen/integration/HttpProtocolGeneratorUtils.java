@@ -137,35 +137,53 @@ public final class HttpProtocolGeneratorUtils {
         return false;
     }
 
-    public static void setEndpointPrefix(GenerationContext context, OperationShape operation) {
+    /**
+     * Sets the HostPrefix on the request if the operation has the Endpoint trait.
+     *
+     * <p>If there are no HostLabels then this will be a simple string assignment,
+     * otherwise a string builder will be used.
+     *
+     * <p>This assumes that the smithyhttp.Request is available under the variable
+     * "request" and the operation's input struct is available under the variable
+     * "input".
+     *
+     * @param context The generation context.
+     * @param operation The operation to set the host prefix for.
+     */
+    public static void setHostPrefix(GenerationContext context, OperationShape operation) {
         if (!operation.hasTrait(EndpointTrait.ID)) {
             return;
         }
         GoWriter writer = context.getWriter();
-
         SmithyPattern pattern = operation.expectTrait(EndpointTrait.class).getHostPrefix();
+
+        // If the pattern is just a string without any labels, then we simply use string
+        // assignment to avoid unnecessary imports / work.
         if (pattern.getLabels().isEmpty()) {
             writer.write("request.HostPrefix = $S", pattern.toString());
             return;
         }
 
-        StringBuilder builder = new StringBuilder();
+        SymbolProvider symbolProvider = context.getSymbolProvider();
+        StructureShape input = ProtocolUtils.expectInput(context.getModel(), operation);
+
+        // If the pattern has labels, we need to build up the host prefix using a string builder.
+        writer.addUseImports(SmithyGoDependency.STRINGS);
+        writer.write("var prefix strings.Builder");
         for (Segment segment : pattern.getSegments()) {
             if (!segment.isLabel()) {
-                builder.append(segment.toString());
+                writer.write("prefix.WriteString($S)", segment.toString());
             } else {
-                builder.append("%s");
+                MemberShape member = input.getMember(segment.getContent()).get();
+                String memberReference = "input." + symbolProvider.toMemberName(member);
+
+                // Theoretically this should never be nil by this point unless validation has been disabled.
+                writer.openBlock("if $L != nil {", "}", memberReference, () -> {
+                    writer.write("prefix.WriteString(*$L)", memberReference);
+                });
             }
         }
 
-        writer.writeInline("request.HostPrefix = fmt.Sprintf($S", builder.toString());
-        SymbolProvider symbolProvider = context.getSymbolProvider();
-        StructureShape input = ProtocolUtils.expectInput(context.getModel(), operation);
-        for (Segment segment : pattern.getLabels()) {
-            MemberShape member = input.getMember(segment.getContent()).get();
-            // hostLabel members MUST be required so we don't have to worry about nil-checking
-            writer.writeInline(", *input.$L", symbolProvider.toMemberName(member));
-        }
-        writer.write(")");
+        writer.write("request.HostPrefix = prefix.String()");
     }
 }

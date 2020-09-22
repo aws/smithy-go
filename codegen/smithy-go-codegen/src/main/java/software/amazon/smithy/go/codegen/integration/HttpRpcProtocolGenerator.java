@@ -15,7 +15,7 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.setEndpointPrefix;
+import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.setHostPrefix;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -119,7 +119,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                         + " in.Parameters)}");
             }).write("");
 
-            setEndpointPrefix(context, operation);
+            setHostPrefix(context, operation);
 
             writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
             writer.write("request.Request.Method = \"POST\"");
