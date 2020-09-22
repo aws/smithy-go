@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	smithy "github.com/awslabs/smithy-go"
 	"github.com/awslabs/smithy-go/middleware"
 )
 
@@ -49,10 +50,41 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 
 	resp, err := c.client.Do(req.Build(ctx))
 	if err != nil {
-		return nil, metadata, err
+		err = &RequestSendError{Err: err}
+
+		// Override the error with a context canceled error, if that was canceled.
+		select {
+		case <-ctx.Done():
+			err = &smithy.CanceledError{Err: ctx.Err()}
+		default:
+		}
 	}
 
-	return &Response{Response: resp}, metadata, nil
+	return &Response{Response: resp}, metadata, err
+}
+
+// RequestSendError provides a generic request transport error. This error
+// should wrap errors making HTTP client requests.
+//
+// The ClientHandler will wrap the HTTP client's error if the client request
+// fails, and did not fail because of context canceled.
+type RequestSendError struct {
+	Err error
+}
+
+// ConnectionError return that the error is related to not being able to send
+// the request, or receive a response from the service.
+func (e *RequestSendError) ConnectionError() bool {
+	return true
+}
+
+// Unwrap returns the underlying error, if there was one.
+func (e *RequestSendError) Unwrap() error {
+	return e.Err
+}
+
+func (e *RequestSendError) Error() string {
+	return fmt.Sprintf("request send failed, %v", e.Err)
 }
 
 // WrapLogClient logs the client's HTTP request and response of a round tripped
