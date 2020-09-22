@@ -63,13 +63,17 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 	return &Response{Response: resp}, metadata, err
 }
 
-// RequestSendError provides a generic request transport error.
+// RequestSendError provides a generic request transport error. This error
+// should wrap errors making HTTP client requests.
+//
+// The ClientHandler will wrap the HTTP client's error if the client request
+// fails, and did not fail because of context canceled.
 type RequestSendError struct {
 	Err error
 }
 
 // ConnectionError return that the error is related to not being able to send
-// the request.
+// the request, or receive a response from the service.
 func (e *RequestSendError) ConnectionError() bool {
 	return true
 }
