@@ -169,16 +169,26 @@ public final class HttpProtocolGeneratorUtils {
 
         // If the pattern has labels, we need to build up the host prefix using a string builder.
         writer.addUseImports(SmithyGoDependency.STRINGS);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.FMT);
         writer.write("var prefix strings.Builder");
         for (Segment segment : pattern.getSegments()) {
             if (!segment.isLabel()) {
                 writer.write("prefix.WriteString($S)", segment.toString());
             } else {
                 MemberShape member = input.getMember(segment.getContent()).get();
-                String memberReference = "input." + symbolProvider.toMemberName(member);
+                String memberName = symbolProvider.toMemberName(member);
+                String memberReference = "input." + memberName;
 
                 // Theoretically this should never be nil by this point unless validation has been disabled.
-                writer.openBlock("if $L != nil {", "}", memberReference, () -> {
+                writer.write("if $L == nil {", memberReference).indent();
+                writer.write("return out, metadata, &smithy.SerializationError{Err: "
+                        + "fmt.Errorf(\"$L forms part of the endpoint host and so may not be nil\")}", memberName);
+                writer.dedent().write("} else if !smithyhttp.ValidateHostLabel(*$L) {", memberReference).indent();
+                writer.write("return out, metadata, &smithy.SerializationError{Err: "
+                        + "fmt.Errorf(\"$L forms part of the endpoint host and so must match \\\"[a-zA-Z0-9-]{1,63}\\\""
+                        + ", but was \\\"%s\\\"\", *$L)}", memberName, memberReference);
+                writer.dedent().openBlock("} else {", "}", () -> {
                     writer.write("prefix.WriteString(*$L)", memberReference);
                 });
             }
