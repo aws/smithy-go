@@ -47,7 +47,12 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 		return nil, metadata, fmt.Errorf("expect Smithy http.Request value as input, got unsupported type %T", input)
 	}
 
-	resp, err := c.client.Do(req.Build(ctx))
+	builtRequest := req.Build(ctx)
+	if err := ValidateEndpointHost(builtRequest.Host); err != nil {
+		return nil, metadata, err
+	}
+
+	resp, err := c.client.Do(builtRequest)
 	if err != nil {
 		return nil, metadata, err
 	}
