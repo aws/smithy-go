@@ -253,11 +253,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("");
 
             writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
-                writer.write("deserMetadata, err := $L(response)", errorFunctionName);
-                writer.write("_ = deserMetadata");
-                writer.insertTrailingNewline();
-                processDeserializedErrorMetadata(context);
-                writer.write("return out, metadata, err");
+                writer.write("return out, metadata, $L(response, &metadata)", errorFunctionName);
             });
 
             writer.write("output := &$T{}", outputSymbol);
@@ -292,22 +288,6 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * @param operation The operation to deserialize for.
      */
     protected abstract void deserializeOutputDocument(GenerationContext context, OperationShape operation);
-
-    /**
-     * Writes code that processes the deserialized error metadata.
-     *
-     * <p>parameters in scope include :
-     * <ul>
-     *   <li>{@code response: middleware.Metadata}: the middleware metadata.</li>
-     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
-     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
-     *   <li>{@code deserMetadata: empty interface}: the deserialized error metadata
-     *      returned as an empty interface.</li>
-     * </ul>
-     *
-     * @param context the generation context
-     */
-    protected abstract void processDeserializedErrorMetadata(GenerationContext context);
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();

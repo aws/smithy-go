@@ -67,7 +67,8 @@ public final class HttpProtocolGeneratorUtils {
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
                 operation, context.getProtocolName());
 
-        writer.openBlock("func $L(response $P) (metadata interface{}, err error) {", "}",
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.openBlock("func $L(response $P, metadata *middleware.Metadata) error {", "}",
                 errorFunctionName, responseType, () -> {
             writer.addUseImports(SmithyGoDependency.BYTES);
             writer.addUseImports(SmithyGoDependency.IO);
@@ -75,7 +76,7 @@ public final class HttpProtocolGeneratorUtils {
             // Copy the response body into a seekable type
             writer.write("var errorBuffer bytes.Buffer");
             writer.openBlock("if _, err := io.Copy(&errorBuffer, response.Body); err != nil {", "}", () -> {
-                writer.write("return metadata, &smithy.DeserializationError{Err: fmt.Errorf("
+                writer.write("return &smithy.DeserializationError{Err: fmt.Errorf("
                         + "\"failed to copy error response body, %w\", err)}");
             });
             writer.write("errorBody := bytes.NewReader(errorBuffer.Bytes())");
@@ -97,7 +98,7 @@ public final class HttpProtocolGeneratorUtils {
                             error, context.getProtocolName());
                     writer.addUseImports(SmithyGoDependency.STRINGS);
                     writer.openBlock("case strings.EqualFold($S, errorCode):", "", errorId.getName(), () -> {
-                        writer.write("return metadata, $L(response, errorBody)", errorDeserFunctionName);
+                        writer.write("return $L(response, errorBody)", errorDeserFunctionName);
                     });
                 });
 
@@ -108,7 +109,7 @@ public final class HttpProtocolGeneratorUtils {
                         writer.write("Code: errorCode,");
                         writer.write("Message: errorMessage,");
                     });
-                    writer.write("return metadata, genericError");
+                    writer.write("return genericError");
                 });
             });
         });

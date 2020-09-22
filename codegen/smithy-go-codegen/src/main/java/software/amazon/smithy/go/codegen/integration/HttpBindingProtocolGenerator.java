@@ -304,11 +304,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("");
 
             writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
-                writer.write("deserMetadata, err := $L(response)", errorFunctionName);
-                writer.write("_ = deserMetadata");
-                writer.insertTrailingNewline();
-                processDeserializedErrorMetadata(context);
-                writer.write("return out, metadata, err");
+                writer.write("return out, metadata, $L(response, &metadata)", errorFunctionName);
             });
 
             Shape outputShape = model.expectShape(operation.getOutput()
@@ -352,23 +348,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         deserializingErrorShapes.addAll(errorShapes);
         deserializeDocumentBindingShapes.addAll(errorShapes);
     }
-
-
-    /**
-     * Writes code that processes the deserialized error metadata.
-     *
-     * <p>parameters in scope include :
-     * <ul>
-     *   <li>{@code response: middleware.Metadata}: the middleware metadata.</li>
-     *   <li>{@code response: smithyhttp.HTTPResponse}: the HTTP response received.</li>
-     *   <li>{@code errorBody: bytes.BytesReader}: the HTTP response body.</li>
-     *   <li>{@code deserMetadata: empty interface}: the deserialized error metadata
-     *      returned as an empty interface.</li>
-     * </ul>
-     *
-     * @param context the generation context
-     */
-    protected abstract void processDeserializedErrorMetadata(GenerationContext context);
 
     /**
      * Writes a code snippet that gets the error code and error message.
