@@ -72,6 +72,7 @@ final class ServiceGenerator implements Runnable {
         }
 
         writer.write("const ServiceID = $S", serviceId);
+        writer.write("const ServiceAPIVersion = $S", service.getVersion());
         writer.write("");
 
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
