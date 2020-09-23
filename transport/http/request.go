@@ -96,6 +96,11 @@ func (r *Request) GetStream() io.Reader {
 	return r.stream
 }
 
+// IsStreamSeekable returns if the stream is seekable.
+func (r *Request) IsStreamSeekable() bool {
+	return r.isStreamSeekable
+}
+
 // SetStream returns a clone of the request with the stream set to the provided reader.
 // May return an error if the provided reader is seekable but returns an error.
 func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
