@@ -54,6 +54,14 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 	}
 
 	resp, err := c.client.Do(builtRequest)
+	if resp == nil {
+		// Ensure a http response value is always present to prevent unexpected
+		// panics.
+		resp = &http.Response{
+			Header: http.Header{},
+			Body:   http.NoBody,
+		}
+	}
 	if err != nil {
 		err = &RequestSendError{Err: err}
 
