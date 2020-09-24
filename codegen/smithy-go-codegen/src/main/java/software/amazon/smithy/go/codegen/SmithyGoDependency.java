@@ -86,14 +86,14 @@ public final class SmithyGoDependency {
     }
 
     private static GoDependency smithy(String relativePath, String alias) {
-        return relativePackage(SMITHY_SOURCE_PATH, relativePath, Versions.SMITHY_GO, alias);
+        return module(SMITHY_SOURCE_PATH, relativePath, Versions.SMITHY_GO, alias);
     }
 
     private static GoDependency goCmp(String relativePath) {
-        return relativePackage(GO_CMP_SOURCE_PATH, relativePath, Versions.GO_CMP, null);
+        return module(GO_CMP_SOURCE_PATH, relativePath, Versions.GO_CMP, null);
     }
 
-    private static GoDependency relativePackage(
+    protected static GoDependency module(
             String moduleImportPath,
             String relativePath,
             String version,
