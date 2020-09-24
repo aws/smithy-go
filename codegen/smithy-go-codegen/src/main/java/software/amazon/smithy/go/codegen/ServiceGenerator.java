@@ -33,7 +33,6 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 final class ServiceGenerator implements Runnable {
 
     public static final String CONFIG_NAME = "Options";
-    public static final String API_OPTIONS_FUNC_NAME = "APIOptionFunc";
 
     private final GoSettings settings;
     private final Model model;
@@ -83,10 +82,6 @@ final class ServiceGenerator implements Runnable {
 
         generateConstructor(serviceSymbol);
         generateConfig();
-
-        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                .build();
-        writer.write("type $L func($P) error", API_OPTIONS_FUNC_NAME, stackSymbol);
     }
 
     private void generateConstructor(Symbol serviceSymbol) {
@@ -126,7 +121,9 @@ final class ServiceGenerator implements Runnable {
                     + "invoked for this client. Use functional options on operation call to modify this "
                     + "list for per operation behavior."
             );
-            writer.write("APIOptions []$L", API_OPTIONS_FUNC_NAME).write("");
+            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                    .build();
+            writer.write("APIOptions []func($P) error", stackSymbol).write("");
 
             // Add config fields to the options struct.
             for (ConfigField configField : getAllConfigFields()) {
@@ -153,7 +150,9 @@ final class ServiceGenerator implements Runnable {
         writer.writeDocs("Copy creates a clone where the APIOptions list is deep copied.");
         writer.openBlock("func (o $L) Copy() $L {", "}", CONFIG_NAME, CONFIG_NAME, () -> {
             writer.write("to := o");
-            writer.write("to.APIOptions = make([]$L, len(o.APIOptions))", API_OPTIONS_FUNC_NAME);
+            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                    .build();
+            writer.write("to.APIOptions = make([]func($P) error, len(o.APIOptions))", stackSymbol);
             writer.write("copy(to.APIOptions, o.APIOptions)");
             writer.write("return to");
         });
@@ -167,7 +166,6 @@ final class ServiceGenerator implements Runnable {
             }
             configFields.addAll(runtimeClientPlugin.getConfigFields());
         }
-
         return configFields.stream()
                 .distinct()
                 .sorted(Comparator.comparing(ConfigField::getName))
