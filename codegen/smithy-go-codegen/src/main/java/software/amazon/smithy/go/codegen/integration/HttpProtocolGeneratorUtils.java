@@ -67,7 +67,9 @@ public final class HttpProtocolGeneratorUtils {
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
                 operation, context.getProtocolName());
 
-        writer.openBlock("func $L(response $P) error {", "}", errorFunctionName, responseType, () -> {
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.openBlock("func $L(response $P, metadata *middleware.Metadata) error {", "}",
+                errorFunctionName, responseType, () -> {
             writer.addUseImports(SmithyGoDependency.BYTES);
             writer.addUseImports(SmithyGoDependency.IO);
 

@@ -253,7 +253,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("");
 
             writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
-                writer.write("return out, metadata, $L(response)", errorFunctionName);
+                writer.write("return out, metadata, $L(response, &metadata)", errorFunctionName);
             });
 
             writer.write("output := &$T{}", outputSymbol);
