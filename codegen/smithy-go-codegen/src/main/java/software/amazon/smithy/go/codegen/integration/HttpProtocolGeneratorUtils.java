@@ -186,7 +186,7 @@ public final class HttpProtocolGeneratorUtils {
                 writer.write("if $L == nil {", memberReference).indent();
                 writer.write("return out, metadata, &smithy.SerializationError{Err: "
                         + "fmt.Errorf(\"$L forms part of the endpoint host and so may not be nil\")}", memberName);
-                writer.dedent().write("} else if !smithyhttp.ValidateHostLabel(*$L) {", memberReference).indent();
+                writer.dedent().write("} else if !smithyhttp.ValidHostLabel(*$L) {", memberReference).indent();
                 writer.write("return out, metadata, &smithy.SerializationError{Err: "
                         + "fmt.Errorf(\"$L forms part of the endpoint host and so must match \\\"[a-zA-Z0-9-]{1,63}\\\""
                         + ", but was \\\"%s\\\"\", *$L)}", memberName, memberReference);
