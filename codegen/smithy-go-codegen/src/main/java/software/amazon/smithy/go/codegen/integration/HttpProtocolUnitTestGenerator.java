@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,7 +34,9 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -50,6 +53,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final Model model;
     protected final SymbolProvider symbolProvider;
     protected final List<T> testCases;
+    protected final ServiceShape service;
     protected final OperationShape operation;
     protected final Symbol opSymbol;
     protected final Shape inputShape;
@@ -58,6 +62,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final Symbol outputSymbol;
     protected final String protocolName;
     protected final Set<ConfigValue> clientConfigValues = new TreeSet<>();
+    protected final Set<SkipTest> skipTests = new TreeSet<>();
 
     /**
      * Initializes the abstract protocol tests generator.
@@ -65,12 +70,14 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param builder the builder initializing the generator.
      */
     protected HttpProtocolUnitTestGenerator(Builder<T> builder) {
-        this.model = builder.model;
-        this.symbolProvider = builder.symbolProvider;
-        this.protocolName = builder.protocolName;
-        this.operation = builder.operation;
-        this.testCases = builder.testCases;
+        this.model = SmithyBuilder.requiredState("model", builder.model);
+        this.symbolProvider = SmithyBuilder.requiredState("symbol provider", builder.symbolProvider);
+        this.protocolName = SmithyBuilder.requiredState("protocol name", builder.protocolName);
+        this.service = SmithyBuilder.requiredState("service", builder.service);
+        this.operation = SmithyBuilder.requiredState("operation", builder.operation);
+        this.testCases = SmithyBuilder.requiredState("test cases", builder.testCases);
         this.clientConfigValues.addAll(builder.clientConfigValues);
+        this.skipTests.addAll(builder.skipTests);
 
         opSymbol = symbolProvider.toSymbol(operation);
 
@@ -199,6 +206,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         writer.addUseImports(SmithyGoDependency.TESTING);
         writer.openBlock("func " + unitTestFuncNameFormat() + "(t *testing.T) {", "}", unitTestFuncNameArgs(),
                 () -> {
+                    skipTests.forEach((skipTest) -> {
+                        if (skipTest.matches(service.getId(), operation.getId())) {
+                            writer.write("t.Skip(\"disabled test $L $L\")", service.getId(), operation.getId());
+                            writer.write("");
+                        }
+                    });
                     generateTestSetup(writer);
 
                     writer.write("cases := map[string]struct {");
@@ -215,6 +228,18 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                     // And test case iteration/assertions
                     writer.openBlock("for name, c := range cases {", "}", () -> {
                         writer.openBlock("t.Run(name, func(t *testing.T) {", "})", () -> {
+                            skipTests.forEach((skipTest) -> {
+                                for (T testCase : testCases) {
+                                    if (skipTest.matches(service.getId(), operation.getId(), testCase.getId())) {
+                                        writer.openBlock("if name == $S {", "}", testCase.getId(), () -> {
+                                            writer.write("t.Skip(\"disabled test $L $L\")", service.getId(),
+                                                    operation.getId());
+                                        });
+                                        writer.write("");
+                                    }
+                                }
+                            });
+
                             generateTestBodySetup(writer);
                             generateTestServer(writer, "server", this::generateTestServerHandler);
                             generateTestClient(writer, "client");
@@ -543,9 +568,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         protected Model model;
         protected SymbolProvider symbolProvider;
         protected String protocolName = "";
+        protected ServiceShape service;
         protected OperationShape operation;
         protected List<T> testCases = new ArrayList<>();
         protected Set<ConfigValue> clientConfigValues = new TreeSet<>();
+        protected Set<SkipTest> skipTests = new TreeSet<>();
 
         public Builder<T> model(Model model) {
             this.model = model;
@@ -559,6 +586,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
         public Builder<T> protocolName(String protocolName) {
             this.protocolName = protocolName;
+            return this;
+        }
+
+        public Builder<T> service(ServiceShape service) {
+            this.service = service;
             return this;
         }
 
@@ -589,6 +621,21 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
         public Builder<T> addClientConfigValues(Set<ConfigValue> clientConfigValues) {
             this.clientConfigValues.addAll(clientConfigValues);
+            return this;
+        }
+
+        public Builder<T> skipTest(SkipTest skipTest) {
+            this.skipTests.add(skipTest);
+            return this;
+        }
+
+        public Builder<T> skipTests(Set<SkipTest> skipTests) {
+            this.skipTests.clear();
+            return this.addSkipTests(skipTests);
+        }
+
+        public Builder<T> addSkipTests(Set<SkipTest> skipTests) {
+            this.skipTests.addAll(skipTests);
             return this;
         }
 
@@ -687,6 +734,173 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             @Override
             public ConfigValue build() {
                 return new ConfigValue(this);
+            }
+        }
+    }
+
+    /**
+     * Represents a test tests that should be skipped.
+     */
+    public static class SkipTest implements Comparable<SkipTest> {
+        private final ShapeId service;
+        private final ShapeId operation;
+        private final String testName;
+
+        SkipTest(Builder builder) {
+            this.service = SmithyBuilder.requiredState("service id", builder.service);
+            this.operation = SmithyBuilder.requiredState("operation id", builder.operation);
+            this.testName = builder.testName;
+        }
+
+        /**
+         * Get the service the skip test applies to.
+         *
+         * @return the service id
+         */
+        public ShapeId getService() {
+            return service;
+        }
+
+        /**
+         * Get the operation the skip test applies to.
+         *
+         * @return the operation id
+         */
+        public ShapeId getOperation() {
+            return operation;
+        }
+
+        /**
+         * Get the name of the test the skip test applies to.
+         *
+         * @return the name of the test to skip
+         */
+        public String getTestName() {
+            return testName;
+        }
+
+        /**
+         * Returns if the skip test case matches the test being evaluated. If a test name isn't specified in the skip
+         * test only the service and operation are considered for matches.
+         *
+         * @param service   id of the service
+         * @param operation id of the operation
+         * @param testName  name of the test
+         * @return if the skip test matches
+         */
+        public boolean matches(ShapeId service, ShapeId operation, String testName) {
+            if (!this.service.equals(service)) {
+                return false;
+            }
+
+            if (!this.operation.equals(operation)) {
+                return false;
+            }
+
+            if (this.testName == null || this.testName.length() == 0) {
+                return true;
+            }
+
+            return this.testName.equals(testName);
+        }
+
+        /**
+         * Returns if the skip test matches the service and operation, with no individual test defined. If an individual
+         * test name is specified the skip test will not match.
+         *
+         * @param service   id of the service
+         * @param operation id of the operation
+         * @return if the skip test matches
+         */
+        public boolean matches(ShapeId service, ShapeId operation) {
+            if (!this.service.equals(service)) {
+                return false;
+            }
+
+            if (!this.operation.equals(operation)) {
+                return false;
+            }
+
+            return (this.testName == null || this.testName.length() == 0);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        @Override
+        public int compareTo(SkipTest o) {
+            return Comparator.comparing(SkipTest::getService)
+                    .thenComparing(SkipTest::getOperation)
+                    .compare(this, o);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            SkipTest that = (SkipTest) o;
+            return Objects.equals(getService(), that.getService())
+                    && Objects.equals(getOperation(), that.getOperation())
+                    && Objects.equals(getTestName(), that.getTestName());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(service, operation, testName);
+        }
+
+        /**
+         * Builder for {@link SkipTest}.
+         */
+        public static final class Builder implements SmithyBuilder<SkipTest> {
+            private ShapeId service;
+            private ShapeId operation;
+            private String testName;
+
+            private Builder() {
+            }
+
+            /**
+             * Set the service of the test.
+             *
+             * @param service field service
+             * @return the builder
+             */
+            public Builder service(ShapeId service) {
+                this.service = service;
+                return this;
+            }
+
+            /**
+             * Set the operation of the test.
+             *
+             * @param operation is the operation of the test to skip
+             * @return the builder
+             */
+            public Builder operation(ShapeId operation) {
+                this.operation = operation;
+                return this;
+            }
+
+            /**
+             * Set the name of the test to skip.
+             *
+             * @param testName is the name of the test to skip
+             * @return the builder
+             */
+            public Builder testName(String testName) {
+                this.testName = testName;
+                return this;
+            }
+
+            @Override
+            public SkipTest build() {
+                return new SkipTest(this);
             }
         }
     }
