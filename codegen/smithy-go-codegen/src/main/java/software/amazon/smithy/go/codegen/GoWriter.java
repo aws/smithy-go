@@ -33,6 +33,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
 import software.amazon.smithy.utils.CodeWriter;
 import software.amazon.smithy.utils.StringUtils;
@@ -261,6 +262,14 @@ public final class GoWriter extends CodeWriter {
                             .map(StringTrait::getValue)
                             .ifPresent(mediaType -> writeDocs(
                                     "\n\nThis value conforms to the media type: " + mediaType));
+
+                    member.getMemberTrait(model, RequiredTrait.class)
+                            .ifPresent((value) -> {
+                                if (docs.length() != 0) {
+                                    writeDocs("");
+                                }
+                                writeDocs("This member is required.");
+                            });
                     return true;
                 }).orElse(false);
     }
