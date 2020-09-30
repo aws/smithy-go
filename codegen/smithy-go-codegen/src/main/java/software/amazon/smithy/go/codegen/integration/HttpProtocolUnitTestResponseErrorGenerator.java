@@ -18,12 +18,14 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
+import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
 
@@ -174,6 +176,12 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
         }
 
         @Override
+        public Builder service(ServiceShape service) {
+            super.service(service);
+            return this;
+        }
+
+        @Override
         public Builder operation(OperationShape operation) {
             super.operation(operation);
             return this;
@@ -193,6 +201,42 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
         @Override
         public Builder addTestCases(List<HttpResponseTestCase> testCases) {
             super.addTestCases(testCases);
+            return this;
+        }
+
+        @Override
+        public Builder clientConfigValue(ConfigValue configValue) {
+            super.clientConfigValue(configValue);
+            return this;
+        }
+
+        @Override
+        public Builder clientConfigValues(Set<ConfigValue> clientConfigValues) {
+            super.clientConfigValues(clientConfigValues);
+            return this;
+        }
+
+        @Override
+        public Builder addClientConfigValues(Set<ConfigValue> clientConfigValues) {
+            super.addClientConfigValues(clientConfigValues);
+            return this;
+        }
+
+        @Override
+        public Builder skipTest(SkipTest skipTest) {
+            super.skipTest(skipTest);
+            return this;
+        }
+
+        @Override
+        public Builder skipTests(Set<SkipTest> skipTests) {
+            super.skipTests(skipTests);
+            return this;
+        }
+
+        @Override
+        public Builder addSkipTests(Set<SkipTest> skipTests) {
+            super.addSkipTests(skipTests);
             return this;
         }
 
