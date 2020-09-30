@@ -71,11 +71,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     protected HttpProtocolUnitTestGenerator(Builder<T> builder) {
         this.model = SmithyBuilder.requiredState("model", builder.model);
-        this.symbolProvider = SmithyBuilder.requiredState("symbol provider", builder.symbolProvider);
-        this.protocolName = SmithyBuilder.requiredState("protocol name", builder.protocolName);
+        this.symbolProvider = SmithyBuilder.requiredState("symbolProvider", builder.symbolProvider);
+        this.protocolName = SmithyBuilder.requiredState("protocolName", builder.protocolName);
         this.service = SmithyBuilder.requiredState("service", builder.service);
         this.operation = SmithyBuilder.requiredState("operation", builder.operation);
-        this.testCases = SmithyBuilder.requiredState("test cases", builder.testCases);
+        this.testCases = SmithyBuilder.requiredState("testCases", builder.testCases);
         this.clientConfigValues.addAll(builder.clientConfigValues);
         this.skipTests.addAll(builder.skipTests);
 
