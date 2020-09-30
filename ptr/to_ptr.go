@@ -15,6 +15,7 @@ func Bool(v bool) *bool {
 func BoolSlice(vs []bool) []*bool {
 	ps := make([]*bool, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -26,6 +27,7 @@ func BoolSlice(vs []bool) []*bool {
 func BoolMap(vs map[string]bool) map[string]*bool {
 	ps := make(map[string]*bool, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -42,6 +44,7 @@ func Byte(v byte) *byte {
 func ByteSlice(vs []byte) []*byte {
 	ps := make([]*byte, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -53,6 +56,7 @@ func ByteSlice(vs []byte) []*byte {
 func ByteMap(vs map[string]byte) map[string]*byte {
 	ps := make(map[string]*byte, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -69,6 +73,7 @@ func String(v string) *string {
 func StringSlice(vs []string) []*string {
 	ps := make([]*string, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -80,6 +85,7 @@ func StringSlice(vs []string) []*string {
 func StringMap(vs map[string]string) map[string]*string {
 	ps := make(map[string]*string, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -96,6 +102,7 @@ func Int(v int) *int {
 func IntSlice(vs []int) []*int {
 	ps := make([]*int, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -107,6 +114,7 @@ func IntSlice(vs []int) []*int {
 func IntMap(vs map[string]int) map[string]*int {
 	ps := make(map[string]*int, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -123,6 +131,7 @@ func Int8(v int8) *int8 {
 func Int8Slice(vs []int8) []*int8 {
 	ps := make([]*int8, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -134,6 +143,7 @@ func Int8Slice(vs []int8) []*int8 {
 func Int8Map(vs map[string]int8) map[string]*int8 {
 	ps := make(map[string]*int8, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -150,6 +160,7 @@ func Int16(v int16) *int16 {
 func Int16Slice(vs []int16) []*int16 {
 	ps := make([]*int16, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -161,6 +172,7 @@ func Int16Slice(vs []int16) []*int16 {
 func Int16Map(vs map[string]int16) map[string]*int16 {
 	ps := make(map[string]*int16, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -177,6 +189,7 @@ func Int32(v int32) *int32 {
 func Int32Slice(vs []int32) []*int32 {
 	ps := make([]*int32, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -188,6 +201,7 @@ func Int32Slice(vs []int32) []*int32 {
 func Int32Map(vs map[string]int32) map[string]*int32 {
 	ps := make(map[string]*int32, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -204,6 +218,7 @@ func Int64(v int64) *int64 {
 func Int64Slice(vs []int64) []*int64 {
 	ps := make([]*int64, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -215,6 +230,7 @@ func Int64Slice(vs []int64) []*int64 {
 func Int64Map(vs map[string]int64) map[string]*int64 {
 	ps := make(map[string]*int64, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -231,6 +247,7 @@ func Uint(v uint) *uint {
 func UintSlice(vs []uint) []*uint {
 	ps := make([]*uint, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -242,6 +259,7 @@ func UintSlice(vs []uint) []*uint {
 func UintMap(vs map[string]uint) map[string]*uint {
 	ps := make(map[string]*uint, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -258,6 +276,7 @@ func Uint8(v uint8) *uint8 {
 func Uint8Slice(vs []uint8) []*uint8 {
 	ps := make([]*uint8, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -269,6 +288,7 @@ func Uint8Slice(vs []uint8) []*uint8 {
 func Uint8Map(vs map[string]uint8) map[string]*uint8 {
 	ps := make(map[string]*uint8, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -285,6 +305,7 @@ func Uint16(v uint16) *uint16 {
 func Uint16Slice(vs []uint16) []*uint16 {
 	ps := make([]*uint16, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -296,6 +317,7 @@ func Uint16Slice(vs []uint16) []*uint16 {
 func Uint16Map(vs map[string]uint16) map[string]*uint16 {
 	ps := make(map[string]*uint16, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -312,6 +334,7 @@ func Uint32(v uint32) *uint32 {
 func Uint32Slice(vs []uint32) []*uint32 {
 	ps := make([]*uint32, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -323,6 +346,7 @@ func Uint32Slice(vs []uint32) []*uint32 {
 func Uint32Map(vs map[string]uint32) map[string]*uint32 {
 	ps := make(map[string]*uint32, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -339,6 +363,7 @@ func Uint64(v uint64) *uint64 {
 func Uint64Slice(vs []uint64) []*uint64 {
 	ps := make([]*uint64, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -350,6 +375,7 @@ func Uint64Slice(vs []uint64) []*uint64 {
 func Uint64Map(vs map[string]uint64) map[string]*uint64 {
 	ps := make(map[string]*uint64, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -366,6 +392,7 @@ func Float32(v float32) *float32 {
 func Float32Slice(vs []float32) []*float32 {
 	ps := make([]*float32, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -377,6 +404,7 @@ func Float32Slice(vs []float32) []*float32 {
 func Float32Map(vs map[string]float32) map[string]*float32 {
 	ps := make(map[string]*float32, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -393,6 +421,7 @@ func Float64(v float64) *float64 {
 func Float64Slice(vs []float64) []*float64 {
 	ps := make([]*float64, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -404,6 +433,7 @@ func Float64Slice(vs []float64) []*float64 {
 func Float64Map(vs map[string]float64) map[string]*float64 {
 	ps := make(map[string]*float64, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 
@@ -420,6 +450,7 @@ func Time(v time.Time) *time.Time {
 func TimeSlice(vs []time.Time) []*time.Time {
 	ps := make([]*time.Time, len(vs))
 	for i, v := range vs {
+		v := v
 		ps[i] = &v
 	}
 
@@ -431,6 +462,7 @@ func TimeSlice(vs []time.Time) []*time.Time {
 func TimeMap(vs map[string]time.Time) map[string]*time.Time {
 	ps := make(map[string]*time.Time, len(vs))
 	for k, v := range vs {
+		v := v
 		ps[k] = &v
 	}
 

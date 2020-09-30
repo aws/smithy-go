@@ -152,6 +152,7 @@ var ptrTmpl = template.Must(template.New("ptrTmpl").Parse(`
 	func {{ $.Name }}Slice(vs []{{ $.Symbol }}) []*{{ $.Symbol }} {
 		ps := make([]*{{ $.Symbol }}, len(vs))
 		for i, v := range vs {
+			v := v
 			ps[i] = &v
 		}
 
@@ -163,6 +164,7 @@ var ptrTmpl = template.Must(template.New("ptrTmpl").Parse(`
 	func {{ $.Name }}Map(vs map[string]{{ $.Symbol }}) map[string]*{{ $.Symbol }} {
 		ps := make(map[string]*{{ $.Symbol }}, len(vs))
 		for k, v := range vs {
+			v := v
 			ps[k] = &v
 		}
 
