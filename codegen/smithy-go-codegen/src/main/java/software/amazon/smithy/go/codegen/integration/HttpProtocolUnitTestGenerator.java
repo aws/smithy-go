@@ -797,8 +797,9 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 return false;
             }
 
+            // SkipTests not for specific test should not match this check.
             if (this.testName == null || this.testName.length() == 0) {
-                return true;
+                return false;
             }
 
             return this.testName.equals(testName);
@@ -821,6 +822,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 return false;
             }
 
+            // SkipTests for specific test should not match this check.
             return (this.testName == null || this.testName.length() == 0);
         }
 
