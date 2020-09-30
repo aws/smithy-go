@@ -89,6 +89,8 @@ final class StructureGenerator implements Runnable {
         writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
         for (MemberShape member : shape.getAllMembers().values()) {
+            writer.write("");
+
             String memberName = symbolProvider.toMemberName(member);
             writer.writeMemberDocs(model, member);
 
@@ -96,6 +98,7 @@ final class StructureGenerator implements Runnable {
             if (isInputStructure) {
                 memberSymbol = memberSymbol.getProperty(SymbolUtils.INPUT_VARIANT, Symbol.class).orElse(memberSymbol);
             }
+
             writer.write("$L $P", memberName, memberSymbol);
         }
         runnable.run();
