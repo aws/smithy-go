@@ -21,10 +21,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -33,6 +35,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -325,5 +328,45 @@ public final class CodegenUtils {
         }
 
         throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
+    }
+
+    /**
+     * Comparator to sort ShapeMember lists alphabetically, with required members first followed by optional members.
+     */
+    public static final class SortedMembers implements Comparator<MemberShape> {
+        private final SymbolProvider symbolProvider;
+
+        /**
+         * Initializes the SortedMembers.
+         *
+         * @param symbolProvider
+         */
+        public SortedMembers(SymbolProvider symbolProvider) {
+            this.symbolProvider = symbolProvider;
+        }
+
+        @Override
+        public int compare(MemberShape a, MemberShape b) {
+            // first compare if the members are required or not, which ever member is required should win. If both
+            // members are required or not required, continue on to alphabetic search.
+
+            // If a is required but b isn't return -1 so a is sorted before b
+            // If b is required but a isn't, return 1 so a is sorted after b
+            // If both a and b are required or optional, use alphabetic sorting of a and b's member name.
+
+            int requiredMember = 0;
+            if (a.hasTrait(RequiredTrait.class)) {
+                requiredMember -= 1;
+            }
+            if (b.hasTrait(RequiredTrait.class)) {
+                requiredMember += 1;
+            }
+            if (requiredMember != 0) {
+                return requiredMember;
+            }
+
+            return symbolProvider.toMemberName(a)
+                    .compareTo(symbolProvider.toMemberName(b));
+        }
     }
 }
