@@ -330,27 +330,43 @@ public final class CodegenUtils {
         throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
     }
 
+    /**
+     * Comparator to sort ShapeMember lists alphabetically, with required members first followed by optional members.
+     */
     public static final class SortedMembers implements Comparator<MemberShape> {
-        private final Model model;
         private final SymbolProvider symbolProvider;
 
-        public SortedMembers(Model model, SymbolProvider symbolProvider) {
-            this.model = model;
+        /**
+         * Initializes the SortedMembers.
+         *
+         * @param symbolProvider
+         */
+        public SortedMembers(SymbolProvider symbolProvider) {
             this.symbolProvider = symbolProvider;
         }
 
         @Override
         public int compare(MemberShape a, MemberShape b) {
-            int ai = a.getMemberTrait(model, RequiredTrait.class).isPresent() ? 1 : 0;
-            int bi = b.getMemberTrait(model, RequiredTrait.class).isPresent() ? 1 : 0;
-            if (ai != bi) {
-                return bi - ai;
+            // first compare if the members are required or not, which ever member is required should win. If both
+            // members are required or not required, continue on to alphabetic search.
+
+            // If a is required but b isn't return -1 so a is sorted before b
+            // If b is required but a isn't, return 1 so a is sorted after b
+            // If both a and b are required or optional, use alphabetic sorting of a and b's member name.
+
+            int requiredMember = 0;
+            if (a.hasTrait(RequiredTrait.class)) {
+                requiredMember -= 1;
+            }
+            if (b.hasTrait(RequiredTrait.class)) {
+                requiredMember += 1;
+            }
+            if (requiredMember != 0) {
+                return requiredMember;
             }
 
-            String aName = symbolProvider.toMemberName(a);
-            String bName = symbolProvider.toMemberName(b);
-
-            return aName.compareTo(bName);
+            return symbolProvider.toMemberName(a)
+                    .compareTo(symbolProvider.toMemberName(b));
         }
     }
 }

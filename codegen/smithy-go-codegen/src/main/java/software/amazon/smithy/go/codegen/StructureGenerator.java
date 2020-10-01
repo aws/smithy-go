@@ -89,7 +89,7 @@ final class StructureGenerator implements Runnable {
         writer.writeShapeDocs(shape);
         writer.openBlock("type $L struct {", symbol.getName());
 
-        CodegenUtils.SortedMembers sortedMembers = new CodegenUtils.SortedMembers(model, symbolProvider);
+        CodegenUtils.SortedMembers sortedMembers = new CodegenUtils.SortedMembers(symbolProvider);
         shape.getAllMembers().values().stream().sorted(sortedMembers).forEach((member) -> {
             writer.write("");
 
