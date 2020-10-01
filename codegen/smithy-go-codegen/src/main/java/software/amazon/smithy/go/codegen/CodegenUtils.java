@@ -21,10 +21,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -33,6 +35,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -325,5 +328,29 @@ public final class CodegenUtils {
         }
 
         throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
+    }
+
+    public static final class SortedMembers implements Comparator<MemberShape> {
+        private final Model model;
+        private final SymbolProvider symbolProvider;
+
+        public SortedMembers(Model model, SymbolProvider symbolProvider) {
+            this.model = model;
+            this.symbolProvider = symbolProvider;
+        }
+
+        @Override
+        public int compare(MemberShape a, MemberShape b) {
+            int ai = a.getMemberTrait(model, RequiredTrait.class).isPresent() ? 1 : 0;
+            int bi = b.getMemberTrait(model, RequiredTrait.class).isPresent() ? 1 : 0;
+            if (ai != bi) {
+                return bi - ai;
+            }
+
+            String aName = symbolProvider.toMemberName(a);
+            String bName = symbolProvider.toMemberName(b);
+
+            return aName.compareTo(bName);
+        }
     }
 }
