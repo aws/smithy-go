@@ -18,8 +18,8 @@ extra["displayName"] = "Smithy :: Go :: Codegen"
 extra["moduleName"] = "software.amazon.smithy.go.codegen"
 
 dependencies {
-    api("software.amazon.smithy:smithy-codegen-core:[1.1.0,2.0.0[")
+    api("software.amazon.smithy:smithy-codegen-core:[1.2.0,2.0.0[")
     api("com.atlassian.commonmark:commonmark:0.14.0")
     api("org.jsoup:jsoup:1.13.1")
-    implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.1.0,2.0.0[")
+    implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.2.0,2.0.0[")
 }
