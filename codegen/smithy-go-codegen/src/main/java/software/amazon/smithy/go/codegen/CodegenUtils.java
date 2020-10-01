@@ -339,7 +339,7 @@ public final class CodegenUtils {
         /**
          * Initializes the SortedMembers.
          *
-         * @param symbolProvider
+         * @param symbolProvider symbol provider used for codegen.
          */
         public SortedMembers(SymbolProvider symbolProvider) {
             this.symbolProvider = symbolProvider;
