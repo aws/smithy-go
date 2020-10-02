@@ -135,16 +135,6 @@ final class ServiceGenerator implements Runnable {
             generateApplicationProtocolConfig();
         }).write("");
 
-        // Add config field getters, which are useful for creating any necessary interfaces to accept
-        // some subset of the config.
-        for (ConfigField configField : getAllConfigFields()) {
-            writer.openBlock("func (o $L) Get$L() $P {", "}",
-                    CONFIG_NAME, configField.getName(), configField.getType(), () -> {
-                        writer.write("return o.$L", configField.getName());
-                    });
-            writer.write("");
-        }
-
         generateApplicationProtocolTypes();
 
         writer.writeDocs("Copy creates a clone where the APIOptions list is deep copied.");
