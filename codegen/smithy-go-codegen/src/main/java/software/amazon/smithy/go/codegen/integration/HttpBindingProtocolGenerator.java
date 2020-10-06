@@ -36,6 +36,7 @@ import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.NoSerializeTrait;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
@@ -540,7 +541,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     writer.write("");
 
-                    for (HttpBinding binding : bindings) {
+                    for (HttpBinding binding : bindings.stream()
+                            .filter(NoSerializeTrait.excludeNoSerializeHttpBindingMembers())
+                            .collect(Collectors.toList())) {
+
                         writeHttpBindingMember(context, binding);
                         writer.write("");
                     }
