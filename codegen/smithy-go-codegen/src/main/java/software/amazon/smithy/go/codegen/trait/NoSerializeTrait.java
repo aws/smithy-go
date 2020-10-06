@@ -15,7 +15,7 @@
  *
  */
 
-package software.amazon.smithy.go.codegen;
+package software.amazon.smithy.go.codegen.trait;
 
 import java.util.function.Predicate;
 import software.amazon.smithy.model.knowledge.HttpBinding;
@@ -30,7 +30,7 @@ import software.amazon.smithy.model.traits.AnnotationTrait;
  * parameters that should not be serialized, but are needed for the SDK's customizations.
  */
 public class NoSerializeTrait extends AnnotationTrait {
-    public static final ShapeId ID = ShapeId.from("sdk.customizations.api#NoSerialize");
+    public static final ShapeId ID = ShapeId.from("smithy.go.trait#NoSerialize");
 
     public NoSerializeTrait() {
         this(Node.objectNode());
