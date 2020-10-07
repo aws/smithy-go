@@ -25,6 +25,7 @@ import software.amazon.smithy.codegen.core.ReservedWords;
 import software.amazon.smithy.codegen.core.ReservedWordsBuilder;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.trait.UnexportedMemberTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
 import software.amazon.smithy.model.neighbor.NeighborProvider;
@@ -222,7 +223,11 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private String getDefaultMemberName(MemberShape shape) {
-        return StringUtils.capitalize(removeLeadingUnderscores(shape.getMemberName()));
+        String memberName =  StringUtils.capitalize(removeLeadingUnderscores(shape.getMemberName()));
+        if (shape.hasTrait(UnexportedMemberTrait.class)) {
+            memberName = Character.toLowerCase(memberName.charAt(0)) + memberName.substring(1);
+        }
+        return memberName;
     }
 
     private String removeLeadingUnderscores(String value) {
