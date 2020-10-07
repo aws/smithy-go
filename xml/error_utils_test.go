@@ -39,6 +39,9 @@ func TestGetResponseErrorCode(t *testing.T) {
 			expectedErrorCode:      "InvalidGreeting",
 			expectedErrorMessage:   "Hi",
 		},
+		"no response body": {
+			errorResponse: bytes.NewReader([]byte(``)),
+		},
 	}
 
 	for name, c := range cases {
