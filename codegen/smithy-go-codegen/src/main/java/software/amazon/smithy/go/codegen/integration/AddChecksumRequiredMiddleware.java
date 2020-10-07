@@ -24,8 +24,10 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.traits.HttpChecksumRequiredTrait;
 import software.amazon.smithy.utils.ListUtils;
 
-public class ChecksumRequiredMiddlewareGenerator implements GoIntegration {
-
+/**
+ * Adds middleware supporting httpChecksumRequired trait behavior.
+ */
+public class AddChecksumRequiredMiddleware implements GoIntegration {
     @Override
     public byte getOrder() {
         return 127;
@@ -45,6 +47,7 @@ public class ChecksumRequiredMiddlewareGenerator implements GoIntegration {
        );
     }
 
+    // return true if operation shape is decorated with `httpChecksumRequired` trait.
     private boolean hasChecksumRequiredTrait(Model model, ServiceShape service, OperationShape operation) {
         return operation.hasTrait(HttpChecksumRequiredTrait.class);
     }
