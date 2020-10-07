@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -368,5 +369,47 @@ public final class CodegenUtils {
             return symbolProvider.toMemberName(a)
                     .compareTo(symbolProvider.toMemberName(b));
         }
+    }
+
+    /**
+     * Attempts to find the first member by exact name in the containing structure. If the member is not found an
+     * exception will be thrown.
+     *
+     * @param shape structure containing member
+     * @param name  member name
+     * @return MemberShape if found
+     */
+    public static MemberShape expectMember(StructureShape shape, String name) {
+        return expectMember(shape, name::equals);
+    }
+
+    /**
+     * Attempts to find the first member by name using a member name predicate in the containing structure. If the
+     * member is not found an exception will be thrown.
+     *
+     * @param shape               structure containing member
+     * @param memberNamePredicate member name to search for
+     * @return MemberShape if found
+     */
+    public static MemberShape expectMember(StructureShape shape, Predicate<String> memberNamePredicate) {
+        return expectMemberByPredicate(shape, (p) -> memberNamePredicate.test(p.getMemberName()));
+    }
+
+    /**
+     * Attempts to find the first member by a predicate in the containing structure. If the member is not found an
+     * exception will be thrown.
+     *
+     * @param shape                structure containing member
+     * @param memberShapePredicate member shape to search for
+     * @return MemberShape if found
+     */
+    public static MemberShape expectMemberByPredicate(
+            StructureShape shape,
+            Predicate<MemberShape> memberShapePredicate
+    ) {
+        return shape.getAllMembers().values().stream()
+                .filter(memberShapePredicate)
+                .findFirst()
+                .orElseThrow(() -> new CodegenException("did not find member in structure shape, " + shape.getId()));
     }
 }
