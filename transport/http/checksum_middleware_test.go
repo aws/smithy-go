@@ -13,25 +13,30 @@ import (
 
 func TestChecksumMiddleware(t *testing.T) {
 	cases := map[string]struct {
-		requestBody         io.ReadCloser
+		payload             io.ReadCloser
 		expectedMD5Checksum string
 		expectError         string
 	}{
 		"empty body": {
-			requestBody:         ioutil.NopCloser(bytes.NewBuffer([]byte(``))),
+			payload:             ioutil.NopCloser(bytes.NewBuffer([]byte(``))),
 			expectedMD5Checksum: "1B2M2Y8AsgTpgAmY7PhCfg==",
 		},
-		"standard case": {
-			requestBody:         ioutil.NopCloser(bytes.NewBuffer([]byte(`abc`))),
+		"standard req body": {
+			payload:             ioutil.NopCloser(bytes.NewBuffer([]byte(`abc`))),
 			expectedMD5Checksum: "kAFQmDzST7DWlj99KOF/cg==",
 		},
+		"nil body": {},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			var err error
 			req := NewStackRequest().(*Request)
-			req.Body = c.requestBody
+
+			req, err = req.SetStream(c.payload)
+			if err != nil {
+				t.Fatalf("error setting request stream")
+			}
 			m := checksumMiddleware{}
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},

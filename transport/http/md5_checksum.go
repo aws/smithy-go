@@ -11,9 +11,7 @@ import (
 // Returns the byte slice of md5 checksum and an error.
 func computeMD5Checksum(r io.Reader) ([]byte, error) {
 	h := md5.New()
-	// hash the body. seek back to the first position after reading to reset
-	// the body for transmission.  copy errors may be assumed to be from the
-	// body.
+	// copy errors may be assumed to be from the body.
 	_, err := io.Copy(h, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read body: %w", err)

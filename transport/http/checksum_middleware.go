@@ -1,11 +1,8 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 
 	"github.com/awslabs/smithy-go/middleware"
 )
@@ -20,7 +17,8 @@ type checksumMiddleware struct {
 // AddChecksumMiddleware adds checksum middleware to middleware's
 // build step.
 func AddChecksumMiddleware(stack *middleware.Stack) {
-	stack.Build.Add(&checksumMiddleware{}, middleware.After)
+	// This middleware must be executed before request body is set.
+	stack.Build.Add(&checksumMiddleware{}, middleware.Before)
 }
 
 // ID the identifier for the checksum middleware
@@ -43,20 +41,20 @@ func (m *checksumMiddleware) HandleBuild(
 		return next.HandleBuild(ctx, in)
 	}
 
-	readBuff := make([]byte, 0)
-	readBody := bytes.NewBuffer(readBuff)
-	body := io.TeeReader(req.Body, readBody)
+	// compute checksum if payload is explicit
+	if req.stream != nil {
+		v, err := computeMD5Checksum(req.stream)
+		if err != nil {
+			return out, metadata, fmt.Errorf("error computing md5 checksum, %w", err)
+		}
 
-	// compute md5 checksum
-	v, err := computeMD5Checksum(body)
-	if err != nil {
-		return out, metadata, fmt.Errorf("error computing md5 checksum, %w", err)
+		// reset the request body
+		req.RewindStream()
+
+		// set the 'Content-MD5' header
+		req.Header.Set("Content-MD5", string(v))
 	}
 
-	// reset the request body
-	req.Body = ioutil.NopCloser(readBody)
-
 	// set md5 header value
-	req.Header.Set("Content-MD5", string(v))
 	return next.HandleBuild(ctx, in)
 }
