@@ -164,10 +164,10 @@ func RequestCloner(v interface{}) interface{} {
 	return v.(*Request).Clone()
 }
 
-// ContentLength returns the number of bytes of the serialized content attached
+// ComputeContentLength returns the number of bytes of the serialized content attached
 // to the request and ok set. If the length cannot be determined, an error will
 // be returned.
-func (r *Request) ContentLength() (size int64, ok bool, err error) {
+func (r *Request) ComputeContentLength() (size int64, ok bool, err error) {
 	// check if request body is set.
 	if r.Body != nil {
 		switch b := r.Body.(type) {
