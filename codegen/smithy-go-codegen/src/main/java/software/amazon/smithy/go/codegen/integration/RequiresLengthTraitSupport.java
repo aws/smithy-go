@@ -29,7 +29,7 @@ import software.amazon.smithy.utils.ListUtils;
 /**
  * Adds a runtime plugin to support requires-length trait behavior.
  */
-public class AddRequiredContentLengthHeader implements GoIntegration {
+public class RequiresLengthTraitSupport implements GoIntegration {
     @Override
     public byte getOrder() {
         return 127;
@@ -42,7 +42,7 @@ public class AddRequiredContentLengthHeader implements GoIntegration {
                         .operationPredicate(this::hasRequiresLengthTrait)
                         .registerMiddleware(MiddlewareRegistrar.builder()
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
-                                        "AddContentLengthMiddleware",
+                                        "ValidateContentLengthHeader",
                                         SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build())
                                 .build())
                         .build()
