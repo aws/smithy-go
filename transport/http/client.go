@@ -121,3 +121,16 @@ func WrapLogClient(logger interface{ Logf(string, ...interface{}) }, client Clie
 		return resp, nil
 	})
 }
+
+// NopClient provides a client that ignores the request, and returns a empty
+// successful HTTP response value.
+type NopClient struct{}
+
+// Do ignores the request and returns a 200 status empty response.
+func (NopClient) Do(r *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}, nil
+}
