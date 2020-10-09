@@ -4,26 +4,33 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"strings"
 	"testing"
 
+	smithyio "github.com/awslabs/smithy-go/io"
 	"github.com/awslabs/smithy-go/middleware"
 )
 
 func TestChecksumMiddleware(t *testing.T) {
 	cases := map[string]struct {
-		payload             io.ReadCloser
-		expectedMD5Checksum string
-		expectError         string
+		payload               io.ReadSeeker
+		expectedPayloadLength int64
+		expectedMD5Checksum   string
+		expectError           string
 	}{
 		"empty body": {
-			payload:             ioutil.NopCloser(bytes.NewBuffer([]byte(``))),
-			expectedMD5Checksum: "1B2M2Y8AsgTpgAmY7PhCfg==",
+			payload: smithyio.ReadSeekNopCloser{
+				ReadSeeker: bytes.NewReader([]byte(``)),
+			},
+			expectedPayloadLength: 0,
+			expectedMD5Checksum:   "1B2M2Y8AsgTpgAmY7PhCfg==",
 		},
 		"standard req body": {
-			payload:             ioutil.NopCloser(bytes.NewBuffer([]byte(`abc`))),
-			expectedMD5Checksum: "kAFQmDzST7DWlj99KOF/cg==",
+			payload: smithyio.ReadSeekNopCloser{
+				ReadSeeker: bytes.NewReader([]byte(`abc`)),
+			},
+			expectedPayloadLength: 3,
+			expectedMD5Checksum:   "kAFQmDzST7DWlj99KOF/cg==",
 		},
 		"nil body": {},
 	}
@@ -37,7 +44,7 @@ func TestChecksumMiddleware(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error setting request stream")
 			}
-			m := checksumMiddleware{}
+			m := contentMD5ChecksumMiddleware{}
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},
 				nopBuildHandler,
@@ -56,6 +63,17 @@ func TestChecksumMiddleware(t *testing.T) {
 
 			if e, a := c.expectedMD5Checksum, req.Header.Get(contentMD5Header); e != a {
 				t.Errorf("expect md5 checksum : %v, got %v", e, a)
+			}
+
+			size, ok, err := req.StreamLength()
+			if err != nil {
+				t.Fatalf("error fetching request stream length")
+			}
+			if !ok {
+				t.Fatalf("request stream is not seekable")
+			}
+			if e, a := c.expectedPayloadLength, size; e != a {
+				t.Fatalf("expected request stream content length to be %v, got length %v", e, a)
 			}
 		})
 	}
