@@ -10,7 +10,7 @@ use smithy.test#httpResponseTests
 service Weather {
     version: "2006-03-01",
     resources: [City],
-    operations: [GetCurrentTime]
+    operations: [GetCurrentTime, __789BadName]
 }
 
 resource City {
@@ -40,6 +40,13 @@ string CityId
 operation GetCity {
     input: GetCityInput,
     output: GetCityOutput,
+    errors: [NoSuchResource]
+}
+
+@http(method: "POST", uri: "/BadName/{__123abc}")
+operation __789BadName {
+    input: __BadNameCont,
+    output: __BadNameCont,
     errors: [NoSuchResource]
 }
 
@@ -101,7 +108,19 @@ structure GetCityInput {
     // has to be marked as required.
     @required
     @httpLabel
-    cityId: CityId
+    cityId: CityId,
+}
+
+structure __BadNameCont {
+    @required
+    @httpLabel
+    __123abc: String,
+
+    Member: __456efg,
+}
+
+structure __456efg {
+    __123foo: String,
 }
 
 structure GetCityOutput {
