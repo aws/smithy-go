@@ -33,14 +33,16 @@ func (m *ContentLengthMiddleware) HandleBuild(
 		return out, metadata, fmt.Errorf("unknown request type %T", req)
 	}
 
-	if req.ContentLength > 0 {
+	// do nothing if request content-length was set to 0 or above.
+	if req.ContentLength >= 0 {
 		return next.HandleBuild(ctx, in)
 	}
 
+	// attempt to compute stream length
 	if n, ok, err := req.StreamLength(); err != nil {
 		return out, metadata, fmt.Errorf(
 			"failed getting length of request stream, %w", err)
-	} else if ok && n > 0 {
+	} else if ok {
 		req.ContentLength = n
 	}
 

@@ -1,15 +1,12 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-
-	smithyio "github.com/awslabs/smithy-go/io"
 )
 
 // Request provides the HTTP specific request structure for HTTP specific
@@ -28,8 +25,9 @@ type Request struct {
 func NewStackRequest() interface{} {
 	return &Request{
 		Request: &http.Request{
-			URL:    &url.URL{},
-			Header: http.Header{},
+			URL:           &url.URL{},
+			Header:        http.Header{},
+			ContentLength: -1, // default to unknown length
 		},
 	}
 }
@@ -148,6 +146,10 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 
 	if r.stream != nil {
 		req.Body = ioutil.NopCloser(r.stream)
+	} else {
+		// we update the content-length to 0,
+		// if request stream was not set.
+		req.ContentLength = 0
 	}
 
 	// Add the host prefix
@@ -162,47 +164,4 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 // for use in a subsequent retry attempt
 func RequestCloner(v interface{}) interface{} {
 	return v.(*Request).Clone()
-}
-
-// ComputeContentLength returns the number of bytes of the serialized content attached
-// to the request and ok set. If the length cannot be determined, an error will
-// be returned.
-func (r *Request) ComputeContentLength() (size int64, ok bool, err error) {
-	// check if request body is set.
-	if r.Body != nil {
-		switch b := r.Body.(type) {
-		// read seeker
-		case io.ReadSeeker:
-			readBytes, err := ioutil.ReadAll(b)
-			// rewind request body
-			b.Seek(0, io.SeekStart)
-			if err != nil {
-				return 0, false, err
-			}
-			return int64(len(readBytes)), true, err
-		// reader
-		case io.Reader:
-			readBuff := make([]byte, 0)
-			readBody := bytes.NewBuffer(readBuff)
-			body := io.MultiWriter(readBody)
-			size, err := io.Copy(body, b)
-
-			// reassign the r.Body
-			r.Body = smithyio.ReadSeekNopCloser{
-				ReadSeeker: bytes.NewReader(readBody.Bytes()),
-			}
-
-			if err != nil {
-				return 0, false, err
-			}
-			return size, true, nil
-		}
-	}
-
-	// check if serialized request stream is set
-	if r.stream != nil {
-		return r.StreamLength()
-	}
-
-	return size, ok, err
 }
