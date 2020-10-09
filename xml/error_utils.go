@@ -17,8 +17,8 @@ type ErrorComponents struct {
 func GetErrorResponseComponents(r io.Reader, noErrorWrapping bool) (ErrorComponents, error) {
 	if noErrorWrapping {
 		var errResponse noWrappedErrorResponse
-		if err := xml.NewDecoder(r).Decode(&errResponse); err != nil {
-			return ErrorComponents{}, fmt.Errorf("error while deserializingg xml error response: %w", err)
+		if err := xml.NewDecoder(r).Decode(&errResponse); err != nil && err != io.EOF {
+			return ErrorComponents{}, fmt.Errorf("error while deserializing xml error response: %w", err)
 		}
 		return ErrorComponents{
 			Code:    errResponse.Code,
@@ -27,8 +27,8 @@ func GetErrorResponseComponents(r io.Reader, noErrorWrapping bool) (ErrorCompone
 	}
 
 	var errResponse wrappedErrorResponse
-	if err := xml.NewDecoder(r).Decode(&errResponse); err != nil {
-		return ErrorComponents{}, fmt.Errorf("error while deserializingg xml error response: %w", err)
+	if err := xml.NewDecoder(r).Decode(&errResponse); err != nil && err != io.EOF {
+		return ErrorComponents{}, fmt.Errorf("error while deserializing xml error response: %w", err)
 	}
 	return ErrorComponents{
 		Code:    errResponse.Code,
