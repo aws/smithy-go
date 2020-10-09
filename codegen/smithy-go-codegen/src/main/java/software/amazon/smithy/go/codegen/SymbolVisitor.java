@@ -195,11 +195,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public String toMemberName(MemberShape shape) {
-        String memberName = getDefaultMemberName(shape);
         Shape container = model.expectShape(shape.getContainer());
         if (container.isUnionShape()) {
-            memberName = formatUnionMemberName(container.asUnionShape().get(), shape);
+            // Union member names are not escaped as they are used to build the escape set.
+            return formatUnionMemberName(container.asUnionShape().get(), shape);
         }
+
+        String memberName = getDefaultMemberName(shape);
         memberName = escaper.escapeMemberName(memberName);
 
         // Escape words reserved for the specific container.
@@ -219,30 +221,38 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private String getDefaultShapeName(Shape shape) {
-        return StringUtils.capitalize(removeLeadingUnderscores(shape.getId().getName()));
+        return StringUtils.capitalize(removeLeadingInvalidIdentCharacters(shape.getId().getName()));
     }
 
     private String getDefaultMemberName(MemberShape shape) {
-        String memberName =  StringUtils.capitalize(removeLeadingUnderscores(shape.getMemberName()));
-        if (shape.hasTrait(UnexportedMemberTrait.class)) {
+        String memberName = StringUtils.capitalize(removeLeadingInvalidIdentCharacters(shape.getMemberName()));
+
+        // change to lowercase first character if unexported structure member.
+        if (model.expectShape(shape.getContainer()).isStructureShape() && shape.hasTrait(UnexportedMemberTrait.class)) {
             memberName = Character.toLowerCase(memberName.charAt(0)) + memberName.substring(1);
         }
+
         return memberName;
     }
 
-    private String removeLeadingUnderscores(String value) {
-        if (!value.startsWith("_")) {
+    private String removeLeadingInvalidIdentCharacters(String value) {
+        if (Character.isAlphabetic(value.charAt(0))) {
             return value;
         }
 
         int i;
         for (i = 0; i < value.length(); i++) {
-            if (value.charAt(i) != '_') {
+            if (Character.isAlphabetic(value.charAt(i))) {
                 break;
             }
         }
 
-        return value.substring(i);
+        String remaining = value.substring(i);
+        if (remaining.length() == 0) {
+            throw new CodegenException("tried to clean name " + value + ", but resulted in empty string");
+        }
+
+        return remaining;
     }
 
 
