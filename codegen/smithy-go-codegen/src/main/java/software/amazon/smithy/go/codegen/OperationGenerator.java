@@ -218,6 +218,6 @@ public final class OperationGenerator implements Runnable {
      * @return name of function
      */
     public static String getAddOperationMiddlewareFuncName(Symbol operation) {
-        return String.format("addOperation%sMiddleware", operation.getName());
+        return String.format("addOperation%sMiddlewares", operation.getName());
     }
 }
