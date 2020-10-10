@@ -31,12 +31,19 @@ public final class GoCodegenPlugin implements SmithyBuildPlugin {
 
     @Override
     public void execute(PluginContext context) {
+        String onlyBuild = System.getenv("SMITHY_GO_BUILD_API");
+        if (onlyBuild != null && !GoSettings.from(context.getSettings())
+                .getService().toString().startsWith(onlyBuild)) {
+            return;
+        }
+
         new CodegenVisitor(context).execute();
     }
 
     /**
      * Creates a Go symbol provider.
-     * @param model The model to generate symbols for.
+     *
+     * @param model          The model to generate symbols for.
      * @param rootModuleName The name of the package root.
      * @return Returns the created provider.
      */
