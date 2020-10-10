@@ -33,7 +33,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 /**
  * Generates a client operation and associated custom shapes.
  */
-final class OperationGenerator implements Runnable {
+public final class OperationGenerator implements Runnable {
 
     private final GoSettings settings;
     private final Model model;
@@ -90,34 +90,19 @@ final class OperationGenerator implements Runnable {
         StructureShape outputShape = operationIndex.getOutput(operation).get();
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
+        // Generate operation method
         writer.writeShapeDocs(operation);
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
         writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
-                    constructStack();
+                    writer.write("if params == nil { params = &$T{} }", inputSymbol);
+                    writer.write("");
 
-                    writer.write("options := c.options.Copy()");
-                    writer.openBlock("for _, fn := range optFns {", "}", () -> {
-                        writer.write("fn(&options)");
-                    });
+                    writer.write("result, metadata, err := c.invokeOperation(ctx, $S, params, optFns, $L)",
+                            operationSymbol.getName(), getAddOperationMiddlewareFuncName(operationSymbol));
+                    writer.write("if err != nil { return nil, err }");
+                    writer.write("");
 
-                    // add middleware to operation stack
-                    populateOperationMiddlewareStack();
-
-                    writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
-                        writer.write("if err := fn(stack); err != nil { return nil, err }");
-                    });
-
-                    constructHandler();
-                    writer.write("result, metadata, err := handler.Handle(ctx, params)");
-                    writer.openBlock("if err != nil {", "}", () -> {
-                        writer.addUseImports(SmithyGoDependency.SMITHY);
-                        writer.openBlock("return nil, &smithy.OperationError{", "}", () -> {
-                            writer.write("ServiceID: ServiceID,");
-                            writer.write("OperationName: \"$T\",", operationSymbol);
-                            writer.write("Err: err,");
-                        });
-                    });
                     writer.write("out := result.($P)", outputSymbol);
                     writer.write("out.ResultMetadata = metadata");
                     writer.write("return out, nil");
@@ -141,116 +126,98 @@ final class OperationGenerator implements Runnable {
         });
 
         // Generate operation protocol middleware helper function
-        generateOperationProtocolMiddlewareHelper();
+        generateAddOperationMiddleware();
     }
-
-    private void constructStack() {
-        if (!applicationProtocol.isHttpProtocol()) {
-            throw new UnsupportedOperationException(
-                    "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
-        }
-        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-        writer.write("stack := middleware.NewStack($S, smithyhttp.NewStackRequest)", operationSymbol.getName());
-    }
-
-    private void constructHandler() {
-        if (!applicationProtocol.isHttpProtocol()) {
-            throw new UnsupportedOperationException(
-                    "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
-        }
-        Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
-                "DecorateHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-        Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
-                "NewClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
-        writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
-    }
-
 
     /**
      * Adds middleware to the operation middleware stack.
      */
-    private void populateOperationMiddlewareStack() {
-        // generate call to serde middleware helpers, these need to be generated first since other middleware will be
-        // added relative to them.
-        if (protocolGenerator != null) {
-            writer.write("$L(stack)", getOperationProtocolMiddlewareHelperName(operation));
-        }
+    private void generateAddOperationMiddleware() {
+        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                .build();
 
-        // Populate middleware's from runtime client plugins
-        runtimeClientPlugins.forEach(runtimeClientPlugin -> {
-            if (!runtimeClientPlugin.matchesService(model, service)
-                    && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
-                return;
-            }
+        writer.openBlock("func $L(stack $P, options Options) (err error) {", "}",
+                getAddOperationMiddlewareFuncName(operationSymbol), stackSymbol,
+                () -> {
+                    generateOperationProtocolMiddlewareAdders();
 
-            if (!runtimeClientPlugin.registerMiddleware().isPresent()) {
-                return;
-            }
+                    // Populate middleware's from runtime client plugins
+                    runtimeClientPlugins.forEach(runtimeClientPlugin -> {
+                        if (!runtimeClientPlugin.matchesService(model, service)
+                                && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
+                            return;
+                        }
 
-            MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
-            Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+                        if (!runtimeClientPlugin.registerMiddleware().isPresent()) {
+                            return;
+                        }
 
-            if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
-                String registerStatement = String.format("stack.%s",
-                        middlewareRegistrar.getInlineRegisterMiddlewareStatement());
-                writer.writeInline(registerStatement);
-                writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
-                if (functionArguments != null) {
-                    List<Symbol> args = new ArrayList<>(functionArguments);
-                    for (Symbol arg : args) {
-                        writer.writeInline("$P, ", arg);
-                    }
-                }
-                writer.writeInline(")");
-                writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
-            } else {
-                writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
-                if (functionArguments != null) {
-                    List<Symbol> args = new ArrayList<>(functionArguments);
-                    for (Symbol arg : args) {
-                        writer.writeInline(", $P", arg);
-                    }
-                }
-                writer.write(")");
-            }
-        });
-        writer.write("");
+                        MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
+                        Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
+
+                        // TODO these functions do not all return err like they should. This should be fixed.
+                        // TODO Must be fixed for all public functions.
+                        if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
+                            String registerStatement = String.format("stack.%s",
+                                    middlewareRegistrar.getInlineRegisterMiddlewareStatement());
+                            writer.writeInline(registerStatement);
+                            writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
+                            if (functionArguments != null) {
+                                List<Symbol> args = new ArrayList<>(functionArguments);
+                                for (Symbol arg : args) {
+                                    writer.writeInline("$P, ", arg);
+                                }
+                            }
+                            writer.writeInline(")");
+                            writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+                        } else {
+                            writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                            if (functionArguments != null) {
+                                List<Symbol> args = new ArrayList<>(functionArguments);
+                                for (Symbol arg : args) {
+                                    writer.writeInline(", $P", arg);
+                                }
+                            }
+                            writer.write(")");
+                        }
+                    });
+
+                    writer.write("return nil");
+                });
     }
 
     /**
      * Generate operation protocol middleware helper.
      */
-    private void generateOperationProtocolMiddlewareHelper() {
+    private void generateOperationProtocolMiddlewareAdders() {
         if (protocolGenerator == null) {
             return;
         }
-        writer.openBlock("func $L (stack *middleware.Stack) {", "}",
-                getOperationProtocolMiddlewareHelperName(operation), () -> {
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
 
-                    // Add request serializer middleware
-                    String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
-                            operation.getId(),
-                            protocolGenerator.getProtocolName());
-                    writer.write("stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+        // Add request serializer middleware
+        String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                operation.getId(),
+                protocolGenerator.getProtocolName());
+        writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+        writer.write("if err != nil { return err }");
 
-                    // Adds response deserializer middleware
-                    String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
-                            operation.getId(),
-                            protocolGenerator.getProtocolName());
-                    writer.write("stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
-                    writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-                });
+        // Adds response deserializer middleware
+        String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                operation.getId(),
+                protocolGenerator.getProtocolName());
+        writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+        writer.write("if err != nil { return err }");
     }
 
     /**
-     * Get middleware helper name for Protocol middleware.
+     * Returns the name of the operation's middleware mutator function, that adds all middleware for the operation to
+     * the stack.
      *
-     * @param operation Operation for which middleware helpers are generated.
-     * @return protocol middleware helper name.
+     * @param operation symbol for operation
+     * @return name of function
      */
-    private String getOperationProtocolMiddlewareHelperName(OperationShape operation) {
-        return String.format("add%s_serdeOp%sMiddlewares",
-                protocolGenerator.getProtocolName(), operation.getId().getName());
+    public static String getAddOperationMiddlewareFuncName(Symbol operation) {
+        return String.format("addOperation%sMiddlewares", operation.getName());
     }
 }

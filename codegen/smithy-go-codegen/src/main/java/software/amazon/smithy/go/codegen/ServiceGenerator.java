@@ -82,6 +82,7 @@ final class ServiceGenerator implements Runnable {
 
         generateConstructor(serviceSymbol);
         generateConfig();
+        generateClientInvokeOperation();
     }
 
     private void generateConstructor(Symbol serviceSymbol) {
@@ -175,6 +176,71 @@ final class ServiceGenerator implements Runnable {
         writer.openBlock("type HTTPClient interface {", "}", () -> {
             writer.write("Do(*http.Request) (*http.Response, error)");
         }).write("");
+    }
+
+    private void generateClientInvokeOperation() {
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+
+        writer.openBlock("func (c *Client) invokeOperation("
+                + "ctx context.Context, "
+                + "opID string, "
+                + "params interface{}, "
+                + "optFns []func(*Options), "
+                + "stackFns ...func(*middleware.Stack, Options) error"
+                + ") "
+                + "(result interface{}, metadata middleware.Metadata, err error) {", "}", () -> {
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+
+            generateConstructStack();
+            writer.write("options := c.options.Copy()");
+            writer.write("for _, fn := range optFns { fn(&options) }");
+            writer.write("");
+
+            writer.openBlock("for _, fn := range stackFns {", "}", () -> {
+                writer.write("if err := fn(stack, options); err != nil { return nil, metadata, err }");
+            });
+            writer.write("");
+
+            writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
+                writer.write("if err := fn(stack); err != nil { return nil, metadata, err }");
+            });
+            writer.write("");
+
+            generateConstructStackHandler();
+            writer.write("result, metadata, err = handler.Handle(ctx, params)");
+            writer.openBlock("if err != nil {", "}", () -> {
+                writer.openBlock("err = &smithy.OperationError{", "}", () -> {
+                    writer.write("ServiceID: ServiceID,");
+                    writer.write("OperationName: opID,");
+                    writer.write("Err: err,");
+                });
+            });
+            writer.write("return result, metadata, err");
+        });
+    }
+
+    private void generateConstructStack() {
+        ensureSupportedProtocol();
+
+        Symbol newStack = SymbolUtils.createValueSymbolBuilder(
+                "NewStack", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+        Symbol newStackRequest = SymbolUtils.createValueSymbolBuilder(
+                "NewStackRequest", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
+
+        writer.write("stack := $T(opID, $T)", newStack, newStackRequest);
+    }
+
+    private void generateConstructStackHandler() {
+        ensureSupportedProtocol();
+
+        Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
+                "DecorateHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+        Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
+                "NewClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
+
+        writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
     }
 
     private void ensureSupportedProtocol() {
