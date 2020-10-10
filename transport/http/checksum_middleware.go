@@ -41,15 +41,20 @@ func (m *contentMD5ChecksumMiddleware) HandleBuild(
 		return next.HandleBuild(ctx, in)
 	}
 
+	// fetch the request stream.
+	stream := req.GetStream()
 	// compute checksum if payload is explicit
-	if req.stream != nil {
-		v, err := computeMD5Checksum(req.stream)
+	if stream != nil {
+		v, err := computeMD5Checksum(stream)
 		if err != nil {
 			return out, metadata, fmt.Errorf("error computing md5 checksum, %w", err)
 		}
 
 		// reset the request stream
-		req.RewindStream()
+		if err := req.RewindStream(); err != nil {
+			return out, metadata, fmt.Errorf(
+				"error rewinding request stream after computing md5 checksum")
+		}
 
 		// set the 'Content-MD5' header
 		req.Header.Set(contentMD5Header, string(v))

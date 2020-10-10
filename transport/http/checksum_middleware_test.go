@@ -13,7 +13,7 @@ import (
 
 func TestChecksumMiddleware(t *testing.T) {
 	cases := map[string]struct {
-		payload               io.ReadSeeker
+		payload               io.Reader
 		expectedPayloadLength int64
 		expectedMD5Checksum   string
 		expectError           string
@@ -33,6 +33,10 @@ func TestChecksumMiddleware(t *testing.T) {
 			expectedMD5Checksum:   "kAFQmDzST7DWlj99KOF/cg==",
 		},
 		"nil body": {},
+		"unseekable payload": {
+			payload:     bytes.NewBuffer([]byte(`xyz`)),
+			expectError: "error rewinding request stream",
+		},
 	}
 
 	for name, c := range cases {
