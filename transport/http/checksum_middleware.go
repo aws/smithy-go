@@ -53,7 +53,7 @@ func (m *contentMD5ChecksumMiddleware) HandleBuild(
 		// reset the request stream
 		if err := req.RewindStream(); err != nil {
 			return out, metadata, fmt.Errorf(
-				"error rewinding request stream after computing md5 checksum")
+				"error rewinding request stream after computing md5 checksum, %w", err)
 		}
 
 		// set the 'Content-MD5' header
