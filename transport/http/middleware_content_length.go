@@ -77,7 +77,7 @@ func (m *validateContentLengthMiddleware) HandleBuild(
 	// if request content-length was set to less than 0, return an error
 	if req.ContentLength < 0 {
 		return out, metadata, fmt.Errorf(
-			"content length for payload must atleast be 0")
+			"content length for payload is required and must be at least 0")
 	}
 
 	return next.HandleBuild(ctx, in)
