@@ -142,11 +142,10 @@ func TestValidateContentLengthHeader(t *testing.T) {
 		},
 		"length set to 0": {
 			contentLength: 0,
-			expectError:   "content length for payload must be greater than 0",
 		},
 		"content-length unset": {
 			contentLength: -1,
-			expectError:   "content length for payload must be greater than 0",
+			expectError:   "content length for payload must atleast be 0",
 		},
 	}
 

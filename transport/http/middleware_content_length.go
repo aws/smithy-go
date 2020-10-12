@@ -74,10 +74,10 @@ func (m *validateContentLengthMiddleware) HandleBuild(
 		return out, metadata, fmt.Errorf("unknown request type %T", req)
 	}
 
-	// if request content-length was set to 0 or less, return an error
-	if req.ContentLength <= 0 {
+	// if request content-length was set to less than 0, return an error
+	if req.ContentLength < 0 {
 		return out, metadata, fmt.Errorf(
-			"content length for payload must be greater than 0")
+			"content length for payload must atleast be 0")
 	}
 
 	return next.HandleBuild(ctx, in)
