@@ -1,2 +1,3 @@
 software.amazon.smithy.go.codegen.integration.ValidationGenerator
 software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerator
+software.amazon.smithy.go.codegen.integration.AddChecksumRequiredMiddleware
