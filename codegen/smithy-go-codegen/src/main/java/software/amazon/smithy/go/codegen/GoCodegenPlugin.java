@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.logging.Logger;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.build.SmithyBuildPlugin;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -24,6 +25,8 @@ import software.amazon.smithy.model.Model;
  * Plugin to trigger Go code generation.
  */
 public final class GoCodegenPlugin implements SmithyBuildPlugin {
+    private static final Logger LOGGER = Logger.getLogger(GoCodegenPlugin.class.getName());
+
     @Override
     public String getName() {
         return "go-codegen";
@@ -32,9 +35,20 @@ public final class GoCodegenPlugin implements SmithyBuildPlugin {
     @Override
     public void execute(PluginContext context) {
         String onlyBuild = System.getenv("SMITHY_GO_BUILD_API");
-        if (onlyBuild != null && !GoSettings.from(context.getSettings())
-                .getService().toString().startsWith(onlyBuild)) {
-            return;
+        if (onlyBuild != null && !onlyBuild.isEmpty()) {
+            String targetServiceId = GoSettings.from(context.getSettings()).getService().toString();
+
+            boolean found = false;
+            for (String includeServiceId : onlyBuild.split(",")) {
+                if (targetServiceId.startsWith(includeServiceId)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                LOGGER.info("skipping " + targetServiceId);
+                return;
+            }
         }
 
         new CodegenVisitor(context).execute();
