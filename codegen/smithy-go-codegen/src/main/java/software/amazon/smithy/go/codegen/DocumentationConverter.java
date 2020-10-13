@@ -16,6 +16,12 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Set;
+import org.commonmark.node.BlockQuote;
+import org.commonmark.node.FencedCodeBlock;
+import org.commonmark.node.Heading;
+import org.commonmark.node.HtmlBlock;
+import org.commonmark.node.ListBlock;
+import org.commonmark.node.ThematicBreak;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.jsoup.Jsoup;
@@ -40,6 +46,15 @@ public final class DocumentationConverter {
             .addAttributes("a", "href")
             .addProtocols("a", "href", "http", "https", "mailto");
 
+    // Construct a markdown parser that specifically ignores parsing indented code blocks. This
+    // is because HTML blocks can have really wonky formatting that can be mis-attributed to an
+    // indented code blocks. We may need to add a configuration option to re-enable this.
+    private static final Parser MARKDOWN_PARSER = Parser.builder()
+            .enabledBlockTypes(SetUtils.of(
+                    Heading.class, HtmlBlock.class, ThematicBreak.class, FencedCodeBlock.class,
+                    BlockQuote.class, ListBlock.class))
+            .build();
+
     private DocumentationConverter() {}
 
     /**
@@ -51,7 +66,7 @@ public final class DocumentationConverter {
     public static String convert(String docs) {
         // Smithy's documentation format is commonmark, which can inline html. So here we convert
         // to html so we have a single known format to work with.
-        String htmlDocs = HtmlRenderer.builder().build().render(Parser.builder().build().parse(docs));
+        String htmlDocs = HtmlRenderer.builder().escapeHtml(false).build().render(MARKDOWN_PARSER.parse(docs));
 
         // Strip out tags and attributes we can't reasonably convert to godoc.
         htmlDocs = Jsoup.clean(htmlDocs, GODOC_WHITELIST);
