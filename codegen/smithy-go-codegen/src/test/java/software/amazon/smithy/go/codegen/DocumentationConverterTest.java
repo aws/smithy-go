@@ -31,6 +31,10 @@ public class DocumentationConverterTest {
                         "a link (https://example.com)"
                 ),
                 Arguments.of(
+                        "<a>empty link</a>",
+                        "empty link"
+                ),
+                Arguments.of(
                         "<ul><li>Testing 1 2 3</li> <li>FooBar</li></ul>",
                         "    * Testing 1 2 3\n\n    * FooBar"
                 ),
