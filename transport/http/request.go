@@ -25,8 +25,9 @@ type Request struct {
 func NewStackRequest() interface{} {
 	return &Request{
 		Request: &http.Request{
-			URL:    &url.URL{},
-			Header: http.Header{},
+			URL:           &url.URL{},
+			Header:        http.Header{},
+			ContentLength: -1, // default to unknown length
 		},
 	}
 }
@@ -145,6 +146,10 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 
 	if r.stream != nil {
 		req.Body = ioutil.NopCloser(r.stream)
+	} else {
+		// we update the content-length to 0,
+		// if request stream was not set.
+		req.ContentLength = 0
 	}
 
 	// Add the host prefix
