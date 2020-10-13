@@ -228,9 +228,12 @@ public final class DocumentationConverter {
                 writeNewline();
                 writeNewline();
             } else if (name.equals("a")) {
-                // godoc can't render links with text bodies, so we simply append the link.
-                // Full links do get rendered.
-                writer.writeInline(" ($L)", node.absUrl("href"));
+                String url = node.absUrl("href");
+                if (!url.isEmpty()) {
+                    // godoc can't render links with text bodies, so we simply append the link.
+                    // Full links do get rendered.
+                    writer.writeInline(" ($L)", url);
+                }
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.
                 needsListPrefix = false;
