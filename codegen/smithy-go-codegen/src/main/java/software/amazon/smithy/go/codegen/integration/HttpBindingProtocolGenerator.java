@@ -692,6 +692,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     break;
                 case LABEL:
                     writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
+                        String processedOperand = CodegenUtils.isShapePassByReference(targetShape)
+                                && targetShape.getType() != ShapeType.BIG_INTEGER
+                                && targetShape.getType() != ShapeType.BIG_DECIMAL
+                                ? "*" + operand : operand;
+
+                        processedOperand = targetShape.hasTrait(EnumTrait.class)
+                                ? "string(" + processedOperand + ")" : processedOperand;
+                        // add validation for URI members to not be empty
+                        w.openBlock("if len($L) == 0 {", "}",
+                                processedOperand, () -> {
+                            writer.addUseImports(SmithyGoDependency.SMITHY);
+                            writer.write("return &smithy.SerializationError { "
+                                    + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                                    memberShape.getMemberName());
+                        });
+
                         w.writeInline("if err := encoder.SetURI($S).$L", locationName, s);
                         w.write("; err != nil {\n"
                                 + "\treturn err\n"
