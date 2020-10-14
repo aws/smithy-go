@@ -215,7 +215,7 @@ public final class GoWriter extends CodeWriter {
      * @param runnable Runnable that handles actually writing docs with the writer.
      * @return Returns the writer.
      */
-    private static void writeDocs(CodeWriter writer, Runnable runnable) {
+    private void writeDocs(CodeWriter writer, Runnable runnable) {
         writer.pushState("docs");
         writer.setNewlinePrefix("// ");
         runnable.run();
@@ -223,7 +223,7 @@ public final class GoWriter extends CodeWriter {
         writer.popState();
     }
 
-    private static void writeDocs(CodeWriter writer, int docWrapLength, String docs) {
+    private void writeDocs(CodeWriter writer, int docWrapLength, String docs) {
         String wrappedDoc = StringUtils.wrap(DocumentationConverter.convert(docs), docWrapLength);
         writeDocs(writer, () -> writer.write(wrappedDoc.replace("$", "$$")));
     }

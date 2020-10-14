@@ -23,7 +23,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -410,11 +409,6 @@ public final class CodegenUtils {
      * @return title of service
      */
     public static String getServiceTitle(ServiceShape shape, String fallback) {
-        Optional<TitleTrait> titleTrait = shape.getTrait(TitleTrait.class);
-        if (titleTrait.isPresent()) {
-            return titleTrait.get().getValue();
-        }
-
-        return fallback;
+        return shape.getTrait(TitleTrait.class).map(TitleTrait::getValue).orElse(fallback);
     }
 }
