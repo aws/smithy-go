@@ -75,7 +75,9 @@ final class ServiceGenerator implements Runnable {
         writer.write("");
 
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
-        writer.writeShapeDocs(service);
+        writer.writeDocs(String.format("%s provides the API client to make operations call for %s.",
+                serviceSymbol.getName(),
+                CodegenUtils.getServiceTitle(service, "the API")));
         writer.openBlock("type $T struct {", "}", serviceSymbol, () -> {
             writer.write("options $L", CONFIG_NAME);
         });
