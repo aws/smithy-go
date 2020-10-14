@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	iointernal "github.com/awslabs/smithy-go/transport/http/internal/io"
 )
 
 // Request provides the HTTP specific request structure for HTTP specific
@@ -129,12 +131,6 @@ func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
 func (r *Request) Build(ctx context.Context) *http.Request {
 	req := r.Request.Clone(ctx)
 
-	// TODO wrap Stream in a container that provides safe reuse and rewinding
-	// of the underlying io.Reader. The standard http transport has race
-	// condition where it holds onto Body after request has returned.
-	//   * e.g. aws-sdk-go wraps with a safe reader
-	//   * e.g. if Stream is a io.ReaderAt, optimize with wrapper that doesn't need locks.
-
 	// TODO special handling for unbounded streams like HTTP/2 for eventstream,
 	// or chunk transfer encoding.
 
@@ -145,7 +141,7 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 	// http round tripper close the stream.
 
 	if r.stream != nil {
-		req.Body = ioutil.NopCloser(r.stream)
+		req.Body = iointernal.NewSafeReadCloser(ioutil.NopCloser(r.stream))
 	} else {
 		// we update the content-length to 0,
 		// if request stream was not set.
