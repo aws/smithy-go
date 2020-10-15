@@ -31,12 +31,14 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
+import software.amazon.smithy.model.traits.TitleTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -396,5 +398,17 @@ public final class CodegenUtils {
                 .filter((p) -> memberNamePredicate.test(p.getMemberName()))
                 .findFirst()
                 .orElseThrow(() -> new CodegenException("did not find member in structure shape, " + shape.getId()));
+    }
+
+    /**
+     * Attempts to get the title of the API's service from the model. If unalbe to get the title the fallback value
+     * will be returned instead.
+     *
+     * @param shape    service shape
+     * @param fallback string to return if service does not have a title
+     * @return title of service
+     */
+    public static String getServiceTitle(ServiceShape shape, String fallback) {
+        return shape.getTrait(TitleTrait.class).map(TitleTrait::getValue).orElse(fallback);
     }
 }

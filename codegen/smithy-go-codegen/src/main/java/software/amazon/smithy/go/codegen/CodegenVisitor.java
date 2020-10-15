@@ -262,6 +262,17 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
 
+        // Write API client's package doc for the service.
+        writers.useFileWriter("doc.go", settings.getModuleName(), (writer) -> {
+            writer.writePackageDocs(String.format(
+                    "Package %s provides the API client, operations, and parameter types for %s.",
+                    CodegenUtils.getDefaultPackageImportName(settings.getModuleName()),
+                    CodegenUtils.getServiceTitle(shape, "the API")));
+            writer.writePackageDocs("");
+            writer.writePackageShapeDocs(shape);
+        });
+
+        // Write API client type and utilities.
         writers.useShapeWriter(shape, serviceWriter -> {
             new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
                     runtimePlugins, applicationProtocol).run();
