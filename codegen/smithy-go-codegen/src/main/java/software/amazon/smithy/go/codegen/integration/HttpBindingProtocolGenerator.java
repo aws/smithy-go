@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -663,9 +664,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
+        HttpBinding.Location location = binding.getLocation();
+
+        // throw an error if member shape targets location label, but is unset
+        if (location.equals(HttpBinding.Location.LABEL)) {
+            // labels must always be set to be serialized on URI
+            throwSerializationErrorIfMemberUnset(context, memberShape, "v", operand -> {
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.write("return &smithy.SerializationError { "
+                                + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                        memberShape.getMemberName());
+            });
+        }
+
 
         writeSafeMemberAccessor(context, memberShape, "v", operand -> {
-            HttpBinding.Location location = binding.getLocation();
             final String locationName = binding.getLocationName().isEmpty()
                     ? memberShape.getMemberName() : binding.getLocationName();
 
@@ -692,6 +705,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     break;
                 case LABEL:
                     writeHttpBindingSetter(model, writer, memberShape, location, operand, (w, s) -> {
+                        // throw a serializationErrror if target shape is string/enum, and is empty.
+                        // labels must always be set to be serialized on URI
+                        throwSerializationErrorIfStringMemberIsEmpty(w, memberShape, targetShape, operand);
                         w.writeInline("if err := encoder.SetURI($S).$L", locationName, s);
                         w.write("; err != nil {\n"
                                 + "\treturn err\n"
@@ -721,6 +737,75 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             }
         });
     }
+
+    /**
+     * Throws a serialization error if string member value is empty.
+     * @param writer Gowriter
+     * @param memberShape member shape
+     * @param targetShape target shape
+     * @param operand operand used to denote member
+     */
+    private void throwSerializationErrorIfStringMemberIsEmpty(
+        GoWriter writer,
+        MemberShape memberShape,
+        Shape targetShape,
+        String operand
+    ) {
+        if (!targetShape.isStringShape()) {
+            return;
+        }
+
+         operand = CodegenUtils.isShapePassByReference(targetShape)
+                ? "*" + operand : operand;
+        operand = targetShape.hasTrait(EnumTrait.class)
+                ? "string(" + operand + ")" : operand;
+
+        // add validation for URI string members to not be empty
+        writer.openBlock("if len($L) == 0 {", "}",
+                operand, () -> {
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.write("return &smithy.SerializationError { "
+                            + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                    memberShape.getMemberName());
+        });
+    }
+
+    /**
+     * throws a serialization error if passed in member is unset.
+     * @param context Generation Context
+     * @param member Member shape
+     * @param container The name that the structure is assigned to.
+     * @param consumer unset member consumer
+     */
+    private void throwSerializationErrorIfMemberUnset(
+        GenerationContext context,
+        MemberShape member,
+        String container,
+        Consumer<String> consumer
+    ) {
+            Model model = context.getModel();
+            Shape target = model.expectShape(member.getTarget());
+            String memberName = context.getSymbolProvider().toMemberName(member);
+            String operand = container + "." + memberName;
+
+            boolean enumShape = target.hasTrait(EnumTrait.class);
+
+            if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, member)) {
+                consumer.accept(operand);
+                return;
+            }
+
+            String conditionCheck;
+            if (enumShape) {
+                conditionCheck = "len(" + operand + ") == 0";
+            } else {
+                conditionCheck = operand + " == nil";
+            }
+
+            context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
+                consumer.accept(operand);
+            });
+        }
 
     private void writeHeaderBinding(
             GenerationContext context,
