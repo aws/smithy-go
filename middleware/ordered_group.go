@@ -21,28 +21,51 @@ type ider interface {
 type orderedIDs struct {
 	order relativeOrder
 	items map[string]ider
-
-	unamedCounter int
+	slots map[string]struct{}
 }
 
 func newOrderedIDs() *orderedIDs {
 	return &orderedIDs{
 		items: map[string]ider{},
+		slots: map[string]struct{}{},
 	}
+}
+
+func (g *orderedIDs) IsSlot(id string) bool {
+	_, ok := g.slots[id]
+	return ok
 }
 
 // Add injects the item to the relative position of the item group. Returns an
 // error if the item already exists.
 func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
-	if len(m.ID()) == 0 {
+	id := m.ID()
+	if len(id) == 0 {
 		return fmt.Errorf("empty ID, ID must not be empty")
 	}
 
-	if err := g.order.Add(m.ID(), pos); err != nil {
+	if !g.IsSlot(id) {
+		if err := g.order.Add(id, pos); err != nil {
+			return err
+		}
+	}
+
+	g.items[id] = m
+	return nil
+}
+
+// AddSlot injects the given slot id to the relative position of the item group. Returns an
+// error if the id already exists.
+func (g *orderedIDs) AddSlot(id string, pos RelativePosition) error {
+	if len(id) == 0 {
+		return fmt.Errorf("empty ID, ID must not be empty")
+	}
+
+	if err := g.order.Add(id, pos); err != nil {
 		return err
 	}
 
-	g.items[m.ID()] = m
+	g.slots[id] = struct{}{}
 	return nil
 }
 
@@ -64,6 +87,24 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 	return nil
 }
 
+// InsertSlot inserts the slot id relative to an existing item or slot id. Return error
+// if the original item or slot does not exist, or the slot being added already exists.
+func (g *orderedIDs) InsertSlot(id, relativeTo string, pos RelativePosition) error {
+	if len(id) == 0 {
+		return fmt.Errorf("slot ID must not be empty")
+	}
+	if len(relativeTo) == 0 {
+		return fmt.Errorf("relative to ID must not be empty")
+	}
+
+	if err := g.order.Insert(id, relativeTo, pos); err != nil {
+		return err
+	}
+
+	g.slots[id] = struct{}{}
+	return nil
+}
+
 // Get returns the ider identified by id. If ider is not present, returns false
 func (g *orderedIDs) Get(id string) (ider, bool) {
 	v, ok := g.items[id]
@@ -76,18 +117,24 @@ func (g *orderedIDs) Swap(id string, m ider) (ider, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("swap from ID must not be empty")
 	}
-	if len(m.ID()) == 0 {
+
+	iderID := m.ID()
+	if len(iderID) == 0 {
 		return nil, fmt.Errorf("swap to ID must not be empty")
 	}
 
-	if err := g.order.Swap(id, m.ID()); err != nil {
+	if g.IsSlot(id) && id != iderID {
+		return nil, fmt.Errorf("swap to ID must match slot being swapped")
+	}
+
+	if err := g.order.Swap(id, iderID); err != nil {
 		return nil, err
 	}
 
 	removed := g.items[id]
 
 	delete(g.items, id)
-	g.items[m.ID()] = m
+	g.items[iderID] = m
 
 	return removed, nil
 }
@@ -99,8 +146,10 @@ func (g *orderedIDs) Remove(id string) error {
 		return fmt.Errorf("remove ID must not be empty")
 	}
 
-	if err := g.order.Remove(id); err != nil {
-		return err
+	if !g.IsSlot(id) {
+		if err := g.order.Remove(id); err != nil {
+			return err
+		}
 	}
 
 	delete(g.items, id)
@@ -111,22 +160,24 @@ func (g *orderedIDs) List() []string {
 	items := g.order.List()
 	order := make([]string, len(items))
 	copy(order, items)
-
 	return order
 }
 
-// Clear removes all entries.
+// Clear removes all entries and slots.
 func (g *orderedIDs) Clear() {
 	g.order.Clear()
 	g.items = map[string]ider{}
+	g.slots = map[string]struct{}{}
 }
 
 // GetOrder returns the item in the order it should be invoked in.
 func (g *orderedIDs) GetOrder() []interface{} {
 	order := g.order.List()
-	ordered := make([]interface{}, len(order))
+	ordered := make([]interface{}, 0, len(g.items))
 	for i := 0; i < len(order); i++ {
-		ordered[i] = g.items[order[i]]
+		if _, ok := g.items[order[i]]; ok {
+			ordered = append(ordered, g.items[order[i]])
+		}
 	}
 
 	return ordered

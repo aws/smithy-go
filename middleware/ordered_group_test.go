@@ -190,3 +190,39 @@ func TestOrderedIDsGetOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderedIDsSlots(t *testing.T) {
+	o := newOrderedIDs()
+
+	noError(t, o.AddSlot("first", After))
+	noError(t, o.AddSlot("second", After))
+	noError(t, o.InsertSlot("fourth", "second", After))
+	noError(t, o.Insert(mockIder("third"), "second", After))
+
+	expectIDs := []string{"first", "second", "third", "fourth"}
+	if e, a := expectIDs, o.List(); !reflect.DeepEqual(e, a) {
+		t.Errorf("expect %v order, got %v", e, a)
+	}
+
+	noError(t, o.Add(mockIder("second"), After))
+
+	actualOrder := o.GetOrder()
+	if e, a := 2, len(actualOrder); e != a {
+		t.Errorf("expect %v IDs, got %v", e, a)
+	}
+
+	for _, eID := range []string{"second", "third"} {
+		var found bool
+		for _, aIder := range actualOrder {
+			if e, a := eID, aIder.(ider).ID(); e == a {
+				if found {
+					t.Errorf("expect only one %v, got more", e)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expect to find %v, did not", eID)
+		}
+	}
+}

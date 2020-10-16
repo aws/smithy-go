@@ -136,11 +136,23 @@ func (s *DeserializeStep) Add(m DeserializeMiddleware, pos RelativePosition) err
 	return s.ids.Add(m, pos)
 }
 
+// AddSlot injects the given slot id to the relative position of the middleware group. Returns an
+// error if the id already exists as a slot or middleware.
+func (s *DeserializeStep) AddSlot(id string, pos RelativePosition) error {
+	return s.ids.AddSlot(id, pos)
+}
+
 // Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *DeserializeStep) Insert(m DeserializeMiddleware, relativeTo string, pos RelativePosition) error {
 	return s.ids.Insert(m, relativeTo, pos)
+}
+
+// InsertSlot inserts the given slot id relative to an existing id. Returns an
+// error if the relative id does not exist, or if the slot id already exists.
+func (s *DeserializeStep) InsertSlot(id, relativeTo string, pos RelativePosition) error {
+	return s.ids.InsertSlot(id, relativeTo, pos)
 }
 
 // Swap removes the middleware by id, replacing it with the new middleware.
