@@ -175,20 +175,7 @@ func TestOrderedIDsGetOrder(t *testing.T) {
 		t.Errorf("expect %v IDs, got %v", e, a)
 	}
 
-	for _, eID := range expectIDs {
-		var found bool
-		for _, aIder := range actualOrder {
-			if e, a := eID, aIder.(ider).ID(); e == a {
-				if found {
-					t.Errorf("expect only one %v, got more", e)
-				}
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("expect to find %v, did not", eID)
-		}
-	}
+	compareGetOrder(t, expectIDs, actualOrder)
 }
 
 func TestOrderedIDsSlots(t *testing.T) {
@@ -196,24 +183,57 @@ func TestOrderedIDsSlots(t *testing.T) {
 
 	noError(t, o.AddSlot("first", After))
 	noError(t, o.AddSlot("second", After))
+	noError(t, o.Add(mockIder("second"), After))
 	noError(t, o.InsertSlot("fourth", "second", After))
 	noError(t, o.Insert(mockIder("third"), "second", After))
+	noError(t, o.Add(mockIder("fifth"), After))
 
-	expectIDs := []string{"first", "second", "third", "fourth"}
-	if e, a := expectIDs, o.List(); !reflect.DeepEqual(e, a) {
+	if e, a := []string{"first", "second", "third", "fourth", "fifth"}, o.List(); !reflect.DeepEqual(e, a) {
 		t.Errorf("expect %v order, got %v", e, a)
 	}
 
-	noError(t, o.Add(mockIder("second"), After))
+	if o.AddSlot("first", After) == nil {
+		t.Error("expect error, got nil")
+	}
+
+	if o.Add(mockIder("second"), After) == nil {
+		t.Error("expect error, got nil")
+	}
 
 	actualOrder := o.GetOrder()
-	if e, a := 2, len(actualOrder); e != a {
+	if e, a := 3, len(actualOrder); e != a {
 		t.Errorf("expect %v IDs, got %v", e, a)
 	}
 
-	for _, eID := range []string{"second", "third"} {
+	compareGetOrder(t, []string{"second", "third", "fifth"}, actualOrder)
+
+	for i := 0; i < 2; i++ {
+		if err := o.Remove("second"); err != nil {
+			t.Errorf("expect no error, got %v", err)
+		}
+	}
+
+	if _, err := o.Swap("fourth", mockIder("fourth")); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+
+	if _, err := o.Swap("first", mockIder("fooBar")); err == nil {
+		t.Error("expect error, got nil")
+	}
+
+	if e, a := []string{"first", "second", "third", "fourth", "fifth"}, o.List(); !reflect.DeepEqual(e, a) {
+		t.Errorf("expect %v order, got %v", e, a)
+	}
+
+	compareGetOrder(t, []string{"third", "fourth", "fifth"}, o.GetOrder())
+
+}
+
+func compareGetOrder(t *testing.T, expected []string, actual []interface{}) {
+	t.Helper()
+	for _, eID := range expected {
 		var found bool
-		for _, aIder := range actualOrder {
+		for _, aIder := range actual {
 			if e, a := eID, aIder.(ider).ID(); e == a {
 				if found {
 					t.Errorf("expect only one %v, got more", e)

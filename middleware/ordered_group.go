@@ -37,7 +37,7 @@ func (g *orderedIDs) IsSlot(id string) bool {
 }
 
 // Add injects the item to the relative position of the item group. Returns an
-// error if the item already exists.
+// error if the item already exists. RelativePosition is ignored if the ider fills a naed slot.
 func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 	id := m.ID()
 	if len(id) == 0 {
@@ -48,6 +48,8 @@ func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 		if err := g.order.Add(id, pos); err != nil {
 			return err
 		}
+	} else if _, ok := g.items[id]; ok {
+		return fmt.Errorf("already exists, %v", id)
 	}
 
 	g.items[id] = m
@@ -112,7 +114,7 @@ func (g *orderedIDs) Get(id string) (ider, bool) {
 }
 
 // Swap removes the item by id, replacing it with the new item. Returns error
-// if the original item doesn't exist.
+// if the original item doesn't exist, or if the ider does not match the slot name being swapped.
 func (g *orderedIDs) Swap(id string, m ider) (ider, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("swap from ID must not be empty")
