@@ -45,7 +45,8 @@ final class EnumGenerator implements Runnable {
 
         writer.write("type $L string", symbol.getName()).write("");
 
-        writer.write("// Enum values for $L", symbol.getName()).openBlock("const (", ")", () -> {
+        writer.writeDocs(String.format("Enum values for %s", symbol.getName()));
+        writer.openBlock("const (", ")", () -> {
             for (EnumDefinition definition : enumTrait.getValues()) {
                 StringBuilder labelBuilder = new StringBuilder(symbol.getName());
                 String name = definition.getName().orElse(definition.getValue());
@@ -57,5 +58,15 @@ final class EnumGenerator implements Runnable {
                 writer.write("$L $L = $S", label, symbol.getName(), definition.getValue());
             }
         }).write("");
+
+        writer.writeDocs(String.format("Values returns all known values for %s. Note that this can be expanded in the "
+                + "future, and so it is only as up to date as the client.", symbol.getName()));
+        writer.openBlock("func ($L) Values() []$L {", "}", symbol.getName(), symbol.getName(), () -> {
+            writer.openBlock("return []$L{", "}", symbol.getName(), () -> {
+                for (EnumDefinition definition : enumTrait.getValues()) {
+                    writer.write("$S,", definition.getValue());
+                }
+            });
+        });
     }
 }
