@@ -18,8 +18,8 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
-import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -238,38 +238,11 @@ final class ServiceGenerator implements Runnable {
         for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
             if (!runtimeClientPlugin.matchesService(model, service)
                     || !runtimeClientPlugin.getResolveFunction().isPresent()) {
-                runtimeClientPlugin.getRegisterStackSlots().ifPresent(r -> {
-                    r.getInitializeSlots().forEach(id -> {
-                        if (builder.hasInitalizeSlot(id)) {
-                            throw new CodegenException("attempt to register duplicate initialize slot " + id);
-                        }
-                        builder.addInitializeSlot(id);
-                    });
-                    r.getSerializeSlots().forEach(id -> {
-                        if (builder.hasSerializeSlot(id)) {
-                            throw new CodegenException("attempt to register duplicate serialize slot " + id);
-                        }
-                        builder.addSerializeSlot(id);
-                    });
-                    r.getBuildSlots().forEach(id -> {
-                        if (builder.hasBuildSlot(id)) {
-                            throw new CodegenException("attempt to register duplicate buid slot " + id);
-                        }
-                        builder.addBuildSlot(id);
-                    });
-                    r.getFinalizeSlots().forEach(id -> {
-                        if (builder.hasFinalizeSlot(id)) {
-                            throw new CodegenException("attempt to register duplicate finalize slot " + id);
-                        }
-                        builder.addFinalizeSlot(id);
-                    });
-                    r.getDeserializeSlots().forEach(id -> {
-                        if (builder.hasDeserializeSlot(id)) {
-                            throw new CodegenException("attempt to register duplicate deserialize slot " + id);
-                        }
-                        builder.addDeserializeSlot(id);
-                    });
-                });
+                Optional<StackSlotRegistrar> registrar = runtimeClientPlugin.getRegisterStackSlots();
+                if (!registrar.isPresent()) {
+                    continue;
+                }
+                builder = builder.merge(registrar.get());
             }
         }
 
