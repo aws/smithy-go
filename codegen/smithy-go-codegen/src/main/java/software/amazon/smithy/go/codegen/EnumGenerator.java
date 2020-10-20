@@ -60,7 +60,8 @@ final class EnumGenerator implements Runnable {
         }).write("");
 
         writer.writeDocs(String.format("Values returns all known values for %s. Note that this can be expanded in the "
-                + "future, and so it is only as up to date as the client.", symbol.getName()));
+                + "future, and so it is only as up to date as the client.%n%nThe ordering of this slice is not "
+                + "guaranteed to be stable across updates.", symbol.getName()));
         writer.openBlock("func ($L) Values() []$L {", "}", symbol.getName(), symbol.getName(), () -> {
             writer.openBlock("return []$L{", "}", symbol.getName(), () -> {
                 for (EnumDefinition definition : enumTrait.getValues()) {
