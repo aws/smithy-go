@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.ArrayList;
 import java.util.List;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -89,6 +90,7 @@ public final class StackSlotRegistrar {
             });
         });
     }
+
 
     public static StackSlotRegistrar.Builder builder() {
         return new Builder();
@@ -213,6 +215,46 @@ public final class StackSlotRegistrar {
 
         public boolean hasDeserializeSlot(String id) {
             return this.deserializeSlots.contains(id);
+        }
+
+        /**
+         * Merges the slots defined in stackSlotRegistrar into the current registrar. Returns a new copy of the regis
+         *
+         * @param stackSlotRegistrar the registrar to merge
+         * @return the new merged registrar
+         */
+        public StackSlotRegistrar.Builder merge(StackSlotRegistrar stackSlotRegistrar) {
+            stackSlotRegistrar.getInitializeSlots().forEach(id -> {
+                if (hasInitalizeSlot(id)) {
+                    throw new CodegenException("attempt to merge duplicate initialize slot " + id);
+                }
+                addInitializeSlot(id);
+            });
+            stackSlotRegistrar.getSerializeSlots().forEach(id -> {
+                if (hasSerializeSlot(id)) {
+                    throw new CodegenException("attempt to merge duplicate serialize slot " + id);
+                }
+                addSerializeSlot(id);
+            });
+            stackSlotRegistrar.getBuildSlots().forEach(id -> {
+                if (hasBuildSlot(id)) {
+                    throw new CodegenException("attempt to merge duplicate buid slot " + id);
+                }
+                addBuildSlot(id);
+            });
+            stackSlotRegistrar.getFinalizeSlots().forEach(id -> {
+                if (hasFinalizeSlot(id)) {
+                    throw new CodegenException("attempt to merge duplicate finalize slot " + id);
+                }
+                addFinalizeSlot(id);
+            });
+            stackSlotRegistrar.getDeserializeSlots().forEach(id -> {
+                if (hasDeserializeSlot(id)) {
+                    throw new CodegenException("attempt to merge duplicate deserialize slot " + id);
+                }
+                addDeserializeSlot(id);
+            });
+            return this;
         }
     }
 }
