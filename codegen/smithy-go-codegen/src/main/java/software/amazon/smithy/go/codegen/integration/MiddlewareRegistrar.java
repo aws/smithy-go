@@ -147,7 +147,7 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
          * @param stackStep Stack step.
          * @return Returns the Builder.
          */
-        public Builder registerAfter(StackStep stackStep) {
+        public Builder registerAfter(MiddlewareStackStep stackStep) {
             this.inlineRegisterMiddlewareStatement = String.format("%s.Add(", stackStep);
             this.inlineRegisterMiddlewarePosition = getMiddlewareAfterPositionSymbol();
             return this;
@@ -158,7 +158,7 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
          * @param stackStep Stack step at which the middleware is to be register.
          * @return Returns the Builder.
          */
-        public Builder registerBefore(StackStep stackStep) {
+        public Builder registerBefore(MiddlewareStackStep stackStep) {
             this.inlineRegisterMiddlewareStatement = String.format("%s.Add(", stackStep);
             this.inlineRegisterMiddlewarePosition = getMiddlewareBeforePositionSymbol();
             return this;
@@ -175,32 +175,4 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
         }
     }
 
-    /**
-     * Represents the middleware stack step.
-     */
-    public enum StackStep {
-        INITIALIZE,
-        BUILD,
-        SERIALIZE,
-        DESERIALIZE,
-        FINALIZE;
-
-        @Override
-        public String toString() {
-            switch (this) {
-                case INITIALIZE:
-                    return "Initialize";
-                case BUILD:
-                    return "Build";
-                case SERIALIZE:
-                    return "Serialize";
-                case DESERIALIZE:
-                    return "Deserialize";
-                case FINALIZE:
-                    return "Finalize";
-                default:
-                    return "Unknown";
-            }
-        }
-    }
 }

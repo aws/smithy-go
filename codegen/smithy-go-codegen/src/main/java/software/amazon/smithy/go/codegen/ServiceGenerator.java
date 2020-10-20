@@ -19,11 +19,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.integration.StackSlotRegistrar;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 
@@ -196,6 +198,7 @@ final class ServiceGenerator implements Runnable {
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             generateConstructStack();
+            generateSlotInitialization();
             writer.write("options := c.options.Copy()");
             writer.write("for _, fn := range optFns { fn(&options) }");
             writer.write("");
@@ -221,6 +224,56 @@ final class ServiceGenerator implements Runnable {
             });
             writer.write("return result, metadata, err");
         });
+    }
+
+    private void generateSlotInitialization() {
+        // Register stack slots provided by runtime plugins.
+        StackSlotRegistrar slotRegistrar = resolveStackSlotRegistrar();
+        slotRegistrar.generateSlotRegistration(writer, "stack");
+    }
+
+    private StackSlotRegistrar resolveStackSlotRegistrar() {
+        StackSlotRegistrar.Builder builder = StackSlotRegistrar.builder();
+
+        for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
+            if (!runtimeClientPlugin.matchesService(model, service)
+                    || !runtimeClientPlugin.getResolveFunction().isPresent()) {
+                runtimeClientPlugin.getRegisterStackSlots().ifPresent(r -> {
+                    r.getInitializeSlots().forEach(id -> {
+                        if (builder.hasInitalizeSlot(id)) {
+                            throw new CodegenException("attempt to register duplicate initialize slot " + id);
+                        }
+                        builder.addInitializeSlot(id);
+                    });
+                    r.getSerializeSlots().forEach(id -> {
+                        if (builder.hasSerializeSlot(id)) {
+                            throw new CodegenException("attempt to register duplicate serialize slot " + id);
+                        }
+                        builder.addSerializeSlot(id);
+                    });
+                    r.getBuildSlots().forEach(id -> {
+                        if (builder.hasBuildSlot(id)) {
+                            throw new CodegenException("attempt to register duplicate buid slot " + id);
+                        }
+                        builder.addBuildSlot(id);
+                    });
+                    r.getFinalizeSlots().forEach(id -> {
+                        if (builder.hasFinalizeSlot(id)) {
+                            throw new CodegenException("attempt to register duplicate finalize slot " + id);
+                        }
+                        builder.addFinalizeSlot(id);
+                    });
+                    r.getDeserializeSlots().forEach(id -> {
+                        if (builder.hasDeserializeSlot(id)) {
+                            throw new CodegenException("attempt to register duplicate deserialize slot " + id);
+                        }
+                        builder.addDeserializeSlot(id);
+                    });
+                });
+            }
+        }
+
+        return builder.build();
     }
 
     private void generateConstructStack() {

@@ -43,6 +43,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
     private final MiddlewareRegistrar registerMiddleware;
+    private final StackSlotRegistrar registerStackSlots;
 
     private RuntimeClientPlugin(Builder builder) {
         resolveFunction = builder.resolveFunction;
@@ -50,6 +51,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         servicePredicate = builder.servicePredicate;
         configFields = builder.configFields;
         registerMiddleware = builder.registerMiddleware;
+        registerStackSlots = builder.registerStackSlots;
     }
 
 
@@ -145,6 +147,16 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return configFields;
     }
 
+    /**
+     * Get the stack slot registrar that will be used to register stack slots for the client operations.
+     *
+     * @return the stack slot registrar
+     */
+    public Optional<StackSlotRegistrar> getRegisterStackSlots() {
+        return Optional.ofNullable(registerStackSlots);
+    }
+
+
     public static Builder builder() {
         return new Builder();
     }
@@ -167,6 +179,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new HashSet<>();
         private MiddlewareRegistrar registerMiddleware;
+        private StackSlotRegistrar registerStackSlots;
 
         @Override
         public RuntimeClientPlugin build() {
@@ -298,6 +311,17 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addConfigField(ConfigField configField) {
             this.configFields.add(configField);
+            return this;
+        }
+
+        /**
+         * Adds a stack slot registrar that will register one or more slots into the stack steps.
+         *
+         * @param stackSlotRegistrar The stack slot registrat
+         * @return the builder
+         */
+        public Builder registerStackSlots(StackSlotRegistrar stackSlotRegistrar) {
+            this.registerStackSlots = stackSlotRegistrar;
             return this;
         }
     }
