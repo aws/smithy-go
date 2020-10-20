@@ -143,12 +143,13 @@ func (g *orderedIDs) Swap(id string, m ider) (ider, error) {
 		return nil, fmt.Errorf("swap to ID must not be empty")
 	}
 
-	if g.IsSlot(id) && id != iderID {
+	isSlot := g.IsSlot(id)
+	if isSlot && id != iderID {
 		return nil, fmt.Errorf("swap to ID must match slot being swapped")
-	}
-
-	if err := g.order.Swap(id, iderID); err != nil {
-		return nil, err
+	} else if !isSlot {
+		if err := g.order.Swap(id, iderID); err != nil {
+			return nil, err
+		}
 	}
 
 	removed := g.items[id]
@@ -210,6 +211,10 @@ type relativeOrder struct {
 
 // Add inserts a item into the order relative to the position provided.
 func (s *relativeOrder) Add(pos RelativePosition, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
 	for _, id := range ids {
 		if _, ok := s.has(id); ok {
 			return fmt.Errorf("already exists, %v", id)
@@ -233,6 +238,10 @@ func (s *relativeOrder) Add(pos RelativePosition, ids ...string) error {
 // Insert injects a item before or after the relative item. Returns
 // an error if the relative item does not exist.
 func (s *relativeOrder) Insert(relativeTo string, pos RelativePosition, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
 	for _, id := range ids {
 		if _, ok := s.has(id); ok {
 			return fmt.Errorf("already exists, %v", id)
@@ -298,7 +307,7 @@ func (s *relativeOrder) insert(i int, pos RelativePosition, ids ...string) error
 		copy(s.order[i+n:], src[i:])
 		copy(s.order[i:], ids)
 	case After:
-		if i == len(s.order)-1 {
+		if i == len(s.order)-1 || len(s.order) == 0 {
 			s.order = append(s.order, ids...)
 		} else {
 			s.order = append(s.order[:i+1], append(ids, s.order[i+1:]...)...)

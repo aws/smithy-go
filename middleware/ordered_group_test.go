@@ -3,6 +3,8 @@ package middleware
 import (
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestOrderedIDsAdd(t *testing.T) {
@@ -199,6 +201,13 @@ func TestOrderedIDsSlots(t *testing.T) {
 		t.Error("expect error, got nil")
 	}
 
+	if o.AddSlot(After) == nil {
+		t.Error("expect error, got nil")
+	}
+	if o.InsertSlot("first", After) == nil {
+		t.Error("expect error, got nil")
+	}
+
 	actualOrder := o.GetOrder()
 	if e, a := 3, len(actualOrder); e != a {
 		t.Errorf("expect %v IDs, got %v", e, a)
@@ -243,5 +252,46 @@ func compareGetOrder(t *testing.T, expected []string, actual []interface{}) {
 		if !found {
 			t.Errorf("expect to find %v, did not", eID)
 		}
+	}
+}
+
+func TestRelativeOrder_Insert(t *testing.T) {
+	var ro relativeOrder
+
+	if err := ro.insert(0, After); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(0, Before); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+
+	if len(ro.order) > 0 {
+		t.Errorf("expect slice to be empty")
+	}
+
+	if err := ro.insert(0, After, "foo"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(0, After, "bar"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(1, After, "baz"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(1, Before, "fob"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(3, Before, "bas"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(3, After, "bat"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	}
+	if err := ro.insert(0, 1024, "zzz"); err == nil {
+		t.Error("expect error, got nil")
+	}
+
+	if diff := cmp.Diff([]string{"foo", "fob", "bar", "bas", "bat", "baz"}, ro.order); len(diff) > 0 {
+		t.Error(diff)
 	}
 }
