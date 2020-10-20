@@ -181,10 +181,9 @@ func TestOrderedIDsGetOrder(t *testing.T) {
 func TestOrderedIDsSlots(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.AddSlot("first", After))
-	noError(t, o.AddSlot("second", After))
+	noError(t, o.AddSlot(After, "first", "second"))
 	noError(t, o.Add(mockIder("second"), After))
-	noError(t, o.InsertSlot("fourth", "second", After))
+	noError(t, o.InsertSlot("second", After, "fourth"))
 	noError(t, o.Insert(mockIder("third"), "second", After))
 	noError(t, o.Add(mockIder("fifth"), After))
 
@@ -192,7 +191,7 @@ func TestOrderedIDsSlots(t *testing.T) {
 		t.Errorf("expect %v order, got %v", e, a)
 	}
 
-	if o.AddSlot("first", After) == nil {
+	if o.AddSlot(After, "first") == nil {
 		t.Error("expect error, got nil")
 	}
 

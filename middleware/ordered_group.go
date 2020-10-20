@@ -45,7 +45,7 @@ func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 	}
 
 	if !g.IsSlot(id) {
-		if err := g.order.Add(id, pos); err != nil {
+		if err := g.order.Add(pos, id); err != nil {
 			return err
 		}
 	} else if _, ok := g.items[id]; ok {
@@ -56,18 +56,26 @@ func (g *orderedIDs) Add(m ider, pos RelativePosition) error {
 	return nil
 }
 
-// AddSlot injects the given slot id to the relative position of the item group. Returns an
-// error if the id already exists.
-func (g *orderedIDs) AddSlot(id string, pos RelativePosition) error {
-	if len(id) == 0 {
-		return fmt.Errorf("empty ID, ID must not be empty")
+// AddSlot injects the given slot ids to the relative position of the item group. Returns an
+// error if any of the ids already exists.
+func (g *orderedIDs) AddSlot(pos RelativePosition, ids ...string) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("one ore more IDs must be provided")
 	}
 
-	if err := g.order.Add(id, pos); err != nil {
+	for _, id := range ids {
+		if len(id) == 0 {
+			return fmt.Errorf("empty ID, ID must not be empty")
+		}
+	}
+
+	if err := g.order.Add(pos, ids...); err != nil {
 		return err
 	}
 
-	g.slots[id] = struct{}{}
+	for _, id := range ids {
+		g.slots[id] = struct{}{}
+	}
 	return nil
 }
 
@@ -81,7 +89,7 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 		return fmt.Errorf("relative to ID must not be empty")
 	}
 
-	if err := g.order.Insert(m.ID(), relativeTo, pos); err != nil {
+	if err := g.order.Insert(relativeTo, pos, m.ID()); err != nil {
 		return err
 	}
 
@@ -89,21 +97,31 @@ func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) err
 	return nil
 }
 
-// InsertSlot inserts the slot id relative to an existing item or slot id. Return error
+// InsertSlot inserts the slot ids relative to an existing item or slot id. Return error
 // if the original item or slot does not exist, or the slot being added already exists.
-func (g *orderedIDs) InsertSlot(id, relativeTo string, pos RelativePosition) error {
-	if len(id) == 0 {
-		return fmt.Errorf("slot ID must not be empty")
+func (g *orderedIDs) InsertSlot(relativeTo string, pos RelativePosition, ids ...string) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("one more IDs must be provided")
 	}
+
+	for _, id := range ids {
+		if len(id) == 0 {
+			return fmt.Errorf("slot ID must not be empty")
+		}
+	}
+
 	if len(relativeTo) == 0 {
 		return fmt.Errorf("relative to ID must not be empty")
 	}
 
-	if err := g.order.Insert(id, relativeTo, pos); err != nil {
+	if err := g.order.Insert(relativeTo, pos, ids...); err != nil {
 		return err
 	}
 
-	g.slots[id] = struct{}{}
+	for _, id := range ids {
+		g.slots[id] = struct{}{}
+	}
+
 	return nil
 }
 
@@ -191,17 +209,19 @@ type relativeOrder struct {
 }
 
 // Add inserts a item into the order relative to the position provided.
-func (s *relativeOrder) Add(id string, pos RelativePosition) error {
-	if _, ok := s.has(id); ok {
-		return fmt.Errorf("already exists, %v", id)
+func (s *relativeOrder) Add(pos RelativePosition, ids ...string) error {
+	for _, id := range ids {
+		if _, ok := s.has(id); ok {
+			return fmt.Errorf("already exists, %v", id)
+		}
 	}
 
 	switch pos {
 	case Before:
-		return s.insert(0, id, Before)
+		return s.insert(0, Before, ids...)
 
 	case After:
-		s.order = append(s.order, id)
+		s.order = append(s.order, ids...)
 
 	default:
 		return fmt.Errorf("invalid position, %v", int(pos))
@@ -212,9 +232,11 @@ func (s *relativeOrder) Add(id string, pos RelativePosition) error {
 
 // Insert injects a item before or after the relative item. Returns
 // an error if the relative item does not exist.
-func (s *relativeOrder) Insert(id, relativeTo string, pos RelativePosition) error {
-	if _, ok := s.has(id); ok {
-		return fmt.Errorf("already exists, %v", id)
+func (s *relativeOrder) Insert(relativeTo string, pos RelativePosition, ids ...string) error {
+	for _, id := range ids {
+		if _, ok := s.has(id); ok {
+			return fmt.Errorf("already exists, %v", id)
+		}
 	}
 
 	i, ok := s.has(relativeTo)
@@ -222,7 +244,7 @@ func (s *relativeOrder) Insert(id, relativeTo string, pos RelativePosition) erro
 		return fmt.Errorf("not found, %v", relativeTo)
 	}
 
-	return s.insert(i, id, pos)
+	return s.insert(i, pos, ids...)
 }
 
 // Swap will replace the item id with the to item. Returns an
@@ -260,18 +282,26 @@ func (s *relativeOrder) Clear() {
 	s.order = s.order[0:0]
 }
 
-func (s *relativeOrder) insert(i int, id string, pos RelativePosition) error {
+func (s *relativeOrder) insert(i int, pos RelativePosition, ids ...string) error {
 	switch pos {
 	case Before:
-		s.order = append(s.order, "")
-		copy(s.order[i+1:], s.order[i:])
-		s.order[i] = id
-
+		n := len(ids)
+		var src []string
+		if n <= cap(s.order)-len(s.order) {
+			s.order = s.order[:len(s.order)+n]
+			src = s.order
+		} else {
+			src = s.order
+			s.order = make([]string, len(s.order)+n)
+			copy(s.order[:i], src[:i]) // only when allocating a new slice do we need to copy the front half
+		}
+		copy(s.order[i+n:], src[i:])
+		copy(s.order[i:], ids)
 	case After:
 		if i == len(s.order)-1 {
-			s.order = append(s.order, id)
+			s.order = append(s.order, ids...)
 		} else {
-			s.order = append(s.order[:i+1], append([]string{id}, s.order[i+1:]...)...)
+			s.order = append(s.order[:i+1], append(ids, s.order[i+1:]...)...)
 		}
 
 	default:
