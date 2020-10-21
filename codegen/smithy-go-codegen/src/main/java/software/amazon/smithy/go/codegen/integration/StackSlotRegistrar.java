@@ -28,66 +28,119 @@ import software.amazon.smithy.utils.SmithyBuilder;
  * Utility for registering step slots for the middleware stack.
  */
 public final class StackSlotRegistrar {
-    private static final Symbol AFTER_SYMBOL = SymbolUtils.createValueSymbolBuilder("After",
-            SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-
-    private final List<String> initializeSlots;
-    private final List<String> serializeSlots;
-    private final List<String> buildSlots;
-    private final List<String> finalizeSlots;
-    private final List<String> deserializeSlots;
+    private final List<SlotMutator> initializeSlotMutators;
+    private final List<SlotMutator> serializeSlotMutators;
+    private final List<SlotMutator> buildSlotMutators;
+    private final List<SlotMutator> finalizeSlotMutators;
+    private final List<SlotMutator> deserializeSlotMutators;
 
     private StackSlotRegistrar(Builder builder) {
-        this.initializeSlots = builder.initializeSlots;
-        this.serializeSlots = builder.serializeSlots;
-        this.buildSlots = builder.buildSlots;
-        this.finalizeSlots = builder.finalizeSlots;
-        this.deserializeSlots = builder.deserializeSlots;
+        this.initializeSlotMutators = builder.initializeSlotMutators;
+        this.serializeSlotMutators = builder.serializeSlotMutators;
+        this.buildSlotMutators = builder.buildSlotMutators;
+        this.finalizeSlotMutators = builder.finalizeSlotMutators;
+        this.deserializeSlotMutators = builder.deserializeSlotMutators;
     }
 
-    public List<String> getInitializeSlots() {
-        return initializeSlots;
+    public List<SlotMutator> getInitializeSlotMutators() {
+        return initializeSlotMutators;
     }
 
-    public List<String> getSerializeSlots() {
-        return serializeSlots;
+    public List<SlotMutator> getSerializeSlotMutators() {
+        return serializeSlotMutators;
     }
 
-    public List<String> getBuildSlots() {
-        return buildSlots;
+    public List<SlotMutator> getBuildSlotMutators() {
+        return buildSlotMutators;
     }
 
-    public List<String> getFinalizeSlots() {
-        return finalizeSlots;
+    public List<SlotMutator> getFinalizeSlotMutators() {
+        return finalizeSlotMutators;
     }
 
-    public List<String> getDeserializeSlots() {
-        return deserializeSlots;
+    public List<SlotMutator> getDeserializeSlotMutators() {
+        return deserializeSlotMutators;
     }
 
     /**
      * Generates the registration code steps to register the step slots with the stack identified by stackVariable.
      *
-     * @param writer the code writer
+     * @param writer        the code writer
      * @param stackVariable the Go stack variable to manipulate
      */
     public void generateSlotRegistration(GoWriter writer, String stackVariable) {
-        writeSlotsToStep(writer, stackVariable, MiddlewareStackStep.INITIALIZE, initializeSlots);
-        writeSlotsToStep(writer, stackVariable, MiddlewareStackStep.SERIALIZE, serializeSlots);
-        writeSlotsToStep(writer, stackVariable, MiddlewareStackStep.BUILD, buildSlots);
-        writeSlotsToStep(writer, stackVariable, MiddlewareStackStep.FINALIZE, finalizeSlots);
-        writeSlotsToStep(writer, stackVariable, MiddlewareStackStep.DESERIALIZE, deserializeSlots);
+        validate();
+        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.INITIALIZE, initializeSlotMutators);
+        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.SERIALIZE, serializeSlotMutators);
+        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.BUILD, buildSlotMutators);
+        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.FINALIZE, finalizeSlotMutators);
+        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.DESERIALIZE, deserializeSlotMutators);
     }
 
-    private void writeSlotsToStep(GoWriter writer, String stackVariable, MiddlewareStackStep step, List<String> slots) {
-        if (slots.size() == 0) {
+    /**
+     * Validate throws a {@link CodegenException} if an attempt is made to register an invalid slot registration.
+     */
+    private void validate() {
+        validateSlotMutators(initializeSlotMutators);
+        validateSlotMutators(serializeSlotMutators);
+        validateSlotMutators(buildSlotMutators);
+        validateSlotMutators(finalizeSlotMutators);
+        validateSlotMutators(deserializeSlotMutators);
+    }
+
+    private void validateSlotMutators(List<SlotMutator> mutators) {
+        List<String> seen = new ArrayList<>();
+
+        for (SlotMutator mutator : mutators) {
+            if (mutator.method == Method.INSERT) {
+                if (!seen.contains(mutator.relativeTo)) {
+                    throw new CodegenException(String.format("slot mutator references %s before existence",
+                            mutator.relativeTo));
+                }
+            }
+            for (String identifier : mutator.getIdentifiers()) {
+                if (seen.contains(identifier)) {
+                    throw new CodegenException(String.format("attempt to register duplicate slot %s", identifier));
+                }
+                seen.add(identifier);
+            }
+            if (mutator.getIdentifiers().size() == 0) {
+                throw new CodegenException("one or more slot identifiers must be provided");
+            }
+        }
+    }
+
+    private void writeSlotMutators(
+            GoWriter writer,
+            String stackVariable,
+            MiddlewareStackStep step,
+            List<SlotMutator> mutators
+    ) {
+        if (mutators.size() == 0) {
             return;
         }
 
-        writer.openBlock("$L.$L.AddSlot($T,", ")", stackVariable, step.toString(), AFTER_SYMBOL, () -> {
-            slots.forEach(s -> {
-                writer.write("$S,", s);
-            });
+        mutators.forEach(mutator -> {
+            switch (mutator.getMethod()) {
+                case ADD:
+                    writer.openBlock("$L.$L.$L($T,", ")", stackVariable, step.toString(), "AddSlot",
+                            mutator.position.getSymbol(), () -> {
+                                mutator.getIdentifiers().forEach(s -> {
+                                    writer.write("$S,", s);
+                                });
+                            });
+                    break;
+                case INSERT:
+                    writer.openBlock("$L.$L.$L($S, $T,", ")", stackVariable, step.toString(), "AddSlot",
+                            mutator.getRelativeTo(), mutator.position.getSymbol(), () -> {
+                                mutator.getIdentifiers().forEach(s -> {
+                                    writer.write("$S,", s);
+                                });
+                            });
+                    break;
+                default:
+                    throw new CodegenException("unknown slot method mutator");
+            }
         });
     }
 
@@ -98,123 +151,187 @@ public final class StackSlotRegistrar {
 
     public SmithyBuilder<StackSlotRegistrar> toBuilder() {
         return builder()
-                .initializeSlots(initializeSlots)
-                .serializeSlots(serializeSlots)
-                .buildSlots(buildSlots)
-                .finalizeSlots(finalizeSlots)
-                .deserializeSlots(deserializeSlots);
+                .initializeSlotMutators(initializeSlotMutators)
+                .serializeSlotMutators(serializeSlotMutators)
+                .buildSlotMutators(buildSlotMutators)
+                .finalizeSlotMutators(finalizeSlotMutators)
+                .deserializeSlotMutators(deserializeSlotMutators);
+    }
+
+    public enum Position {
+        BEFORE("Before"),
+        AFTER("After");
+
+        private final Symbol symbol;
+
+        Position(String name) {
+            symbol = SymbolUtils.createValueSymbolBuilder(name, SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+        }
+
+        public Symbol getSymbol() {
+            return symbol;
+        }
+    }
+
+    public enum Method {
+        INSERT,
+        ADD;
+    }
+
+    public static final class SlotMutator {
+        private final Method method;
+        private final Position position;
+        private final String relativeTo;
+        private final List<String> identifiers;
+
+        private SlotMutator(Builder builder) {
+            position = SmithyBuilder.requiredState("position", builder.position);
+            method = SmithyBuilder.requiredState("method", builder.method);
+            if (method == Method.INSERT) {
+                relativeTo = SmithyBuilder.requiredState("relativeTo", builder.relativeTo);
+            } else {
+                relativeTo = null;
+            }
+            identifiers = SmithyBuilder.requiredState("identifiers", builder.identifiers);
+        }
+
+        public Position getPosition() {
+            return position;
+        }
+
+        public Method getMethod() {
+            return method;
+        }
+
+        public String getRelativeTo() {
+            return relativeTo;
+        }
+
+        public List<String> getIdentifiers() {
+            return identifiers;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public SmithyBuilder<SlotMutator> toBuilder() {
+            return builder()
+                    .method(method)
+                    .position(position)
+                    .relativeTo(relativeTo)
+                    .identifiers(identifiers);
+        }
+
+        public static class Builder implements SmithyBuilder<SlotMutator> {
+            private Position position;
+            private Method method;
+            private String relativeTo;
+            private final List<String> identifiers = new ArrayList<>();
+
+            public Builder position(Position position) {
+                this.position = position;
+                return this;
+            }
+
+            public Builder method(Method method) {
+                this.method = method;
+                return this;
+            }
+
+            public Builder relativeTo(String relativeTo) {
+                this.relativeTo = relativeTo;
+                return this;
+            }
+
+            public Builder identifiers(List<String> identifiers) {
+                this.identifiers.clear();
+                this.identifiers.addAll(identifiers);
+                return this;
+            }
+
+            public Builder addIdentifier(String identifier) {
+                this.identifiers.add(identifier);
+                return this;
+            }
+
+            public Builder removeIdentifier(String identifier) {
+                this.identifiers.remove(identifier);
+                return this;
+            }
+
+            @Override
+            public SlotMutator build() {
+                return new SlotMutator(this);
+            }
+        }
     }
 
     public static class Builder implements SmithyBuilder<StackSlotRegistrar> {
-        private final List<String> initializeSlots = new ArrayList<>();
-        private final List<String> serializeSlots = new ArrayList<>();
-        private final List<String> buildSlots = new ArrayList<>();
-        private final List<String> finalizeSlots = new ArrayList<>();
-        private final List<String> deserializeSlots = new ArrayList<>();
+        private final List<SlotMutator> initializeSlotMutators = new ArrayList<>();
+        private final List<SlotMutator> serializeSlotMutators = new ArrayList<>();
+        private final List<SlotMutator> buildSlotMutators = new ArrayList<>();
+        private final List<SlotMutator> finalizeSlotMutators = new ArrayList<>();
+        private final List<SlotMutator> deserializeSlotMutators = new ArrayList<>();
 
         @Override
         public StackSlotRegistrar build() {
             return new StackSlotRegistrar(this);
         }
 
-        public Builder initializeSlots(List<String> initializeSlots) {
-            this.initializeSlots.clear();
-            this.initializeSlots.addAll(initializeSlots);
+        public Builder initializeSlotMutators(List<SlotMutator> mutators) {
+            this.initializeSlotMutators.clear();
+            this.initializeSlotMutators.addAll(mutators);
             return this;
         }
 
-        public Builder addInitializeSlot(String id) {
-            this.initializeSlots.add(id);
+        public Builder addInitializeSlotMutator(SlotMutator mutator) {
+            this.initializeSlotMutators.add(mutator);
             return this;
         }
 
-        public Builder removeInitializeSlot(String id) {
-            this.initializeSlots.remove(id);
+        public Builder serializeSlotMutators(List<SlotMutator> mutators) {
+            this.serializeSlotMutators.clear();
+            this.serializeSlotMutators.addAll(mutators);
             return this;
         }
 
-        public boolean hasInitalizeSlot(String id) {
-            return this.initializeSlots.contains(id);
-        }
-
-        public Builder serializeSlots(List<String> serializeSlots) {
-            this.serializeSlots.clear();
-            this.serializeSlots.addAll(serializeSlots);
+        public Builder addSerializeSlotMutator(SlotMutator mutator) {
+            this.serializeSlotMutators.add(mutator);
             return this;
         }
 
-        public Builder addSerializeSlot(String id) {
-            this.serializeSlots.add(id);
+        public Builder buildSlotMutators(List<SlotMutator> mutators) {
+            this.buildSlotMutators.clear();
+            this.buildSlotMutators.addAll(mutators);
             return this;
         }
 
-        public Builder removeSerializeSlot(String id) {
-            this.serializeSlots.remove(id);
+        public Builder addBuildSlotMutator(SlotMutator mutator) {
+            this.buildSlotMutators.add(mutator);
             return this;
         }
 
-        public boolean hasSerializeSlot(String id) {
-            return this.serializeSlots.contains(id);
-        }
-
-        public Builder buildSlots(List<String> buildSlots) {
-            this.buildSlots.clear();
-            this.buildSlots.addAll(buildSlots);
+        public Builder finalizeSlotMutators(List<SlotMutator> mutators) {
+            this.finalizeSlotMutators.clear();
+            this.finalizeSlotMutators.addAll(mutators);
             return this;
         }
 
-        public Builder addBuildSlot(String id) {
-            this.buildSlots.add(id);
+        public Builder addFinalizeSlotMutators(SlotMutator mutator) {
+            this.finalizeSlotMutators.add(mutator);
             return this;
         }
 
-        public Builder removeBuildSlot(String id) {
-            this.buildSlots.remove(id);
+        public Builder deserializeSlotMutators(List<SlotMutator> mutators) {
+            this.deserializeSlotMutators.clear();
+            this.deserializeSlotMutators.addAll(mutators);
             return this;
         }
 
-        public boolean hasBuildSlot(String id) {
-            return this.buildSlots.contains(id);
-        }
-
-        public Builder finalizeSlots(List<String> finalizeSlots) {
-            this.finalizeSlots.clear();
-            this.finalizeSlots.addAll(finalizeSlots);
+        public Builder addDeserializeSlotMutators(SlotMutator mutator) {
+            this.deserializeSlotMutators.add(mutator);
             return this;
-        }
-
-        public Builder addFinalizeSlot(String id) {
-            this.finalizeSlots.add(id);
-            return this;
-        }
-
-        public Builder removeFinalizeSlot(String id) {
-            this.finalizeSlots.remove(id);
-            return this;
-        }
-
-        public boolean hasFinalizeSlot(String id) {
-            return this.finalizeSlots.contains(id);
-        }
-
-        public Builder deserializeSlots(List<String> deserializeSlots) {
-            this.deserializeSlots.clear();
-            this.serializeSlots.addAll(deserializeSlots);
-            return this;
-        }
-
-        public Builder addDeserializeSlot(String id) {
-            this.deserializeSlots.add(id);
-            return this;
-        }
-
-        public Builder removeDeserializeSlot(String id) {
-            this.deserializeSlots.remove(id);
-            return this;
-        }
-
-        public boolean hasDeserializeSlot(String id) {
-            return this.deserializeSlots.contains(id);
         }
 
         /**
@@ -224,36 +341,11 @@ public final class StackSlotRegistrar {
          * @return the new merged registrar
          */
         public StackSlotRegistrar.Builder merge(StackSlotRegistrar stackSlotRegistrar) {
-            stackSlotRegistrar.getInitializeSlots().forEach(id -> {
-                if (hasInitalizeSlot(id)) {
-                    throw new CodegenException("attempt to merge duplicate initialize slot " + id);
-                }
-                addInitializeSlot(id);
-            });
-            stackSlotRegistrar.getSerializeSlots().forEach(id -> {
-                if (hasSerializeSlot(id)) {
-                    throw new CodegenException("attempt to merge duplicate serialize slot " + id);
-                }
-                addSerializeSlot(id);
-            });
-            stackSlotRegistrar.getBuildSlots().forEach(id -> {
-                if (hasBuildSlot(id)) {
-                    throw new CodegenException("attempt to merge duplicate buid slot " + id);
-                }
-                addBuildSlot(id);
-            });
-            stackSlotRegistrar.getFinalizeSlots().forEach(id -> {
-                if (hasFinalizeSlot(id)) {
-                    throw new CodegenException("attempt to merge duplicate finalize slot " + id);
-                }
-                addFinalizeSlot(id);
-            });
-            stackSlotRegistrar.getDeserializeSlots().forEach(id -> {
-                if (hasDeserializeSlot(id)) {
-                    throw new CodegenException("attempt to merge duplicate deserialize slot " + id);
-                }
-                addDeserializeSlot(id);
-            });
+            stackSlotRegistrar.getInitializeSlotMutators().forEach(this::addInitializeSlotMutator);
+            stackSlotRegistrar.getSerializeSlotMutators().forEach(this::addSerializeSlotMutator);
+            stackSlotRegistrar.getBuildSlotMutators().forEach(this::addBuildSlotMutator);
+            stackSlotRegistrar.getFinalizeSlotMutators().forEach(this::addFinalizeSlotMutators);
+            stackSlotRegistrar.getDeserializeSlotMutators().forEach(this::addDeserializeSlotMutators);
             return this;
         }
     }
