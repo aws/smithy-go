@@ -20,20 +20,15 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
-import software.amazon.smithy.model.pattern.SmithyPattern;
-import software.amazon.smithy.model.pattern.SmithyPattern.Segment;
-import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.EndpointTrait;
 
 public final class HttpProtocolGeneratorUtils {
 
@@ -137,65 +132,5 @@ public final class HttpProtocolGeneratorUtils {
             }
         }
         return false;
-    }
-
-    /**
-     * Sets the HostPrefix on the request if the operation has the Endpoint trait.
-     *
-     * <p>If there are no HostLabels then this will be a simple string assignment,
-     * otherwise a string builder will be used.
-     *
-     * <p>This assumes that the smithyhttp.Request is available under the variable
-     * "request" and the operation's input struct is available under the variable
-     * "input".
-     *
-     * @param context The generation context.
-     * @param operation The operation to set the host prefix for.
-     */
-    public static void setHostPrefix(GenerationContext context, OperationShape operation) {
-        if (!operation.hasTrait(EndpointTrait.ID)) {
-            return;
-        }
-        GoWriter writer = context.getWriter();
-        SmithyPattern pattern = operation.expectTrait(EndpointTrait.class).getHostPrefix();
-
-        // If the pattern is just a string without any labels, then we simply use string
-        // assignment to avoid unnecessary imports / work.
-        if (pattern.getLabels().isEmpty()) {
-            writer.write("request.HostPrefix = $S", pattern.toString());
-            return;
-        }
-
-        SymbolProvider symbolProvider = context.getSymbolProvider();
-        StructureShape input = ProtocolUtils.expectInput(context.getModel(), operation);
-
-        // If the pattern has labels, we need to build up the host prefix using a string builder.
-        writer.addUseImports(SmithyGoDependency.STRINGS);
-        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-        writer.addUseImports(SmithyGoDependency.FMT);
-        writer.write("var prefix strings.Builder");
-        for (Segment segment : pattern.getSegments()) {
-            if (!segment.isLabel()) {
-                writer.write("prefix.WriteString($S)", segment.toString());
-            } else {
-                MemberShape member = input.getMember(segment.getContent()).get();
-                String memberName = symbolProvider.toMemberName(member);
-                String memberReference = "input." + memberName;
-
-                // Theoretically this should never be nil by this point unless validation has been disabled.
-                writer.write("if $L == nil {", memberReference).indent();
-                writer.write("return out, metadata, &smithy.SerializationError{Err: "
-                        + "fmt.Errorf(\"$L forms part of the endpoint host and so may not be nil\")}", memberName);
-                writer.dedent().write("} else if !smithyhttp.ValidHostLabel(*$L) {", memberReference).indent();
-                writer.write("return out, metadata, &smithy.SerializationError{Err: "
-                        + "fmt.Errorf(\"$L forms part of the endpoint host and so must match \\\"[a-zA-Z0-9-]{1,63}\\\""
-                        + ", but was \\\"%s\\\"\", *$L)}", memberName, memberReference);
-                writer.dedent().openBlock("} else {", "}", () -> {
-                    writer.write("prefix.WriteString(*$L)", memberReference);
-                });
-            }
-        }
-
-        writer.write("request.HostPrefix = prefix.String()");
     }
 }
