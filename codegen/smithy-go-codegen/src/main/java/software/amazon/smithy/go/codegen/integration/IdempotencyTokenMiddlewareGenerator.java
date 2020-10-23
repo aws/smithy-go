@@ -25,6 +25,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
@@ -39,7 +40,6 @@ import software.amazon.smithy.utils.ListUtils;
 
 public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
     public static final String IDEMPOTENCY_CONFIG_NAME = "IdempotencyTokenProvider";
-    public static final String OPERATION_IDEMPOTENCY_TOKEN_MIDDLEWARE_ID = "OperationIdempotencyTokenAutoFill";
 
     List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
 
@@ -53,8 +53,8 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
         GoStackStepMiddlewareGenerator middlewareGenerator =
                 GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
                         getIdempotencyTokenMiddlewareName(operation),
-                        OPERATION_IDEMPOTENCY_TOKEN_MIDDLEWARE_ID
-                        );
+                        MiddlewareIdentifier.string("OperationIdempotencyTokenAutoFill")
+                );
 
         Shape inputShape = model.expectShape(operation.getInput().get());
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
@@ -100,7 +100,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                                 .documentation("Provides idempotency tokens values "
                                         + "that will be automatically populated into idempotent API operations.")
                                 .build()))
-                .build()
+                        .build()
         );
 
         for (Map.Entry<ShapeId, MemberShape> entry : map.entrySet()) {
@@ -164,9 +164,9 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
                 // Generate idempotency token middleware registrar function
                 writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
                 String middlewareHelperName = getIdempotencyTokenMiddlewareHelperName(operation);
-                writer.openBlock("func $L(stack *middleware.Stack, cfg Options) {", "}", middlewareHelperName,
+                writer.openBlock("func $L(stack *middleware.Stack, cfg Options) error {", "}", middlewareHelperName,
                         () -> {
-                            writer.write("stack.Initialize.Add(&$L{tokenProvider: cfg.$L}, middleware.Before)",
+                            writer.write("return stack.Initialize.Add(&$L{tokenProvider: cfg.$L}, middleware.Before)",
                                     getIdempotencyTokenMiddlewareName(operation),
                                     IDEMPOTENCY_CONFIG_NAME);
                         });

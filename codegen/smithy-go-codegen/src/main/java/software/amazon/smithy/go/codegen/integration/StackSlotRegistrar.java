@@ -17,9 +17,10 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -63,44 +64,30 @@ public final class StackSlotRegistrar {
     }
 
     /**
-     * Generates the registration code steps to register the step slots with the stack identified by stackVariable.
+     * Validate returns whether the registrar represents a valid slot configuration.
      *
-     * @param writer        the code writer
-     * @param stackVariable the Go stack variable to manipulate
+     * @return whether the configuration is valid
      */
-    public void generateSlotRegistration(GoWriter writer, String stackVariable) {
-        validate();
-        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.INITIALIZE, initializeSlotMutators);
-        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.SERIALIZE, serializeSlotMutators);
-        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.BUILD, buildSlotMutators);
-        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.FINALIZE, finalizeSlotMutators);
-        writeSlotMutators(writer, stackVariable, MiddlewareStackStep.DESERIALIZE, deserializeSlotMutators);
+    public boolean isValid() {
+        return validateSlotMutators(initializeSlotMutators)
+                && validateSlotMutators(serializeSlotMutators)
+                && validateSlotMutators(buildSlotMutators)
+                && validateSlotMutators(finalizeSlotMutators)
+                && validateSlotMutators(deserializeSlotMutators);
     }
 
-    /**
-     * Validate throws a {@link CodegenException} if an attempt is made to register an invalid slot registration.
-     */
-    private void validate() {
-        validateSlotMutators(initializeSlotMutators);
-        validateSlotMutators(serializeSlotMutators);
-        validateSlotMutators(buildSlotMutators);
-        validateSlotMutators(finalizeSlotMutators);
-        validateSlotMutators(deserializeSlotMutators);
-    }
-
-    private void validateSlotMutators(List<SlotMutator> mutators) {
-        List<String> seen = new ArrayList<>();
+    private boolean validateSlotMutators(List<SlotMutator> mutators) {
+        List<MiddlewareIdentifier> seen = new ArrayList<>();
 
         for (SlotMutator mutator : mutators) {
-            if (mutator.method == Method.INSERT) {
-                if (!seen.contains(mutator.relativeTo)) {
-                    throw new CodegenException(String.format("slot mutator references %s before existence",
-                            mutator.relativeTo));
+            if (mutator.getMethod() == Method.INSERT) {
+                if (!seen.contains(mutator.getRelativeTo().get())) {
+                    return false;
                 }
             }
-            for (String identifier : mutator.getIdentifiers()) {
+            for (MiddlewareIdentifier identifier : mutator.getIdentifiers()) {
                 if (seen.contains(identifier)) {
-                    throw new CodegenException(String.format("attempt to register duplicate slot %s", identifier));
+                    return false;
                 }
                 seen.add(identifier);
             }
@@ -108,42 +95,9 @@ public final class StackSlotRegistrar {
                 throw new CodegenException("one or more slot identifiers must be provided");
             }
         }
+
+        return true;
     }
-
-    private void writeSlotMutators(
-            GoWriter writer,
-            String stackVariable,
-            MiddlewareStackStep step,
-            List<SlotMutator> mutators
-    ) {
-        if (mutators.size() == 0) {
-            return;
-        }
-
-        mutators.forEach(mutator -> {
-            switch (mutator.getMethod()) {
-                case ADD:
-                    writer.openBlock("$L.$L.$L($T,", ")", stackVariable, step.toString(), "AddSlot",
-                            mutator.position.getSymbol(), () -> {
-                                mutator.getIdentifiers().forEach(s -> {
-                                    writer.write("$S,", s);
-                                });
-                            });
-                    break;
-                case INSERT:
-                    writer.openBlock("$L.$L.$L($S, $T,", ")", stackVariable, step.toString(), "AddSlot",
-                            mutator.getRelativeTo(), mutator.position.getSymbol(), () -> {
-                                mutator.getIdentifiers().forEach(s -> {
-                                    writer.write("$S,", s);
-                                });
-                            });
-                    break;
-                default:
-                    throw new CodegenException("unknown slot method mutator");
-            }
-        });
-    }
-
 
     public static StackSlotRegistrar.Builder builder() {
         return new Builder();
@@ -175,14 +129,14 @@ public final class StackSlotRegistrar {
 
     public enum Method {
         INSERT,
-        ADD;
+        ADD
     }
 
     public static final class SlotMutator {
         private final Method method;
         private final Position position;
-        private final String relativeTo;
-        private final List<String> identifiers;
+        private final MiddlewareIdentifier relativeTo;
+        private final List<MiddlewareIdentifier> identifiers;
 
         private SlotMutator(Builder builder) {
             position = SmithyBuilder.requiredState("position", builder.position);
@@ -203,16 +157,40 @@ public final class StackSlotRegistrar {
             return method;
         }
 
-        public String getRelativeTo() {
-            return relativeTo;
+        public Optional<MiddlewareIdentifier> getRelativeTo() {
+            return Optional.ofNullable(relativeTo);
         }
 
-        public List<String> getIdentifiers() {
+        public List<MiddlewareIdentifier> getIdentifiers() {
             return identifiers;
         }
 
         public static Builder builder() {
             return new Builder();
+        }
+
+        public static Builder addBefore() {
+            return newMethodPositionBuilder(Method.ADD, Position.BEFORE);
+        }
+
+        public static Builder addAfter() {
+            return newMethodPositionBuilder(Method.ADD, Position.AFTER);
+        }
+
+        public static Builder insertBefore(MiddlewareIdentifier relativeTo) {
+            return newMethodPositionBuilder(Method.INSERT, Position.BEFORE)
+                    .relativeTo(relativeTo);
+        }
+
+        public static Builder insertAfter(MiddlewareIdentifier relativeTo) {
+            return newMethodPositionBuilder(Method.INSERT, Position.AFTER)
+                    .relativeTo(relativeTo);
+        }
+
+        private static Builder newMethodPositionBuilder(Method method, Position position) {
+            return builder()
+                    .method(method)
+                    .position(position);
         }
 
         public SmithyBuilder<SlotMutator> toBuilder() {
@@ -226,8 +204,8 @@ public final class StackSlotRegistrar {
         public static class Builder implements SmithyBuilder<SlotMutator> {
             private Position position;
             private Method method;
-            private String relativeTo;
-            private final List<String> identifiers = new ArrayList<>();
+            private MiddlewareIdentifier relativeTo;
+            private final List<MiddlewareIdentifier> identifiers = new ArrayList<>();
 
             public Builder position(Position position) {
                 this.position = position;
@@ -239,23 +217,23 @@ public final class StackSlotRegistrar {
                 return this;
             }
 
-            public Builder relativeTo(String relativeTo) {
+            public Builder relativeTo(MiddlewareIdentifier relativeTo) {
                 this.relativeTo = relativeTo;
                 return this;
             }
 
-            public Builder identifiers(List<String> identifiers) {
+            public Builder identifiers(List<MiddlewareIdentifier> identifiers) {
                 this.identifiers.clear();
                 this.identifiers.addAll(identifiers);
                 return this;
             }
 
-            public Builder addIdentifier(String identifier) {
+            public Builder addIdentifier(MiddlewareIdentifier identifier) {
                 this.identifiers.add(identifier);
                 return this;
             }
 
-            public Builder removeIdentifier(String identifier) {
+            public Builder removeIdentifier(MiddlewareIdentifier identifier) {
                 this.identifiers.remove(identifier);
                 return this;
             }
@@ -340,12 +318,12 @@ public final class StackSlotRegistrar {
          * @param stackSlotRegistrar the registrar to merge
          * @return the new merged registrar
          */
-        public StackSlotRegistrar.Builder merge(StackSlotRegistrar stackSlotRegistrar) {
-            stackSlotRegistrar.getInitializeSlotMutators().forEach(this::addInitializeSlotMutator);
-            stackSlotRegistrar.getSerializeSlotMutators().forEach(this::addSerializeSlotMutator);
-            stackSlotRegistrar.getBuildSlotMutators().forEach(this::addBuildSlotMutator);
-            stackSlotRegistrar.getFinalizeSlotMutators().forEach(this::addFinalizeSlotMutators);
-            stackSlotRegistrar.getDeserializeSlotMutators().forEach(this::addDeserializeSlotMutators);
+        public Builder merge(StackSlotRegistrar stackSlotRegistrar) {
+            initializeSlotMutators.addAll(stackSlotRegistrar.getInitializeSlotMutators());
+            serializeSlotMutators.addAll(stackSlotRegistrar.getSerializeSlotMutators());
+            buildSlotMutators.addAll(stackSlotRegistrar.getBuildSlotMutators());
+            finalizeSlotMutators.addAll(stackSlotRegistrar.getFinalizeSlotMutators());
+            deserializeSlotMutators.addAll(stackSlotRegistrar.getDeserializeSlotMutators());
             return this;
         }
     }

@@ -24,6 +24,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -85,7 +86,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
                 ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
+                MiddlewareIdentifier.symbol(ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID));
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
@@ -225,7 +226,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
+                MiddlewareIdentifier.symbol(ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID));
 
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();

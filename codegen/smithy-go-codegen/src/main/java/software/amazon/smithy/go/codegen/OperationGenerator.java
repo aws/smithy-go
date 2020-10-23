@@ -18,12 +18,15 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
+import software.amazon.smithy.go.codegen.integration.MiddlewareStackStep;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.integration.StackSlotRegistrar;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -125,9 +128,94 @@ public final class OperationGenerator implements Runnable {
             writer.write("ResultMetadata $T", metadataSymbol);
         });
 
+        // Generate operation stack slots
+        generateOperationStackSlots();
+
         // Generate operation protocol middleware helper function
         generateAddOperationMiddleware();
     }
+
+    private void generateOperationStackSlots() {
+        // Register stack slots provided by runtime plugins.
+        StackSlotRegistrar slotRegistrar = resolveStackSlotRegistrar();
+        if (!slotRegistrar.isValid()) {
+            throw new CodegenException("resolve slot registrar contains one or more invalid references");
+        }
+
+        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                .build();
+
+        writer.openBlock("func $L(stack $P) error {", "}", getAddOperationStackSlotsFuncName(operationSymbol),
+                stackSymbol, () -> {
+                    writeSlotMutators(writer, MiddlewareStackStep.INITIALIZE,
+                            slotRegistrar.getInitializeSlotMutators());
+                    writeSlotMutators(writer, MiddlewareStackStep.SERIALIZE,
+                            slotRegistrar.getSerializeSlotMutators());
+                    writeSlotMutators(writer, MiddlewareStackStep.BUILD,
+                            slotRegistrar.getBuildSlotMutators());
+                    writeSlotMutators(writer, MiddlewareStackStep.FINALIZE,
+                            slotRegistrar.getFinalizeSlotMutators());
+                    writeSlotMutators(writer, MiddlewareStackStep.DESERIALIZE,
+                            slotRegistrar.getDeserializeSlotMutators());
+                    writer.write("return nil");
+                });
+    }
+
+    private StackSlotRegistrar resolveStackSlotRegistrar() {
+        StackSlotRegistrar.Builder builder = StackSlotRegistrar.builder();
+
+        for (RuntimeClientPlugin runtimeClientPlugin : runtimeClientPlugins) {
+            if (!runtimeClientPlugin.matchesService(model, service)
+                    && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
+                continue;
+            }
+            Optional<StackSlotRegistrar> registrar = runtimeClientPlugin.getRegisterStackSlots();
+            if (!registrar.isPresent()) {
+                continue;
+            }
+            builder = builder.merge(registrar.get());
+        }
+
+        return builder.build();
+    }
+
+    private void writeSlotMutators(
+            GoWriter writer,
+            MiddlewareStackStep step,
+            List<StackSlotRegistrar.SlotMutator> mutators
+    ) {
+        if (mutators.size() == 0) {
+            return;
+        }
+
+        mutators.forEach(mutator -> {
+            switch (mutator.getMethod()) {
+                case ADD:
+                    writer.openBlock("if err := stack.$L.$L($T,", "); err != nil {\nreturn err\n}", step.toString(),
+                            "AddSlot", mutator.getPosition().getSymbol(), () -> {
+                                mutator.getIdentifiers().forEach(id -> {
+                                    id.writeInline(writer);
+                                    writer.write(",");
+                                });
+                            });
+                    break;
+                case INSERT:
+                    writer.writeInline("if err := stack.$L.$L(", step.toString(), "InsertSlot");
+                    mutator.getRelativeTo().get().writeInline(writer);
+                    writer.openBlock(", $T,", "); err != nil {\nreturn err\n}", mutator.getPosition().getSymbol(),
+                            () -> {
+                                mutator.getIdentifiers().forEach(id -> {
+                                    id.writeInline(writer);
+                                    writer.write(",");
+                                });
+                            });
+                    break;
+                default:
+                    throw new CodegenException("unknown slot method mutator");
+            }
+        });
+    }
+
 
     /**
      * Adds middleware to the operation middleware stack.
@@ -139,6 +227,11 @@ public final class OperationGenerator implements Runnable {
         writer.openBlock("func $L(stack $P, options Options) (err error) {", "}",
                 getAddOperationMiddlewareFuncName(operationSymbol), stackSymbol,
                 () -> {
+                    writer.openBlock("if err := $L(stack); err != nil {", "}",
+                            getAddOperationStackSlotsFuncName(operationSymbol), () -> {
+                                writer.write("return err");
+                            });
+
                     generateOperationProtocolMiddlewareAdders();
 
                     // Populate middleware's from runtime client plugins
@@ -158,7 +251,7 @@ public final class OperationGenerator implements Runnable {
                         // TODO these functions do not all return err like they should. This should be fixed.
                         // TODO Must be fixed for all public functions.
                         if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
-                            String registerStatement = String.format("stack.%s",
+                            String registerStatement = String.format("if err := stack.%s",
                                     middlewareRegistrar.getInlineRegisterMiddlewareStatement());
                             writer.writeInline(registerStatement);
                             writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
@@ -169,16 +262,17 @@ public final class OperationGenerator implements Runnable {
                                 }
                             }
                             writer.writeInline(")");
-                            writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+                            writer.write(", $T); err != nil {\nreturn err\n}",
+                                    middlewareRegistrar.getInlineRegisterMiddlewarePosition());
                         } else {
-                            writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                            writer.writeInline("if err := $T(stack", middlewareRegistrar.getResolvedFunction());
                             if (functionArguments != null) {
                                 List<Symbol> args = new ArrayList<>(functionArguments);
                                 for (Symbol arg : args) {
                                     writer.writeInline(", $P", arg);
                                 }
                             }
-                            writer.write(")");
+                            writer.write("); err != nil {\nreturn err\n}");
                         }
                     });
 
@@ -219,5 +313,16 @@ public final class OperationGenerator implements Runnable {
      */
     public static String getAddOperationMiddlewareFuncName(Symbol operation) {
         return String.format("addOperation%sMiddlewares", operation.getName());
+    }
+
+    /**
+     * Returns the name of the operation's middleware mutator function, that adds all middleware for the operation to
+     * the stack.
+     *
+     * @param operation symbol for operation
+     * @return name of function
+     */
+    public static String getAddOperationStackSlotsFuncName(Symbol operation) {
+        return String.format("addOperation%sStackSlots", operation.getName());
     }
 }

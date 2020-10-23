@@ -5,19 +5,20 @@ import (
 	"fmt"
 
 	"github.com/awslabs/smithy-go/middleware"
+	"github.com/awslabs/smithy-go/middleware/id"
 )
 
 // AddErrorCloseResponseBodyMiddleware adds the middleware to automatically
 // close the response body of an operation request if the request response
 // failed.
 func AddErrorCloseResponseBodyMiddleware(stack *middleware.Stack) error {
-	return stack.Deserialize.Insert(&errorCloseResponseBodyMiddleware{}, "OperationDeserializer", middleware.Before)
+	return stack.Deserialize.Add(&errorCloseResponseBodyMiddleware{}, middleware.Before)
 }
 
 type errorCloseResponseBodyMiddleware struct{}
 
 func (*errorCloseResponseBodyMiddleware) ID() string {
-	return "errorCloseResponseBodyMiddleware"
+	return id.ErrorCloseResponseBody
 }
 
 func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
@@ -40,16 +41,16 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 // the response body of an operation request, after the response had been
 // deserialized.
 func AddCloseResponseBodyMiddleware(stack *middleware.Stack) error {
-	return stack.Deserialize.Insert(&closeResponseBodyMiddleware{}, "OperationDeserializer", middleware.Before)
+	return stack.Deserialize.Add(&closeResponseBody{}, middleware.Before)
 }
 
-type closeResponseBodyMiddleware struct{}
+type closeResponseBody struct{}
 
-func (*closeResponseBodyMiddleware) ID() string {
-	return "closeResponseBodyMiddleware"
+func (*closeResponseBody) ID() string {
+	return id.CloseResponseBody
 }
 
-func (m *closeResponseBodyMiddleware) HandleDeserialize(
+func (m *closeResponseBody) HandleDeserialize(
 	ctx context.Context, input middleware.DeserializeInput, next middleware.DeserializeHandler,
 ) (
 	output middleware.DeserializeOutput, metadata middleware.Metadata, err error,

@@ -2,3 +2,4 @@ software.amazon.smithy.go.codegen.integration.ValidationGenerator
 software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerator
 software.amazon.smithy.go.codegen.integration.AddChecksumRequiredMiddleware
 software.amazon.smithy.go.codegen.integration.RequiresLengthTraitSupport
+software.amazon.smithy.go.codegen.integration.SmithyStackSlots

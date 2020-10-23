@@ -18,14 +18,12 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
-import software.amazon.smithy.go.codegen.integration.StackSlotRegistrar;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 
@@ -198,7 +196,6 @@ final class ServiceGenerator implements Runnable {
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             generateConstructStack();
-            generateSlotInitialization();
             writer.write("options := c.options.Copy()");
             writer.write("for _, fn := range optFns { fn(&options) }");
             writer.write("");
@@ -224,29 +221,6 @@ final class ServiceGenerator implements Runnable {
             });
             writer.write("return result, metadata, err");
         });
-    }
-
-    private void generateSlotInitialization() {
-        // Register stack slots provided by runtime plugins.
-        StackSlotRegistrar slotRegistrar = resolveStackSlotRegistrar();
-        slotRegistrar.generateSlotRegistration(writer, "stack");
-    }
-
-    private StackSlotRegistrar resolveStackSlotRegistrar() {
-        StackSlotRegistrar.Builder builder = StackSlotRegistrar.builder();
-
-        for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
-            if (!runtimeClientPlugin.matchesService(model, service)
-                    || !runtimeClientPlugin.getResolveFunction().isPresent()) {
-                Optional<StackSlotRegistrar> registrar = runtimeClientPlugin.getRegisterStackSlots();
-                if (!registrar.isPresent()) {
-                    continue;
-                }
-                builder = builder.merge(registrar.get());
-            }
-        }
-
-        return builder.build();
     }
 
     private void generateConstructStack() {

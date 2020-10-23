@@ -44,6 +44,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
     public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
+    public static final GoDependency SMITHY_MIDDLEWARE_ID = smithy("middleware/id", "smithyid");
     public static final GoDependency SMITHY_TIME = smithy("time", "smithytime");
     public static final GoDependency SMITHY_HTTP_BINDING = smithy("httpbinding");
     public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");

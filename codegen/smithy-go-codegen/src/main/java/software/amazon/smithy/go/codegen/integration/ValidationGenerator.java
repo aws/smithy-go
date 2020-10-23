@@ -43,6 +43,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.TriConsumer;
@@ -60,8 +61,6 @@ import software.amazon.smithy.utils.StringUtils;
  * Generates Go validation middleware and shape helpers.
  */
 public class ValidationGenerator implements GoIntegration {
-    public static final String OPERATION_INPUT_VALIDATION_MIDDLEWARE_ID = "OperationInputValidation";
-
     private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
 
     /**
@@ -98,8 +97,9 @@ public class ValidationGenerator implements GoIntegration {
         for (Map.Entry<Shape, OperationShape> entry : operationShapeMap.entrySet()) {
             GoStackStepMiddlewareGenerator generator = GoStackStepMiddlewareGenerator.createInitializeStepMiddleware(
                     getOperationValidationMiddlewareName(entry.getValue()),
-                    OPERATION_INPUT_VALIDATION_MIDDLEWARE_ID
-                    );
+                    MiddlewareIdentifier.symbol(SymbolUtils.createValueSymbolBuilder(
+                            "OperationInputValidation", SmithyGoDependency.SMITHY_MIDDLEWARE_ID).build())
+            );
             String helperName = getShapeValidationFunctionName(entry.getKey(), true);
             Symbol inputSymbol = symbolProvider.toSymbol(entry.getKey());
             generator.writeMiddleware(writer, (g, w) -> {

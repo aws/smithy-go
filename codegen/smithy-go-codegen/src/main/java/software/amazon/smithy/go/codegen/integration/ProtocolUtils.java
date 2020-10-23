@@ -19,7 +19,10 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
@@ -40,8 +43,10 @@ import software.amazon.smithy.utils.SetUtils;
  * Utility functions for protocol generation.
  */
 public final class ProtocolUtils {
-    public static final String OPERATION_SERIALIZER_MIDDLEWARE_ID = "OperationSerializer";
-    public static final String OPERATION_DESERIALIZER_MIDDLEWARE_ID = "OperationDeserializer";
+    public static final Symbol OPERATION_SERIALIZER_MIDDLEWARE_ID = SymbolUtils.createValueSymbolBuilder(
+            "OperationSerializer", SmithyGoDependency.SMITHY_MIDDLEWARE_ID).build();
+    public static final Symbol OPERATION_DESERIALIZER_MIDDLEWARE_ID = SymbolUtils.createValueSymbolBuilder(
+            "OperationDeserializer", SmithyGoDependency.SMITHY_MIDDLEWARE_ID).build();
 
     private static final Set<ShapeType> REQUIRES_SERDE = SetUtils.of(
             ShapeType.MAP, ShapeType.LIST, ShapeType.SET, ShapeType.DOCUMENT, ShapeType.STRUCTURE, ShapeType.UNION);

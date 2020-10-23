@@ -15,8 +15,8 @@ type ComputeContentLength struct {
 
 // AddComputeContentLengthMiddleware adds ComputeContentLength to the middleware
 // stack's Build step.
-func AddComputeContentLengthMiddleware(stack *middleware.Stack) {
-	stack.Build.Add(&ComputeContentLength{}, middleware.After)
+func AddComputeContentLengthMiddleware(stack *middleware.Stack) error {
+	return stack.Build.Add(&ComputeContentLength{}, middleware.After)
 }
 
 // ID the identifier for the ComputeContentLength
@@ -56,8 +56,8 @@ type validateContentLength struct{}
 
 // ValidateContentLengthHeader adds middleware that validates request content-length
 // is set to value greater than zero.
-func ValidateContentLengthHeader(stack *middleware.Stack) {
-	stack.Build.Add(&validateContentLength{}, middleware.After)
+func ValidateContentLengthHeader(stack *middleware.Stack) error {
+	return stack.Build.Add(&validateContentLength{}, middleware.After)
 }
 
 // ID the identifier for the ComputeContentLength

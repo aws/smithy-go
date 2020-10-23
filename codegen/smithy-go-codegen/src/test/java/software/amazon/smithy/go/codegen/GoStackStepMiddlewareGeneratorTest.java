@@ -10,7 +10,8 @@ public class GoStackStepMiddlewareGeneratorTest {
     public void generatesSerializeMiddlewareDefinition() {
         GoWriter writer = new GoWriter("middlewaregentest");
 
-        GoStackStepMiddlewareGenerator.createSerializeStepMiddleware("someMiddleware", "some id")
+        GoStackStepMiddlewareGenerator.createSerializeStepMiddleware("someMiddleware",
+                MiddlewareIdentifier.string("some id"))
                 .writeMiddleware(writer, (m, w) -> {
                     w.openBlock("return next.$L(ctx, in)", m.getHandleMethodName());
                 });
