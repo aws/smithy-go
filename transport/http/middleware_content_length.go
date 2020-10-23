@@ -5,25 +5,26 @@ import (
 	"fmt"
 
 	"github.com/awslabs/smithy-go/middleware"
+	"github.com/awslabs/smithy-go/middleware/id"
 )
 
-// ContentLengthMiddleware provides a middleware to set the content-length
+// ComputeContentLength provides a middleware to set the content-length
 // header for the length of a serialize request body.
-type ContentLengthMiddleware struct {
+type ComputeContentLength struct {
 }
 
-// AddContentLengthMiddleware adds ContentLengthMiddleware to the middleware
+// AddComputeContentLengthMiddleware adds ComputeContentLength to the middleware
 // stack's Build step.
-func AddContentLengthMiddleware(stack *middleware.Stack) {
-	stack.Build.Add(&ContentLengthMiddleware{}, middleware.After)
+func AddComputeContentLengthMiddleware(stack *middleware.Stack) {
+	stack.Build.Add(&ComputeContentLength{}, middleware.After)
 }
 
-// ID the identifier for the ContentLengthMiddleware
-func (m *ContentLengthMiddleware) ID() string { return "ContentLengthMiddleware" }
+// ID the identifier for the ComputeContentLength
+func (m *ComputeContentLength) ID() string { return id.ComputeContentLength }
 
 // HandleBuild adds the length of the serialized request to the HTTP header
 // if the length can be determined.
-func (m *ContentLengthMiddleware) HandleBuild(
+func (m *ComputeContentLength) HandleBuild(
 	ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler,
 ) (
 	out middleware.BuildOutput, metadata middleware.Metadata, err error,
@@ -49,22 +50,22 @@ func (m *ContentLengthMiddleware) HandleBuild(
 	return next.HandleBuild(ctx, in)
 }
 
-// validateContentLengthMiddleware provides a middleware to validate the content-length
+// validateContentLength provides a middleware to validate the content-length
 // is valid (greater than zero), for the serialized request payload.
-type validateContentLengthMiddleware struct{}
+type validateContentLength struct{}
 
 // ValidateContentLengthHeader adds middleware that validates request content-length
 // is set to value greater than zero.
 func ValidateContentLengthHeader(stack *middleware.Stack) {
-	stack.Build.Add(&validateContentLengthMiddleware{}, middleware.After)
+	stack.Build.Add(&validateContentLength{}, middleware.After)
 }
 
-// ID the identifier for the ContentLengthMiddleware
-func (m *validateContentLengthMiddleware) ID() string { return "ValidateContentLengthMiddleware" }
+// ID the identifier for the ComputeContentLength
+func (m *validateContentLength) ID() string { return id.ValidateContentLength }
 
 // HandleBuild adds the length of the serialized request to the HTTP header
 // if the length can be determined.
-func (m *validateContentLengthMiddleware) HandleBuild(
+func (m *validateContentLength) HandleBuild(
 	ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler,
 ) (
 	out middleware.BuildOutput, metadata middleware.Metadata, err error,

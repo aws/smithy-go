@@ -54,7 +54,7 @@ func TestContentLengthMiddleware(t *testing.T) {
 				t.Fatalf("expect to set stream, %v", err)
 			}
 
-			var m ContentLengthMiddleware
+			var m ComputeContentLength
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},
 				nopBuildHandler,
@@ -87,7 +87,7 @@ func TestContentLengthMiddleware_HeaderSet(t *testing.T) {
 		t.Fatalf("expect to set stream, %v", err)
 	}
 
-	var m ContentLengthMiddleware
+	var m ComputeContentLength
 	_, _, err = m.HandleBuild(context.Background(),
 		middleware.BuildInput{Request: req},
 		nopBuildHandler,
@@ -155,7 +155,7 @@ func TestValidateContentLengthHeader(t *testing.T) {
 			req := NewStackRequest().(*Request)
 			req.ContentLength = c.contentLength
 
-			var m validateContentLengthMiddleware
+			var m validateContentLength
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},
 				nopBuildHandler,

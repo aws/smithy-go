@@ -82,18 +82,23 @@ func (g *orderedIDs) AddSlot(pos RelativePosition, ids ...string) error {
 // Insert injects the item relative to an existing item id.  Return error if
 // the original item does not exist, or the item being added already exists.
 func (g *orderedIDs) Insert(m ider, relativeTo string, pos RelativePosition) error {
-	if len(m.ID()) == 0 {
+	id := m.ID()
+	if len(id) == 0 {
 		return fmt.Errorf("insert ID must not be empty")
 	}
 	if len(relativeTo) == 0 {
 		return fmt.Errorf("relative to ID must not be empty")
 	}
 
-	if err := g.order.Insert(relativeTo, pos, m.ID()); err != nil {
-		return err
+	if !g.IsSlot(id) {
+		if err := g.order.Insert(relativeTo, pos, id); err != nil {
+			return err
+		}
+	} else if _, ok := g.items[id]; ok {
+		return fmt.Errorf("already exists, %v", id)
 	}
 
-	g.items[m.ID()] = m
+	g.items[id] = m
 	return nil
 }
 

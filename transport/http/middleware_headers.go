@@ -22,7 +22,7 @@ func (h *headerValueHelper) addHeaderValue(value headerValue) {
 }
 
 func (h *headerValueHelper) ID() string {
-	return "headerValueHelper"
+	return "UserAgent"
 }
 
 func (h *headerValueHelper) HandleBuild(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (out middleware.BuildOutput, metadata middleware.Metadata, err error) {

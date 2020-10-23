@@ -5,28 +5,29 @@ import (
 	"fmt"
 
 	"github.com/awslabs/smithy-go/middleware"
+	"github.com/awslabs/smithy-go/middleware/id"
 )
 
 const contentMD5Header = "Content-Md5"
 
-// contentMD5ChecksumMiddleware provides a middleware to compute and set
+// contentMD5Checksum provides a middleware to compute and set
 // content-md5 checksum for a http request
-type contentMD5ChecksumMiddleware struct {
+type contentMD5Checksum struct {
 }
 
-// AddChecksumMiddleware adds checksum middleware to middleware's
+// AddContentChecksumMiddleware adds checksum middleware to middleware's
 // build step.
-func AddChecksumMiddleware(stack *middleware.Stack) {
+func AddContentChecksumMiddleware(stack *middleware.Stack) error {
 	// This middleware must be executed before request body is set.
-	stack.Build.Add(&contentMD5ChecksumMiddleware{}, middleware.Before)
+	return stack.Build.Add(&contentMD5Checksum{}, middleware.Before)
 }
 
 // ID the identifier for the checksum middleware
-func (m *contentMD5ChecksumMiddleware) ID() string { return "ChecksumRequiredMiddleware" }
+func (m *contentMD5Checksum) ID() string { return id.ContentChecksum }
 
 // HandleBuild adds behavior to compute md5 checksum and add content-md5 header
 // on http request
-func (m *contentMD5ChecksumMiddleware) HandleBuild(
+func (m *contentMD5Checksum) HandleBuild(
 	ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler,
 ) (
 	out middleware.BuildOutput, metadata middleware.Metadata, err error,
