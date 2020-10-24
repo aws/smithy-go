@@ -80,6 +80,17 @@ public final class MiddlewareIdentifier {
         return builder().name(string).build();
     }
 
+    @Override
+    public String toString() {
+        if (symbol != null) {
+            return symbol.toString();
+        } else if (string != null){
+            return string;
+        } else {
+            throw new CodegenException("unexpected identifier state");
+        }
+    }
+
     public static Builder builder() {
         return new Builder();
     }

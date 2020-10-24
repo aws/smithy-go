@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
@@ -29,6 +30,8 @@ import software.amazon.smithy.utils.SmithyBuilder;
  * Utility for registering step slots for the middleware stack.
  */
 public final class StackSlotRegistrar {
+    private static final Logger LOGGER = Logger.getLogger(StackSlotRegistrar.class.getName());
+
     private final List<SlotMutator> initializeSlotMutators;
     private final List<SlotMutator> serializeSlotMutators;
     private final List<SlotMutator> buildSlotMutators;
@@ -81,12 +84,15 @@ public final class StackSlotRegistrar {
 
         for (SlotMutator mutator : mutators) {
             if (mutator.getMethod() == Method.INSERT) {
-                if (!seen.contains(mutator.getRelativeTo().get())) {
+                MiddlewareIdentifier relativeTo = mutator.getRelativeTo().get();
+                if (!seen.contains(relativeTo)) {
+                    LOGGER.warning("invalid identifier reference, " + relativeTo.toString());
                     return false;
                 }
             }
             for (MiddlewareIdentifier identifier : mutator.getIdentifiers()) {
                 if (seen.contains(identifier)) {
+                    LOGGER.warning("invalid identifier reference, " + identifier.toString());
                     return false;
                 }
                 seen.add(identifier);
