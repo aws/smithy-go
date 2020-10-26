@@ -131,15 +131,6 @@ func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
 func (r *Request) Build(ctx context.Context) *http.Request {
 	req := r.Request.Clone(ctx)
 
-	// TODO special handling for unbounded streams like HTTP/2 for eventstream,
-	// or chunk transfer encoding.
-
-	// TODO handle case of unseekable stream, e.g. io.Reader, not io.ReadSeeker, or io.ReaderAt.
-
-	// TODO handle determination of when to close the underlying stream. Most
-	// likely want to defer this to the caller, and not allow the underlying
-	// http round tripper close the stream.
-
 	if r.stream != nil {
 		req.Body = iointernal.NewSafeReadCloser(ioutil.NopCloser(r.stream))
 	} else {
