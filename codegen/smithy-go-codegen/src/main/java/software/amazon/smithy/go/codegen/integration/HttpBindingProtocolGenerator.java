@@ -16,7 +16,6 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.isShapeWithResponseBindings;
-import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.setHostPrefix;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.writeSafeMemberAccessor;
 
@@ -213,8 +212,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
                         + " in.Parameters)}");
             });
-
-            setHostPrefix(context, operation);
 
             writer.write("");
             writer.write("opPath, opQuery := httpbinding.SplitURI($S)", httpTrait.getUri());
