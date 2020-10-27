@@ -15,7 +15,10 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.shapes.StringShape;
@@ -27,6 +30,7 @@ import software.amazon.smithy.utils.StringUtils;
  * Renders enums and their constants.
  */
 final class EnumGenerator implements Runnable {
+    private static final Logger LOGGER = Logger.getLogger(EnumGenerator.class.getName());
 
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
@@ -46,14 +50,25 @@ final class EnumGenerator implements Runnable {
         writer.write("type $L string", symbol.getName()).write("");
 
         writer.writeDocs(String.format("Enum values for %s", symbol.getName()));
+        Set<String> constants = new LinkedHashSet<>();
         writer.openBlock("const (", ")", () -> {
             for (EnumDefinition definition : enumTrait.getValues()) {
                 StringBuilder labelBuilder = new StringBuilder(symbol.getName());
                 String name = definition.getName().orElse(definition.getValue());
-                for (String part : name.split("(?U)\\W")) {
+                for (String part : name.split("(?U)[\\W_]")) {
                     labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
                 }
                 String label = labelBuilder.toString();
+
+                // If camel-casing would cause a conflict, don't camel-case this enum value.
+                if (constants.contains(label)) {
+                    LOGGER.warning(String.format(
+                            "Multiple enums resolved to the same name, `%s`, using unaltered value for: %s",
+                            label, name));
+                    label = name;
+                }
+                constants.add(label);
+
                 definition.getDocumentation().ifPresent(writer::writeDocs);
                 writer.write("$L $L = $S", label, symbol.getName(), definition.getValue());
             }
