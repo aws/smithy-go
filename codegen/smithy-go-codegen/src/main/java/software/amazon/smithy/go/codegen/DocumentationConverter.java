@@ -99,7 +99,7 @@ public final class DocumentationConverter {
         @Override
         public void head(Node node, int depth) {
             String name = node.nodeName();
-            if (isTopLevelCodeBlock(node, depth) || LIST_BLOCK_NODES.contains(name)) {
+            if (isTopLevelCodeBlock(node, depth)) {
                 writer.indent();
             }
 
@@ -219,7 +219,7 @@ public final class DocumentationConverter {
         @Override
         public void tail(Node node, int depth) {
             String name = node.nodeName();
-            if (isTopLevelCodeBlock(node, depth) || LIST_BLOCK_NODES.contains(name)) {
+            if (isTopLevelCodeBlock(node, depth)) {
                 writer.dedent();
             }
 
