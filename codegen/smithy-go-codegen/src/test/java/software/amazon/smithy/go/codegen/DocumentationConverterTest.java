@@ -36,27 +36,31 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<ul><li>Testing 1 2 3</li> <li>FooBar</li></ul>",
-                        "    * Testing 1 2 3\n\n    * FooBar"
+                        "* Testing 1 2 3\n\n* FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    * Testing 1 2 3\n\n    * FooBar"
+                        "* Testing 1 2 3\n\n* FooBar"
                 ),
                 Arguments.of(
                         " <ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    * Testing 1 2 3\n\n    * FooBar"
+                        "* Testing 1 2 3\n\n* FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li> <p>Testing 1 2 3</p> </li><li> <p>FooBar</p></li></ul>",
-                        "    * Testing 1 2 3\n\n    * FooBar"
+                        "* Testing 1 2 3\n\n* FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><code>Testing</code>: 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    * Testing: 1 2 3\n\n    * FooBar"
+                        "* Testing: 1 2 3\n\n* FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><p><code>FOO</code> Bar</p></li><li><p><code>Xyz</code> ABC</p></li></ul>",
-                        "    * FOO Bar\n\n    * Xyz ABC"
+                        "* FOO Bar\n\n* Xyz ABC"
+                ),
+                Arguments.of(
+                        "<ul><li>        foo</li><li>\tbar</li><li>\nbaz</li></ul>",
+                        "* foo\n\n* bar\n\n* baz"
                 ),
                 Arguments.of(
                         "<p><code>Testing</code>: 1 2 3</p>",
@@ -90,11 +94,9 @@ public class DocumentationConverterTest {
                                 + "(https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html) in the Amazon S3 "
                                 + "Developer Guide."
                 ),
-
-
                 Arguments.of(
                         "* foo\n* bar",
-                        "    * foo\n\n    * bar"
+                        "* foo\n\n* bar"
                 ),
                 Arguments.of(
                         "[a link](https://example.com)",
