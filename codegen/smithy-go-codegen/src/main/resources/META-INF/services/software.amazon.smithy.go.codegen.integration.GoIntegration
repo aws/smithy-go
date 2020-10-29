@@ -3,3 +3,4 @@ software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerato
 software.amazon.smithy.go.codegen.integration.AddChecksumRequiredMiddleware
 software.amazon.smithy.go.codegen.integration.RequiresLengthTraitSupport
 software.amazon.smithy.go.codegen.integration.EndpointHostPrefixMiddleware
+software.amazon.smithy.go.codegen.integration.ClientLogger

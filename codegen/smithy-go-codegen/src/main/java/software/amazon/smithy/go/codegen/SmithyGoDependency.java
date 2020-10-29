@@ -48,6 +48,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_HTTP_BINDING = smithy("httpbinding");
     public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
+    public static final GoDependency SMITHY_LOGGING = smithy("logging");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
