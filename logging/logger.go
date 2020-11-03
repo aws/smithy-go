@@ -6,8 +6,10 @@ import (
 	"log"
 )
 
+// Classification the log entry's classification name
 type Classification string
 
+// Set of standard classifications that can be used by clients and middleware
 const (
 	Warn  Classification = "WARN"
 	Debug Classification = "DEBUG"
@@ -39,6 +41,7 @@ func WithContext(ctx context.Context, logger Logger) Logger {
 // Noop is a Logger implementation that simply does not perform any logging.
 type Noop struct{}
 
+// Logf simply returns without performing any action
 func (n Noop) Logf(Classification, string, ...interface{}) {
 	return
 }
