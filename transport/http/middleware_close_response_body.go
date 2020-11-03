@@ -17,7 +17,7 @@ func AddErrorCloseResponseBodyMiddleware(stack *middleware.Stack) error {
 type errorCloseResponseBodyMiddleware struct{}
 
 func (*errorCloseResponseBodyMiddleware) ID() string {
-	return "errorCloseResponseBodyMiddleware"
+	return "ErrorCloseResponseBody"
 }
 
 func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
@@ -40,16 +40,16 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 // the response body of an operation request, after the response had been
 // deserialized.
 func AddCloseResponseBodyMiddleware(stack *middleware.Stack) error {
-	return stack.Deserialize.Insert(&closeResponseBodyMiddleware{}, "OperationDeserializer", middleware.Before)
+	return stack.Deserialize.Insert(&closeResponseBody{}, "OperationDeserializer", middleware.Before)
 }
 
-type closeResponseBodyMiddleware struct{}
+type closeResponseBody struct{}
 
-func (*closeResponseBodyMiddleware) ID() string {
-	return "closeResponseBodyMiddleware"
+func (*closeResponseBody) ID() string {
+	return "CloseResponseBody"
 }
 
-func (m *closeResponseBodyMiddleware) HandleDeserialize(
+func (m *closeResponseBody) HandleDeserialize(
 	ctx context.Context, input middleware.DeserializeInput, next middleware.DeserializeHandler,
 ) (
 	output middleware.DeserializeOutput, metadata middleware.Metadata, err error,

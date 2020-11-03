@@ -48,7 +48,7 @@ func TestChecksumMiddleware(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error setting request stream")
 			}
-			m := contentMD5ChecksumMiddleware{}
+			m := contentMD5Checksum{}
 			_, _, err = m.HandleBuild(context.Background(),
 				middleware.BuildInput{Request: req},
 				nopBuildHandler,

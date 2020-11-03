@@ -5,9 +5,11 @@ import (
 	"testing"
 )
 
-type mockIder string
+type mockIder struct {
+	Identifier string
+}
 
-func (m mockIder) ID() string { return string(m) }
+func (m *mockIder) ID() string { return m.Identifier }
 
 func noError(t *testing.T, err error) {
 	t.Helper()

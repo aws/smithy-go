@@ -28,7 +28,7 @@ public final class GoStackStepMiddlewareGenerator {
             "Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
 
     private final Symbol middlewareSymbol;
-    private final String middlewareId;
+    private final MiddlewareIdentifier middlewareId;
     private final String handleMethodName;
     private final Symbol inputType;
     private final Symbol outputType;
@@ -55,7 +55,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createInitializeStepMiddleware(String name, String id) {
+    public static GoStackStepMiddlewareGenerator createInitializeStepMiddleware(String name, MiddlewareIdentifier id) {
         return createMiddleware(name,
                 id,
                 "HandleInitialize",
@@ -72,7 +72,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String name, String id) {
+    public static GoStackStepMiddlewareGenerator createBuildStepMiddleware(String name, MiddlewareIdentifier id) {
         return createMiddleware(name,
                 id,
                 "HandleBuild",
@@ -88,7 +88,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String name, String id) {
+    public static GoStackStepMiddlewareGenerator createSerializeStepMiddleware(String name, MiddlewareIdentifier id) {
         return createMiddleware(name,
                 id,
                 "HandleSerialize",
@@ -104,7 +104,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param id   the unique ID for the middleware.
      * @return the middleware generator.
      */
-    public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String name, String id) {
+    public static GoStackStepMiddlewareGenerator createDeserializeStepMiddleware(String name, MiddlewareIdentifier id) {
         return createMiddleware(name,
                 id,
                 "HandleDeserialize",
@@ -127,7 +127,7 @@ public final class GoStackStepMiddlewareGenerator {
      */
     public static GoStackStepMiddlewareGenerator createMiddleware(
             String name,
-            String id,
+            MiddlewareIdentifier id,
             String handlerMethodName,
             Symbol inputType,
             Symbol outputType,
@@ -195,7 +195,9 @@ public final class GoStackStepMiddlewareGenerator {
         // each middleware step has to implement the ID function and return a unique string to identify itself with
         // here we return the name of the type
         writer.openBlock("func ($P) ID() string {", "}", middlewareSymbol, () -> {
-            writer.openBlock("return $S", middlewareId);
+            writer.writeInline("return ");
+            middlewareId.writeInline(writer);
+            writer.write("");
         });
 
         writer.write("");
@@ -246,7 +248,7 @@ public final class GoStackStepMiddlewareGenerator {
      *
      * @return id for the middleware.
      */
-    public String getMiddlewareId() {
+    public MiddlewareIdentifier getMiddlewareId() {
         return middlewareId;
     }
 
@@ -300,7 +302,7 @@ public final class GoStackStepMiddlewareGenerator {
      */
     public static class Builder {
         private String name;
-        private String id;
+        private MiddlewareIdentifier id;
         private String handleMethodName;
         private Symbol inputType;
         private Symbol outputType;
@@ -343,7 +345,7 @@ public final class GoStackStepMiddlewareGenerator {
          * @param id the middleware stack identifier.
          * @return the builder.
          */
-        public Builder id(String id) {
+        public Builder id(MiddlewareIdentifier id) {
             this.id = id;
             return this;
         }

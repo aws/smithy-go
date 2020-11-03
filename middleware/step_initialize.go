@@ -130,23 +130,11 @@ func (s *InitializeStep) Add(m InitializeMiddleware, pos RelativePosition) error
 	return s.ids.Add(m, pos)
 }
 
-// AddSlot injects the given slot ids to the relative position of the middleware group. Returns an
-// error if the ids already exist as a slot or middleware.
-func (s *InitializeStep) AddSlot(pos RelativePosition, ids ...string) error {
-	return s.ids.AddSlot(pos, ids...)
-}
-
 // Insert injects the middleware relative to an existing middleware id.
 // Return error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *InitializeStep) Insert(m InitializeMiddleware, relativeTo string, pos RelativePosition) error {
 	return s.ids.Insert(m, relativeTo, pos)
-}
-
-// InsertSlot inserts the given slot id relative to an existing id. Returns an
-// error if the relative id does not exist, or if the ids being added already exist.
-func (s *InitializeStep) InsertSlot(relativeTo string, pos RelativePosition, ids ...string) error {
-	return s.ids.InsertSlot(relativeTo, pos, ids...)
 }
 
 // Swap removes the middleware by id, replacing it with the new middleware.
@@ -163,8 +151,13 @@ func (s *InitializeStep) Swap(id string, m InitializeMiddleware) (InitializeMidd
 
 // Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
-func (s *InitializeStep) Remove(id string) error {
-	return s.ids.Remove(id)
+func (s *InitializeStep) Remove(id string) (InitializeMiddleware, error) {
+	removed, err := s.ids.Remove(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return removed.(InitializeMiddleware), nil
 }
 
 // List returns a list of the middleware in the step.

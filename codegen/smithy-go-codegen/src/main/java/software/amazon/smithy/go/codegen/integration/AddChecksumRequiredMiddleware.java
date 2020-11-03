@@ -40,7 +40,7 @@ public class AddChecksumRequiredMiddleware implements GoIntegration {
                       .operationPredicate(this::hasChecksumRequiredTrait)
                       .registerMiddleware(MiddlewareRegistrar.builder()
                               .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
-                                      "AddChecksumMiddleware",
+                                      "AddContentChecksumMiddleware",
                                       SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build())
                               .build())
                       .build()
