@@ -18,7 +18,7 @@ const (
 // Logger is an interface for logging entries at certain classifications.
 type Logger interface {
 	// Logf is expected to support the standard fmt package "verbs".
-	Logf(level Classification, format string, v ...interface{})
+	Logf(classification Classification, format string, v ...interface{})
 }
 
 // ContextLogger is an optional interface a Logger implementation may expose that provides
@@ -28,8 +28,13 @@ type ContextLogger interface {
 }
 
 // WithContext will pass the provided context to logger if it implements the ContextLogger interface and return the resulting
-// logger. Otherwise the logger will be returned as is.
+// logger. Otherwise the logger will be returned as is. As a special case if a nil logger is provided, a Nop logger will
+// be returned to the caller.
 func WithContext(ctx context.Context, logger Logger) Logger {
+	if logger == nil {
+		return Nop{}
+	}
+
 	cl, ok := logger.(ContextLogger)
 	if !ok {
 		return logger
@@ -38,11 +43,11 @@ func WithContext(ctx context.Context, logger Logger) Logger {
 	return cl.WithContext(ctx)
 }
 
-// Noop is a Logger implementation that simply does not perform any logging.
-type Noop struct{}
+// Nop is a Logger implementation that simply does not perform any logging.
+type Nop struct{}
 
 // Logf simply returns without performing any action
-func (n Noop) Logf(Classification, string, ...interface{}) {
+func (n Nop) Logf(Classification, string, ...interface{}) {
 	return
 }
 

@@ -29,7 +29,7 @@ func TestNewStandardLogger(t *testing.T) {
 }
 
 func TestNoop(t *testing.T) {
-	logging.Noop{}.Logf(logging.Debug, "foo")
+	logging.Nop{}.Logf(logging.Debug, "foo")
 }
 
 func TestWithContext(t *testing.T) {

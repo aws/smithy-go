@@ -22,8 +22,8 @@ func (m mockWithContextLogger) WithContext(ctx context.Context) logging.Logger {
 func TestGetLogger(t *testing.T) {
 	if logger := middleware.GetLogger(context.Background()); logger == nil {
 		t.Fatal("expect logger to not be nil")
-	} else if _, ok := logger.(logging.Noop); !ok {
-		t.Fatal("expect GetLogger to fallback to Noop")
+	} else if _, ok := logger.(logging.Nop); !ok {
+		t.Fatal("expect GetLogger to fallback to Nop")
 	}
 
 	standardLogger := logging.NewStandardLogger(ioutil.Discard)
