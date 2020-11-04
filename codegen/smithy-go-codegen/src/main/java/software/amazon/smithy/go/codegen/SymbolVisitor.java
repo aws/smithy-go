@@ -25,6 +25,7 @@ import software.amazon.smithy.codegen.core.ReservedWords;
 import software.amazon.smithy.codegen.core.ReservedWordsBuilder;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.UnexportedMemberTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
@@ -69,7 +70,6 @@ import software.amazon.smithy.utils.StringUtils;
  * suffixed with "_". See "reserved-words.txt" for the list of words.
  */
 final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
-
     private static final Logger LOGGER = Logger.getLogger(SymbolVisitor.class.getName());
 
     private final Model model;
@@ -78,12 +78,14 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private final ReservedWordSymbolProvider.Escaper escaper;
     private final ReservedWordSymbolProvider.Escaper errorMemberEscaper;
     private final Map<ShapeId, ReservedWordSymbolProvider.Escaper> structureSpecificMemberEscapers = new HashMap<>();
+    private final GoPointableIndex pointableIndex;
 
 
     SymbolVisitor(Model model, String rootModuleName) {
         this.model = model;
         this.rootModuleName = rootModuleName;
         this.typesPackageName = rootModuleName + "/types";
+        this.pointableIndex = new GoPointableIndex(model);
 
         // Reserve the generated names for union members, including the unknown case.
         ReservedWordsBuilder reservedNames = new ReservedWordsBuilder()
@@ -129,7 +131,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
      *
      * <p>These have the format {UnionName}Member{MemberName}.
      *
-     * @param model The model whose unions should be reserved.
+     * @param model   The model whose unions should be reserved.
      * @param builder A reserved words builder to add on to.
      */
     private void reserveUnionMemberNames(Model model, ReservedWordsBuilder builder) {
@@ -265,19 +267,19 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol blobShape(BlobShape shape) {
         if (shape.hasTrait(StreamingTrait.ID)) {
-            Symbol inputVariant = SymbolUtils.createValueSymbolBuilder(shape, "Reader", SmithyGoDependency.IO).build();
-            return SymbolUtils.createValueSymbolBuilder(shape, "ReadCloser", SmithyGoDependency.IO)
+            Symbol inputVariant = symbolBuilderFor(shape, "Reader", SmithyGoDependency.IO).build();
+            return symbolBuilderFor(shape, "ReadCloser", SmithyGoDependency.IO)
                     .putProperty(SymbolUtils.INPUT_VARIANT, inputVariant)
                     .build();
         }
-        return SymbolUtils.createValueSymbolBuilder(shape, "[]byte")
+        return symbolBuilderFor(shape, "[]byte")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
 
     @Override
     public Symbol booleanShape(BooleanShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "bool")
+        return symbolBuilderFor(shape, "bool")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
@@ -299,7 +301,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         Symbol reference = toSymbol(shape.getMember());
         // Shape name will be unused for symbols that represent a slice, but in the event it does we set the collection
         // shape's name to make debugging simpler.
-        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape))
+        return symbolBuilderFor(shape, getDefaultShapeName(shape))
                 .putProperty(SymbolUtils.GO_SLICE, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
                         reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
@@ -312,7 +314,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         Symbol reference = toSymbol(shape.getValue());
         // Shape name will be unused for symbols that represent a map, but in the event it does we set the map shape's
         // name to make debugging simpler.
-        return SymbolUtils.createValueSymbolBuilder(shape, getDefaultShapeName(shape))
+        return symbolBuilderFor(shape, getDefaultShapeName(shape))
                 .putProperty(SymbolUtils.GO_MAP, true)
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE,
                         reference.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class).orElse(false))
@@ -320,47 +322,68 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .build();
     }
 
+    private Symbol.Builder symbolBuilderFor(Shape shape, String typeName) {
+        if (pointableIndex.isPointable(shape)) {
+            return SymbolUtils.createPointableSymbolBuilder(shape, typeName);
+        }
+
+        return SymbolUtils.createValueSymbolBuilder(shape, typeName);
+    }
+
+    private Symbol.Builder symbolBuilderFor(Shape shape, String typeName, GoDependency namespace) {
+        if (pointableIndex.isPointable(shape)) {
+            return SymbolUtils.createPointableSymbolBuilder(shape, typeName, namespace);
+        }
+
+        return SymbolUtils.createValueSymbolBuilder(shape, typeName, namespace);
+    }
+
+    private Symbol.Builder symbolBuilderFor(Shape shape, String typeName, String namespace) {
+        if (pointableIndex.isPointable(shape)) {
+            return SymbolUtils.createPointableSymbolBuilder(shape, typeName, namespace);
+        }
+
+        return SymbolUtils.createValueSymbolBuilder(shape, typeName, namespace);
+    }
+
     @Override
     public Symbol byteShape(ByteShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int8").build();
+        return symbolBuilderFor(shape, "int8")
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .build();
     }
 
     @Override
     public Symbol shortShape(ShortShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int16")
+        return symbolBuilderFor(shape, "int16")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
 
     @Override
     public Symbol integerShape(IntegerShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int32")
+        return symbolBuilderFor(shape, "int32")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
 
     @Override
     public Symbol longShape(LongShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "int64")
+        return symbolBuilderFor(shape, "int64")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
 
     @Override
     public Symbol floatShape(FloatShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "float32")
+        return symbolBuilderFor(shape, "float32")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
 
     @Override
-    public Symbol documentShape(DocumentShape shape) {
-        return SymbolUtils.createValueSymbolBuilder(shape, "Document", SmithyGoDependency.SMITHY).build();
-    }
-
-    @Override
     public Symbol doubleShape(DoubleShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "float64")
+        return symbolBuilderFor(shape, "float64")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
@@ -372,11 +395,19 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol bigDecimalShape(BigDecimalShape shape) {
+
         return createBigSymbol(shape, "Float");
     }
 
     private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, symbolName, SmithyGoDependency.BIG).build();
+        return symbolBuilderFor(shape, symbolName, SmithyGoDependency.BIG)
+                .build();
+    }
+
+    @Override
+    public Symbol documentShape(DocumentShape shape) {
+        return symbolBuilderFor(shape, "Document", SmithyGoDependency.SMITHY)
+                .build();
     }
 
     @Override
@@ -395,7 +426,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol serviceShape(ServiceShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "Client", rootModuleName)
+        return symbolBuilderFor(shape, "Client", rootModuleName)
                 .definitionFile("./api_client.go")
                 .build();
     }
@@ -404,12 +435,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     public Symbol stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             String name = getDefaultShapeName(shape);
-            return SymbolUtils.createValueSymbolBuilder(shape, name, typesPackageName)
+            return symbolBuilderFor(shape, name, typesPackageName)
                     .definitionFile("./types/enums.go")
                     .build();
         }
 
-        return SymbolUtils.createPointableSymbolBuilder(shape, "string")
+        return symbolBuilderFor(shape, "string")
                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                 .build();
     }
@@ -420,23 +451,24 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             Optional<String> boundOperationName = getNameOfBoundOperation(shape);
             if (boundOperationName.isPresent()) {
-                return SymbolUtils.createPointableSymbolBuilder(shape, name, rootModuleName)
+                return symbolBuilderFor(shape, name, rootModuleName)
                         .definitionFile("./api_op_" + boundOperationName.get() + ".go")
                         .build();
             }
         }
 
-        Symbol.Builder builder = SymbolUtils.createPointableSymbolBuilder(shape, name, typesPackageName);
+        Symbol.Builder builder = symbolBuilderFor(shape, name, typesPackageName);
         if (shape.hasTrait(ErrorTrait.ID)) {
             builder.definitionFile("./types/errors.go");
         } else {
             builder.definitionFile("./types/types.go");
         }
+
         return builder.build();
     }
 
     private Optional<String> getNameOfBoundOperation(StructureShape shape) {
-        NeighborProvider provider = model.getKnowledge(NeighborProviderIndex.class).getReverseProvider();
+        NeighborProvider provider = NeighborProviderIndex.of(model).getReverseProvider();
         for (Relationship relationship : provider.getNeighbors(shape)) {
             RelationshipType relationshipType = relationship.getRelationshipType();
             if (relationshipType == RelationshipType.INPUT || relationshipType == RelationshipType.OUTPUT) {
@@ -449,7 +481,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol unionShape(UnionShape shape) {
         String name = getDefaultShapeName(shape);
-        return SymbolUtils.createValueSymbolBuilder(shape, name, typesPackageName)
+        return symbolBuilderFor(shape, name, typesPackageName)
                 .definitionFile("./types/types.go")
                 .build();
     }
@@ -458,11 +490,32 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     public Symbol memberShape(MemberShape shape) {
         Shape targetShape = model.getShape(shape.getTarget())
                 .orElseThrow(() -> new CodegenException("Shape not found: " + shape.getTarget()));
-        return toSymbol(targetShape);
+        Symbol symbol = toSymbol(targetShape);
+
+        // Member's of map, list, and sets inherit their pointability based on their container options.
+        // Need to modify the symbol for the member to be pointable or not based on if the list/set/map
+        // members are pointable.
+        Shape container = model.expectShape(shape.getContainer());
+        switch (container.getType()) {
+            case LIST:
+            case SET:
+            case MAP:
+                if (pointableIndex.isPointable(shape)) {
+                    symbol = symbol.toBuilder().putProperty(SymbolUtils.POINTABLE, true).build();
+                } else {
+                    symbol = symbol.toBuilder().putProperty(SymbolUtils.POINTABLE, false).build();
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        return symbol;
     }
 
     @Override
     public Symbol timestampShape(TimestampShape shape) {
-        return SymbolUtils.createPointableSymbolBuilder(shape, "Time", SmithyGoDependency.TIME).build();
+        return symbolBuilderFor(shape, "Time", SmithyGoDependency.TIME).build();
     }
 }

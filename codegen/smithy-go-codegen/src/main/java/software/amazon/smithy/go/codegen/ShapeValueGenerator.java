@@ -23,6 +23,7 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.BooleanNode;
@@ -51,6 +52,7 @@ public final class ShapeValueGenerator {
 
     protected final Model model;
     protected final SymbolProvider symbolProvider;
+    protected final GoPointableIndex pointableIndex;
 
     /**
      * Initializes a shape value generator.
@@ -61,6 +63,7 @@ public final class ShapeValueGenerator {
     public ShapeValueGenerator(Model model, SymbolProvider symbolProvider) {
         this.model = model;
         this.symbolProvider = symbolProvider;
+        this.pointableIndex = new GoPointableIndex(model);
     }
 
     /**
@@ -119,7 +122,11 @@ public final class ShapeValueGenerator {
     protected void structDeclShapeValue(GoWriter writer, StructureShape shape, Node params) {
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        writer.write("&$T{", symbol);
+        String ref = "&";
+        if (!pointableIndex.isPointable(shape)) {
+            ref = "";
+        }
+        writer.write(ref + "$T{", symbol);
         params.accept(new ShapeValueNodeVisitor(writer, this, shape));
         writer.writeInline("}");
     }
@@ -142,6 +149,7 @@ public final class ShapeValueGenerator {
                         symbol.getNamespace()
                 ).build();
 
+                // Union member types are always pointers
                 writer.writeInline("&$T{Value: ", memberSymbol);
                 if (target instanceof SimpleShape) {
                     writeScalarValueInline(writer, target, entry.getValue());
@@ -189,6 +197,23 @@ public final class ShapeValueGenerator {
         writer.writeInline("}");
     }
 
+    private void writeScalarWrapper(
+            GoWriter writer,
+            Shape shape,
+            Node params,
+            String funcName,
+            TriConsumer<GoWriter, Shape, Node> inner
+    ) {
+        if (pointableIndex.isPointable(shape)) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+            writer.writeInline("ptr." + funcName + "(");
+            inner.accept(writer, shape, params);
+            writer.writeInline(")");
+        } else {
+            inner.accept(writer, shape, params);
+        }
+    }
+
     /**
      * Writes scalar values with pointer value wrapping as needed based on the shape type.
      *
@@ -197,73 +222,51 @@ public final class ShapeValueGenerator {
      * @param params parameters to fill the generated shape declaration.
      */
     protected void writeScalarPointerInline(GoWriter writer, Shape shape, Node params) {
-        boolean withPtrImport = true;
-        String closing = ")";
+        String funcName = "";
 
         switch (shape.getType()) {
             case BOOLEAN:
-                writer.writeInline("ptr.Bool(");
-                break;
-
-            case BLOB:
-                closing = "";
-                withPtrImport = false;
+                funcName = "Bool";
                 break;
 
             case STRING:
-                // Enum are not pointers, but string alias values
-                if (shape.hasTrait(StreamingTrait.class) || shape.hasTrait(EnumTrait.class)) {
-                    closing = "";
-                    withPtrImport = false;
-                } else {
-                    writer.writeInline("ptr.String(");
-                }
-
+                funcName = "String";
                 break;
 
             case TIMESTAMP:
-                writer.writeInline("ptr.Time(");
+                funcName = "Time";
                 break;
 
             case BYTE:
-                writer.writeInline("ptr.Int8(");
+                funcName = "Int8";
                 break;
-
             case SHORT:
-                writer.writeInline("ptr.Int16(");
+                funcName = "Int16";
                 break;
-
             case INTEGER:
-                writer.writeInline("ptr.Int32(");
+                funcName = "Int32";
                 break;
-
             case LONG:
-                writer.writeInline("ptr.Int64(");
+                funcName = "Int64";
                 break;
 
             case FLOAT:
-                writer.writeInline("ptr.Float32(");
+                funcName = "Float32";
                 break;
-
             case DOUBLE:
-                writer.writeInline("ptr.Float64(");
+                funcName = "Float64";
                 break;
 
+            case BLOB:
             case BIG_INTEGER:
             case BIG_DECIMAL:
-                writeScalarValueInline(writer, shape, params);
                 return;
 
             default:
                 throw new CodegenException("unexpected shape type " + shape.getType());
         }
 
-        if (withPtrImport) {
-            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
-        }
-
-        writeScalarValueInline(writer, shape, params);
-        writer.writeInline(closing);
+        writeScalarWrapper(writer, shape, params, funcName, this::writeScalarValueInline);
     }
 
     protected void writeScalarValueInline(GoWriter writer, Shape shape, Node params) {
