@@ -49,6 +49,9 @@ public class ClientLogger implements GoIntegration {
             writer.openBlock("func $L(o *Options) {", "}", DEFAULT_LOGGER_RESOLVER, () -> {
                 Symbol nopSymbol = SymbolUtils.createValueSymbolBuilder("Nop", SmithyGoDependency.SMITHY_LOGGING)
                         .build();
+                writer.openBlock("if o.$L != nil {", "}", LOGGER_CONFIG_NAME, () -> {
+                    writer.write("return");
+                });
                 writer.write("o.$L = $T{}", LOGGER_CONFIG_NAME, nopSymbol);
             });
             writer.write("");
