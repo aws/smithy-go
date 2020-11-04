@@ -737,22 +737,23 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     /**
      * Throws a serialization error if string member value is empty.
-     * @param writer Gowriter
+     *
+     * @param writer      Gowriter
      * @param memberShape member shape
      * @param targetShape target shape
-     * @param operand operand used to denote member
+     * @param operand     operand used to denote member
      */
     private void throwSerializationErrorIfStringMemberIsEmpty(
-        GoWriter writer,
-        MemberShape memberShape,
-        Shape targetShape,
-        String operand
+            GoWriter writer,
+            MemberShape memberShape,
+            Shape targetShape,
+            String operand
     ) {
         if (!targetShape.isStringShape()) {
             return;
         }
 
-         operand = CodegenUtils.isShapePassByReference(targetShape)
+        operand = CodegenUtils.isShapePassByReference(targetShape)
                 ? "*" + operand : operand;
         operand = targetShape.hasTrait(EnumTrait.class)
                 ? "string(" + operand + ")" : operand;
@@ -760,49 +761,50 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // add validation for URI string members to not be empty
         writer.openBlock("if len($L) == 0 {", "}",
                 operand, () -> {
-            writer.addUseImports(SmithyGoDependency.SMITHY);
-            writer.write("return &smithy.SerializationError { "
-                            + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
-                    memberShape.getMemberName());
-        });
+                    writer.addUseImports(SmithyGoDependency.SMITHY);
+                    writer.write("return &smithy.SerializationError { "
+                                    + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                            memberShape.getMemberName());
+                });
     }
 
     /**
      * throws a serialization error if passed in member is unset.
-     * @param context Generation Context
-     * @param member Member shape
+     *
+     * @param context   Generation Context
+     * @param member    Member shape
      * @param container The name that the structure is assigned to.
-     * @param consumer unset member consumer
+     * @param consumer  unset member consumer
      */
     private void throwSerializationErrorIfMemberUnset(
-        GenerationContext context,
-        MemberShape member,
-        String container,
-        Consumer<String> consumer
+            GenerationContext context,
+            MemberShape member,
+            String container,
+            Consumer<String> consumer
     ) {
-            Model model = context.getModel();
-            Shape target = model.expectShape(member.getTarget());
-            String memberName = context.getSymbolProvider().toMemberName(member);
-            String operand = container + "." + memberName;
+        Model model = context.getModel();
+        Shape target = model.expectShape(member.getTarget());
+        String memberName = context.getSymbolProvider().toMemberName(member);
+        String operand = container + "." + memberName;
 
-            boolean enumShape = target.hasTrait(EnumTrait.class);
+        boolean enumShape = target.hasTrait(EnumTrait.class);
 
-            if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, member)) {
-                consumer.accept(operand);
-                return;
-            }
-
-            String conditionCheck;
-            if (enumShape) {
-                conditionCheck = "len(" + operand + ") == 0";
-            } else {
-                conditionCheck = operand + " == nil";
-            }
-
-            context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
-                consumer.accept(operand);
-            });
+        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, member)) {
+            consumer.accept(operand);
+            return;
         }
+
+        String conditionCheck;
+        if (enumShape) {
+            conditionCheck = "len(" + operand + ") == 0";
+        } else {
+            conditionCheck = operand + " == nil";
+        }
+
+        context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
+            consumer.accept(operand);
+        });
+    }
 
     private void writeHeaderBinding(
             GenerationContext context,

@@ -24,6 +24,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
@@ -36,7 +37,7 @@ import software.amazon.smithy.model.traits.EndpointTrait;
 
 public class EndpointHostPrefixMiddleware implements GoIntegration {
 
-    private static final String MIDDLEWARE_ID = "EndpointHostPrefix";
+    private static final MiddlewareIdentifier MIDDLEWARE_ID = MiddlewareIdentifier.string("EndpointHostPrefix");
 
     List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
     List<OperationShape> endpointPrefixOperations = new ArrayList<>();

@@ -10,18 +10,18 @@ import (
 func TestOrderedIDsAdd(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Add(mockIder("second"), After))
-	noError(t, o.Add(mockIder("third"), After))
-	noError(t, o.Add(mockIder("real-first"), Before))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Add(&mockIder{"second"}, After))
+	noError(t, o.Add(&mockIder{"third"}, After))
+	noError(t, o.Add(&mockIder{"real-first"}, Before))
 
-	if err := o.Add(mockIder(""), After); err == nil {
+	if err := o.Add(&mockIder{""}, After); err == nil {
 		t.Errorf("expect error adding empty ID, got none")
 	}
-	if err := o.Add(mockIder("second"), After); err == nil {
+	if err := o.Add(&mockIder{"second"}, After); err == nil {
 		t.Errorf("expect error adding duplicate, got none")
 	}
-	if err := o.Add(mockIder("unique"), 123); err == nil {
+	if err := o.Add(&mockIder{"unique"}, 123); err == nil {
 		t.Errorf("expect error add unknown relative position, got none")
 	}
 
@@ -35,26 +35,26 @@ func TestOrderedIDsAdd(t *testing.T) {
 func TestOrderedIDsInsert(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Insert(mockIder("third"), "first", After))
-	noError(t, o.Insert(mockIder("second"), "third", Before))
-	noError(t, o.Insert(mockIder("real-first"), "first", Before))
-	noError(t, o.Insert(mockIder("not-yet-last"), "second", After))
-	noError(t, o.Insert(mockIder("last"), "third", After))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Insert(&mockIder{"third"}, "first", After))
+	noError(t, o.Insert(&mockIder{"second"}, "third", Before))
+	noError(t, o.Insert(&mockIder{"real-first"}, "first", Before))
+	noError(t, o.Insert(&mockIder{"not-yet-last"}, "second", After))
+	noError(t, o.Insert(&mockIder{"last"}, "third", After))
 
-	if err := o.Insert(mockIder(""), "first", After); err == nil {
+	if err := o.Insert(&mockIder{""}, "first", After); err == nil {
 		t.Errorf("expect error insert empty ID, got none")
 	}
-	if err := o.Insert(mockIder("second"), "", After); err == nil {
+	if err := o.Insert(&mockIder{"second"}, "", After); err == nil {
 		t.Errorf("expect error insert with empty relative ID, got none")
 	}
-	if err := o.Insert(mockIder("second"), "third", After); err == nil {
+	if err := o.Insert(&mockIder{"second"}, "third", After); err == nil {
 		t.Errorf("expect error insert duplicate, got none")
 	}
-	if err := o.Insert(mockIder("unique"), "not-found", After); err == nil {
+	if err := o.Insert(&mockIder{"unique"}, "not-found", After); err == nil {
 		t.Errorf("expect error insert not found relative ID, got none")
 	}
-	if err := o.Insert(mockIder("unique"), "first", 123); err == nil {
+	if err := o.Insert(&mockIder{"unique"}, "first", 123); err == nil {
 		t.Errorf("expect error insert unknown relative position, got none")
 	}
 
@@ -67,8 +67,8 @@ func TestOrderedIDsInsert(t *testing.T) {
 func TestOrderedIDsGet(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Add(mockIder("second"), After))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Add(&mockIder{"second"}, After))
 
 	f, ok := o.Get("not-found")
 	if ok || f != nil {
@@ -87,25 +87,25 @@ func TestOrderedIDsGet(t *testing.T) {
 func TestOrderedIDsSwap(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Add(mockIder("second"), After))
-	noError(t, o.Add(mockIder("third"), After))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Add(&mockIder{"second"}, After))
+	noError(t, o.Add(&mockIder{"third"}, After))
 
-	if _, err := o.Swap("first", mockIder("")); err == nil {
+	if _, err := o.Swap("first", &mockIder{""}); err == nil {
 		t.Errorf("expect error swap empty ID, got none")
 	}
-	if _, err := o.Swap("", mockIder("second")); err == nil {
+	if _, err := o.Swap("", &mockIder{"second"}); err == nil {
 		t.Errorf("expect error swap with empty relative ID, got none")
 	}
 
-	if _, err := o.Swap("not-exists", mockIder("last")); err == nil {
+	if _, err := o.Swap("not-exists", &mockIder{"last"}); err == nil {
 		t.Errorf("expect error swap not-exists ID, got none")
 	}
-	if _, err := o.Swap("second", mockIder("first")); err == nil {
+	if _, err := o.Swap("second", &mockIder{"first"}); err == nil {
 		t.Errorf("expect error swap to existing ID, got none")
 	}
 
-	r, err := o.Swap("second", mockIder("otherSecond"))
+	r, err := o.Swap("second", &mockIder{"otherSecond"})
 	noError(t, err)
 	if r == nil {
 		t.Fatalf("expect removed item to be returned")
@@ -122,16 +122,20 @@ func TestOrderedIDsSwap(t *testing.T) {
 
 func TestOrderedIDsRemove(t *testing.T) {
 	o := newOrderedIDs()
+	firstIder := &mockIder{"first"}
+	noError(t, o.Add(firstIder, After))
+	noError(t, o.Insert(&mockIder{"third"}, "first", After))
+	if removed, err := o.Remove("first"); err != nil {
+		t.Errorf("expect no error, got %v", err)
+	} else if removed != firstIder {
+		t.Error("removed ider did not match expected")
+	}
+	noError(t, o.Insert(&mockIder{"last"}, "third", After))
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Insert(mockIder("third"), "first", After))
-	noError(t, o.Remove("first"))
-	noError(t, o.Insert(mockIder("last"), "third", After))
-
-	if err := o.Remove(""); err == nil {
+	if _, err := o.Remove(""); err == nil {
 		t.Errorf("expect error remove empty ID, got none")
 	}
-	if err := o.Remove("not-exists"); err == nil {
+	if _, err := o.Remove("not-exists"); err == nil {
 		t.Errorf("expect error remove not exists ID, got none")
 	}
 
@@ -144,13 +148,13 @@ func TestOrderedIDsRemove(t *testing.T) {
 func TestOrderedIDsClear(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Add(mockIder("second"), After))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Add(&mockIder{"second"}, After))
 
 	o.Clear()
 
-	noError(t, o.Add(mockIder("third"), After))
-	noError(t, o.Add(mockIder("fourth"), After))
+	noError(t, o.Add(&mockIder{"third"}, After))
+	noError(t, o.Add(&mockIder{"fourth"}, After))
 
 	expectIDs := []string{"third", "fourth"}
 	if e, a := expectIDs, o.List(); !reflect.DeepEqual(e, a) {
@@ -161,10 +165,10 @@ func TestOrderedIDsClear(t *testing.T) {
 func TestOrderedIDsGetOrder(t *testing.T) {
 	o := newOrderedIDs()
 
-	noError(t, o.Add(mockIder("first"), After))
-	noError(t, o.Add(mockIder("second"), After))
-	noError(t, o.Add(mockIder("third"), After))
-	noError(t, o.Add(mockIder("real-first"), Before))
+	noError(t, o.Add(&mockIder{"first"}, After))
+	noError(t, o.Add(&mockIder{"second"}, After))
+	noError(t, o.Add(&mockIder{"third"}, After))
+	noError(t, o.Add(&mockIder{"real-first"}, Before))
 
 	expectIDs := []string{"real-first", "first", "second", "third"}
 	if e, a := expectIDs, o.List(); !reflect.DeepEqual(e, a) {
@@ -180,82 +184,7 @@ func TestOrderedIDsGetOrder(t *testing.T) {
 	compareGetOrder(t, expectIDs, actualOrder)
 }
 
-func TestOrderedIDsSlots(t *testing.T) {
-	o := newOrderedIDs()
-
-	noError(t, o.AddSlot(After, "first", "second"))
-	noError(t, o.Add(mockIder("second"), After))
-	noError(t, o.InsertSlot("second", After, "fourth"))
-	noError(t, o.Insert(mockIder("third"), "second", After))
-	noError(t, o.Add(mockIder("fifth"), After))
-
-	if e, a := []string{"first", "second", "third", "fourth", "fifth"}, o.List(); !reflect.DeepEqual(e, a) {
-		t.Errorf("expect %v order, got %v", e, a)
-	}
-
-	if o.AddSlot(After, "first") == nil {
-		t.Error("expect error, got nil")
-	}
-
-	if o.Add(mockIder("second"), After) == nil {
-		t.Error("expect error, got nil")
-	}
-
-	if o.AddSlot(After) == nil {
-		t.Error("expect error, got nil")
-	}
-	if o.InsertSlot("first", After) == nil {
-		t.Error("expect error, got nil")
-	}
-
-	actualOrder := o.GetOrder()
-	if e, a := 3, len(actualOrder); e != a {
-		t.Errorf("expect %v IDs, got %v", e, a)
-	}
-
-	compareGetOrder(t, []string{"second", "third", "fifth"}, actualOrder)
-
-	for i := 0; i < 2; i++ {
-		if err := o.Remove("second"); err != nil {
-			t.Errorf("expect no error, got %v", err)
-		}
-	}
-
-	if _, err := o.Swap("fourth", mockIder("fourth")); err != nil {
-		t.Errorf("expect no error, got %v", err)
-	}
-
-	if _, err := o.Swap("first", mockIder("fooBar")); err == nil {
-		t.Error("expect error, got nil")
-	}
-
-	if e, a := []string{"first", "second", "third", "fourth", "fifth"}, o.List(); !reflect.DeepEqual(e, a) {
-		t.Errorf("expect %v order, got %v", e, a)
-	}
-
-	compareGetOrder(t, []string{"third", "fourth", "fifth"}, o.GetOrder())
-
-}
-
-func compareGetOrder(t *testing.T, expected []string, actual []interface{}) {
-	t.Helper()
-	for _, eID := range expected {
-		var found bool
-		for _, aIder := range actual {
-			if e, a := eID, aIder.(ider).ID(); e == a {
-				if found {
-					t.Errorf("expect only one %v, got more", e)
-				}
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("expect to find %v, did not", eID)
-		}
-	}
-}
-
-func TestRelativeOrder_Insert(t *testing.T) {
+func TestRelativeOrder_insert(t *testing.T) {
 	var ro relativeOrder
 
 	if err := ro.insert(0, After); err != nil {
@@ -293,5 +222,23 @@ func TestRelativeOrder_Insert(t *testing.T) {
 
 	if diff := cmp.Diff([]string{"foo", "fob", "bar", "bas", "bat", "baz"}, ro.order); len(diff) > 0 {
 		t.Error(diff)
+	}
+}
+
+func compareGetOrder(t *testing.T, expected []string, actual []interface{}) {
+	t.Helper()
+	for _, eID := range expected {
+		var found bool
+		for _, aIder := range actual {
+			if e, a := eID, aIder.(ider).ID(); e == a {
+				if found {
+					t.Errorf("expect only one %v, got more", e)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expect to find %v, did not", eID)
+		}
 	}
 }

@@ -158,7 +158,7 @@ public final class OperationGenerator implements Runnable {
                         // TODO these functions do not all return err like they should. This should be fixed.
                         // TODO Must be fixed for all public functions.
                         if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
-                            String registerStatement = String.format("stack.%s",
+                            String registerStatement = String.format("if err = stack.%s",
                                     middlewareRegistrar.getInlineRegisterMiddlewareStatement());
                             writer.writeInline(registerStatement);
                             writer.writeInline("$T(", middlewareRegistrar.getResolvedFunction());
@@ -169,16 +169,17 @@ public final class OperationGenerator implements Runnable {
                                 }
                             }
                             writer.writeInline(")");
-                            writer.write(", $T)", middlewareRegistrar.getInlineRegisterMiddlewarePosition());
+                            writer.write(", $T); err != nil {\nreturn err\n}",
+                                    middlewareRegistrar.getInlineRegisterMiddlewarePosition());
                         } else {
-                            writer.writeInline("$T(stack", middlewareRegistrar.getResolvedFunction());
+                            writer.writeInline("if err = $T(stack", middlewareRegistrar.getResolvedFunction());
                             if (functionArguments != null) {
                                 List<Symbol> args = new ArrayList<>(functionArguments);
                                 for (Symbol arg : args) {
                                     writer.writeInline(", $P", arg);
                                 }
                             }
-                            writer.write(")");
+                            writer.write("); err != nil {\nreturn err\n}");
                         }
                     });
 
