@@ -48,6 +48,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_HTTP_BINDING = smithy("httpbinding");
     public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
+    public static final GoDependency SMITHY_LOGGING = smithy("logging");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
@@ -109,6 +110,6 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.14";
         private static final String GO_CMP = "v0.4.1";
-        private static final String SMITHY_GO = "v0.3.1-0.20201103180816-d4c6ec013e15";
+        private static final String SMITHY_GO = "v0.3.1-0.20201104233911-38864709e183";
     }
 }
