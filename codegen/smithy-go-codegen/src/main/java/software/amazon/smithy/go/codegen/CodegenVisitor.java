@@ -35,7 +35,9 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.NullableIndex;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
@@ -190,6 +192,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             context.setSettings(settings);
             context.setSymbolProvider(symbolProvider);
             context.setDelegator(writers);
+            context.setPointableIndex(new GoPointableIndex(model));
+            context.setNullableIndex(new NullableIndex(model));
 
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
                     + " on " + service.getId());

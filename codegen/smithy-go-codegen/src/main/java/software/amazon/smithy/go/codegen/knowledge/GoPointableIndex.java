@@ -28,8 +28,7 @@ import software.amazon.smithy.model.knowledge.NullableIndex;
 import software.amazon.smithy.model.neighbor.NeighborProvider;
 import software.amazon.smithy.model.neighbor.Relationship;
 import software.amazon.smithy.model.neighbor.RelationshipType;
-import software.amazon.smithy.model.shapes.CollectionShape;
-import software.amazon.smithy.model.shapes.MapShape;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -46,6 +45,7 @@ import software.amazon.smithy.utils.SetUtils;
 public class GoPointableIndex implements KnowledgeIndex {
     private static final Logger LOGGER = Logger.getLogger(GoPointableIndex.class.getName());
 
+    // All types that are Go value types
     private static final Set<ShapeType> INHERENTLY_VALUE = SetUtils.of(
             ShapeType.BLOB,
             ShapeType.LIST,
@@ -55,42 +55,84 @@ public class GoPointableIndex implements KnowledgeIndex {
             ShapeType.DOCUMENT
     );
 
+    // All types that are Go pointer types
     private static final Set<ShapeType> INHERENTLY_POINTABLE = SetUtils.of(
             ShapeType.BIG_DECIMAL,
             ShapeType.BIG_INTEGER
     );
 
+    // All types that cannot be dereferenced
+    private static final Set<ShapeType> INHERENTLY_NONDEREFERENCABLE = SetUtils.of(
+            // built in slice/map
+            ShapeType.BLOB,
+            ShapeType.LIST,
+            ShapeType.SET,
+            ShapeType.MAP,
+
+            // Interfaces
+            ShapeType.UNION,
+            ShapeType.DOCUMENT,
+
+            // known pointer types.
+            ShapeType.BIG_DECIMAL,
+            ShapeType.BIG_INTEGER
+    );
+
+    // All types types that are comparable to nil
+    private static final Set<ShapeType> INHERENTLY_NILLABLE = SetUtils.of(
+            // built in slice/map
+            ShapeType.BLOB,
+            ShapeType.LIST,
+            ShapeType.SET,
+            ShapeType.MAP,
+
+            // Interfaces
+            ShapeType.UNION,
+            ShapeType.DOCUMENT,
+
+            // known pointer types.
+            ShapeType.BIG_DECIMAL,
+            ShapeType.BIG_INTEGER
+    );
+
+
+
     private final Model model;
+    private final NullableIndex nullableIndex;
     private final Set<ShapeId> pointableShapes = new HashSet<>();
+    private final Set<ShapeId> nillableShapes = new HashSet<>();
+    private final Set<ShapeId> dereferencableShapes = new HashSet<>();
 
     public GoPointableIndex(Model model) {
         this.model = model;
-        NullableIndex nullableIndex = new NullableIndex(model);
+        this.nullableIndex = NullableIndex.of(model);
 
         for (Shape shape : model.toSet()) {
-            checkShape(nullableIndex, shape);
-        }
-    }
+            if (shape.asMemberShape().isPresent()) {
+                MemberShape member = shape.asMemberShape().get();
+                Shape targetShape = model.expectShape(member.getTarget());
 
-    private void checkShape(NullableIndex nullableIndex, Shape shape) {
-        if (isShapePointable(nullableIndex, shape)) {
-            pointableShapes.add(shape.getId());
-        }
-
-        switch (shape.getType()) {
-            case LIST:
-            case SET:
-                CollectionShape collection = CodegenUtils.expectCollectionShape(shape);
-                checkShape(nullableIndex, collection.getMember());
-                break;
-
-            case MAP:
-                MapShape mapShape = shape.asMapShape().get();
-                checkShape(nullableIndex, mapShape.getValue());
-                break;
-
-            default:
-                break;
+                if (isMemberPointable(member, targetShape)) {
+                    pointableShapes.add(shape.getId());
+                }
+                if (isMemberNillable(member, targetShape)) {
+                    nillableShapes.add(shape.getId());
+                }
+                if (isMemberDereferencable(member, targetShape)) {
+                    dereferencableShapes.add(shape.getId());
+                }
+            } else {
+                if (isShapePointable(shape)) {
+                    pointableShapes.add(shape.getId());
+                    nillableShapes.add(shape.getId());
+                }
+                if (isShapeNillable(shape)) {
+                    nillableShapes.add(shape.getId());
+                }
+                if (isShapeDereferencable(shape)) {
+                    dereferencableShapes.add(shape.getId());
+                }
+            }
         }
     }
 
@@ -98,7 +140,27 @@ public class GoPointableIndex implements KnowledgeIndex {
         return new GoPointableIndex(model);
     }
 
-    private boolean isShapePointable(NullableIndex nullableIndex, Shape shape) {
+    private boolean isMemberDereferencable(MemberShape member, Shape targetShape) {
+        return isShapeDereferencable(targetShape) && isMemberPointable(member, targetShape);
+    }
+
+    private boolean isMemberNillable(MemberShape member, Shape targetShape) {
+        return INHERENTLY_NILLABLE.contains(targetShape.getType()) || isMemberPointable(member, targetShape);
+    }
+
+    private boolean isMemberPointable(MemberShape member, Shape targetShape) {
+        return isShapePointable(targetShape) && nullableIndex.isNullable(member);
+    }
+
+    private boolean isShapeDereferencable(Shape shape) {
+        return !INHERENTLY_NONDEREFERENCABLE.contains(shape.getType()) && isShapePointable(shape);
+    }
+
+    private boolean isShapeNillable(Shape shape) {
+        return INHERENTLY_NILLABLE.contains(shape.getType()) || isShapePointable(shape);
+    }
+
+    private boolean isShapePointable(Shape shape) {
         // All operation input and output shapes are pointable.
         if (isOperationStruct(shape)) {
             return true;
@@ -164,5 +226,25 @@ public class GoPointableIndex implements KnowledgeIndex {
      */
     public final boolean isPointable(ToShapeId shape) {
         return pointableShapes.contains(shape.toShapeId());
+    }
+
+    /**
+     * Returns if the Go type generated for the shape is comparable to nil.
+     *
+     * @param shape the shape to check
+     * @return if the shape's go type is comparable to nil
+     */
+    public final boolean isNillable(ToShapeId shape) {
+        return nillableShapes.contains(shape.toShapeId());
+    }
+
+    /**
+     * Returns if the Go type generated for the shape can be dereferenced.
+     *
+     * @param shape the shape to check
+     * @return if the shape's go type is dereferencable
+     */
+    public final boolean isDereferencable(ToShapeId shape) {
+        return dereferencableShapes.contains(shape.toShapeId());
     }
 }

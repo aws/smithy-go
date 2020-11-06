@@ -21,8 +21,6 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
-import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.utils.MapUtils;
@@ -157,17 +155,5 @@ final class StructureGenerator implements Runnable {
             fault = "smithy.FaultServer";
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
-    }
-
-    private String getterReturnFormatter(Shape shape) {
-        if (CodegenUtils.isShapePassByValue(shape)) {
-            return "$P";
-        }
-
-        if (shape.getType() == ShapeType.STRUCTURE) {
-            return "$P";
-        }
-
-        return "$T";
     }
 }

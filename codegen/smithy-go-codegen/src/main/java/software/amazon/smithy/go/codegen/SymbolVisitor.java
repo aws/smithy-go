@@ -487,31 +487,12 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     @Override
-    public Symbol memberShape(MemberShape shape) {
-        Shape targetShape = model.getShape(shape.getTarget())
-                .orElseThrow(() -> new CodegenException("Shape not found: " + shape.getTarget()));
-        Symbol symbol = toSymbol(targetShape);
-
-        // Member's of map, list, and sets inherit their pointability based on their container options.
-        // Need to modify the symbol for the member to be pointable or not based on if the list/set/map
-        // members are pointable.
-        Shape container = model.expectShape(shape.getContainer());
-        switch (container.getType()) {
-            case LIST:
-            case SET:
-            case MAP:
-                if (pointableIndex.isPointable(shape)) {
-                    symbol = symbol.toBuilder().putProperty(SymbolUtils.POINTABLE, true).build();
-                } else {
-                    symbol = symbol.toBuilder().putProperty(SymbolUtils.POINTABLE, false).build();
-                }
-                break;
-
-            default:
-                break;
-        }
-
-        return symbol;
+    public Symbol memberShape(MemberShape member) {
+        Shape targetShape = model.expectShape(member.getTarget());
+        return toSymbol(targetShape)
+                .toBuilder()
+                .putProperty(SymbolUtils.POINTABLE, pointableIndex.isPointable(member))
+                .build();
     }
 
     @Override

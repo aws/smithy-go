@@ -28,15 +28,14 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.TitleTrait;
 import software.amazon.smithy.utils.StringUtils;
@@ -146,26 +145,97 @@ public final class CodegenUtils {
         return CodegenUtils.SYNTHETIC_NAMESPACE;
     }
 
+
+    /**
+     * Returns the operand decorated with an &amp; if the address of the shape type can be taken.
+     *
+     * @param pointableIndex pointable index
+     * @param shape shape to use
+     * @param operand value to decorate
+     * @return updated operand
+     */
+    public static String asAddressIfAddressable(GoPointableIndex pointableIndex, Shape shape, String operand) {
+        boolean shouldAddress = pointableIndex.isPointable(shape) && shape.getType() == ShapeType.STRUCTURE;
+        // TODO [denseListMap] is this supposed to be done for union members?
+        //if (context.getModel().expectShape(member.getContainer()).isUnionShape()) {
+        //    Shape target = context.getModel().expectShape(member.getTarget());
+        //    shouldDereference &= ProtocolUtils.usesScalarWhenUnionValue(target);
+        //}
+        return shouldAddress ? "&" + operand : operand;
+    }
+
+    /**
+     * Returns the operand decorated with an "*" if the shape is dereferencable.
+     *
+     * @param pointableIndex knowledge index for if shape is pointable.
+     * @param shape   The shape whose value needs to be read.
+     * @param operand The value to be read from.
+     * @return updated operand
+     */
+    public static String getAsValueIfDereferencable(
+            GoPointableIndex pointableIndex,
+            Shape shape,
+            String operand
+    ) {
+        if (!pointableIndex.isDereferencable(shape)) {
+            return operand;
+        }
+
+        return '*' + operand;
+    }
+
+    /**
+     * Returns the operand decorated as a pointer type, without creating double pointer.
+     *
+     * @param pointableIndex knowledge index for if shape is pointable.
+     * @param shape   The shape whose value of the type.
+     * @param operand The value to read.
+     * @return updated operand
+     */
+    public static String getTypeAsTypePointer(
+            GoPointableIndex pointableIndex,
+            Shape shape,
+            String operand
+    ) {
+        if (pointableIndex.isPointable(shape)) {
+            return operand;
+        }
+
+        return '*' + operand;
+    }
+
     /**
      * Get the pointer reference to operand , if symbol is pointable.
      * This method can be used by deserializers to get pointer to
      * operand.
      *
+     * @param model model for api.
      * @param writer  The writer dependencies will be added to, if needed.
+     * @param pointableIndex knowledge index for if shape is pointable.
      * @param shape   The shape whose value needs to be assigned.
      * @param operand The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */
-    public static String generatePointerValueIfPointable(GoWriter writer, Shape shape, String operand) {
+    public static String getAsPointerIfPointable(
+            Model model,
+            GoWriter writer,
+            GoPointableIndex pointableIndex,
+            Shape shape,
+            String operand
+    ) {
+        if (!pointableIndex.isPointable(shape)) {
+            return operand;
+        }
+
+        if (shape.isMemberShape()) {
+            shape = model.expectShape(shape.asMemberShape().get().getTarget());
+        }
+
         String prefix = "";
         String suffix = ")";
 
         switch (shape.getType()) {
             case STRING:
-                if (shape.hasTrait(EnumTrait.class)) {
-                    return operand;
-                }
-
                 prefix = "ptr.String(";
                 break;
 
@@ -198,124 +268,11 @@ public final class CodegenUtils {
                 break;
 
             default:
-                if (isShapePassByReference(shape)) {
-                    return '&' + operand;
-                }
-                return operand;
+                return '&' + operand;
         }
 
         writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
         return prefix + operand + suffix;
-    }
-
-    /**
-     * Gets a value version of the operate based on the shape type. Returns a string with dereferencing the provided
-     * operand value if needed. Shapes like Structure, maps, and slices are not dereferenced.
-     *
-     * @param writer  The writer dependencies will be added to, if needed.
-     * @param shape   The shape whose value needs to be assigned.
-     * @param operand The Operand is the value to be assigned to the symbol shape.
-     * @return The Operand, along with pointer reference if applicable
-     */
-    public static String operandValueIfScalar(GoWriter writer, Shape shape, String operand) {
-        String prefix = "";
-        String suffix = ")";
-
-        switch (shape.getType()) {
-            case STRING:
-                if (shape.hasTrait(EnumTrait.class)) {
-                    return operand;
-                }
-
-                prefix = "ptr.ToString(";
-                break;
-
-            case BOOLEAN:
-                prefix = "ptr.ToBool(";
-                break;
-
-            case BYTE:
-                prefix = "ptr.ToInt8(";
-                break;
-            case SHORT:
-                prefix = "ptr.ToInt16(";
-                break;
-            case INTEGER:
-                prefix = "ptr.ToInt32(";
-                break;
-            case LONG:
-                prefix = "ptr.ToInt64(";
-                break;
-
-            case FLOAT:
-                prefix = "ptr.ToFloat32(";
-                break;
-            case DOUBLE:
-                prefix = "ptr.ToFloat64(";
-                break;
-
-            case TIMESTAMP:
-                prefix = "ptr.ToTime(";
-                break;
-
-            default:
-                return operand;
-        }
-
-        writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
-        return prefix + operand + suffix;
-    }
-
-    /**
-     * Returns whether the shape should be passed by value in Go.
-     *
-     * @param shape the shape
-     * @return whether the shape should be passed by value
-     */
-    public static boolean isShapePassByValue(Shape shape) {
-        return shape.getType() == ShapeType.LIST
-                || shape.getType() == ShapeType.SET
-                || shape.getType() == ShapeType.UNION
-                || shape.getType() == ShapeType.MAP
-                || shape.getType() == ShapeType.BLOB
-                || (shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class));
-    }
-
-    /**
-     * Returns whether the shape should be passed by pointer reference in Go.
-     *
-     * @param shape the shape
-     * @return whether the shape should be passed by reference
-     */
-    public static boolean isShapePassByReference(Shape shape) {
-        return !isShapePassByValue(shape);
-    }
-
-    /**
-     * Returns whether the provided shape can have a Go nil value assigned to it.
-     * If provided a MemberShape it will use the target shape and the aggregate shape containing
-     * the member is a reference frame to determine if nil is allowed.
-     *
-     * @param model the model
-     * @param shape the shape to test
-     * @return if the shape can be assigned a nil Go value
-     */
-    public static boolean isNilAssignableToShape(Model model, Shape shape) {
-        if (shape instanceof MemberShape) {
-            ShapeId memberShapeId = shape.getId();
-
-            Shape aggregateShape = model.expectShape(ShapeId.fromParts(memberShapeId.getNamespace(),
-                    memberShapeId.getName()));
-
-            // If the aggregate parent shape is not a structure the member shape is expected to not be a pointer
-            if (!(aggregateShape instanceof StructureShape)) {
-                return false;
-            }
-
-            shape = model.expectShape(((MemberShape) shape).getTarget());
-        }
-
-        return !shape.hasTrait(EnumTrait.class);
     }
 
     /**
@@ -410,5 +367,25 @@ public final class CodegenUtils {
      */
     public static String getServiceTitle(ServiceShape shape, String fallback) {
         return shape.getTrait(TitleTrait.class).map(TitleTrait::getValue).orElse(fallback);
+    }
+
+    /**
+     * isNumber returns if the shape is a number shape.
+     *
+     * @param shape shape to check
+     * @return true if is a number shape.
+     */
+    public static boolean isNumber(Shape shape) {
+        switch (shape.getType()) {
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+                return true;
+            default:
+                return false;
+        }
     }
 }

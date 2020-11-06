@@ -25,7 +25,9 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SyntheticClone;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.NullableIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -248,6 +250,8 @@ public interface ProtocolGenerator {
         private List<GoIntegration> integrations;
         private String protocolName;
         private GoDelegator delegator;
+        private GoPointableIndex pointableIndex;
+        private NullableIndex nullableIndex;
 
         public GoSettings getSettings() {
             return settings;
@@ -307,6 +311,22 @@ public interface ProtocolGenerator {
 
         public String getProtocolName() {
             return protocolName;
+        }
+
+        public void setPointableIndex(GoPointableIndex pointableIndex) {
+            this.pointableIndex = pointableIndex;
+        }
+
+        public GoPointableIndex getPointableIndex() {
+            return pointableIndex;
+        }
+
+        public void setNullableIndex(NullableIndex nullableIndex) {
+            this.nullableIndex = nullableIndex;
+        }
+
+        public NullableIndex getNullableIndex() {
+            return nullableIndex;
         }
 
         // TODO change to shape id of protocol shape id

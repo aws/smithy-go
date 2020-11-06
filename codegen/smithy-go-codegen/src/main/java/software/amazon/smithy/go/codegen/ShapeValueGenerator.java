@@ -18,7 +18,6 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -34,7 +33,6 @@ import software.amazon.smithy.model.node.NumberNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.shapes.CollectionShape;
-import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -73,42 +71,72 @@ public final class ShapeValueGenerator {
      * @param shape  the shape that will be declared.
      * @param params parameters to fill the generated shape declaration.
      */
-    public void writeShapeValueInline(GoWriter writer, Shape shape, Node params) {
+    public void writePointableStructureShapeValueInline(GoWriter writer, StructureShape shape, Node params) {
         if (params.isNullNode()) {
-            if (shape.isStringShape() && shape.hasTrait(EnumTrait.class)) {
-                Symbol enumSymbol = symbolProvider.toSymbol(shape);
-                writer.writeInline("$T($S)", enumSymbol, "");
-            } else {
+            writer.writeInline("nil");
+        }
+
+        // Struct shapes are special since they are the only shape that may not have a member reference
+        // pointing to them since they are top level shapes.
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        writer.write("&$T{", symbol);
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+        writer.writeInline("}");
+    }
+
+    /**
+     * Writes generation of a member shape value type declaration for the given the parameters.
+     *
+     * @param writer writer to write generated code with.
+     * @param member the shape that will be declared.
+     * @param params parameters to fill the generated shape declaration.
+     */
+    protected void writeMemberValueInline(GoWriter writer, MemberShape member, Node params) {
+        Shape targetShape = model.expectShape(member.getTarget());
+
+        // Null params need to be represented as zero values for member,
+        if (params.isNullNode()) {
+            if (pointableIndex.isNillable(member)) {
                 writer.writeInline("nil");
+
+            } else if (targetShape.getType() == ShapeType.STRING && targetShape.hasTrait(EnumTrait.class)) {
+                Symbol enumSymbol = symbolProvider.toSymbol(targetShape);
+                writer.writeInline("$T($S)", enumSymbol, "");
+
+            } else {
+                Symbol shapeSymbol = symbolProvider.toSymbol(member);
+                writer.writeInline("func() (v $P) { return v }()", shapeSymbol);
             }
             return;
         }
 
-        switch (shape.getType()) {
+        switch (targetShape.getType()) {
             case STRUCTURE:
-                structDeclShapeValue(writer, shape.asStructureShape().get(), params);
+                // Struct shapes are special since they are the only shape that may not have a member reference
+                // pointing to them since they are top level shapes.
+                structDeclShapeValue(writer, member, params);
                 break;
 
             case SET:
             case LIST:
-                listDeclShapeValue(writer, (CollectionShape) shape, params);
+                listDeclShapeValue(writer, member, params);
                 break;
 
             case MAP:
-                mapDeclShapeValue(writer, shape.asMapShape().get(), params);
+                mapDeclShapeValue(writer, member, params);
                 break;
 
             case UNION:
-                unionDeclShapeValue(writer, shape.asUnionShape().get(), params.expectObjectNode());
+                unionDeclShapeValue(writer, member, params.expectObjectNode());
                 break;
 
             case DOCUMENT:
-                LOGGER.warning("Skipping " + shape.getType() + " shape type not supported, " + shape.getId());
+                LOGGER.warning("Skipping " + member.getType() + " shape type not supported, " + member.getId());
                 writer.writeInline("nil");
                 break;
 
             default:
-                writeScalarPointerInline(writer, shape, params);
+                writeScalarPointerInline(writer, member, params);
         }
     }
 
@@ -116,18 +144,19 @@ public final class ShapeValueGenerator {
      * Writes the declaration for a Go structure. Delegates to the runner for member fields within the structure.
      *
      * @param writer writer to write generated code with.
-     * @param shape  the structure shape
+     * @param member the structure shape
      * @param params parameters to fill the generated shape declaration.
      */
-    protected void structDeclShapeValue(GoWriter writer, StructureShape shape, Node params) {
-        Symbol symbol = symbolProvider.toSymbol(shape);
+    protected void structDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
+        Symbol symbol = symbolProvider.toSymbol(member);
 
-        String ref = "&";
-        if (!pointableIndex.isPointable(shape)) {
-            ref = "";
+        String addr = "";
+        if (pointableIndex.isPointable(member)) {
+            addr = "&";
         }
-        writer.write(ref + "$T{", symbol);
-        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+
+        writer.write("$L$T{", addr, symbol);
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
         writer.writeInline("}");
     }
 
@@ -135,29 +164,34 @@ public final class ShapeValueGenerator {
      * Writes the declaration for a Go union.
      *
      * @param writer writer to write generated code with.
-     * @param shape  the union shape.
+     * @param member the union shape.
      * @param params the params.
      */
-    protected void unionDeclShapeValue(GoWriter writer, UnionShape shape, ObjectNode params) {
-        Symbol symbol = symbolProvider.toSymbol(shape);
+    protected void unionDeclShapeValue(GoWriter writer, MemberShape member, ObjectNode params) {
+        UnionShape targetShape = (UnionShape) model.expectShape(member.getTarget());
+
         for (Map.Entry<StringNode, Node> entry : params.getMembers().entrySet()) {
-            Optional<MemberShape> member = shape.getMember(entry.getKey().toString());
-            if (member.isPresent()) {
-                Shape target = model.expectShape(member.get().getTarget());
-                Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(
-                        symbolProvider.toMemberName(member.get()),
-                        symbol.getNamespace()
+            targetShape.getMember(entry.getKey().toString()).ifPresent((unionMember) -> {
+                Shape unionTarget = model.expectShape(unionMember.getTarget());
+
+                // Need to manually create a symbol builder for a union member struct type because the "member"
+                // of a union will return the inner value type not the member not the member type it self.
+                Symbol memberSymbol = SymbolUtils.createPointableSymbolBuilder(
+                        symbolProvider.toMemberName(unionMember),
+                        symbolProvider.toSymbol(targetShape).getNamespace()
                 ).build();
 
                 // Union member types are always pointers
                 writer.writeInline("&$T{Value: ", memberSymbol);
-                if (target instanceof SimpleShape) {
-                    writeScalarValueInline(writer, target, entry.getValue());
+                if (unionTarget instanceof SimpleShape) {
+                    writeScalarValueInline(writer, unionMember, entry.getValue());
                 } else {
-                    writeShapeValueInline(writer, target, entry.getValue());
+                    writeMemberValueInline(writer, unionMember, entry.getValue());
                 }
                 writer.writeInline("}");
-            }
+            });
+
+            // TODO [denseListMap] should this be simplified to just first?
             return;
         }
     }
@@ -166,15 +200,12 @@ public final class ShapeValueGenerator {
      * Writes the declaration for a Go slice. Delegates to the runner for fields within the slice.
      *
      * @param writer writer to write generated code with.
-     * @param shape  the collection shape
+     * @param member the collection shape
      * @param params parameters to fill the generated shape declaration.
      */
-    protected void listDeclShapeValue(GoWriter writer, CollectionShape shape, Node params) {
-        Shape memberShape = model.expectShape(shape.getMember().getTarget());
-        Symbol memberSymbol = symbolProvider.toSymbol(memberShape);
-
-        writer.write("[]$P{", memberSymbol);
-        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+    protected void listDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
+        writer.write("$P{", symbolProvider.toSymbol(member));
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
         writer.writeInline("}");
     }
 
@@ -182,35 +213,29 @@ public final class ShapeValueGenerator {
      * Writes the declaration for a Go map. Delegates to the runner for key/value fields within the map.
      *
      * @param writer writer to write generated code with.
-     * @param shape  the map shape.
+     * @param member the map shape.
      * @param params parameters to fill the generated shape declaration.
      */
-    protected void mapDeclShapeValue(GoWriter writer, MapShape shape, Node params) {
-        Shape valueShape = model.expectShape(shape.getValue().getTarget());
-        Shape keyShape = model.expectShape(shape.getKey().getTarget());
-
-        Symbol valueSymbol = symbolProvider.toSymbol(valueShape);
-        Symbol keySymbol = symbolProvider.toSymbol(keyShape);
-
-        writer.write("map[$T]$P{", keySymbol, valueSymbol);
-        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+    protected void mapDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
+        writer.write("$P{", symbolProvider.toSymbol(member));
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
         writer.writeInline("}");
     }
 
     private void writeScalarWrapper(
             GoWriter writer,
-            Shape shape,
+            MemberShape member,
             Node params,
             String funcName,
-            TriConsumer<GoWriter, Shape, Node> inner
+            TriConsumer<GoWriter, MemberShape, Node> inner
     ) {
-        if (pointableIndex.isPointable(shape)) {
+        if (pointableIndex.isPointable(member)) {
             writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
             writer.writeInline("ptr." + funcName + "(");
-            inner.accept(writer, shape, params);
+            inner.accept(writer, member, params);
             writer.writeInline(")");
         } else {
-            inner.accept(writer, shape, params);
+            inner.accept(writer, member, params);
         }
     }
 
@@ -218,13 +243,14 @@ public final class ShapeValueGenerator {
      * Writes scalar values with pointer value wrapping as needed based on the shape type.
      *
      * @param writer writer to write generated code with.
-     * @param shape  scalar shape.
+     * @param member scalar shape.
      * @param params parameters to fill the generated shape declaration.
      */
-    protected void writeScalarPointerInline(GoWriter writer, Shape shape, Node params) {
-        String funcName = "";
+    protected void writeScalarPointerInline(GoWriter writer, MemberShape member, Node params) {
+        Shape target = model.expectShape(member.getTarget());
 
-        switch (shape.getType()) {
+        String funcName = "";
+        switch (target.getType()) {
             case BOOLEAN:
                 funcName = "Bool";
                 break;
@@ -258,22 +284,27 @@ public final class ShapeValueGenerator {
                 break;
 
             case BLOB:
+                break;
+
             case BIG_INTEGER:
             case BIG_DECIMAL:
                 return;
 
             default:
-                throw new CodegenException("unexpected shape type " + shape.getType());
+                throw new CodegenException("unexpected shape type " + target.getType());
         }
 
-        writeScalarWrapper(writer, shape, params, funcName, this::writeScalarValueInline);
+        writeScalarWrapper(writer, member, params, funcName, this::writeScalarValueInline);
     }
 
-    protected void writeScalarValueInline(GoWriter writer, Shape shape, Node params) {
+    protected void writeScalarValueInline(GoWriter writer, MemberShape member, Node params) {
+        Shape target = model.expectShape(member.getTarget());
+
         String closing = "";
-        switch (shape.getType()) {
+        switch (target.getType()) {
             case BLOB:
-                if (shape.hasTrait(StreamingTrait.class)) {
+                // blob streams are io.Readers not byte slices.
+                if (target.hasTrait(StreamingTrait.class)) {
                     writer.addUseImports(SmithyGoDependency.SMITHY_IO);
                     writer.addUseImports(SmithyGoDependency.BYTES);
                     writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: bytes.NewReader([]byte(");
@@ -285,15 +316,16 @@ public final class ShapeValueGenerator {
                 break;
 
             case STRING:
-                // Enum are not pointers, but string alias values
-                if (shape.hasTrait(StreamingTrait.class)) {
+                // String streams are io.Readers not strings.
+                if (target.hasTrait(StreamingTrait.class)) {
                     writer.addUseImports(SmithyGoDependency.SMITHY_IO);
                     writer.addUseImports(SmithyGoDependency.STRINGS);
                     writer.writeInline("smithyio.ReadSeekNopCloser{ReadSeeker: strings.NewReader(");
                     closing = ")}";
 
-                } else if (shape.hasTrait(EnumTrait.class)) {
-                    Symbol enumSymbol = symbolProvider.toSymbol(shape);
+                } else if (target.hasTrait(EnumTrait.class)) {
+                    // Enum are not pointers, but string alias values
+                    Symbol enumSymbol = symbolProvider.toSymbol(target);
                     writer.writeInline("$T(", enumSymbol);
                     closing = ")";
                 }
@@ -302,7 +334,8 @@ public final class ShapeValueGenerator {
             default:
                 break;
         }
-        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+
+        params.accept(new ShapeValueNodeVisitor(writer, this, target));
         writer.writeInline(closing);
     }
 
@@ -335,10 +368,10 @@ public final class ShapeValueGenerator {
          */
         @Override
         public Void arrayNode(ArrayNode node) {
-            Shape memberShape = model.expectShape(((CollectionShape) this.currentShape).getMember().getTarget());
+            MemberShape memberShape = ((CollectionShape) this.currentShape).getMember();
 
             node.getElements().forEach(element -> {
-                valueGen.writeShapeValueInline(writer, memberShape, element);
+                valueGen.writeMemberValueInline(writer, memberShape, element);
                 writer.write(",");
             });
             return null;
@@ -353,10 +386,9 @@ public final class ShapeValueGenerator {
         @Override
         public Void objectNode(ObjectNode node) {
             node.getMembers().forEach((keyNode, valueNode) -> {
-                Shape memberShape;
+                MemberShape member;
                 switch (currentShape.getType()) {
                     case STRUCTURE:
-                        MemberShape member;
                         if (currentShape.asStructureShape().get().getMember(keyNode.getValue()).isPresent()) {
                             member = currentShape.asStructureShape().get().getMember(keyNode.getValue()).get();
                         } else {
@@ -364,19 +396,17 @@ public final class ShapeValueGenerator {
                                     "unknown member " + currentShape.getId() + "." + keyNode.getValue());
                         }
 
-                        memberShape = model.expectShape(member.getTarget());
                         String memberName = symbolProvider.toMemberName(member);
-
                         writer.write("$L: ", memberName);
-                        valueGen.writeShapeValueInline(writer, memberShape, valueNode);
+                        valueGen.writeMemberValueInline(writer, member, valueNode);
                         writer.write(",");
                         break;
 
                     case MAP:
-                        memberShape = model.expectShape(this.currentShape.asMapShape().get().getValue().getTarget());
+                        member = this.currentShape.asMapShape().get().getValue();
 
                         writer.write("$S: ", keyNode.getValue());
-                        valueGen.writeShapeValueInline(writer, memberShape, valueNode);
+                        valueGen.writeMemberValueInline(writer, member, valueNode);
                         writer.write(",");
                         break;
 
@@ -412,14 +442,7 @@ public final class ShapeValueGenerator {
          */
         @Override
         public Void nullNode(NullNode node) {
-            if (currentShape.getType() == ShapeType.STRING && currentShape.hasTrait(EnumTrait.class)) {
-                Symbol enumSymbol = symbolProvider.toSymbol(currentShape);
-                writer.writeInline("$T($S)", enumSymbol, "");
-            } else {
-                writer.writeInline("nil");
-            }
-
-            return null;
+            throw new CodegenException("unexpected null node walked, should not be encountered in walker");
         }
 
         /**

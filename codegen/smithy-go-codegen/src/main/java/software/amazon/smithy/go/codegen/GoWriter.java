@@ -346,7 +346,7 @@ public final class GoWriter extends CodeWriter {
                 if (isSlice || isMap) {
                     resolvedSymbol = resolvedSymbol.getProperty(SymbolUtils.GO_ELEMENT_TYPE, Symbol.class)
                             .orElseThrow(() -> new CodegenException("Expected go element type property to be defined"));
-                    literal = apply(resolvedSymbol, indent);
+                    literal = new PointableGoSymbolFormatter().apply(resolvedSymbol, "nested");
                 } else if (!SymbolUtils.isUniverseType(resolvedSymbol)
                         && isExternalNamespace(resolvedSymbol.getNamespace())) {
                     literal = formatWithNamespace(resolvedSymbol);
