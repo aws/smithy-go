@@ -35,6 +35,10 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.EndpointTrait;
 
+/**
+ * EndpointHostPrefixMiddleware adds middlewares to identify
+ * a host prefix and mutate the request URL host if permitted.
+**/
 public class EndpointHostPrefixMiddleware implements GoIntegration {
 
     private static final MiddlewareIdentifier MIDDLEWARE_ID = MiddlewareIdentifier.string("EndpointHostPrefix");
@@ -84,10 +88,9 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
                         middlewareHelperName,
                         () -> {
                             writer.write(
-                                    "return stack.Serialize.Insert(&$L{}, `OperationSerializer`, middleware.Before)",
+                                    "return stack.Serialize.Insert(&$L{}, `OperationSerializer`, middleware.After)",
                                     middlewareName);
                         });
-
             });
         });
     }
@@ -109,7 +112,8 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
             writer.addUseImports(SmithyGoDependency.FMT);
 
-            w.openBlock("if smithyhttp.GetHostnameImmutable(ctx) {", "}", () -> {
+            w.openBlock("if smithyhttp.GetHostnameImmutable(ctx) || "
+                    + "smithyhttp.IsEndpointHostPrefixDisabled(ctx) {", "}", () -> {
                 w.write("return next.$L(ctx, in)", generator.getHandleMethodName());
             }).write("");
 
@@ -119,8 +123,7 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
             }).write("");
 
             if (pattern.getLabels().isEmpty()) {
-                w.write("req.HostPrefix = $S", pattern.toString());
-
+                w.write("req.URL.Host = $S + req.URL.Host", pattern.toString());
             } else {
                 // If the pattern has labels, we need to build up the host prefix using a string builder.
                 writer.addUseImports(SmithyGoDependency.STRINGS);
@@ -156,8 +159,7 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
                         });
                     }
                 }
-
-                w.write("req.HostPrefix = prefix.String()");
+                w.write("req.URL.Host = prefix.String() + req.URL.Host");
             }
             w.write("");
 

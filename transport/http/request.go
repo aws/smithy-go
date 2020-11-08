@@ -18,7 +18,6 @@ type Request struct {
 	stream           io.Reader
 	isStreamSeekable bool
 	streamStartPos   int64
-	HostPrefix       string
 }
 
 // NewStackRequest returns an initialized request ready to populated with the
@@ -127,7 +126,7 @@ func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
 
 // Build returns a build standard HTTP request value from the Smithy request.
 // The request's stream is wrapped in a safe container that allows it to be
-// reused for subsiquent attempts.
+// reused for subsequent attempts.
 func (r *Request) Build(ctx context.Context) *http.Request {
 	req := r.Request.Clone(ctx)
 
@@ -137,11 +136,6 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 		// we update the content-length to 0,
 		// if request stream was not set.
 		req.ContentLength = 0
-	}
-
-	// Add the host prefix
-	if len(r.HostPrefix) != 0 {
-		req.URL.Host = r.HostPrefix + req.URL.Host
 	}
 
 	return req
