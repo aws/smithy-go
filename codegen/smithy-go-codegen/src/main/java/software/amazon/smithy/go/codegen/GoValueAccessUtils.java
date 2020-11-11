@@ -206,7 +206,6 @@ public final class GoValueAccessUtils {
         } else if (container instanceof CollectionShape || container.getType() == ShapeType.MAP) {
             // Always serialize values in map/list/sets, no additional check, which means that the
             // lambda will not be run, because there is no zero value to check against.
-            // TODO [denseListMap] this probably be wrong for map[string]string for headers.
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if len(%s) == 0 {", operand);
             } else {

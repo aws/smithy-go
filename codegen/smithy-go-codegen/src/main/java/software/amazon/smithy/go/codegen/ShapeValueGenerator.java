@@ -191,7 +191,6 @@ public final class ShapeValueGenerator {
                 writer.writeInline("}");
             });
 
-            // TODO [denseListMap] should this be simplified to just first?
             return;
         }
     }

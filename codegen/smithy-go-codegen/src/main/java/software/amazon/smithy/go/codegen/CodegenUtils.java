@@ -156,11 +156,6 @@ public final class CodegenUtils {
      */
     public static String asAddressIfAddressable(GoPointableIndex pointableIndex, Shape shape, String operand) {
         boolean shouldAddress = pointableIndex.isPointable(shape) && shape.getType() == ShapeType.STRUCTURE;
-        // TODO [denseListMap] is this supposed to be done for union members?
-        //if (context.getModel().expectShape(member.getContainer()).isUnionShape()) {
-        //    Shape target = context.getModel().expectShape(member.getTarget());
-        //    shouldDereference &= ProtocolUtils.usesScalarWhenUnionValue(target);
-        //}
         return shouldAddress ? "&" + operand : operand;
     }
 
