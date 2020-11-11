@@ -17,15 +17,13 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.PaginatedIndex;
 import software.amazon.smithy.model.knowledge.PaginationInfo;
@@ -43,7 +41,7 @@ public class Paginators implements GoIntegration {
             GoSettings settings,
             Model model,
             SymbolProvider symbolProvider,
-            TriConsumer<String, String, Consumer<GoWriter>> writerFactory
+            GoDelegator goDelegator
     ) {
         ServiceShape serviceShape = settings.getService(model);
 
@@ -51,21 +49,15 @@ public class Paginators implements GoIntegration {
 
         TopDownIndex topDownIndex = TopDownIndex.of(model);
 
-        List<PaginationInfo> paginationInfos = topDownIndex.getContainedOperations(serviceShape).stream()
+        topDownIndex.getContainedOperations(serviceShape).stream()
                 .map(operationShape -> paginatedIndex.getPaginationInfo(serviceShape, operationShape))
                 .filter(Optional::isPresent)
-                .map(paginationInfo -> paginationInfo.get())
-                .collect(Collectors.toList());
-
-        if (paginationInfos.size() == 0) {
-            return;
-        }
-
-        writerFactory.accept("paginators.go", settings.getModuleName(), writer -> {
-            paginationInfos.forEach((paginationInfo) -> {
-                generateOperationPaginator(model, symbolProvider, writer, paginationInfo);
-            });
-        });
+                .map(Optional::get)
+                .forEach(paginationInfo -> {
+                    goDelegator.useShapeWriter(paginationInfo.getOperation(), writer -> {
+                        generateOperationPaginator(model, symbolProvider, writer, paginationInfo);
+                    });
+                });
     }
 
     private void generateOperationPaginator(
@@ -76,6 +68,7 @@ public class Paginators implements GoIntegration {
     ) {
         Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
         Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
+        Symbol inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
         Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
         Optional<MemberShape> pageSizeMember = paginationInfo.getPageSizeMember();
 
@@ -87,9 +80,10 @@ public class Paginators implements GoIntegration {
                 paginatorSymbol.getName())).build();
 
         writeClientOperationInterface(writer, operationSymbol, inputSymbol, outputSymbol, interfaceSymbol);
-        writePaginatorOptions(model, symbolProvider, writer, operationSymbol, pageSizeMember, optionsSymbol);
-        writePaginator(symbolProvider, writer, paginationInfo, operationSymbol, inputSymbol, outputSymbol,
-                pageSizeMember, interfaceSymbol, paginatorSymbol, optionsSymbol);
+        writePaginatorOptions(model, symbolProvider, writer, operationSymbol, pageSizeMember.orElse(null),
+                optionsSymbol);
+        writePaginator(symbolProvider, writer, paginationInfo, operationSymbol, inputSymbol, inputTokenSymbol,
+                outputSymbol, pageSizeMember.orElse(null), interfaceSymbol, paginatorSymbol, optionsSymbol);
     }
 
     private void writePaginator(
@@ -98,8 +92,9 @@ public class Paginators implements GoIntegration {
             PaginationInfo paginationInfo,
             Symbol operationSymbol,
             Symbol inputSymbol,
+            Symbol inputTokenSymbol,
             Symbol outputSymbol,
-            Optional<MemberShape> pageSizeMember,
+            MemberShape pageSizeMember,
             Symbol interfaceSymbol,
             Symbol paginatorSymbol,
             Symbol optionsSymbol
@@ -111,9 +106,8 @@ public class Paginators implements GoIntegration {
             writer.write("options $T", optionsSymbol);
             writer.write("client $T", interfaceSymbol);
             writer.write("params $P", inputSymbol);
-            writer.write("nextToken *string");
+            writer.write("nextToken $P", inputTokenSymbol);
             writer.write("firstPage bool");
-            writer.write("done bool");
         });
         writer.write("");
 
@@ -126,7 +120,9 @@ public class Paginators implements GoIntegration {
                     writer.openBlock("for _, fn := range optFns {", "}", () -> {
                         writer.write("fn(&options)");
                     });
-
+                    writer.write("");
+                    writer.openBlock("if params == nil {", "}", () -> writer.write("params = &$T{}", inputSymbol));
+                    writer.write("");
                     writer.openBlock("return &$T{", "}", paginatorSymbol, () -> {
                         writer.write("options: options,");
                         writer.write("client: client,");
@@ -138,8 +134,7 @@ public class Paginators implements GoIntegration {
 
         writer.writeDocs("HasMorePages returns a boolean indicating whether more pages are available");
         writer.openBlock("func (p $P) HasMorePages() bool {", "}", paginatorSymbol, () -> {
-            writer.openBlock("if p.done {", "}", () -> writer.write("return false"));
-            writer.write("return p.firstPage || (p.nextToken != nil && len(*p.nextToken) > 0)");
+            writer.write("return p.firstPage || p.nextToken != nil");
         });
         writer.write("");
 
@@ -155,8 +150,9 @@ public class Paginators implements GoIntegration {
                     writer.write("");
                     writer.write("params := *p.params");
                     writer.write("params.$L = p.nextToken", inputMember);
-                    pageSizeMember.ifPresent(memberShape -> writer.write("params.$L = p.options.Limit",
-                            symbolProvider.toMemberName(memberShape)));
+                    if (pageSizeMember != null) {
+                        writer.write("params.$L = p.options.Limit", symbolProvider.toMemberName(pageSizeMember));
+                    }
 
                     writer.write("result, err := p.client.$L(ctx, &params, optFns...)",
                             operationSymbol.getName());
@@ -195,9 +191,8 @@ public class Paginators implements GoIntegration {
 
                     writer.openBlock("if p.options.StopOnDuplicateToken && "
                             + "params.$L != nil && p.nextToken != nil && "
-                            + "*params.$L == *p.nextToken {", "", inputMember, inputMember, () -> {
-                        writer.write("p.done = true");
-                        writer.openBlock("} else {", "}", () -> writer.write("p.done = false"));
+                            + "*params.$L == *p.nextToken {", "}", inputMember, inputMember, () -> {
+                        writer.write("p.nextToken = nil");
                     });
 
                     writer.write("");
@@ -210,22 +205,21 @@ public class Paginators implements GoIntegration {
             SymbolProvider symbolProvider,
             GoWriter writer,
             Symbol operationSymbol,
-            Optional<MemberShape> pageSizeMember,
+            MemberShape pageSizeMember,
             Symbol optionsSymbol
     ) {
         writer.writeDocs(String.format("%s is the paginator options for %s", optionsSymbol.getName(),
                 operationSymbol.getName()));
         writer.openBlock("type $T struct {", "}", optionsSymbol, () -> {
-            pageSizeMember.ifPresent(memberShape -> {
-                MemberShape limitShape = pageSizeMember.get();
-                limitShape.getMemberTrait(model, DocumentationTrait.class).ifPresent(documentationTrait -> {
+            if (pageSizeMember != null) {
+                pageSizeMember.getMemberTrait(model, DocumentationTrait.class).ifPresent(documentationTrait -> {
                     writer.writeDocs(documentationTrait.getValue());
                 });
-                writer.write("Limit $P", symbolProvider.toSymbol(limitShape));
+                writer.write("Limit $P", symbolProvider.toSymbol(pageSizeMember));
                 writer.write("");
-            });
-            writer.writeDocs("Set to true if pagination should stop if the service returns "
-                    + "the same taken passed to it");
+            }
+            writer.writeDocs("Set to true if pagination should stop if the service returns a pagination token that "
+                    + "matches the most recent token provided to the service.");
             writer.write("StopOnDuplicateToken bool");
         });
         writer.write("");
@@ -251,4 +245,6 @@ public class Paginators implements GoIntegration {
         writer.write("var _ $T = (*Client)(nil)", interfaceSymbol);
         writer.write("");
     }
+
+
 }
