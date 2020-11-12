@@ -67,10 +67,6 @@ public class Paginators implements GoIntegration {
             PaginationInfo paginationInfo
     ) {
         Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
-        Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
-        Symbol inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
-        Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
-        Optional<MemberShape> pageSizeMember = paginationInfo.getPageSizeMember();
 
         Symbol interfaceSymbol = SymbolUtils.createValueSymbolBuilder(String.format("%sAPIClient",
                 operationSymbol.getName())).build();
@@ -79,27 +75,25 @@ public class Paginators implements GoIntegration {
         Symbol optionsSymbol = SymbolUtils.createPointableSymbolBuilder(String.format("%sOptions",
                 paginatorSymbol.getName())).build();
 
-        writeClientOperationInterface(writer, operationSymbol, inputSymbol, outputSymbol, interfaceSymbol);
-        writePaginatorOptions(model, symbolProvider, writer, operationSymbol, pageSizeMember.orElse(null),
-                optionsSymbol);
-        writePaginator(symbolProvider, writer, paginationInfo, operationSymbol, inputSymbol, inputTokenSymbol,
-                outputSymbol, pageSizeMember.orElse(null), interfaceSymbol, paginatorSymbol, optionsSymbol);
+        writeClientOperationInterface(writer, symbolProvider, paginationInfo, interfaceSymbol);
+        writePaginatorOptions(writer, model, symbolProvider, paginationInfo, operationSymbol, optionsSymbol);
+        writePaginator(writer, model, symbolProvider, paginationInfo, interfaceSymbol, paginatorSymbol, optionsSymbol);
     }
 
     private void writePaginator(
-            SymbolProvider symbolProvider,
             GoWriter writer,
+            Model model,
+            SymbolProvider symbolProvider,
             PaginationInfo paginationInfo,
-            Symbol operationSymbol,
-            Symbol inputSymbol,
-            Symbol inputTokenSymbol,
-            Symbol outputSymbol,
-            MemberShape pageSizeMember,
             Symbol interfaceSymbol,
             Symbol paginatorSymbol,
             Symbol optionsSymbol
     ) {
         String inputMember = symbolProvider.toMemberName(paginationInfo.getInputTokenMember());
+
+        Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
+        Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
+        Symbol inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
 
         writer.writeDocs(String.format("%s is a paginator for %s", paginatorSymbol, operationSymbol));
         writer.openBlock("type $T struct {", "}", paginatorSymbol, () -> {
@@ -140,6 +134,9 @@ public class Paginators implements GoIntegration {
 
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT)
                 .build();
+        Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
+        Optional<MemberShape> pageSizeMember = paginationInfo.getPageSizeMember();
+
         writer.writeDocs(String.format("NextPage retrieves the next %s page.", operationSymbol.getName()));
         writer.openBlock("func (p $P) NextPage(ctx $T, optFns ...func(*Options)) ($P, error) {", "}",
                 paginatorSymbol, contextSymbol, outputSymbol, () -> {
@@ -150,9 +147,10 @@ public class Paginators implements GoIntegration {
                     writer.write("");
                     writer.write("params := *p.params");
                     writer.write("params.$L = p.nextToken", inputMember);
-                    if (pageSizeMember != null) {
-                        writer.write("params.$L = p.options.Limit", symbolProvider.toMemberName(pageSizeMember));
-                    }
+
+                    pageSizeMember.ifPresent(memberShape -> {
+                        writer.write("params.$L = p.options.Limit", symbolProvider.toMemberName(pageSizeMember.get()));
+                    });
 
                     writer.write("result, err := p.client.$L(ctx, &params, optFns...)",
                             operationSymbol.getName());
@@ -164,7 +162,7 @@ public class Paginators implements GoIntegration {
                     StringBuilder nilGuard = new StringBuilder();
                     StringBuilder outputPath = new StringBuilder("result");
 
-                    List<MemberShape> outputMemberPath = paginationInfo.getOutputTokenPath();
+                    List<MemberShape> outputMemberPath = paginationInfo.getOutputTokenMemberPath();
                     for (int i = 0; i < outputMemberPath.size(); i++) {
                         MemberShape memberShape = outputMemberPath.get(i);
                         outputPath.append(".");
@@ -180,20 +178,26 @@ public class Paginators implements GoIntegration {
                         }
                     }
 
+                    writer.write("prevToken := p.nextToken");
                     Runnable setToken = () -> {
                         writer.write("p.nextToken = $L", outputPath);
                     };
                     if (nilGuard.length() > 0) {
+                        writer.write("p.nextToken = nil");
                         writer.openBlock("if $L {", "}", nilGuard.toString(), setToken::run);
                     } else {
                         setToken.run();
                     }
 
-                    writer.openBlock("if p.options.StopOnDuplicateToken && "
-                            + "params.$L != nil && p.nextToken != nil && "
-                            + "*params.$L == *p.nextToken {", "}", inputMember, inputMember, () -> {
-                        writer.write("p.nextToken = nil");
-                    });
+                    if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
+                        writer.openBlock("if p.options.StopOnDuplicateToken && "
+                                + "prevToken != nil && p.nextToken != nil && "
+                                + "*prevToken == *p.nextToken {", "}", () -> {
+                            writer.write("p.nextToken = nil");
+                        });
+                    } else {
+                        writer.write("_ = prevToken");
+                    }
 
                     writer.write("");
                     writer.write("return result, nil");
@@ -201,39 +205,44 @@ public class Paginators implements GoIntegration {
     }
 
     private void writePaginatorOptions(
+            GoWriter writer,
             Model model,
             SymbolProvider symbolProvider,
-            GoWriter writer,
+            PaginationInfo paginationInfo,
             Symbol operationSymbol,
-            MemberShape pageSizeMember,
             Symbol optionsSymbol
     ) {
         writer.writeDocs(String.format("%s is the paginator options for %s", optionsSymbol.getName(),
                 operationSymbol.getName()));
         writer.openBlock("type $T struct {", "}", optionsSymbol, () -> {
-            if (pageSizeMember != null) {
-                pageSizeMember.getMemberTrait(model, DocumentationTrait.class).ifPresent(documentationTrait -> {
+            paginationInfo.getPageSizeMember().ifPresent(memberShape -> {
+                memberShape.getMemberTrait(model, DocumentationTrait.class).ifPresent(documentationTrait -> {
                     writer.writeDocs(documentationTrait.getValue());
                 });
-                writer.write("Limit $P", symbolProvider.toSymbol(pageSizeMember));
+                writer.write("Limit $P", symbolProvider.toSymbol(memberShape));
                 writer.write("");
+            });
+            if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
+                writer.writeDocs("Set to true if pagination should stop if the service returns a pagination token that "
+                        + "matches the most recent token provided to the service.");
+                writer.write("StopOnDuplicateToken bool");
             }
-            writer.writeDocs("Set to true if pagination should stop if the service returns a pagination token that "
-                    + "matches the most recent token provided to the service.");
-            writer.write("StopOnDuplicateToken bool");
         });
         writer.write("");
     }
 
     private void writeClientOperationInterface(
             GoWriter writer,
-            Symbol operationSymbol,
-            Symbol inputSymbol,
-            Symbol outputSymbol,
+            SymbolProvider symbolProvider,
+            PaginationInfo paginationInfo,
             Symbol interfaceSymbol
     ) {
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT)
                 .build();
+
+        Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
+        Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
+        Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
 
         writer.writeDocs(String.format("%s is a client that implements the %s operation.",
                 interfaceSymbol.getName(), operationSymbol.getName()));
