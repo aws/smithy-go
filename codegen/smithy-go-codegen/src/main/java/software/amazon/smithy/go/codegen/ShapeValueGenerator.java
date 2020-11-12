@@ -61,7 +61,7 @@ public final class ShapeValueGenerator {
     public ShapeValueGenerator(Model model, SymbolProvider symbolProvider) {
         this.model = model;
         this.symbolProvider = symbolProvider;
-        this.pointableIndex = new GoPointableIndex(model);
+        this.pointableIndex = GoPointableIndex.of(model);
     }
 
     /**
@@ -76,8 +76,8 @@ public final class ShapeValueGenerator {
             writer.writeInline("nil");
         }
 
-        // Struct shapes are special since they are the only shape that may not have a member reference
-        // pointing to them since they are top level shapes.
+        // Input/output struct top level shapes are special since they are the only shape that can be used directly,
+        // not within the context of a member shape reference.
         Symbol symbol = symbolProvider.toSymbol(shape);
         writer.write("&$T{", symbol);
         params.accept(new ShapeValueNodeVisitor(writer, this, shape));
@@ -112,8 +112,6 @@ public final class ShapeValueGenerator {
 
         switch (targetShape.getType()) {
             case STRUCTURE:
-                // Struct shapes are special since they are the only shape that may not have a member reference
-                // pointing to them since they are top level shapes.
                 structDeclShapeValue(writer, member, params);
                 break;
 
@@ -150,11 +148,7 @@ public final class ShapeValueGenerator {
     protected void structDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
         Symbol symbol = symbolProvider.toSymbol(member);
 
-        String addr = "";
-        if (pointableIndex.isPointable(member)) {
-            addr = "&";
-        }
-
+        String addr = CodegenUtils.asAddressIfAddressable(model, pointableIndex, member, "");
         writer.write("$L$T{", addr, symbol);
         params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
         writer.writeInline("}");

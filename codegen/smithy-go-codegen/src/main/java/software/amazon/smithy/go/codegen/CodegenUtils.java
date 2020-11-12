@@ -149,13 +149,24 @@ public final class CodegenUtils {
     /**
      * Returns the operand decorated with an &amp; if the address of the shape type can be taken.
      *
+     * @param model          API model reference
      * @param pointableIndex pointable index
-     * @param shape shape to use
-     * @param operand value to decorate
+     * @param shape          shape to use
+     * @param operand        value to decorate
      * @return updated operand
      */
-    public static String asAddressIfAddressable(GoPointableIndex pointableIndex, Shape shape, String operand) {
-        boolean shouldAddress = pointableIndex.isPointable(shape) && shape.getType() == ShapeType.STRUCTURE;
+    public static String asAddressIfAddressable(
+            Model model,
+            GoPointableIndex pointableIndex,
+            Shape shape,
+            String operand
+    ) {
+        boolean isStruct = shape.getType() == ShapeType.STRUCTURE;
+        if (shape.isMemberShape()) {
+            isStruct = model.expectShape(shape.asMemberShape().get().getTarget()).getType() == ShapeType.STRUCTURE;
+        }
+
+        boolean shouldAddress = pointableIndex.isPointable(shape) && isStruct;
         return shouldAddress ? "&" + operand : operand;
     }
 
@@ -163,8 +174,8 @@ public final class CodegenUtils {
      * Returns the operand decorated with an "*" if the shape is dereferencable.
      *
      * @param pointableIndex knowledge index for if shape is pointable.
-     * @param shape   The shape whose value needs to be read.
-     * @param operand The value to be read from.
+     * @param shape          The shape whose value needs to be read.
+     * @param operand        The value to be read from.
      * @return updated operand
      */
     public static String getAsValueIfDereferencable(
@@ -183,8 +194,8 @@ public final class CodegenUtils {
      * Returns the operand decorated as a pointer type, without creating double pointer.
      *
      * @param pointableIndex knowledge index for if shape is pointable.
-     * @param shape   The shape whose value of the type.
-     * @param operand The value to read.
+     * @param shape          The shape whose value of the type.
+     * @param operand        The value to read.
      * @return updated operand
      */
     public static String getTypeAsTypePointer(
@@ -204,11 +215,11 @@ public final class CodegenUtils {
      * This method can be used by deserializers to get pointer to
      * operand.
      *
-     * @param model model for api.
-     * @param writer  The writer dependencies will be added to, if needed.
+     * @param model          model for api.
+     * @param writer         The writer dependencies will be added to, if needed.
      * @param pointableIndex knowledge index for if shape is pointable.
-     * @param shape   The shape whose value needs to be assigned.
-     * @param operand The Operand is the value to be assigned to the symbol shape.
+     * @param shape          The shape whose value needs to be assigned.
+     * @param operand        The Operand is the value to be assigned to the symbol shape.
      * @return The Operand, along with pointer reference if applicable
      */
     public static String getAsPointerIfPointable(

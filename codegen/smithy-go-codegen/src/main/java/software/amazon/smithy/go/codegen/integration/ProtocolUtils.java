@@ -22,6 +22,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.neighbor.RelationshipType;
@@ -146,8 +147,8 @@ public final class ProtocolUtils {
         Shape targetShape = context.getModel().expectShape(member.getTarget());
         Shape container = context.getModel().expectShape(member.getContainer());
 
-        boolean withAddr = !context.getPointableIndex().isPointable(member)
-                && context.getPointableIndex().isPointable(targetShape);
+        boolean withAddr = !GoPointableIndex.of(context.getModel()).isPointable(member)
+                && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
         boolean isMap = container.getType() == ShapeType.MAP;
 
         String var = origDestVar;
@@ -192,8 +193,8 @@ public final class ProtocolUtils {
         Shape targetShape = context.getModel().expectShape(member.getTarget());
         Shape container = context.getModel().expectShape(member.getContainer());
 
-        boolean withAddr = !context.getPointableIndex().isPointable(member)
-                && context.getPointableIndex().isPointable(targetShape);
+        boolean withAddr = !GoPointableIndex.of(context.getModel()).isPointable(member)
+                && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
         boolean isMap = container.getType() == ShapeType.MAP;
 
         String var = origDestVar;

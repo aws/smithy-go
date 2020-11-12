@@ -37,6 +37,7 @@ import software.amazon.smithy.go.codegen.GoValueAccessUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.NoSerializeTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
@@ -608,7 +609,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // We only need to dereference if we pass the shape around as reference in Go.
         // Note we make two exceptions here: big.Int and big.Float should still be passed as reference to the helper
         // method as they can be arbitrarily large.
-        operand = CodegenUtils.getAsValueIfDereferencable(context.getPointableIndex(), memberShape, operand);
+        operand = CodegenUtils.getAsValueIfDereferencable(GoPointableIndex.of(context.getModel()), memberShape,
+                operand);
 
         switch (targetShape.getType()) {
             case BOOLEAN:
@@ -991,8 +993,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.openBlock("for _, $L := range $L {", "}", operandValue, operand, () -> {
             String value = generateHttpHeaderValue(context, writer, memberShape, binding, operandValue);
             writer.write("list = append(list, $L)",
-                    CodegenUtils.getAsPointerIfPointable(context.getModel(), writer, context.getPointableIndex(),
-                            memberShape, value));
+                    CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
+                            GoPointableIndex.of(context.getModel()), memberShape, value));
         });
         return "list";
     }
@@ -1019,8 +1021,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             case RESPONSE_CODE:
                 writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
                 writer.write("v.$L = $L", memberName,
-                        CodegenUtils.getAsPointerIfPointable(context.getModel(), writer, context.getPointableIndex(),
-                                memberShape, "int32(response.StatusCode)"));
+                        CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
+                                GoPointableIndex.of(context.getModel()), memberShape, "int32(response.StatusCode)"));
                 break;
             default:
                 throw new CodegenException("unexpected http binding found");
@@ -1045,7 +1047,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             operand);
                     writer.write("v.$L = $L", memberName,
                             CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
-                                    context.getPointableIndex(), memberShape, value));
+                                    GoPointableIndex.of(context.getModel()), memberShape, value));
                 });
     }
 
@@ -1082,7 +1084,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                                 binding, operand);
                         writer.write("v.$L[headerKey[lenPrefix:]] = $L", memberName,
                                 CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
-                                        context.getPointableIndex(), valueMemberShape, value));
+                                        GoPointableIndex.of(context.getModel()), valueMemberShape, value));
                     });
         });
     }

@@ -19,6 +19,7 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.function.Consumer;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -57,7 +58,7 @@ public final class GoValueAccessUtils {
         Shape container = context.getModel().expectShape(member.getContainer());
 
         String check = "{";
-        if (context.getPointableIndex().isNillable(member)) {
+        if (GoPointableIndex.of(context.getModel()).isNillable(member)) {
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if %s != nil && len(*%s) > 0 {", operand, operand);
             } else {
@@ -197,7 +198,7 @@ public final class GoValueAccessUtils {
         Shape container = context.getModel().expectShape(member.getContainer());
 
         String check = "{";
-        if (context.getPointableIndex().isNillable(member)) {
+        if (GoPointableIndex.of(context.getModel()).isNillable(member)) {
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if %s == nil || len(*%s) == 0 {", operand, operand);
             } else {

@@ -85,7 +85,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
         this.model = model;
         this.rootModuleName = rootModuleName;
         this.typesPackageName = rootModuleName + "/types";
-        this.pointableIndex = new GoPointableIndex(model);
+        this.pointableIndex = GoPointableIndex.of(model);
 
         // Reserve the generated names for union members, including the unknown case.
         ReservedWordsBuilder reservedNames = new ReservedWordsBuilder()

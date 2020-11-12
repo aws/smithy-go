@@ -20,7 +20,6 @@ package software.amazon.smithy.go.codegen.knowledge;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
-import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.KnowledgeIndex;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
@@ -137,7 +136,7 @@ public class GoPointableIndex implements KnowledgeIndex {
     }
 
     public static GoPointableIndex of(Model model) {
-        return new GoPointableIndex(model);
+        return model.getKnowledge(GoPointableIndex.class, GoPointableIndex::new);
     }
 
     private boolean isMemberDereferencable(MemberShape member, Shape targetShape) {
@@ -200,14 +199,6 @@ public class GoPointableIndex implements KnowledgeIndex {
     }
 
     private boolean isOperationStruct(Shape shape) {
-        if (!shape.isStructureShape()) {
-            return false;
-        }
-
-        if (!shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
-            return false;
-        }
-
         NeighborProvider provider = NeighborProviderIndex.of(model).getReverseProvider();
         for (Relationship relationship : provider.getNeighbors(shape)) {
             RelationshipType relationshipType = relationship.getRelationshipType();
@@ -215,6 +206,7 @@ public class GoPointableIndex implements KnowledgeIndex {
                 return true;
             }
         }
+
         return false;
     }
 
