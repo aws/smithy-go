@@ -131,17 +131,17 @@ public final class ProtocolUtils {
      * Wraps the protocol's delegation function changing the destination variable to a double pointer if the
      * shape type is not pointable.
      *
-     * @param context     generation context
-     * @param writer      go writer
-     * @param member      shape to determine if pointable
-     * @param origDestVar original variable name
-     * @param lambda      runnable
+     * @param context         generation context
+     * @param writer          go writer
+     * @param member          shape to determine if pointable
+     * @param origDestOperand original variable name
+     * @param lambda          runnable
      */
     public static void writeDeserDelegateFunction(
             GenerationContext context,
             GoWriter writer,
             MemberShape member,
-            String origDestVar,
+            String origDestOperand,
             Consumer<String> lambda
     ) {
         Shape targetShape = context.getModel().expectShape(member.getTarget());
@@ -151,25 +151,25 @@ public final class ProtocolUtils {
                 && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
         boolean isMap = container.getType() == ShapeType.MAP;
 
-        String var = origDestVar;
+        String destOperand = origDestOperand;
         if (isMap) {
-            writer.write("mapVar := $L", origDestVar);
-            var = "mapVar";
+            writer.write("mapVar := $L", origDestOperand);
+            destOperand = "mapVar";
         }
 
         if (withAddr) {
-            writer.write("destAddr := &$L", var);
-            var = "destAddr";
+            writer.write("destAddr := &$L", destOperand);
+            destOperand = "destAddr";
         }
 
-        lambda.accept(var);
+        lambda.accept(destOperand);
 
         if (isMap || withAddr) {
             if (withAddr) {
-                var = "*" + var;
+                destOperand = "*" + destOperand;
             }
 
-            writer.write("$L = $L", origDestVar, var);
+            writer.write("$L = $L", origDestOperand, destOperand);
         }
     }
 
@@ -177,17 +177,17 @@ public final class ProtocolUtils {
      * Writes helper variables for the delegation function to ensure that map values are safely delegated down
      * each level.
      *
-     * @param context     generation context
-     * @param writer      go writer
-     * @param member      shape to determine if pointable
-     * @param origDestVar original variable name
-     * @param lambda      runnable
+     * @param context         generation context
+     * @param writer          go writer
+     * @param member          shape to determine if pointable
+     * @param origDestOperand original variable name
+     * @param lambda          runnable
      */
     public static void writeSerDelegateFunction(
             GenerationContext context,
             GoWriter writer,
             MemberShape member,
-            String origDestVar,
+            String origDestOperand,
             Consumer<String> lambda
     ) {
         Shape targetShape = context.getModel().expectShape(member.getTarget());
@@ -197,15 +197,15 @@ public final class ProtocolUtils {
                 && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
         boolean isMap = container.getType() == ShapeType.MAP;
 
-        String var = origDestVar;
+        String destOperand = origDestOperand;
         if (isMap && withAddr) {
-            writer.write("mapVar := $L", origDestVar);
-            var = "mapVar";
+            writer.write("mapVar := $L", origDestOperand);
+            destOperand = "mapVar";
         }
 
-        String acceptVar = var;
+        String acceptVar = destOperand;
         if (withAddr) {
-            acceptVar = "&" + var;
+            acceptVar = "&" + destOperand;
         }
 
         lambda.accept(acceptVar);
