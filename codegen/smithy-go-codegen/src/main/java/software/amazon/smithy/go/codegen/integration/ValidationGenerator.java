@@ -40,6 +40,7 @@ import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -47,10 +48,12 @@ import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -126,13 +129,19 @@ public class ValidationGenerator implements GoIntegration {
             Set<Shape> operationInputShapes,
             Set<Shape> shapesWithHelpers
     ) {
+        GoPointableIndex pointableIndex = GoPointableIndex.of(model);
+
         for (Shape shape : shapesWithHelpers) {
             boolean topLevelShape = operationInputShapes.contains(shape);
             String functionName = getShapeValidationFunctionName(shape, topLevelShape);
             Symbol shapeSymbol = symbolProvider.toSymbol(shape);
             writer.openBlock("func $L(v $P) error {", "}", functionName, shapeSymbol, () -> {
                 writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.openBlock("if v == nil {", "}", () -> writer.write("return nil"));
+
+                if (pointableIndex.isNillable(shape)) {
+                    writer.openBlock("if v == nil {", "}", () -> writer.write("return nil"));
+                }
+
                 writer.write("invalidParams := smithy.InvalidParamsError{Context: $S}", shapeSymbol.getName());
                 switch (shape.getType()) {
                     case STRUCTURE:
@@ -142,19 +151,26 @@ public class ValidationGenerator implements GoIntegration {
                             boolean required = GoValidationIndex.isRequiredParameter(model, memberShape, topLevelShape);
                             boolean hasHelper = shapesWithHelpers.contains(targetShape);
                             boolean isEnum = targetShape.getTrait(EnumTrait.class).isPresent();
+
                             if (required) {
+                                Runnable runnable = () -> {
+                                    writer.write("invalidParams.Add(smithy.NewErrParamRequired($S))", memberName);
+                                    if (hasHelper) {
+                                        writer.writeInline("} else ");
+                                    } else {
+                                        writer.write("}");
+                                    }
+                                };
+
                                 if (isEnum) {
                                     writer.write("if len(v.$L) == 0 {", memberName);
-                                } else {
+                                    runnable.run();
+                                } else if (pointableIndex.isNillable(memberShape)) {
                                     writer.write("if v.$L == nil {", memberName);
-                                }
-                                writer.write("invalidParams.Add(smithy.NewErrParamRequired($S))", memberName);
-                                if (hasHelper) {
-                                    writer.writeInline("} else ");
-                                } else {
-                                    writer.write("}");
+                                    runnable.run();
                                 }
                             }
+
                             if (hasHelper) {
                                 Runnable runnable = () -> {
                                     String helperName = getShapeValidationFunctionName(targetShape, false);
@@ -166,42 +182,59 @@ public class ValidationGenerator implements GoIntegration {
                                                         memberName);
                                             });
                                 };
+
                                 if (isEnum) {
                                     writer.openBlock("if len(v.$L) > 0 {", "}", memberName, runnable);
-                                } else {
+                                } else if (pointableIndex.isNillable(memberShape)) {
                                     writer.openBlock("if v.$L != nil {", "}", memberName, runnable);
                                 }
-
                             }
                         });
                         break;
+
                     case LIST:
                     case SET:
-                        String helperName = getShapeValidationFunctionName(model.expectShape(((CollectionShape) shape)
-                                .getMember().getTarget()), false);
+                        CollectionShape collectionShape = CodegenUtils.expectCollectionShape(shape);
+                        MemberShape member = collectionShape.getMember();
+                        Shape memberTarget = model.expectShape(member.getTarget());
+                        String helperName = getShapeValidationFunctionName(memberTarget, false);
+
                         writer.openBlock("for i := range v {", "}", () -> {
-                            writer.openBlock("if err := $L(v[i]); err != nil {", "}", helperName, () -> {
+                            String addr = "";
+                            if (!pointableIndex.isPointable(member) && pointableIndex.isPointable(memberTarget)) {
+                                addr = "&";
+                            }
+                            writer.openBlock("if err := $L($Lv[i]); err != nil {", "}", helperName, addr, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
-                                writer.write(
-                                        "invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), "
+                                writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), "
                                                 + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
+
                     case MAP:
-                        helperName = getShapeValidationFunctionName(model.expectShape(((MapShape) shape).getValue()
-                                .getTarget()), false);
+                        MapShape mapShape = shape.asMapShape().get();
+                        MemberShape mapValue = mapShape.getValue();
+                        Shape valueTarget = model.expectShape(mapValue.getTarget());
+                        helperName = getShapeValidationFunctionName(valueTarget, false);
+
                         writer.openBlock("for key := range v {", "}", () -> {
-                            writer.openBlock("if err := $L(v[key]); err != nil {", "}", helperName, () -> {
+                            String valueVar = "v[key]";
+                            if (!pointableIndex.isPointable(mapValue) && pointableIndex.isPointable(valueTarget)) {
+                                writer.write("value := $L", valueVar);
+                                valueVar = "&value";
+                            }
+                            writer.openBlock("if err := $L($L); err != nil {", "}", helperName, valueVar, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
-                                writer.write(
-                                        "invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), "
+                                writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), "
                                                 + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
+
                     case UNION:
                         // TODO: Implement Union support
+
                     default:
                         throw new CodegenException("Unexpected validation helper shape type " + shape.getType());
                 }

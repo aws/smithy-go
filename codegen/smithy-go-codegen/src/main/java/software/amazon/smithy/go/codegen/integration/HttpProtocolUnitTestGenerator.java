@@ -35,8 +35,8 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -56,9 +56,9 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final ServiceShape service;
     protected final OperationShape operation;
     protected final Symbol opSymbol;
-    protected final Shape inputShape;
+    protected final StructureShape inputShape;
     protected final Symbol inputSymbol;
-    protected final Shape outputShape;
+    protected final StructureShape outputShape;
     protected final Symbol outputSymbol;
     protected final String protocolName;
     protected final Set<ConfigValue> clientConfigValues = new TreeSet<>();
@@ -82,11 +82,13 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         opSymbol = symbolProvider.toSymbol(operation);
 
         inputShape = model.expectShape(operation.getInput()
-                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
+                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())),
+                StructureShape.class);
         inputSymbol = symbolProvider.toSymbol(inputShape);
 
         outputShape = model.expectShape(operation.getOutput()
-                .orElseThrow(() -> new CodegenException("missing output shape for operation: " + operation.getId())));
+                .orElseThrow(() -> new CodegenException("missing output shape for operation: " + operation.getId())),
+                StructureShape.class);
         outputSymbol = symbolProvider.toSymbol(outputShape);
     }
 
@@ -284,7 +286,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param shape  the shape the field member.
      * @param params the node of values to fill the member with.
      */
-    protected void writeStructField(GoWriter writer, String field, Shape shape, ObjectNode params) {
+    protected void writeStructField(GoWriter writer, String field, StructureShape shape, ObjectNode params) {
         writer.writeInline("$L: ", field);
         writeShapeValueInline(writer, shape, params);
         writer.write(",");
@@ -545,9 +547,9 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param shape  shape of the value type to be created.
      * @param params values to initialize shape type with.
      */
-    protected void writeShapeValueInline(GoWriter writer, Shape shape, ObjectNode params) {
+    protected void writeShapeValueInline(GoWriter writer, StructureShape shape, ObjectNode params) {
         new ShapeValueGenerator(model, symbolProvider)
-                .writeShapeValueInline(writer, shape, params);
+                .writePointableStructureShapeValueInline(writer, shape, params);
     }
 
     /**
@@ -744,12 +746,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     public static class SkipTest implements Comparable<SkipTest> {
         private final ShapeId service;
         private final ShapeId operation;
-        private final String testName;
+        private final List<String> testNames;
 
         SkipTest(Builder builder) {
             this.service = SmithyBuilder.requiredState("service id", builder.service);
             this.operation = SmithyBuilder.requiredState("operation id", builder.operation);
-            this.testName = builder.testName;
+            this.testNames = builder.testNames;
         }
 
         /**
@@ -771,12 +773,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         }
 
         /**
-         * Get the name of the test the skip test applies to.
+         * Get the names of the tests the skip test applies to.
          *
          * @return the name of the test to skip
          */
-        public String getTestName() {
-            return testName;
+        public List<String> getTestNames() {
+            return testNames;
         }
 
         /**
@@ -798,11 +800,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             }
 
             // SkipTests not for specific test should not match this check.
-            if (this.testName == null || this.testName.length() == 0) {
+            if (this.testNames.isEmpty()) {
                 return false;
             }
 
-            return this.testName.equals(testName);
+            return this.testNames.contains(testName);
         }
 
         /**
@@ -823,7 +825,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             }
 
             // SkipTests for specific test should not match this check.
-            return (this.testName == null || this.testName.length() == 0);
+            return this.testNames.isEmpty();
         }
 
         public static Builder builder() {
@@ -848,12 +850,12 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             SkipTest that = (SkipTest) o;
             return Objects.equals(getService(), that.getService())
                     && Objects.equals(getOperation(), that.getOperation())
-                    && Objects.equals(getTestName(), that.getTestName());
+                    && Objects.equals(getTestNames(), that.getTestNames());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(service, operation, testName);
+            return Objects.hash(service, operation, testNames);
         }
 
         /**
@@ -862,7 +864,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         public static final class Builder implements SmithyBuilder<SkipTest> {
             private ShapeId service;
             private ShapeId operation;
-            private String testName;
+            private List<String> testNames = new ArrayList<>();
 
             private Builder() {
             }
@@ -895,8 +897,8 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
              * @param testName is the name of the test to skip
              * @return the builder
              */
-            public Builder testName(String testName) {
-                this.testName = testName;
+            public Builder addTestName(String testName) {
+                this.testNames.add(testName);
                 return this;
             }
 

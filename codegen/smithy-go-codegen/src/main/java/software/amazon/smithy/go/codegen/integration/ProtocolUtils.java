@@ -19,9 +19,10 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.neighbor.RelationshipType;
@@ -31,10 +32,7 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
-import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.EnumTrait;
-import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SetUtils;
 
 /**
@@ -53,7 +51,8 @@ public final class ProtocolUtils {
             RelationshipType.SET_MEMBER, RelationshipType.MAP_VALUE, RelationshipType.MEMBER_TARGET
     );
 
-    private ProtocolUtils() {}
+    private ProtocolUtils() {
+    }
 
     /**
      * Resolves the entire set of shapes that will require serde given an initial set of shapes.
@@ -92,7 +91,7 @@ public final class ProtocolUtils {
 
     /**
      * Determines whether a document serde function is required for the given shape.
-     *
+     * <p>
      * The following shape types will require a serde function: maps, lists, sets, documents, structures, and unions.
      *
      * @param shape the shape
@@ -105,7 +104,7 @@ public final class ProtocolUtils {
     /**
      * Gets the operation input as a structure shape or throws an exception.
      *
-     * @param model The model that contains the operation.
+     * @param model     The model that contains the operation.
      * @param operation The operation to get the input from.
      * @return The operation's input as a structure shape.
      */
@@ -118,7 +117,7 @@ public final class ProtocolUtils {
     /**
      * Gets the operation output as a structure shape or throws an exception.
      *
-     * @param model The model that contains the operation.
+     * @param model     The model that contains the operation.
      * @param operation The operation to get the output from.
      * @return The operation's output as a structure shape.
      */
@@ -129,51 +128,86 @@ public final class ProtocolUtils {
     }
 
     /**
-     * Safely accesses a given structure member.
+     * Wraps the protocol's delegation function changing the destination variable to a double pointer if the
+     * shape type is not pointable.
      *
-     * @param context The generation context.
-     * @param member The member being accessed.
-     * @param container The name that the structure is assigned to.
-     * @param consumer A string consumer that is given the snippet to access the member value.
+     * @param context         generation context
+     * @param writer          go writer
+     * @param member          shape to determine if pointable
+     * @param origDestOperand original variable name
+     * @param lambda          runnable
      */
-    public static void writeSafeMemberAccessor(
+    public static void writeDeserDelegateFunction(
             GenerationContext context,
+            GoWriter writer,
             MemberShape member,
-            String container,
-            Consumer<String> consumer
+            String origDestOperand,
+            Consumer<String> lambda
     ) {
-        Model model = context.getModel();
-        Shape target = model.expectShape(member.getTarget());
-        String memberName = context.getSymbolProvider().toMemberName(member);
-        String operand = container + "." + memberName;
+        Shape targetShape = context.getModel().expectShape(member.getTarget());
+        Shape container = context.getModel().expectShape(member.getContainer());
 
-        boolean enumShape = target.hasTrait(EnumTrait.class);
+        boolean withAddr = !GoPointableIndex.of(context.getModel()).isPointable(member)
+                && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
+        boolean isMap = container.getType() == ShapeType.MAP;
 
-        if (!enumShape && !CodegenUtils.isNilAssignableToShape(model, member)) {
-            consumer.accept(operand);
-            return;
+        String destOperand = origDestOperand;
+        if (isMap) {
+            writer.write("mapVar := $L", origDestOperand);
+            destOperand = "mapVar";
         }
 
-        String conditionCheck;
-        if (enumShape) {
-            conditionCheck = "len(" + operand + ") > 0";
-        } else {
-            conditionCheck = operand + " != nil";
+        if (withAddr) {
+            writer.write("destAddr := &$L", destOperand);
+            destOperand = "destAddr";
         }
 
-        context.getWriter().openBlock("if $L {", "}", conditionCheck, () -> {
-            consumer.accept(operand);
-        });
+        lambda.accept(destOperand);
+
+        if (isMap || withAddr) {
+            if (withAddr) {
+                destOperand = "*" + destOperand;
+            }
+
+            writer.write("$L = $L", origDestOperand, destOperand);
+        }
     }
 
     /**
-     * Determines whether a given shape will use a scalar when the shape is used as a union value.
+     * Writes helper variables for the delegation function to ensure that map values are safely delegated down
+     * each level.
      *
-     * @param shape the shape to check
-     * @return false if the shape should use pointers
+     * @param context         generation context
+     * @param writer          go writer
+     * @param member          shape to determine if pointable
+     * @param origDestOperand original variable name
+     * @param lambda          runnable
      */
-    public static boolean usesScalarWhenUnionValue(Shape shape) {
-        return !(shape instanceof SimpleShape) || shape.isBlobShape() || shape.hasTrait(EnumTrait.class)
-                || shape.hasTrait(StreamingTrait.class);
+    public static void writeSerDelegateFunction(
+            GenerationContext context,
+            GoWriter writer,
+            MemberShape member,
+            String origDestOperand,
+            Consumer<String> lambda
+    ) {
+        Shape targetShape = context.getModel().expectShape(member.getTarget());
+        Shape container = context.getModel().expectShape(member.getContainer());
+
+        boolean withAddr = !GoPointableIndex.of(context.getModel()).isPointable(member)
+                && GoPointableIndex.of(context.getModel()).isPointable(targetShape);
+        boolean isMap = container.getType() == ShapeType.MAP;
+
+        String destOperand = origDestOperand;
+        if (isMap && withAddr) {
+            writer.write("mapVar := $L", origDestOperand);
+            destOperand = "mapVar";
+        }
+
+        String acceptVar = destOperand;
+        if (withAddr) {
+            acceptVar = "&" + destOperand;
+        }
+
+        lambda.accept(acceptVar);
     }
 }

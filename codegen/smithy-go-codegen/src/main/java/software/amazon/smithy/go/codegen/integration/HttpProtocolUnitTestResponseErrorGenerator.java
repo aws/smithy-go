@@ -26,14 +26,14 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
 
 /**
  * Generates HTTP protocol unit tests for HTTP response API error test cases.
  */
 public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnitTestResponseGenerator {
-    protected final Shape errorShape;
+    protected final StructureShape errorShape;
     protected final Symbol errorSymbol;
 
     /**
@@ -152,7 +152,7 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
     }
 
     public static class Builder extends HttpProtocolUnitTestResponseGenerator.Builder {
-        protected Shape error;
+        protected StructureShape error;
 
         // TODO should be a way not to define these override methods since they are all defined in the base Builder.
         // the return type breaks this though since this builder adds a new builder field.
@@ -187,7 +187,7 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
             return this;
         }
 
-        public Builder error(Shape error) {
+        public Builder error(StructureShape error) {
             this.error = error;
             return this;
         }

@@ -200,9 +200,30 @@ apply ListCities @httpRequestTests([
     }
 ])
 
+integer DefaultInteger
+boolean DefaultBool
+
 structure ListCitiesInput {
     @httpQuery("nextToken")
     nextToken: String,
+
+    @httpQuery("aString")
+    aString: String,
+
+    @httpQuery("defaultBool")
+    defaultBool: DefaultBool,
+
+    @httpQuery("boxedBool")
+    boxedBool: Boolean,
+
+    @httpQuery("defaultNumber")
+    defaultNumber: DefaultInteger,
+
+    @httpQuery("boxedNumber")
+    boxedNumber: Integer,
+
+    @httpQuery("someEnum")
+    someEnum: SimpleYesNo,
 
     @httpQuery("pageSize")
     pageSize: Integer
@@ -211,12 +232,26 @@ structure ListCitiesInput {
 structure ListCitiesOutput {
     nextToken: String,
 
+    someEnum: SimpleYesNo,
+    aString: String,
+    defaultBool: DefaultBool,
+    boxedBool: Boolean,
+    defaultNumber: DefaultInteger,
+    boxedNumber: Integer,
+
     @required
     items: CitySummaries,
+    sparseItems: SparseCitySummaries,
 }
 
 // CitySummaries is a list of CitySummary structures.
 list CitySummaries {
+    member: CitySummary
+}
+
+// CitySummaries is a sparse list of CitySummary structures.
+@sparse
+list SparseCitySummaries {
     member: CitySummary
 }
 
