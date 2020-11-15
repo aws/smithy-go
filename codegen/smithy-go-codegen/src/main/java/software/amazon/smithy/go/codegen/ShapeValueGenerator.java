@@ -32,7 +32,6 @@ import software.amazon.smithy.model.node.NullNode;
 import software.amazon.smithy.model.node.NumberNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
-import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -361,7 +360,7 @@ public final class ShapeValueGenerator {
          */
         @Override
         public Void arrayNode(ArrayNode node) {
-            MemberShape memberShape = ((CollectionShape) this.currentShape).getMember();
+            MemberShape memberShape = CodegenUtils.expectCollectionShape(this.currentShape).getMember();
 
             node.getElements().forEach(element -> {
                 valueGen.writeMemberValueInline(writer, memberShape, element);

@@ -713,7 +713,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     break;
                 case QUERY:
                     if (targetShape instanceof CollectionShape) {
-                        MemberShape collectionMember = ((CollectionShape) targetShape).getMember();
+                        MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape).getMember();
                         writer.openBlock("for i := range $L {", "}", operand, () -> {
                             GoValueAccessUtils.writeIfZeroValue(context, writer, collectionMember,
                                     operand + "[i]", () -> {
@@ -756,7 +756,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             return;
         }
 
-        MemberShape collectionMemberShape = ((CollectionShape) targetShape).getMember();
+        MemberShape collectionMemberShape = CodegenUtils.expectCollectionShape(targetShape).getMember();
         writer.openBlock("for i := range $L {", "}", operand, () -> {
             // Only set non-empty non-nil header values
             String indexedOperand = operand + "[i]";

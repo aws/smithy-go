@@ -57,7 +57,9 @@ public final class GoValueAccessUtils {
         Shape targetShape = context.getModel().expectShape(member.getTarget());
         Shape container = context.getModel().expectShape(member.getContainer());
 
+        // default to empty block for variable scoping with not value check.
         String check = "{";
+
         if (GoPointableIndex.of(context.getModel()).isNillable(member)) {
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if %s != nil && len(*%s) > 0 {", operand, operand);
@@ -67,9 +69,6 @@ public final class GoValueAccessUtils {
         } else if (container instanceof CollectionShape || container.getType() == ShapeType.MAP) {
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if len(%s) > 0 {", operand);
-            } else {
-                // Always serialize values in map/list/sets, no additional check.
-                check = "{";
             }
         } else if (targetShape.hasTrait(EnumTrait.class)) {
             check = String.format("if len(%s) > 0 {", operand);
@@ -82,10 +81,6 @@ public final class GoValueAccessUtils {
 
         } else if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
             check = String.format("if len(%s) > 0 {", operand);
-
-        } else {
-            // default to empty block for variable scoping with not value check.
-            check = "{";
         }
 
         writer.openBlock(check, "}", lambda);

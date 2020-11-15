@@ -81,12 +81,14 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
         opSymbol = symbolProvider.toSymbol(operation);
 
-        inputShape = (StructureShape) model.expectShape(operation.getInput()
-                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
+        inputShape = model.expectShape(operation.getInput()
+                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())),
+                StructureShape.class);
         inputSymbol = symbolProvider.toSymbol(inputShape);
 
-        outputShape = (StructureShape) model.expectShape(operation.getOutput()
-                .orElseThrow(() -> new CodegenException("missing output shape for operation: " + operation.getId())));
+        outputShape = model.expectShape(operation.getOutput()
+                .orElseThrow(() -> new CodegenException("missing output shape for operation: " + operation.getId())),
+                StructureShape.class);
         outputSymbol = symbolProvider.toSymbol(outputShape);
     }
 
