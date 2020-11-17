@@ -17,10 +17,12 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoValueAccessUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -158,36 +160,28 @@ public class Paginators implements GoIntegration {
                         writer.write("return nil, err");
                     });
                     writer.write("p.firstPage = false");
-
-                    StringBuilder nilGuard = new StringBuilder();
-                    StringBuilder outputPath = new StringBuilder("result");
+                    writer.write("");
 
                     List<MemberShape> outputMemberPath = paginationInfo.getOutputTokenMemberPath();
-                    for (int i = 0; i < outputMemberPath.size(); i++) {
-                        MemberShape memberShape = outputMemberPath.get(i);
-                        outputPath.append(".");
-                        outputPath.append(symbolProvider.toMemberName(memberShape));
+                    MemberShape tokenMember = outputMemberPath.get(outputMemberPath.size() - 1);
+                    Consumer<String> setToken = (container) -> {
+                        writer.write("p.nextToken = $L", container + "."
+                                + symbolProvider.toMemberName(tokenMember));
+                    };
 
-                        // Don't need to check the last member here as we won't dereference it
-                        if (i != outputMemberPath.size() - 1) {
-                            if (i != 0) {
-                                nilGuard.append(" && ");
-                            }
-                            nilGuard.append(outputPath);
-                            nilGuard.append(" != nil");
-                        }
+                    for (int i = outputMemberPath.size() - 2; i >= 0; i--) {
+                        MemberShape memberShape = outputMemberPath.get(i);
+                        Consumer<String> inner = setToken;
+                        setToken = (container) -> {
+                            GoValueAccessUtils.writeIfNonZeroValueMember(model, symbolProvider, writer, memberShape,
+                                    container, inner);
+                        };
                     }
 
                     writer.write("prevToken := p.nextToken");
-                    Runnable setToken = () -> {
-                        writer.write("p.nextToken = $L", outputPath);
-                    };
-                    if (nilGuard.length() > 0) {
-                        writer.write("p.nextToken = nil");
-                        writer.openBlock("if $L {", "}", nilGuard.toString(), setToken::run);
-                    } else {
-                        setToken.run();
-                    }
+                    writer.write("p.nextToken = nil");
+                    setToken.accept("result");
+                    writer.write("");
 
                     if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
                         writer.openBlock("if p.options.StopOnDuplicateToken && "
