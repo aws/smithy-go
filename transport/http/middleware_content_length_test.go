@@ -32,8 +32,11 @@ func TestContentLengthMiddleware(t *testing.T) {
 		},
 		"empty stream": {
 			Stream: strings.NewReader(""),
+			ExpectLen: 0,
 		},
-		"nil stream": {},
+		"nil stream": {
+			ExpectLen: 0,
+		},
 		"un-seekable and no length": {
 			Stream:    &basicReader{buf: make([]byte, 10)},
 			ExpectLen: -1,
