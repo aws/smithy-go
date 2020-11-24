@@ -390,33 +390,34 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
-        GoValueAccessUtils.writeIfNonZeroValueMember(context, writer, memberShape, "input", (s) -> {
-            writer.openBlock("if !restEncoder.HasHeader(\"Content-Type\") {", "}", () -> {
-                writer.write("restEncoder.SetHeader(\"Content-Type\").String($S)",
-                        getPayloadShapeMediaType(payloadShape));
-            });
-            writer.write("");
-
-            if (payloadShape.hasTrait(StreamingTrait.class)) {
-                writer.write("payload := $L", s);
-
-            } else if (payloadShape.isBlobShape()) {
-                writer.addUseImports(SmithyGoDependency.BYTES);
-                writer.write("payload := bytes.NewReader($L)", s);
-
-            } else if (payloadShape.isStringShape()) {
-                writer.addUseImports(SmithyGoDependency.STRINGS);
-                writer.write("payload := strings.NewReader(*$L)", s);
-
-            } else {
-                writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, s);
-            }
-
-            writer.openBlock("if request, err = request.SetStream(payload); err != nil {", "}",
-                    () -> {
-                        writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+        GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                memberShape, "input", (s) -> {
+                    writer.openBlock("if !restEncoder.HasHeader(\"Content-Type\") {", "}", () -> {
+                        writer.write("restEncoder.SetHeader(\"Content-Type\").String($S)",
+                                getPayloadShapeMediaType(payloadShape));
                     });
-        });
+                    writer.write("");
+
+                    if (payloadShape.hasTrait(StreamingTrait.class)) {
+                        writer.write("payload := $L", s);
+
+                    } else if (payloadShape.isBlobShape()) {
+                        writer.addUseImports(SmithyGoDependency.BYTES);
+                        writer.write("payload := bytes.NewReader($L)", s);
+
+                    } else if (payloadShape.isStringShape()) {
+                        writer.addUseImports(SmithyGoDependency.STRINGS);
+                        writer.write("payload := strings.NewReader(*$L)", s);
+
+                    } else {
+                        writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, s);
+                    }
+
+                    writer.openBlock("if request, err = request.SetStream(payload); err != nil {", "}",
+                            () -> {
+                                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                            });
+                });
     }
 
     /**
@@ -665,75 +666,78 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         // return an error if member shape targets location label, but is unset.
         if (location.equals(HttpBinding.Location.LABEL)) {
             // labels must always be set to be serialized on URI, and non empty strings,
-            GoValueAccessUtils.writeIfZeroValueMember(context, writer, memberShape, "v", false, operand -> {
-                writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.write("return &smithy.SerializationError { "
-                                + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
-                        memberShape.getMemberName());
-            });
+            GoValueAccessUtils.writeIfZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                    memberShape, "v", false, operand -> {
+                        writer.addUseImports(SmithyGoDependency.SMITHY);
+                        writer.write("return &smithy.SerializationError { "
+                                        + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                                memberShape.getMemberName());
+                    });
         }
 
         boolean allowZeroStrings = location != HttpBinding.Location.HEADER;
 
-        GoValueAccessUtils.writeIfNonZeroValueMember(context, writer, memberShape, "v", allowZeroStrings, (operand) -> {
-            final String locationName = binding.getLocationName().isEmpty()
-                    ? memberShape.getMemberName() : binding.getLocationName();
-            switch (location) {
-                case HEADER:
-                    writer.write("locationName := $S", getCanonicalHeader(locationName));
-                    writeHeaderBinding(context, memberShape, operand, location, "locationName", "encoder");
-                    break;
-                case PREFIX_HEADERS:
-                    MemberShape valueMemberShape = model.expectShape(targetShape.getId(),
-                            MapShape.class).getValue();
-                    Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
+        GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                memberShape, "v", allowZeroStrings, (operand) -> {
+                    final String locationName = binding.getLocationName().isEmpty()
+                            ? memberShape.getMemberName() : binding.getLocationName();
+                    switch (location) {
+                        case HEADER:
+                            writer.write("locationName := $S", getCanonicalHeader(locationName));
+                            writeHeaderBinding(context, memberShape, operand, location, "locationName", "encoder");
+                            break;
+                        case PREFIX_HEADERS:
+                            MemberShape valueMemberShape = model.expectShape(targetShape.getId(),
+                                    MapShape.class).getValue();
+                            Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
 
-                    if (targetShape.getType() != ShapeType.MAP) {
-                        throw new CodegenException("Unexpected prefix headers target shape "
-                                + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
-                    }
+                            if (targetShape.getType() != ShapeType.MAP) {
+                                throw new CodegenException("Unexpected prefix headers target shape "
+                                        + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
+                            }
 
-                    writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
-                    writer.addUseImports(SmithyGoDependency.NET_HTTP);
-                    writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
-                        GoValueAccessUtils.writeIfNonZeroValue(context, writer, valueMemberShape, "mapVal", false,
-                                () -> {
-                                    writeHeaderBinding(context, valueMemberShape, "mapVal", location,
-                                            "http.CanonicalHeaderKey(mapKey)", "hv");
+                            writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
+                            writer.addUseImports(SmithyGoDependency.NET_HTTP);
+                            writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
+                                GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, valueMemberShape,
+                                        "mapVal", false, () -> {
+                                            writeHeaderBinding(context, valueMemberShape, "mapVal", location,
+                                                    "http.CanonicalHeaderKey(mapKey)", "hv");
+                                        });
+                            });
+                            break;
+                        case LABEL:
+                            writeHttpBindingSetter(context, writer, memberShape, location, operand, (w, s) -> {
+                                w.openBlock("if err := encoder.SetURI($S).$L; err != nil {", "}", locationName, s,
+                                        () -> {
+                                            w.write("return err");
+                                        });
+                            });
+                            break;
+                        case QUERY:
+                            if (targetShape instanceof CollectionShape) {
+                                MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
+                                        .getMember();
+                                writer.openBlock("for i := range $L {", "}", operand, () -> {
+                                    GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
+                                            operand + "[i]", () -> {
+                                                writer.write("continue");
+                                            });
+                                    writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
+                                            (w, s) -> {
+                                                w.writeInline("encoder.AddQuery($S).$L", locationName, s);
+                                            });
                                 });
-                    });
-                    break;
-                case LABEL:
-                    writeHttpBindingSetter(context, writer, memberShape, location, operand, (w, s) -> {
-                        w.openBlock("if err := encoder.SetURI($S).$L; err != nil {", "}", locationName, s,
-                                () -> {
-                                    w.write("return err");
-                                });
-                    });
-                    break;
-                case QUERY:
-                    if (targetShape instanceof CollectionShape) {
-                        MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape).getMember();
-                        writer.openBlock("for i := range $L {", "}", operand, () -> {
-                            GoValueAccessUtils.writeIfZeroValue(context, writer, collectionMember,
-                                    operand + "[i]", () -> {
-                                        writer.write("continue");
-                                    });
-                            writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
-                                    (w, s) -> {
-                                        w.writeInline("encoder.AddQuery($S).$L", locationName, s);
-                                    });
-                        });
-                    } else {
-                        writeHttpBindingSetter(context, writer, memberShape, location, operand,
-                                (w, s) -> w.writeInline(
-                                        "encoder.SetQuery($S).$L", locationName, s));
+                            } else {
+                                writeHttpBindingSetter(context, writer, memberShape, location, operand,
+                                        (w, s) -> w.writeInline(
+                                                "encoder.SetQuery($S).$L", locationName, s));
+                            }
+                            break;
+                        default:
+                            throw new CodegenException("unexpected http binding found");
                     }
-                    break;
-                default:
-                    throw new CodegenException("unexpected http binding found");
-            }
-        });
+                });
     }
 
     private void writeHeaderBinding(
@@ -760,8 +764,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         writer.openBlock("for i := range $L {", "}", operand, () -> {
             // Only set non-empty non-nil header values
             String indexedOperand = operand + "[i]";
-            GoValueAccessUtils.writeIfNonZeroValue(context, writer, collectionMemberShape, indexedOperand, false,
-                    () -> {
+            GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, collectionMemberShape, indexedOperand,
+                    false, () -> {
                         String op = conditionallyBase64Encode(writer, targetShape, indexedOperand);
                         writeHttpBindingSetter(context, writer, collectionMemberShape, location, op, (w, s) -> {
                             w.writeInline("$L.AddHeader($L).$L", dest, locationName, s);
