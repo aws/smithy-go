@@ -58,7 +58,7 @@ public final class SmithyGoDependency {
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");
 
-    public static final GoDependency GO_JMESPATH = goJmespath("");
+    public static final GoDependency GO_JMESPATH = goJmespath(null);
 
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
     private static final String GO_CMP_SOURCE_PATH = "github.com/google/go-cmp";
@@ -118,7 +118,7 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.15";
         private static final String GO_CMP = "v0.5.4";
-        private static final String SMITHY_GO = "v0.4.0";
+        private static final String SMITHY_GO = "v0.4.1-0.20201201204143-5a80be15e75c";
         private static final String GO_JMESPATH = "v0.4.0";
     }
 }
