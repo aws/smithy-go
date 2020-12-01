@@ -84,7 +84,7 @@ public class Waiters implements GoIntegration {
             Map<String, Waiter> waiters
     ) {
         // write client interface
-        generateAPIClientInterface(model, symbolProvider, writer, operation);
+        generateApiClientInterface(model, symbolProvider, writer, operation);
 
         // generate waiter function
         waiters.forEach((name, waiter) -> {
@@ -105,7 +105,7 @@ public class Waiters implements GoIntegration {
     /**
      * Generates interface to satisfy service client and invoke the relevant operation.
      */
-    private final void generateAPIClientInterface(
+    private void generateApiClientInterface(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
@@ -122,7 +122,7 @@ public class Waiters implements GoIntegration {
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
-        String interfaceName = generateAPIClientInterfaceName(operationSymbol);
+        String interfaceName = generateApiClientInterfaceName(operationSymbol);
 
         writer.write("");
         writer.writeDocs(
@@ -132,7 +132,7 @@ public class Waiters implements GoIntegration {
                 interfaceName, () -> {
                     writer.addUseImports(SmithyGoDependency.CONTEXT);
                     writer.write(
-                            "$L(context.Context, $P, ...func(*Options)) ($P, error)",
+                            "$T(context.Context, $P, ...func(*Options)) ($P, error)",
                             operationSymbol, inputSymbol, outputSymbol
                     );
                 }
@@ -143,7 +143,7 @@ public class Waiters implements GoIntegration {
     /**
      * Generates waiter options to configure a waiter client.
      */
-    private final void generateWaiterOptions(
+    private void generateWaiterOptions(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
@@ -171,8 +171,8 @@ public class Waiters implements GoIntegration {
                     writer.write("MaxDelay time.Duration");
 
                     writer.write("");
-                    writer.writeDocs("MaxWaitTime is the maximum amount of wait time in seconds before a waiter is " +
-                            "forced to return");
+                    writer.writeDocs("MaxWaitTime is the maximum amount of wait time in seconds before a waiter is "
+                            + "forced to return");
                     writer.write("MaxWaitTime time.Duration");
 
                     writer.write("");
@@ -189,8 +189,8 @@ public class Waiters implements GoIntegration {
                                     + "service defined waiter-behavior based on operation output, or returned error. "
                                     + "The mutator function is used by the waiter to decide if a state is retryable "
                                     + "or a terminal state.\n\nBy default service-modeled waiter state mutators "
-                                    + "will populate this option. This option can thus be used to define a custom waiter "
-                                    + "state with fall-back to service-modeled waiter state mutators."
+                                    + "will populate this option. This option can thus be used to define a custom "
+                                    + "waiter state with fall-back to service-modeled waiter state mutators."
                     );
                     writer.write(
                             "WaiterStateMutator func(context.Context, *OperationInput, *OperationOutput, error) "
@@ -207,7 +207,7 @@ public class Waiters implements GoIntegration {
      * This function also generates a waiter client constructor that takes in a API client interface, and waiter options
      * to configure a waiter client.
      */
-    private final void generateWaiterClient(
+    private void generateWaiterClient(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
@@ -215,10 +215,6 @@ public class Waiters implements GoIntegration {
             String waiterName,
             Waiter waiter
     ) {
-        StructureShape inputShape = model.expectShape(
-                operationShape.getInput().get(), StructureShape.class
-        );
-
         Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
         String clientName = generateWaiterClientName(waiterName);
 
@@ -229,7 +225,7 @@ public class Waiters implements GoIntegration {
         writer.openBlock("type $L struct {", "}",
                 clientName, () -> {
                     writer.write("");
-                    writer.write("client $L", generateAPIClientInterfaceName(operationSymbol));
+                    writer.write("client $L", generateApiClientInterfaceName(operationSymbol));
 
                     writer.write("");
                     writer.write("options $L", generateWaiterOptionsName(waiterName));
@@ -250,9 +246,9 @@ public class Waiters implements GoIntegration {
         writer.writeDocs(
                 String.format("%s constructs a %s.", constructorName, clientName)
         );
-        writer.openBlock("func $L(client $L, optFns ...func($P)) ($P, error) {",
-                constructorName, waiterOptionsSymbol, clientSymbol,
-                "}", () -> {
+        writer.openBlock("func $L(client $L, optFns ...func($P)) ($P, error) {", "}",
+                constructorName, generateApiClientInterfaceName(operationSymbol), waiterOptionsSymbol, clientSymbol,
+                () -> {
                     writer.write("options := $T{}", waiterOptionsSymbol);
                     writer.addUseImports(SmithyGoDependency.TIME);
 
@@ -283,7 +279,7 @@ public class Waiters implements GoIntegration {
      * The invoker function takes in a context, along with operation input, and
      * optional functional options for the waiter.
      */
-    private final void generateWaiterInvoker(
+    private void generateWaiterInvoker(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
@@ -336,7 +332,7 @@ public class Waiters implements GoIntegration {
                                 writer.openBlock("o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) {",
                                         "})",
                                         () -> {
-                                            writer.openBlock("stack.Finalize.Add(&$L{", "}, middleware.Before)",
+                                            writer.openBlock("stack.Finalize.Add(&$T{", "}, middleware.Before)",
                                                     waiterMiddlewareSymbol,
                                                     () -> {
                                                         writer.write("MinDelay : options.MinDelay, ");
@@ -347,7 +343,7 @@ public class Waiters implements GoIntegration {
                                                         writer.write(
                                                                 "WaiterStateMutator : options.WaiterStateMutator, ");
                                                         writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-                                                        writer.write("RequestCloner : http.RequestCloner ");
+                                                        writer.write("RequestCloner : http.RequestCloner, ");
                                                     });
 
                                         });
@@ -372,7 +368,7 @@ public class Waiters implements GoIntegration {
      * @param waiterName the waiter name
      * @param waiter the waiter structure that contains info on modeled waiter
      */
-    private final void generateWaiterStateMutator(
+    private void generateWaiterStateMutator(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
@@ -391,7 +387,7 @@ public class Waiters implements GoIntegration {
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
         writer.openBlock("func $L(ctx context.Context, input $P, output $P, err error) (bool, error) {",
-                generateWaiterStateMutatorName(waiterName), inputSymbol, outputSymbol, () -> {
+                "}", generateWaiterStateMutatorName(waiterName), inputSymbol, outputSymbol, () -> {
                     waiter.getAcceptors().forEach(acceptor -> {
                         Matcher matcher = acceptor.getMatcher();
                         switch (matcher.getMemberName()) {
@@ -432,8 +428,8 @@ public class Waiters implements GoIntegration {
                                     writer.write("Output $P", outputSymbol);
                                 });
 
-                                writer.write("pathValue, err :=  jmespath.Search($L, &wrapper{ " +
-                                        "Input: input,\n Output: output,\n })", path);
+                                writer.write("pathValue, err :=  jmespath.Search($L, &wrapper{ "
+                                        + "Input: input,\n Output: output,\n })", path);
                                 writer.openBlock("if err != nil {", "}", () -> {
                                     writer.write(
                                             "return false, fmt.Errorf(\"error evaluating waiter state: %w\", err)\")");
@@ -484,6 +480,11 @@ public class Waiters implements GoIntegration {
                                 writer.write("return true, nil");
                                 writer.write("");
                                 break;
+
+                            default:
+                                throw new CodegenException(
+                                        String.format("Unknown waiter state : %v", matcher.getMemberName())
+                                );
                         }
                     });
                 });
@@ -499,7 +500,7 @@ public class Waiters implements GoIntegration {
      *               from operation response (success/failure)
      * @param expected the variable carrying the expected value. This value is as per the modeled waiter.
      */
-    private final void writeWaiterComparator(
+    private void writeWaiterComparator(
             GoWriter writer,
             Acceptor acceptor,
             PathComparator comparator,
@@ -555,11 +556,12 @@ public class Waiters implements GoIntegration {
 
 
     /**
-     * Writes return statement for state where a waiter's acceptor state is a match
+     * Writes return statement for state where a waiter's acceptor state is a match.
+     *
      * @param writer the Go writer
      * @param acceptor the waiter acceptor who's state is used to write an appropriate return statement.
      */
-    private final void writeMatchedAcceptorReturn(GoWriter writer, Acceptor acceptor) {
+    private void writeMatchedAcceptorReturn(GoWriter writer, Acceptor acceptor) {
         switch (acceptor.getState()) {
             case SUCCESS:
                 writer.write("return false, nil");
@@ -580,7 +582,7 @@ public class Waiters implements GoIntegration {
     }
 
 
-    private String generateAPIClientInterfaceName(
+    private String generateApiClientInterfaceName(
             Symbol operationSymbol
     ) {
         return String.format("%sWaiterAPIClient", operationSymbol.getName());

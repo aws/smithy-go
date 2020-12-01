@@ -19,6 +19,7 @@ extra["moduleName"] = "software.amazon.smithy.go.codegen"
 
 dependencies {
     api("software.amazon.smithy:smithy-codegen-core:[1.3.0,2.0.0[")
+    implementation("software.amazon.smithy:smithy-waiters:[1.4.0,2.0.0[")
     compile("com.atlassian.commonmark:commonmark:0.15.2")
     api("org.jsoup:jsoup:1.13.1")
     implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.3.0,2.0.0[")
