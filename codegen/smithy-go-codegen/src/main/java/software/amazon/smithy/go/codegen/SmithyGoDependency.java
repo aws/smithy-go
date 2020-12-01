@@ -53,12 +53,16 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
     public static final GoDependency SMITHY_XML = smithy("xml", "smithyxml");
+    public static final GoDependency SMITHY_WAITERS = smithy("waiters", "smithywaiters");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");
 
+    public static final GoDependency GO_JMESPATH = goJmespath("");
+
     private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
     private static final String GO_CMP_SOURCE_PATH = "github.com/google/go-cmp";
+    private static final String GO_JMESPATH_SOURCE_PATH = "github.com/jmespath/go-jmespath";
 
     private SmithyGoDependency() {
     }
@@ -94,6 +98,10 @@ public final class SmithyGoDependency {
         return relativePackage(GO_CMP_SOURCE_PATH, relativePath, Versions.GO_CMP, null);
     }
 
+    private static GoDependency goJmespath(String relativePath) {
+        return relativePackage(GO_JMESPATH_SOURCE_PATH, relativePath, Versions.GO_JMESPATH, null);
+    }
+
     private static GoDependency relativePackage(
             String moduleImportPath,
             String relativePath,
@@ -111,5 +119,6 @@ public final class SmithyGoDependency {
         private static final String GO_STDLIB = "1.15";
         private static final String GO_CMP = "v0.5.4";
         private static final String SMITHY_GO = "v0.4.0";
+        private static final String GO_JMESPATH = "v0.4.0";
     }
 }
