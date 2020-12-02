@@ -641,14 +641,24 @@ public class Waiters implements GoIntegration {
                                         ).build();
                                         writer.addUseImports(SmithyGoDependency.ERRORS);
                                         writer.write("var errorType *$T", modeledErrorSymbol);
-                                        writer.openBlock("if errors.As(err, &errorType) {", "}",
-                                                () -> {
-                                                    writeMatchedAcceptorReturn(writer, acceptor);
-                                                });
+                                        writer.openBlock("if errors.As(err, &errorType) {", "}", () -> {
+                                            writeMatchedAcceptorReturn(writer, acceptor);
+                                        });
                                     } else {
                                         // fall back to un-modeled error shape matching
-                                        writer.addUseImports(SmithyGoDependency.STRINGS);
-                                        writer.openBlock("if strings.Contains(err.Error(), $S) {", "}",
+                                        writer.addUseImports(SmithyGoDependency.SMITHY);
+                                        writer.addUseImports(SmithyGoDependency.ERRORS);
+
+                                        // assert unmodeled error to smithy's API error
+                                        writer.write("var apiErr smithy.APIError");
+                                        writer.write("ok := errors.As(err, &apiErr)");
+                                        writer.openBlock("if !ok {", "}", () -> {
+                                            writer.write("return false, "
+                                                    + "fmt.Errorf(\"expected err to be of type smithy.APIError\")");
+                                        });
+                                        writer.write("");
+
+                                        writer.openBlock("if $S == apiErr.ErrorCode() {", "}",
                                                 errorType, () -> {
                                                     writeMatchedAcceptorReturn(writer, acceptor);
                                                 });
@@ -687,9 +697,14 @@ public class Waiters implements GoIntegration {
     ) {
         switch (comparator) {
             case STRING_EQUALS:
-                writer.write("value := $L.(string)", actual);
-                writer.addUseImports(SmithyGoDependency.STRINGS);
-                writer.openBlock("if strings.EqualFold(value, $L) {", "}", expected, () -> {
+                writer.write("value, ok := $L.(string)", actual);
+                writer.openBlock(" if !ok {", "}", () -> {
+                    writer.write("return false, "
+                            + "fmt.Errorf(\"waiter comparator expected string value got %T\", $L)", actual);
+                });
+                writer.write("");
+
+                writer.openBlock("if value == $L {", "}", expected, () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
@@ -698,36 +713,52 @@ public class Waiters implements GoIntegration {
                 writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("bv, err := strconv.ParseBool($L)", expected);
                 writer.write(
-                        "if err != nil { return false, fmt.Errorf(\"error parsing boolean from string %w\", err)}");
-                writer.openBlock("if $L == bv {", "}", actual, () -> {
+                        "if err != nil { return false, "
+                                + "fmt.Errorf(\"error parsing boolean from string %w\", err)}");
+
+                writer.write("value, ok := $L.(bool)", actual);
+                writer.openBlock(" if !ok {", "}", () -> {
+                    writer.write("return false, "
+                            + "fmt.Errorf(\"waiter comparator expected bool value got %T\", $L)", actual);
+                });
+                writer.write("");
+
+                writer.openBlock("if value == bv {", "}", () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
 
             case ALL_STRING_EQUALS:
                 writer.write("var match = true");
-                writer.write("listOfValues := $L.([]string)", actual);
+                writer.write("listOfValues, ok := $L.([]string)", actual);
+                writer.openBlock(" if !ok {", "}", () -> {
+                    writer.write("return false, "
+                            + "fmt.Errorf(\"waiter comparator expected []string value got %T\", $L)", actual);
+                });
                 writer.write("");
 
                 writer.write("if len(listOfValues) == 0 { match = false }");
 
-                writer.addUseImports(SmithyGoDependency.STRINGS);
                 writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.write("if !strings.EqualFold(v, $L) { match = false }", expected);
+                    writer.write("if v != $L { match = false }", expected);
                 });
                 writer.write("");
+
                 writer.openBlock("if match {", "}", () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
 
             case ANY_STRING_EQUALS:
-                writer.write("listOfValues := $L.([]string)", actual);
+                writer.write("listOfValues, ok := $L.([]string)", actual);
+                writer.openBlock(" if !ok {", "}", () -> {
+                    writer.write("return false, "
+                            + "fmt.Errorf(\"waiter comparator expected []string value got %T\", $L)", actual);
+                });
                 writer.write("");
 
-                writer.addUseImports(SmithyGoDependency.STRINGS);
                 writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.openBlock("if strings.EqualFold(v, $L) {", "}", expected, () -> {
+                    writer.openBlock("if v == $L {", "}", expected, () -> {
                         writeMatchedAcceptorReturn(writer, acceptor);
                     });
                 });

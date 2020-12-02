@@ -48,6 +48,13 @@ string CityId
                     errorType: "NoSuchResource"
                 }
             },
+            // Fail-fast if the thing transitions to a "failed" state.
+            {
+                state: "failure",
+                matcher: {
+                    errorType: "UnModeledError"
+                }
+            },
             // Succeed when the city image value is not empty i.e. enters into a "success" state.
             {
                 state: "success",
