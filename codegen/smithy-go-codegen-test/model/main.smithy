@@ -222,6 +222,35 @@ apply NoSuchResource @httpResponseTests([
 // return truncated results.
 @readonly
 @paginated(items: "items")
+@waitable(
+    "ListContainsCity": {
+        description: "Wait until ListCities operation response matches a given state",
+        acceptors: [
+            // failure in case all items returned match to seattle
+            {
+                state: "failure",
+                matcher: {
+                    output: {
+                        path: "items",
+                        comparator: "allStringEquals",
+                        expected: "seattle",
+                    }
+                }
+            },
+            // success in case any items returned match to NewYork
+            {
+                state: "success",
+                matcher: {
+                    output: {
+                        path: "items",
+                        comparator: "anyStringEquals",
+                        expected: "NewYork",
+                    }
+                }
+            }
+        ]
+    }
+)
 @http(method: "GET", uri: "/cities")
 operation ListCities {
     input: ListCitiesInput,
