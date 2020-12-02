@@ -560,105 +560,99 @@ public class Waiters implements GoIntegration {
         writer.openBlock("func $L(ctx context.Context, input $P, output $P, err error) (bool, error) {",
                 "}", generateWaiterStateMutatorName(waiterName), inputSymbol, outputSymbol, () -> {
                     waiter.getAcceptors().forEach(acceptor -> {
+                        writer.write("");
                         // scope each acceptor to avoid name collisions
-                        writer.openBlock("{", "}", () -> {
                             Matcher matcher = acceptor.getMatcher();
                             switch (matcher.getMemberName()) {
                                 case "output":
-                                    writer.write("");
                                     writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
                                     writer.addUseImports(SmithyGoDependency.FMT);
-
-                                    writer.write("if err != nil { return true, nil }");
 
                                     Matcher.OutputMember outputMember = (Matcher.OutputMember) matcher;
                                     String path = outputMember.getValue().getPath();
                                     String expectedValue = outputMember.getValue().getExpected();
                                     PathComparator comparator = outputMember.getValue().getComparator();
+                                    writer.openBlock("if err == nil {", "}", () -> {
+                                        writer.write("pathValue, err :=  jmespath.Search($S, output)", path);
+                                        writer.openBlock("if err != nil {", "}", () -> {
+                                            writer.write(
+                                                    "return false, "
+                                                            + "fmt.Errorf(\"error evaluating waiter state: %w\", err)");
+                                        }).write("");
+                                        writer.write("expectedValue := $S", expectedValue);
+                                        writeWaiterComparator(writer, acceptor, comparator, "pathValue",
+                                                "expectedValue");
+                                    });
 
-                                    writer.write("pathValue, err :=  jmespath.Search($S, output)", path);
-                                    writer.openBlock("if err != nil {", "}", () -> {
-                                        writer.write(
-                                                "return false, fmt.Errorf(\"error evaluating waiter state: %w\", err)");
-                                    }).write("");
-                                    writer.write("expectedValue := $S", expectedValue);
-                                    writeWaiterComparator(writer, acceptor, comparator, "pathValue", "expectedValue");
                                     break;
 
                                 case "inputOutput":
-                                    writer.write("");
                                     writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
                                     writer.addUseImports(SmithyGoDependency.FMT);
-
-                                    writer.write("if err != nil { return true, nil }");
 
                                     Matcher.InputOutputMember ioMember = (Matcher.InputOutputMember) matcher;
                                     path = ioMember.getValue().getPath();
                                     expectedValue = ioMember.getValue().getExpected();
                                     comparator = ioMember.getValue().getComparator();
-
-                                    writer.openBlock("pathValue, err :=  jmespath.Search($S, &struct{",
-                                            "})", path, () -> {
-                                                writer.write("Input $P \n Output $P \n }{", inputSymbol,
-                                                        outputSymbol);
-                                                writer.write("Input: input, \n Output: output, \n");
-                                            });
-                                    writer.openBlock("if err != nil {", "}", () -> {
-                                        writer.write(
-                                                "return false, fmt.Errorf(\"error evaluating waiter state: %w\", err)");
+                                    writer.openBlock("if err == nil {", "}", () -> {
+                                        writer.openBlock("pathValue, err :=  jmespath.Search($S, &struct{",
+                                                "})", path, () -> {
+                                                    writer.write("Input $P \n Output $P \n }{", inputSymbol,
+                                                            outputSymbol);
+                                                    writer.write("Input: input, \n Output: output, \n");
+                                                });
+                                        writer.openBlock("if err != nil {", "}", () -> {
+                                            writer.write(
+                                                    "return false, "
+                                                            + "fmt.Errorf(\"error evaluating waiter state: %w\", err)");
+                                        });
+                                        writer.write("");
+                                        writer.write("expectedValue := $S", expectedValue);
+                                        writeWaiterComparator(writer, acceptor, comparator, "pathValue",
+                                                "expectedValue");
                                     });
-                                    writer.write("");
-                                    writer.write("expectedValue := $S", expectedValue);
-                                    writeWaiterComparator(writer, acceptor, comparator, "pathValue", "expectedValue");
                                     break;
 
                                 case "success":
-                                    writer.write("");
-
                                     Matcher.SuccessMember successMember = (Matcher.SuccessMember) matcher;
-                                    writer.openBlock("if err != nil {", "}",
+                                    writer.openBlock("if err == nil {", "}",
                                             () -> {
-                                                writer.write("return true, nil");
+                                                writeMatchedAcceptorReturn(writer, acceptor);
                                             });
-
-                                    writeMatchedAcceptorReturn(writer, acceptor);
                                     break;
 
                                 case "errorType":
-                                    writer.write("if err == nil { return true, nil }");
-                                    writer.write("");
-
                                     Matcher.ErrorTypeMember errorTypeMember = (Matcher.ErrorTypeMember) matcher;
                                     String errorType = errorTypeMember.getValue();
 
-                                    // identify if this is a modeled error shape
-                                    Optional<ShapeId> errorShape = operationShape.getErrors().stream().filter(
-                                            shapeId -> {
-                                                return shapeId.getName().equalsIgnoreCase(errorType);
-                                            }).findFirst();
+                                    writer.openBlock("if err != nil {", "}", () -> {
 
-                                    // if modeled error shape
-                                    if (errorShape.isPresent()) {
-                                        Symbol modeledErrorSymbol = SymbolUtils.createValueSymbolBuilder(
-                                                errorShape.get().getName(), "types"
-                                        ).build();
-                                        writer.addUseImports(SmithyGoDependency.ERRORS);
-                                        writer.write("var errorType *$T", modeledErrorSymbol);
-                                        writer.openBlock("if errors.As(err, &errorType) {", "}",
-                                                () -> {
-                                                    writeMatchedAcceptorReturn(writer, acceptor);
-                                                });
-                                    } else {
-                                        // fall back to un-modeled error shape matching
-                                        writer.addUseImports(SmithyGoDependency.STRINGS);
-                                        writer.openBlock("if strings.Contains(err.Error(), $S) {",
-                                                "}", errorType, () -> {
-                                                    writeMatchedAcceptorReturn(writer, acceptor);
-                                                });
-                                    }
+                                        // identify if this is a modeled error shape
+                                        Optional<ShapeId> errorShape = operationShape.getErrors().stream().filter(
+                                                shapeId -> {
+                                                    return shapeId.getName().equalsIgnoreCase(errorType);
+                                                }).findFirst();
 
-                                    writer.write("return true, nil");
-                                    writer.write("");
+                                        // if modeled error shape
+                                        if (errorShape.isPresent()) {
+                                            Symbol modeledErrorSymbol = SymbolUtils.createValueSymbolBuilder(
+                                                    errorShape.get().getName(), "types"
+                                            ).build();
+                                            writer.addUseImports(SmithyGoDependency.ERRORS);
+                                            writer.write("var errorType *$T", modeledErrorSymbol);
+                                            writer.openBlock("if errors.As(err, &errorType) {", "}",
+                                                    () -> {
+                                                        writeMatchedAcceptorReturn(writer, acceptor);
+                                                    });
+                                        } else {
+                                            // fall back to un-modeled error shape matching
+                                            writer.addUseImports(SmithyGoDependency.STRINGS);
+                                            writer.openBlock("if strings.Contains(err.Error(), $S) {", "}",
+                                                    errorType, () -> {
+                                                        writeMatchedAcceptorReturn(writer, acceptor);
+                                                    });
+                                        }
+                                    });
                                     break;
 
                                 default:
@@ -667,7 +661,9 @@ public class Waiters implements GoIntegration {
                                     );
                             }
                         });
-                    });
+
+                    writer.write("");
+                    writer.write("return true, nil");
                 });
     }
 
@@ -693,7 +689,6 @@ public class Waiters implements GoIntegration {
                 writer.openBlock("if $L == $L {", "}", actual, expected, () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
-                writer.write("return true, nil");
                 break;
 
             case BOOLEAN_EQUALS:
@@ -704,15 +699,18 @@ public class Waiters implements GoIntegration {
                 writer.openBlock("if $L == bv {", "}", actual, () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
-                writer.write("return true, nil");
                 break;
 
             case ALL_STRING_EQUALS:
+                writer.write("match = true");
+                writer.write("if length(actual.([]string)) == 0 { match = false }");
                 writer.openBlock("for _, v := range actual {", "}", () -> {
-                    writer.write("if v != $L { return true, nil }", expected);
+                    writer.write("if v != $L { equality = false }", expected);
                 });
                 writer.write("");
-                writeMatchedAcceptorReturn(writer, acceptor);
+                writer.openBlock("if match {", "}", () -> {
+                    writeMatchedAcceptorReturn(writer, acceptor);
+                });
                 break;
 
             case ANY_STRING_EQUALS:
@@ -722,15 +720,12 @@ public class Waiters implements GoIntegration {
                                 writeMatchedAcceptorReturn(writer, acceptor);
                             });
                 });
-                writer.write("return true, nil");
                 break;
 
             default:
                 throw new CodegenException(
                         String.format("Found unknown waiter path comparator, %s", comparator.toString()));
         }
-
-        writer.write("");
     }
 
 
