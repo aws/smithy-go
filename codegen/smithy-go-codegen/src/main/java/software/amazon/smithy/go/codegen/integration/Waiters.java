@@ -22,7 +22,9 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
@@ -43,10 +45,9 @@ import software.amazon.smithy.waiters.Waiter;
  */
 public class Waiters implements GoIntegration {
     private static final String WAITER_INVOKER_FUNCTION_NAME = "Wait";
-    private static final String WAITER_MIDDLEWARE_NAME = "WaiterRetrier";
-    private static final int DEFAULT_MAX_WAIT_TIME = 300;
+    private static final String WAITER_MIDDLEWARE_ID = "WaiterRetrier";
+    private static final int DEFAULT_MAX_WAIT_TIME_IN_SECONDS = 300;
     private static final int DEFAULT_MAX_ATTEMPTS = 8;
-
 
     @Override
     public void writeAdditionalFiles(
@@ -99,6 +100,9 @@ public class Waiters implements GoIntegration {
 
             // write waiter state mutator for each waiter
             generateWaiterStateMutator(model, symbolProvider, writer, operation, name, waiter);
+
+            // write waiter middleware for each waiter
+            generateWaiterMiddleware(model, symbolProvider, writer, operation, name, waiter);
         });
     }
 
@@ -153,6 +157,16 @@ public class Waiters implements GoIntegration {
         String optionsName = generateWaiterOptionsName(waiterName);
         String waiterClientName = generateWaiterClientName(waiterName);
 
+        StructureShape inputShape = model.expectShape(
+                operationShape.getInput().get(), StructureShape.class
+        );
+        StructureShape outputShape = model.expectShape(
+                operationShape.getOutput().get(), StructureShape.class
+        );
+
+        Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
+        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+
         writer.write("");
         writer.writeDocs(
                 String.format("%s are waiter options for %s", optionsName, waiterClientName)
@@ -193,8 +207,8 @@ public class Waiters implements GoIntegration {
                                     + "waiter state with fall-back to service-modeled waiter state mutators."
                     );
                     writer.write(
-                            "WaiterStateMutator func(context.Context, interface{}, interface{}, error) "
-                                    + "(bool, error)");
+                            "WaiterStateMutator func(context.Context, $P, $P, error) "
+                                    + "(bool, error)", inputSymbol, outputSymbol);
                 }
         );
         writer.write("");
@@ -256,7 +270,7 @@ public class Waiters implements GoIntegration {
                     writer.write("options.MinDelay = $L * time.Second", waiter.getMinDelay());
                     writer.write("options.MaxDelay = $L * time.Second", waiter.getMaxDelay());
                     // set defaults not defined in model
-                    writer.write("options.MaxWaitTime = $L * time.Second", DEFAULT_MAX_WAIT_TIME);
+                    writer.write("options.MaxWaitTime = $L * time.Second", DEFAULT_MAX_WAIT_TIME_IN_SECONDS);
                     writer.write("options.MaxAttempts = $L ", DEFAULT_MAX_ATTEMPTS);
                     writer.write("options.WaiterStateMutator = $L", generateWaiterStateMutatorName(waiterName));
                     writer.write("");
@@ -302,10 +316,6 @@ public class Waiters implements GoIntegration {
                 generateWaiterClientName(waiterName)
         ).build();
 
-        Symbol waiterMiddlewareSymbol = SymbolUtils.createValueSymbolBuilder(
-                WAITER_MIDDLEWARE_NAME, SmithyGoDependency.SMITHY_WAITERS
-        ).build();
-
         writer.write("");
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.writeDocs(
@@ -332,18 +342,19 @@ public class Waiters implements GoIntegration {
                                 writer.openBlock("o.APIOptions = append(o.APIOptions, "
                                                 + "func(stack *middleware.Stack) error {", "})",
                                         () -> {
-                                            writer.openBlock("return stack.Finalize.Add(&$T{", "}, middleware.Before)",
-                                                    waiterMiddlewareSymbol,
+                                            writer.openBlock("return stack.Finalize.Add(&$L{", "}, middleware.Before)",
+                                                    generateWaiterMiddlewareName(waiterName),
                                                     () -> {
-                                                        writer.write("MinDelay : options.MinDelay, ");
-                                                        writer.write("MaxDelay : options.MaxDelay, ");
-                                                        writer.write("MaxWaitTime : options.MaxWaitTime, ");
-                                                        writer.write("MaxAttempts : options.MaxAttempts, ");
-                                                        writer.write("EnableLogger : options.EnableLogger, ");
+                                                        writer.write("minDelay : options.MinDelay, ");
+                                                        writer.write("maxDelay : options.MaxDelay, ");
+                                                        writer.write("maxWaitTime : options.MaxWaitTime, ");
+                                                        writer.write("maxAttempts : options.MaxAttempts, ");
+                                                        writer.write("enableLogger : options.EnableLogger, ");
                                                         writer.write(
-                                                                "WaiterStateMutator : options.WaiterStateMutator, ");
+                                                                "waiterStateMutator : options.WaiterStateMutator, ");
                                                         writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-                                                        writer.write("RequestCloner : smithyhttp.RequestCloner, ");
+                                                        writer.write("requestCloner : smithyhttp.RequestCloner, ");
+                                                        writer.write("params: params, ");
                                                     });
 
                                         });
@@ -358,7 +369,167 @@ public class Waiters implements GoIntegration {
     }
 
     /**
-     * Generates a waiter state mutator function which is used by the WaiterRetrier Middleware to mutate
+     * Generates a waiter retrier middleware to trigger waiter state validation and retry behavior.
+     *
+     * @param model          the smithy model
+     * @param symbolProvider symbol provider
+     * @param writer         the GoWriter
+     * @param operationShape operation shape on which waiter is modeled
+     * @param waiterName     the waiter name
+     * @param waiter         the waiter structure that contains info on modeled waiter
+     */
+    private void generateWaiterMiddleware(
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer,
+            OperationShape operationShape,
+            String waiterName,
+            Waiter waiter
+    ) {
+        StructureShape inputShape = model.expectShape(
+                operationShape.getInput().get(), StructureShape.class
+        );
+        StructureShape outputShape = model.expectShape(
+                operationShape.getOutput().get(), StructureShape.class
+        );
+
+        Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
+        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+
+        GoStackStepMiddlewareGenerator middlewareGenerator =
+                GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware(
+                        generateWaiterMiddlewareName(waiterName),
+                        MiddlewareIdentifier.builder()
+                                .name(WAITER_MIDDLEWARE_ID)
+                                .build()
+                );
+
+        writer.write("");
+
+        middlewareGenerator.writeMiddleware(writer, (generator, w) -> {
+            w.write("");
+            w.addUseImports(SmithyGoDependency.SMITHY_LOGGING);
+            w.writeDocs("fetch logger from context");
+            w.write("logger := middleware.GetLogger(ctx)");
+            w.write("");
+
+            w.writeDocs("current attempt, delay");
+            w.write("var attempt int64");
+            w.write("var delay time.Duration");
+            w.write("var remainingTime = m.maxWaitTime");
+
+            // start loop
+            w.write("for {");
+
+            w.writeDocs("check number of attempts");
+            w.write("if m.maxAttempts == attempt { break }");
+            w.write("");
+            w.write("attempt++");
+            w.write("");
+
+            w.write("attemptInput := in");
+            w.write("attemptInput.Request = m.requestCloner(attemptInput.Request)");
+
+            w.write("");
+
+            // start retry only behavior
+            w.write("if attempt > 1 {");
+
+            Symbol computeDelaySymbol = SymbolUtils.createValueSymbolBuilder(
+                    "ComputeDelay", SmithyGoDependency.SMITHY_WAITERS
+            ).build();
+            w.writeDocs("compute exponential backoff between waiter retries");
+            w.write("delay = $T(m.minDelay, m.maxDelay, remainingTime, attempt)", computeDelaySymbol);
+            w.write("");
+
+            w.writeDocs("update the remaining time");
+            w.write("remainingTime = remainingTime - delay");
+            w.write("");
+
+            w.writeDocs("rewind transport stream");
+            w.write("if rewindable, ok := in.Request.(interface{ RewindStream() error }); ok {");
+            w.write("if err := rewindable.RewindStream(); err != nil {");
+            w.addUseImports(SmithyGoDependency.FMT);
+            w.write("return out, metadata, fmt.Errorf(\"failed to rewind transport stream for retry, %w\", err)\n}");
+            w.write("}");
+            w.write("");
+
+            Symbol sleepWithContextSymbol = SymbolUtils.createValueSymbolBuilder(
+                    "SleepWithContext", SmithyGoDependency.SMITHY_WAITERS
+            ).build();
+            w.writeDocs("sleep for the delay amount before invoking a request");
+            w.openBlock("if err = $T(ctx, delay); err != nil {", "}",
+                    sleepWithContextSymbol, () -> {
+                        w.write("return out, metadata, fmt.Errorf(\"request cancelled while waiting, %w\", err)");
+                    });
+
+            // enable logger
+            w.writeDocs("log attempt");
+            w.openBlock("if m.enableLogger {", "}", () -> {
+                w.write("logger.Logf(logging.Debug, "
+                        + "fmt.Sprintf(\"retrying waiter request, attempt count: %d\", attempt))\n");
+            });
+            w.write("");
+            // end retry only behavior
+            w.write("}");
+
+            w.write("");
+            w.writeDocs("attempt request");
+            w.write("out, metadata, err = next.HandleFinalize(ctx, attemptInput)");
+            w.write("");
+
+            w.writeDocs("check for state mutation");
+            w.write("output := out.Result.($P)", outputSymbol);
+            w.write("retryable, err := m.waiterStateMutator(ctx, m.params, output, err)");
+            w.write("");
+
+            w.openBlock("if !retryable || err != nil {", "}", () -> {
+                w.write("if m.enableLogger {");
+                w.openBlock("if err != nil {", "} else {", () -> {
+                    w.write("logger.Logf(logging.Debug, "
+                            + "\"waiter transitioned to a failed state with unretryable error %v\", err)");
+                });
+                w.write("logger.Logf(logging.Debug, \"waiter transitioned to a success state\")}");
+                w.write("}");
+                w.write("return out, metadata, err");
+            });
+            // end loop
+            w.write("}");
+
+            w.openBlock("if m.enableLogger {", "}", () -> {
+                w.write("logger.Logf(logging.Debug, \"max retry attempts exhausted, max %d\", attempt)");
+            });
+
+            w.addUseImports(SmithyGoDependency.FMT);
+            w.write("return out, metadata, "
+                    + "fmt.Errorf(\"exhausted all retry attempts while waiting for the resource state\")");
+
+            w.write("");
+        }, (generator, w) -> {
+            w.write("");
+            w.addUseImports(SmithyGoDependency.TIME);
+            w.write("minDelay time.Duration ");
+            w.write("maxDelay time.Duration ");
+            w.write("maxWaitTime time.Duration");
+            w.write("maxAttempts int64 ");
+            w.write("enableLogger bool ");
+
+            w.addUseImports(SmithyGoDependency.CONTEXT);
+            w.write(
+                    "waiterStateMutator func(context.Context, $P, $P, error) (bool, error)",
+                    inputSymbol, outputSymbol
+            );
+
+            w.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+            w.write("requestCloner func(interface{}) interface{}");
+
+            w.write("params $P", inputSymbol);
+            w.write("");
+        });
+    }
+
+    /**
+     * Generates a waiter state mutator function which is used by the waiter retrier Middleware to mutate
      * waiter state as per the defined logic and returned operation response.
      *
      * @param model          the smithy model
@@ -386,41 +557,18 @@ public class Waiters implements GoIntegration {
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
-        writer.openBlock("func $L(ctx context.Context, inputIface, outputIface interface{}, err error) (bool, error) {",
-                "}", generateWaiterStateMutatorName(waiterName), () -> {
-
-                    writer.write("input, ok := inputIface.($P)", inputSymbol);
-                    writer.addUseImports(SmithyGoDependency.FMT);
-                    writer.write("if !ok { return false, fmt.Errorf(\"expected input to be of type $P\")}",
-                            inputSymbol
-                    );
-                    writer.write("_ = input").write("");
-
-                    writer.write("output, ok := outputIface.($P)", outputSymbol);
-                    writer.addUseImports(SmithyGoDependency.FMT);
-                    writer.write("if !ok { return false, fmt.Errorf(\"expected output to be of type $P\")}",
-                            outputSymbol
-                    );
-                    writer.write("_ = output").write("");
-
-
-                    writer.openBlock("type wrapper struct {", "}", () -> {
-                        writer.write("Input $P", inputSymbol);
-                        writer.write("Output $P", outputSymbol);
-                    });
-
-                    writer.write("wrappedIO := &wrapper{ Input: input,\n Output: output,\n}");
-                    writer.write("_ = wrappedIO");
-
+        writer.openBlock("func $L(ctx context.Context, input $P, output $P, err error) (bool, error) {",
+                "}", generateWaiterStateMutatorName(waiterName), inputSymbol, outputSymbol, () -> {
                     waiter.getAcceptors().forEach(acceptor -> {
-                        Matcher matcher = acceptor.getMatcher();
-                        switch (matcher.getMemberName()) {
-                            case "output":
-                                writer.write("");
-                                writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
-                                writer.addUseImports(SmithyGoDependency.FMT);
+                        // scope each acceptor to avoid name collisions
+                        writer.openBlock("{", "}", () -> {
+                            Matcher matcher = acceptor.getMatcher();
+                            switch (matcher.getMemberName()) {
+                                case "output":
+                                    writer.write("");
+                                    writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
+                                    writer.addUseImports(SmithyGoDependency.FMT);
 
-                                writer.openBlock("{", "}", () -> {
                                     writer.write("if err != nil { return true, nil }");
 
                                     Matcher.OutputMember outputMember = (Matcher.OutputMember) matcher;
@@ -435,23 +583,26 @@ public class Waiters implements GoIntegration {
                                     }).write("");
                                     writer.write("expectedValue := $S", expectedValue);
                                     writeWaiterComparator(writer, acceptor, comparator, "pathValue", "expectedValue");
-                                });
-                                break;
+                                    break;
 
-                            case "inputOutput":
-                                writer.write("");
-                                writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
-                                writer.addUseImports(SmithyGoDependency.FMT);
+                                case "inputOutput":
+                                    writer.write("");
+                                    writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
+                                    writer.addUseImports(SmithyGoDependency.FMT);
 
-                                writer.openBlock("{", "}", () -> {
                                     writer.write("if err != nil { return true, nil }");
 
                                     Matcher.InputOutputMember ioMember = (Matcher.InputOutputMember) matcher;
-                                    String path = ioMember.getValue().getPath();
-                                    String expectedValue = ioMember.getValue().getExpected();
-                                    PathComparator comparator = ioMember.getValue().getComparator();
+                                    path = ioMember.getValue().getPath();
+                                    expectedValue = ioMember.getValue().getExpected();
+                                    comparator = ioMember.getValue().getComparator();
 
-                                    writer.write("pathValue, err :=  jmespath.Search($S, wrappedIO)", path);
+                                    writer.openBlock("pathValue, err :=  jmespath.Search($S, &struct{",
+                                            "})", path, () -> {
+                                                writer.write("Input $P \n Output $P \n }{", inputSymbol,
+                                                        outputSymbol);
+                                                writer.write("Input: input, \n Output: output, \n");
+                                            });
                                     writer.openBlock("if err != nil {", "}", () -> {
                                         writer.write(
                                                 "return false, fmt.Errorf(\"error evaluating waiter state: %w\", err)");
@@ -459,28 +610,24 @@ public class Waiters implements GoIntegration {
                                     writer.write("");
                                     writer.write("expectedValue := $S", expectedValue);
                                     writeWaiterComparator(writer, acceptor, comparator, "pathValue", "expectedValue");
-                                });
-                                break;
+                                    break;
 
-                            case "success":
-                                writer.write("");
+                                case "success":
+                                    writer.write("");
 
-                                Matcher.SuccessMember successMember = (Matcher.SuccessMember) matcher;
-                                writer.openBlock("{", "}", () -> {
+                                    Matcher.SuccessMember successMember = (Matcher.SuccessMember) matcher;
                                     writer.openBlock("if err != nil {", "}",
                                             () -> {
                                                 writer.write("return true, nil");
                                             });
 
                                     writeMatchedAcceptorReturn(writer, acceptor);
-                                });
-                                break;
+                                    break;
 
-                            case "errorType":
-                                writer.write("if err == nil { return true, nil }");
-                                writer.write("");
+                                case "errorType":
+                                    writer.write("if err == nil { return true, nil }");
+                                    writer.write("");
 
-                                writer.openBlock("{", "}", () -> {
                                     Matcher.ErrorTypeMember errorTypeMember = (Matcher.ErrorTypeMember) matcher;
                                     String errorType = errorTypeMember.getValue();
 
@@ -511,15 +658,15 @@ public class Waiters implements GoIntegration {
                                     }
 
                                     writer.write("return true, nil");
-                                });
-                                writer.write("");
-                                break;
+                                    writer.write("");
+                                    break;
 
-                            default:
-                                throw new CodegenException(
-                                        String.format("unknown waiter state : %v", matcher.getMemberName())
-                                );
-                        }
+                                default:
+                                    throw new CodegenException(
+                                            String.format("unknown waiter state : %v", matcher.getMemberName())
+                                    );
+                            }
+                        });
                     });
                 });
     }
@@ -639,6 +786,13 @@ public class Waiters implements GoIntegration {
     ) {
         waiterName = StringUtils.uncapitalize(waiterName);
         return String.format("%sStateMutator", waiterName);
+    }
+
+    private String generateWaiterMiddlewareName(
+            String waiterName
+    ) {
+        waiterName = StringUtils.uncapitalize(waiterName);
+        return String.format("%sWaiterRetrier", waiterName);
     }
 
 }

@@ -115,6 +115,23 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create a new Finalize step middleware generator with the provided type name.
+     *
+     * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createFinalizeStepMiddleware(String name, MiddlewareIdentifier id) {
+        return createMiddleware(name,
+                id,
+                "HandleFinalize",
+                SymbolUtils.createValueSymbolBuilder("FinalizeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("FinalizeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                SymbolUtils.createValueSymbolBuilder("FinalizeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                        .build());
+    }
+
+    /**
      * Generates a new step middleware generator.
      *
      * @param name              the name of the middleware type.
