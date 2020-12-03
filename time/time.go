@@ -1,6 +1,7 @@
 package time
 
 import (
+	"context"
 	"time"
 )
 
@@ -52,4 +53,21 @@ func FormatEpochSeconds(value time.Time) float64 {
 // Example: 1515531081.1234
 func ParseEpochSeconds(value float64) time.Time {
 	return time.Unix(0, int64(value*float64(time.Second))).UTC()
+}
+
+// SleepWithContext will wait for the timer duration to expire, or the context
+// is canceled. Which ever happens first. If the context is canceled the
+// Context's error will be returned.
+func SleepWithContext(ctx context.Context, dur time.Duration) error {
+	t := time.NewTimer(dur)
+	defer t.Stop()
+
+	select {
+	case <-t.C:
+		break
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	return nil
 }
