@@ -10,11 +10,11 @@ import (
 func ComputeDelay(minDelay, maxDelay, remainingTime time.Duration, attempt int64) time.Duration {
 
 	// [0.0, 1.0) * 2 ^ attempt-1
-	ri := float64(1 << uint64(attempt-1))
+	ri := 1 << uint64(attempt-1)
 
 	delay := time.Duration(math.Min(
 		maxDelay.Seconds(),
-		minDelay.Seconds()*ri),
+		minDelay.Seconds()*float64(ri)),
 	) * time.Second
 
 	if remainingTime-delay <= minDelay {
