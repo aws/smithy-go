@@ -72,14 +72,14 @@ public class Paginators implements GoIntegration {
     ) {
         Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
 
-        Symbol interfaceSymbol = SymbolUtils.createValueSymbolBuilder(String.format("%sAPIClient",
-                operationSymbol.getName())).build();
+        Symbol interfaceSymbol = SymbolUtils.createValueSymbolBuilder(
+                InterfaceGenerator.getApiClientInterfaceName(operationSymbol)
+        ).build();
         Symbol paginatorSymbol = SymbolUtils.createPointableSymbolBuilder(String.format("%sPaginator",
                 operationSymbol.getName())).build();
         Symbol optionsSymbol = SymbolUtils.createPointableSymbolBuilder(String.format("%sOptions",
                 paginatorSymbol.getName())).build();
 
-        writeClientOperationInterface(writer, symbolProvider, paginationInfo, interfaceSymbol);
         writePaginatorOptions(writer, model, symbolProvider, paginationInfo, operationSymbol, optionsSymbol);
         writePaginator(writer, model, symbolProvider, paginationInfo, interfaceSymbol, paginatorSymbol, optionsSymbol);
     }
@@ -249,30 +249,4 @@ public class Paginators implements GoIntegration {
         });
         writer.write("");
     }
-
-    private void writeClientOperationInterface(
-            GoWriter writer,
-            SymbolProvider symbolProvider,
-            PaginationInfo paginationInfo,
-            Symbol interfaceSymbol
-    ) {
-        Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT)
-                .build();
-
-        Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
-        Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
-        Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
-
-        writer.writeDocs(String.format("%s is a client that implements the %s operation.",
-                interfaceSymbol.getName(), operationSymbol.getName()));
-        writer.openBlock("type $T interface {", "}", interfaceSymbol, () -> {
-            writer.write("$L($T, $P, ...func(*Options)) ($P, error)", operationSymbol.getName(), contextSymbol,
-                    inputSymbol, outputSymbol);
-        });
-        writer.write("");
-        writer.write("var _ $T = (*Client)(nil)", interfaceSymbol);
-        writer.write("");
-    }
-
-
 }
