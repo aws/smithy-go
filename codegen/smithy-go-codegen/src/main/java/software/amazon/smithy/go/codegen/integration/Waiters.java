@@ -287,12 +287,7 @@ public class Waiters implements GoIntegration {
                         writer.write("fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
                     }).write("");
 
-                    writer.write("options := $T{}", waiterOptionsSymbol);
-                    writer.write("options.APIOptions = w.options.APIOptions");
-                    writer.write("options.MinDelay = w.options.MinDelay");
-                    writer.write("options.MaxDelay = w.options.MaxDelay");
-                    writer.write("options.LogWaitAttempts = w.options.LogWaitAttempts");
-                    writer.write("options.Retryable = w.options.Retryable");
+                    writer.write("options := w.options");
 
                     writer.openBlock("for _, fn := range optFns {",
                             "}", () -> {
