@@ -36,7 +36,7 @@ import software.amazon.smithy.waiters.WaitableTrait;
 /**
  * Generates API client Interfaces as per API operation.
  */
-public class InterfaceGenerator implements GoIntegration {
+public class OperationInterfaceGenerator implements GoIntegration {
 
     private static Set<ShapeId> listOfClientInterfaceOperations = new TreeSet<>();
 

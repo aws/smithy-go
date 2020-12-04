@@ -73,7 +73,7 @@ public class Paginators implements GoIntegration {
         Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
 
         Symbol interfaceSymbol = SymbolUtils.createValueSymbolBuilder(
-                InterfaceGenerator.getApiClientInterfaceName(operationSymbol)
+                OperationInterfaceGenerator.getApiClientInterfaceName(operationSymbol)
         ).build();
         Symbol paginatorSymbol = SymbolUtils.createPointableSymbolBuilder(String.format("%sPaginator",
                 operationSymbol.getName())).build();
