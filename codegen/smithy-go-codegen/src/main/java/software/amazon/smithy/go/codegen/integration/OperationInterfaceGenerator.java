@@ -15,9 +15,10 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -38,7 +39,19 @@ import software.amazon.smithy.waiters.WaitableTrait;
  */
 public class OperationInterfaceGenerator implements GoIntegration {
 
-    private static Set<ShapeId> listOfClientInterfaceOperations = new TreeSet<>();
+    private static Map<ShapeId, Set<ShapeId>> mapOfClientInterfaceOperations = new HashMap<>();
+
+    /**
+     * Returns name of an API client interface.
+     *
+     * @param operationSymbol Symbol of operation shape for which Api client interface is being generated.
+     * @return name of the interface.
+     */
+    public static String getApiClientInterfaceName(
+            Symbol operationSymbol
+    ) {
+        return String.format("%sAPIClient", operationSymbol.getName());
+    }
 
     @Override
     public void processFinalizedModel(
@@ -47,6 +60,7 @@ public class OperationInterfaceGenerator implements GoIntegration {
     ) {
         ServiceShape serviceShape = settings.getService(model);
         TopDownIndex topDownIndex = TopDownIndex.of(model);
+        Set<ShapeId> listOfClientInterfaceOperations = new TreeSet<>();
 
         // fetch operations for which paginated trait is applied
         topDownIndex.getContainedOperations(serviceShape).stream()
@@ -55,7 +69,7 @@ public class OperationInterfaceGenerator implements GoIntegration {
 
         if (serviceShape.hasTrait(PaginatedTrait.class)) {
             topDownIndex.getContainedOperations(serviceShape).stream()
-                    .forEach(operationShape -> listOfClientInterfaceOperations.add(operationShape.getId()));
+                    .forEach(operationShape -> listOfClientInterfaceOperations.add(operationShape.toShapeId()));
         }
 
         // fetch operations for which waitable trait is applied
@@ -63,11 +77,10 @@ public class OperationInterfaceGenerator implements GoIntegration {
                 .filter(operationShape -> operationShape.hasTrait(WaitableTrait.class))
                 .forEach(operationShape -> listOfClientInterfaceOperations.add(operationShape.getId()));
 
-        if (listOfClientInterfaceOperations.isEmpty()) {
-            throw new CodegenException("empty operations");
+        if (!listOfClientInterfaceOperations.isEmpty()) {
+            mapOfClientInterfaceOperations.put(serviceShape.getId(), listOfClientInterfaceOperations);
         }
     }
-
 
     @Override
     public void writeAdditionalFiles(
@@ -76,12 +89,17 @@ public class OperationInterfaceGenerator implements GoIntegration {
             SymbolProvider symbolProvider,
             GoDelegator goDelegator
     ) {
-        listOfClientInterfaceOperations.stream().forEach(shapeId -> {
-            OperationShape operationShape = model.expectShape(shapeId, OperationShape.class);
-            goDelegator.useShapeWriter(operationShape, writer -> {
-                generateApiClientInterface(writer, model, symbolProvider, operationShape);
+        ShapeId serviceId = settings.getService(model).getId();
+
+        if (mapOfClientInterfaceOperations.containsKey(serviceId)) {
+            Set<ShapeId> listOfClientInterfaceOperations = mapOfClientInterfaceOperations.get(serviceId);
+            listOfClientInterfaceOperations.stream().forEach(shapeId -> {
+                OperationShape operationShape = model.expectShape(shapeId, OperationShape.class);
+                goDelegator.useShapeWriter(operationShape, writer -> {
+                    generateApiClientInterface(writer, model, symbolProvider, operationShape);
+                });
             });
-        });
+        }
     }
 
     private void generateApiClientInterface(
@@ -110,17 +128,5 @@ public class OperationInterfaceGenerator implements GoIntegration {
         writer.write("");
         writer.write("var _ $T = (*Client)(nil)", interfaceSymbol);
         writer.write("");
-    }
-
-    /**
-     * Returns name of an API client interface.
-     *
-     * @param operationSymbol Symbol of operation shape for which Api client interface is being generated.
-     * @return name of the interface.
-     */
-    public static String getApiClientInterfaceName(
-            Symbol operationSymbol
-    ) {
-        return String.format("%sAPIClient", operationSymbol.getName());
     }
 }
