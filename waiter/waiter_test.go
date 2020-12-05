@@ -8,71 +8,65 @@ import (
 
 func TestComputeDelay(t *testing.T) {
 	cases := map[string]struct {
-		totalAttempts  int64
-		minDelay       time.Duration
-		maxDelay       time.Duration
-		maxWaitTime    time.Duration
-		expectedDelays []time.Duration
-		expectedError  string
+		totalAttempts       int64
+		minDelay            time.Duration
+		maxDelay            time.Duration
+		maxWaitTime         time.Duration
+		expectedMaxDelays   []time.Duration
+		expectedError       string
+		expectedMinAttempts int
 	}{
 		"standard": {
-			totalAttempts:  8,
-			minDelay:       2 * time.Second,
-			maxDelay:       120 * time.Second,
-			maxWaitTime:    300 * time.Second,
-			expectedDelays: []time.Duration{2, 4, 8, 16, 32, 64, 120, 52},
+			totalAttempts:       8,
+			minDelay:            2 * time.Second,
+			maxDelay:            120 * time.Second,
+			maxWaitTime:         300 * time.Second,
+			expectedMaxDelays:   []time.Duration{2, 4, 8, 16, 32, 64, 120, 120},
+			expectedMinAttempts: 8,
 		},
 		"zero minDelay": {
-			totalAttempts:  3,
-			minDelay:       0,
-			maxDelay:       120 * time.Second,
-			maxWaitTime:    300 * time.Second,
-			expectedDelays: []time.Duration{0, 0, 0},
+			totalAttempts:       3,
+			minDelay:            0,
+			maxDelay:            120 * time.Second,
+			maxWaitTime:         300 * time.Second,
+			expectedMaxDelays:   []time.Duration{1, 1, 1},
+			expectedMinAttempts: 3,
 		},
 		"zero maxDelay": {
-			totalAttempts:  3,
-			minDelay:       10 * time.Second,
-			maxDelay:       0,
-			maxWaitTime:    300 * time.Second,
-			expectedDelays: []time.Duration{0, 0, 0},
-			expectedError:  "maximum delay must be greater than minimum delay",
+			totalAttempts: 3,
+			minDelay:      10 * time.Second,
+			maxDelay:      0,
+			maxWaitTime:   300 * time.Second,
+			expectedError: "maximum delay must be greater than minimum delay",
 		},
 		"zero remaining time": {
-			totalAttempts:  3,
-			minDelay:       10 * time.Second,
-			maxWaitTime:    0,
-			expectedDelays: []time.Duration{0, 0, 0},
+			totalAttempts:       3,
+			minDelay:            10 * time.Second,
+			maxDelay:            20 * time.Second,
+			maxWaitTime:         0,
+			expectedMaxDelays:   []time.Duration{0},
+			expectedMinAttempts: 1,
+		},
+		"large minDelay": {
+			totalAttempts:       80,
+			minDelay:            150 * time.Minute,
+			maxDelay:            200 * time.Minute,
+			maxWaitTime:         250 * time.Minute,
+			expectedMinAttempts: 1,
+		},
+		"large maxDelay": {
+			totalAttempts:       80,
+			minDelay:            15 * time.Minute,
+			maxDelay:            2000 * time.Minute,
+			maxWaitTime:         250 * time.Minute,
+			expectedMinAttempts: 5,
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			var err error
-			var attempt int64
-			var delays = make([]time.Duration, c.totalAttempts)
-
-			remainingTime := c.maxWaitTime
-
-			for {
-				attempt++
-
-				if c.totalAttempts < attempt {
-					break
-				}
-
-				if remainingTime <= 0 {
-					break
-				}
-
-				delay, e := ComputeDelay(c.minDelay, c.maxDelay, remainingTime, attempt)
-				if e != nil {
-					err = e
-					break
-				}
-				delays[attempt-1] = delay
-
-				remainingTime -= delay
-			}
+			// mock waiter call
+			delays, err := mockwait(c.totalAttempts, c.minDelay, c.maxDelay, c.maxWaitTime)
 
 			if len(c.expectedError) != 0 {
 				if err == nil {
@@ -85,11 +79,44 @@ func TestComputeDelay(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
-			for i, expectedDelay := range c.expectedDelays {
-				if e, a := expectedDelay*time.Second, delays[i]; e != a {
-					t.Fatalf("attempt %d : expected delay to be %v, got %v", i+1, e, a)
+			if e, a := c.expectedMinAttempts, len(delays); e > a {
+				t.Logf("%v", delays)
+				t.Fatalf("expected minimum attempts to be %v, got %v", e, a)
+			}
+
+			for i, expectedDelay := range c.expectedMaxDelays {
+				if e, a := expectedDelay*time.Second, delays[i]; e < a {
+					t.Fatalf("attempt %d : expected delay to be less than %v, got %v", i+1, e, a)
 				}
 			}
 		})
 	}
+}
+
+func mockwait(maxAttempts int64, minDelay, maxDelay, maxWaitTime time.Duration) ([]time.Duration, error) {
+	delays := make([]time.Duration, 0)
+	remainingTime := maxWaitTime
+	var attempt int64
+
+	for {
+		attempt++
+
+		if maxAttempts < attempt {
+			break
+		}
+
+		delay, done, err := ComputeDelay(attempt, minDelay, maxDelay, remainingTime)
+		if err != nil {
+			return delays, err
+		}
+
+		delays = append(delays, delay)
+		if done {
+			break
+		}
+
+		remainingTime -= delay
+	}
+
+	return delays, nil
 }

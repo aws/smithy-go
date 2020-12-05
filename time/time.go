@@ -71,3 +71,11 @@ func SleepWithContext(ctx context.Context, dur time.Duration) error {
 
 	return nil
 }
+
+// DurationMin compares two time.Duration input values and returns the minimum time.Duration value
+func DurationMin(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
