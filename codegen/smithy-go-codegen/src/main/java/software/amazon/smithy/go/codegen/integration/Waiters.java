@@ -323,13 +323,17 @@ public class Waiters implements GoIntegration {
                             ).build();
 
                             writer.writeDocs("compute exponential backoff between waiter retries");
-                            writer.openBlock("delay, err := $T(", ")", computeDelaySymbol, () -> {
-                                writer.write("options.MinDelay, options.MaxDelay, remainingTime, attempt,");
+                            writer.openBlock("delay, done, err := $T(", ")", computeDelaySymbol, () -> {
+                                writer.write("attempt, options.MinDelay, options.MaxDelay, remainingTime,");
                             });
 
                             writer.write(
                                     "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
                             writer.write("");
+
+                            writer.openBlock("if done {", "}", () -> {
+                                writer.write("break");
+                            });
 
                             writer.write("remainingTime -= delay");
 
