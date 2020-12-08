@@ -82,7 +82,7 @@ public class Waiters implements GoIntegration {
         // generate waiter function
         waiters.forEach((name, waiter) -> {
             // write waiter options
-            generateWaiterOptions(model, symbolProvider, writer, operation, name);
+            generateWaiterOptions(model, symbolProvider, writer, operation, name, waiter);
 
             // write waiter client
             generateWaiterClient(model, symbolProvider, writer, operation, name, waiter);
@@ -104,7 +104,8 @@ public class Waiters implements GoIntegration {
             SymbolProvider symbolProvider,
             GoWriter writer,
             OperationShape operationShape,
-            String waiterName
+            String waiterName,
+            Waiter waiter
     ) {
         String optionsName = generateWaiterOptionsName(waiterName);
         String waiterClientName = generateWaiterClientName(waiterName);
@@ -140,11 +141,21 @@ public class Waiters implements GoIntegration {
                     writer.write("APIOptions []func($P) error", stackSymbol);
 
                     writer.write("");
-                    writer.writeDocs("MinDelay is the minimum amount of time to delay between retries");
+                    writer.writeDocs(
+                            String.format("MinDelay is the minimum amount of time to delay between retries. "
+                                            + "If unset, %s will use default minimum delay of %s seconds. "
+                                            + "Note that MinDelay must resolve to a value lesser than or equal "
+                                            + "to the MaxDelay.", waiterName, waiter.getMinDelay())
+                    );
                     writer.write("MinDelay time.Duration");
 
                     writer.write("");
-                    writer.writeDocs("MaxDelay is the maximum amount of time to delay between retries");
+                    writer.writeDocs(
+                            String.format("MaxDelay is the maximum amount of time to delay between retries. "
+                                            + "If unset or set to zero, %s will use default max delay of %s seconds. "
+                                            + "Note that MaxDelay must resolve to value greater than or equal "
+                                            + "to the MinDelay.", waiter.getMaxDelay(), waiterName)
+                    );
                     writer.write("MaxDelay time.Duration");
 
                     writer.write("");
@@ -275,14 +286,17 @@ public class Waiters implements GoIntegration {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.addUseImports(SmithyGoDependency.TIME);
         writer.writeDocs(
-                String.format("%s calls the waiter function for %s waiter", WAITER_INVOKER_FUNCTION_NAME, waiterName)
+                String.format(
+                        "%s calls the waiter function for %s waiter. The maxWaitDur is the maximum wait duration "
+                                + "the waiter will wait. The maxWaitDur is required and must be greater than zero.",
+                        WAITER_INVOKER_FUNCTION_NAME, waiterName)
         );
         writer.openBlock(
-                "func (w $P) $L(ctx context.Context, params $P, maxWaitTime time.Duration, optFns ...func($P)) error {",
+                "func (w $P) $L(ctx context.Context, params $P, maxWaitDur time.Duration, optFns ...func($P)) error {",
                 "}",
                 clientSymbol, WAITER_INVOKER_FUNCTION_NAME, inputSymbol, waiterOptionsSymbol,
                 () -> {
-                    writer.openBlock("if maxWaitTime == 0 {", "}", () -> {
+                    writer.openBlock("if maxWaitDur == 0 {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.FMT);
                         writer.write("fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
                     }).write("");
@@ -293,29 +307,42 @@ public class Waiters implements GoIntegration {
                             "}", () -> {
                                 writer.write("fn(&options)");
                             });
+                    writer.write("");
 
-                    writer.addUseImports(SmithyGoDependency.TIME);
+                    // validate values for MaxDelay from options
+                    writer.openBlock("if options.MaxDelay == 0 {", "}", () -> {
+                        writer.write("options.MaxDelay = $L * time.Second", waiter.getMaxDelay());
+                    });
+                    writer.write("");
+
+                    // validate that MinDelay is lesser than or equal to resolved MaxDelay
+                    writer.openBlock("if options.MinDelay > options.MaxDelay {", "}", () -> {
+                        writer.addUseImports(SmithyGoDependency.FMT);
+                        writer.write("return fmt.Errorf(\"minimum waiter delay %v must be lesser than or equal to "
+                                + "maximum waiter delay of %v.\", options.MinDelay, options.MaxDelay)");
+                    }).write("");
+
+
                     writer.addUseImports(SmithyGoDependency.CONTEXT);
-
-                    writer.write("logger := middleware.GetLogger(ctx)").write("");
-                    writer.write("var attempt int64");
-                    writer.write("var remainingTime = maxWaitTime");
-
-                    writer.write("deadline := time.Now().Add(maxWaitTime)");
-                    writer.write("ctx, cancelFn := context.WithDeadline(ctx, deadline)");
+                    writer.write("ctx, cancelFn := context.WithTimeout(ctx, maxWaitDur)");
                     writer.write("defer cancelFn()");
+                    writer.write("");
+
+                    Symbol loggerMiddleware = SymbolUtils.createValueSymbolBuilder(
+                            "Logger", SmithyGoDependency.SMITHY_WAITERS
+                    ).build();
+                    writer.write("logger := $T{}", loggerMiddleware);
+                    writer.write("remainingTime := maxWaitDur").write("");
+
+                    writer.write("var attempt int64");
                     writer.openBlock("for {", "}", () -> {
                         writer.write("");
 
-                        writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.openBlock("if remainingTime <= 0 {", "}", () -> {
-                            writer.write("return fmt.Errorf(\"exceeded maximum wait time for $L waiter\")",
-                                    waiterName);
-                        });
-                        writer.write("");
-
-                        // handle retry attempt behavior
-                        writer.openBlock("if attempt > 0 {", "}", () -> {
+                        // handle retry delay computation, sleep. Skip if minDelay is lesser than or equal to 0.
+                        writer.openBlock("if attempt > 0 && options.MinDelay > 0 {", "}", () -> {
+                            writer.openBlock("if remainingTime < options.MinDelay || remainingTime <= 0 {", "}", () -> {
+                                writer.write("break");
+                            });
                             writer.write("");
 
                             Symbol computeDelaySymbol = SymbolUtils.createValueSymbolBuilder(
@@ -323,17 +350,14 @@ public class Waiters implements GoIntegration {
                             ).build();
 
                             writer.writeDocs("compute exponential backoff between waiter retries");
-                            writer.openBlock("delay, done, err := $T(", ")", computeDelaySymbol, () -> {
+                            writer.openBlock("delay, err := $T(", ")", computeDelaySymbol, () -> {
                                 writer.write("attempt, options.MinDelay, options.MaxDelay, remainingTime,");
                             });
 
+                            writer.addUseImports(SmithyGoDependency.FMT);
                             writer.write(
                                     "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
                             writer.write("");
-
-                            writer.openBlock("if done {", "}", () -> {
-                                writer.write("break");
-                            });
 
                             writer.write("remainingTime -= delay");
 
@@ -348,11 +372,10 @@ public class Waiters implements GoIntegration {
                                     });
                         }).write("");
 
-                        // enable logger
+                        // add waiter logger middleware to log an attempt, if LogWaitAttempts is enabled.
                         writer.openBlock("if options.LogWaitAttempts {", "}", () -> {
-                            writer.addUseImports(SmithyGoDependency.SMITHY_LOGGING);
-                            writer.write("logger.Logf(logging.Debug, "
-                                    + "fmt.Sprintf(\"attempting waiter request, attempt count: %d\", attempt+1))");
+                            writer.write("logger.Attempt = attempt +1");
+                            writer.write("options.APIOptions = append(options.APIOptions, logger.AddLogger)");
                         });
                         writer.write("");
 
