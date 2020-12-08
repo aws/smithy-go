@@ -25,25 +25,32 @@ func TestComputeDelay(t *testing.T) {
 			expectedMinAttempts: 8,
 		},
 		"zero minDelay": {
-			totalAttempts:       3,
-			minDelay:            0,
-			maxDelay:            120 * time.Second,
-			maxWaitTime:         300 * time.Second,
-			expectedMaxDelays:   []time.Duration{1, 1, 1},
-			expectedMinAttempts: 3,
+			totalAttempts: 3,
+			minDelay:      0,
+			maxDelay:      120 * time.Second,
+			maxWaitTime:   300 * time.Second,
+			expectedError: "minDelay must be greater than zero",
 		},
 		"zero maxDelay": {
 			totalAttempts: 3,
 			minDelay:      10 * time.Second,
 			maxDelay:      0,
 			maxWaitTime:   300 * time.Second,
-			expectedError: "maximum delay must be greater than minimum delay",
+			expectedError: "maxDelay must be greater than zero",
 		},
 		"zero remaining time": {
 			totalAttempts:       3,
 			minDelay:            10 * time.Second,
 			maxDelay:            20 * time.Second,
 			maxWaitTime:         0,
+			expectedMaxDelays:   []time.Duration{0},
+			expectedMinAttempts: 1,
+		},
+		"max wait time is less than min delay": {
+			totalAttempts:       3,
+			minDelay:            10 * time.Second,
+			maxDelay:            20 * time.Second,
+			maxWaitTime:         5 * time.Second,
 			expectedMaxDelays:   []time.Duration{0},
 			expectedMinAttempts: 1,
 		},
@@ -88,6 +95,10 @@ func TestComputeDelay(t *testing.T) {
 				if e, a := expectedDelay*time.Second, delays[i]; e < a {
 					t.Fatalf("attempt %d : expected delay to be less than %v, got %v", i+1, e, a)
 				}
+
+				if e, a := c.minDelay, delays[i]; e > a && c.maxWaitTime > c.minDelay {
+					t.Fatalf("attempt %d : expected delay to be more than %v, got %v", i+1, e, a)
+				}
 			}
 		})
 	}
@@ -105,17 +116,17 @@ func mockwait(maxAttempts int64, minDelay, maxDelay, maxWaitTime time.Duration) 
 			break
 		}
 
-		delay, done, err := ComputeDelay(attempt, minDelay, maxDelay, remainingTime)
+		delay, err := ComputeDelay(attempt, minDelay, maxDelay, remainingTime)
 		if err != nil {
 			return delays, err
 		}
 
 		delays = append(delays, delay)
-		if done {
-			break
-		}
 
 		remainingTime -= delay
+		if remainingTime < minDelay {
+			break
+		}
 	}
 
 	return delays, nil
