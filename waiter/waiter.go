@@ -48,7 +48,6 @@ func ComputeDelay(attempt int64, minDelay, maxDelay, remainingTime time.Duration
 
 	if delay != minDelay {
 		// randomize to get jitter between min delay and delay value
-		// [0.0, 1.0) * [minDelay, delay]
 		d, err := rand.CryptoRandInt63n(int64(delay - minDelay))
 		if err != nil {
 			return 0, fmt.Errorf("error computing retry jitter, %w", err)

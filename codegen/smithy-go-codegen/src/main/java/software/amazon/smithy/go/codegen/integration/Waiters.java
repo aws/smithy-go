@@ -296,7 +296,7 @@ public class Waiters implements GoIntegration {
                 "}",
                 clientSymbol, WAITER_INVOKER_FUNCTION_NAME, inputSymbol, waiterOptionsSymbol,
                 () -> {
-                    writer.openBlock("if maxWaitDur == 0 {", "}", () -> {
+                    writer.openBlock("if maxWaitDur <= 0 {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.FMT);
                         writer.write("fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
                     }).write("");
@@ -310,7 +310,7 @@ public class Waiters implements GoIntegration {
                     writer.write("");
 
                     // validate values for MaxDelay from options
-                    writer.openBlock("if options.MaxDelay == 0 {", "}", () -> {
+                    writer.openBlock("if options.MaxDelay <= 0 {", "}", () -> {
                         writer.write("options.MaxDelay = $L * time.Second", waiter.getMaxDelay());
                     });
                     writer.write("");
@@ -337,6 +337,7 @@ public class Waiters implements GoIntegration {
                     writer.write("var attempt int64");
                     writer.openBlock("for {", "}", () -> {
                         writer.write("");
+                        writer.write("start := time.Now()");
 
                         // handle retry delay computation, sleep. Skip if minDelay is lesser than or equal to 0.
                         writer.openBlock("if attempt > 0 && options.MinDelay > 0 {", "}", () -> {
@@ -358,8 +359,6 @@ public class Waiters implements GoIntegration {
                             writer.write(
                                     "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
                             writer.write("");
-
-                            writer.write("remainingTime -= delay");
 
                             Symbol sleepWithContextSymbol = SymbolUtils.createValueSymbolBuilder(
                                     "SleepWithContext", SmithyGoDependency.SMITHY_TIME
@@ -390,6 +389,9 @@ public class Waiters implements GoIntegration {
                         writer.write("retryable, err := options.Retryable(ctx, params, out, err)");
                         writer.write("if err != nil { return err }").write("");
                         writer.write("if !retryable { return nil }").write("");
+
+                        // update remaining time
+                        writer.write("remainingTime -= time.Since(start)");
 
                         // increment the attempt counter for retry
                         writer.write("attempt++");

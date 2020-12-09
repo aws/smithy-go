@@ -1,6 +1,8 @@
 package waiter
 
 import (
+	"github.com/awslabs/smithy-go/rand"
+	mathrand "math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +74,13 @@ func TestComputeDelay(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
+			// mock smithy-go rand/#Reader
+			r := rand.Reader
+			defer func() {
+				rand.Reader = r
+			}()
+			rand.Reader = mathrand.New(mathrand.NewSource(1))
+
 			// mock waiter call
 			delays, err := mockwait(c.totalAttempts, c.minDelay, c.maxDelay, c.maxWaitTime)
 
@@ -100,6 +109,7 @@ func TestComputeDelay(t *testing.T) {
 					t.Fatalf("attempt %d : expected delay to be more than %v, got %v", i+1, e, a)
 				}
 			}
+			t.Logf("delays : %v", delays)
 		})
 	}
 }
