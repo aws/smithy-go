@@ -143,18 +143,18 @@ public class Waiters implements GoIntegration {
                     writer.write("");
                     writer.writeDocs(
                             String.format("MinDelay is the minimum amount of time to delay between retries. "
-                                            + "If unset, %s will use default minimum delay of %s seconds. "
-                                            + "Note that MinDelay must resolve to a value lesser than or equal "
-                                            + "to the MaxDelay.", waiterClientName, waiter.getMinDelay())
+                                    + "If unset, %s will use default minimum delay of %s seconds. "
+                                    + "Note that MinDelay must resolve to a value lesser than or equal "
+                                    + "to the MaxDelay.", waiterClientName, waiter.getMinDelay())
                     );
                     writer.write("MinDelay time.Duration");
 
                     writer.write("");
                     writer.writeDocs(
                             String.format("MaxDelay is the maximum amount of time to delay between retries. "
-                                            + "If unset or set to zero, %s will use default max delay of %s seconds. "
-                                            + "Note that MaxDelay must resolve to value greater than or equal "
-                                            + "to the MinDelay.", waiterClientName, waiter.getMaxDelay())
+                                    + "If unset or set to zero, %s will use default max delay of %s seconds. "
+                                    + "Note that MaxDelay must resolve to value greater than or equal "
+                                    + "to the MinDelay.", waiterClientName, waiter.getMaxDelay())
                     );
                     writer.write("MaxDelay time.Duration");
 
@@ -322,7 +322,6 @@ public class Waiters implements GoIntegration {
                                 + "maximum waiter delay of %v.\", options.MinDelay, options.MaxDelay)");
                     }).write("");
 
-
                     writer.addUseImports(SmithyGoDependency.CONTEXT);
                     writer.write("ctx, cancelFn := context.WithTimeout(ctx, maxWaitDur)");
                     writer.write("defer cancelFn()");
@@ -337,64 +336,67 @@ public class Waiters implements GoIntegration {
                     writer.write("var attempt int64");
                     writer.openBlock("for {", "}", () -> {
                         writer.write("");
-                        writer.write("start := time.Now()");
+                        writer.write("attempt++");
 
-                        // handle retry delay computation, sleep. Skip if minDelay is lesser than or equal to 0.
-                        writer.openBlock("if attempt > 0 && options.MinDelay > 0 {", "}", () -> {
-                            writer.openBlock("if remainingTime < options.MinDelay || remainingTime <= 0 {", "}", () -> {
-                                writer.write("break");
-                            });
-                            writer.write("");
-
-                            Symbol computeDelaySymbol = SymbolUtils.createValueSymbolBuilder(
-                                    "ComputeDelay", SmithyGoDependency.SMITHY_WAITERS
-                            ).build();
-
-                            writer.writeDocs("compute exponential backoff between waiter retries");
-                            writer.openBlock("delay, err := $T(", ")", computeDelaySymbol, () -> {
-                                writer.write("attempt, options.MinDelay, options.MaxDelay, remainingTime,");
-                            });
-
-                            writer.addUseImports(SmithyGoDependency.FMT);
-                            writer.write(
-                                    "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
-                            writer.write("");
-
-                            Symbol sleepWithContextSymbol = SymbolUtils.createValueSymbolBuilder(
-                                    "SleepWithContext", SmithyGoDependency.SMITHY_TIME
-                            ).build();
-                            writer.writeDocs("sleep for the delay amount before invoking a request");
-                            writer.openBlock("if err := $T(ctx, delay); err != nil {", "}", sleepWithContextSymbol,
-                                    () -> {
-                                        writer.write(
-                                                "return fmt.Errorf(\"request cancelled while waiting, %w\", err)");
-                                    });
-                        }).write("");
+                        writer.write("apiOptions := options.APIOptions");
+                        writer.write("start := time.Now()").write("");
 
                         // add waiter logger middleware to log an attempt, if LogWaitAttempts is enabled.
                         writer.openBlock("if options.LogWaitAttempts {", "}", () -> {
-                            writer.write("logger.Attempt = attempt +1");
-                            writer.write("options.APIOptions = append(options.APIOptions, logger.AddLogger)");
-                        });
-                        writer.write("");
+                            writer.write("logger.Attempt = attempt");
+                            writer.write(
+                                    "apiOptions = append([]func(*middleware.Stack) error{}, options.APIOptions...)");
+                            writer.write("apiOptions = append(apiOptions, logger.AddLogger)");
+                        }).write("");
 
                         // make a request
                         writer.openBlock("out, err := w.client.$T(ctx, params, func (o *Options) { ", "})",
                                 operationSymbol, () -> {
-                                    writer.write("o.APIOptions = append(o.APIOptions, options.APIOptions...)");
+                                    writer.write("o.APIOptions = append(o.APIOptions, apiOptions...)");
                                 });
                         writer.write("");
 
                         // handle response and identify waiter state
                         writer.write("retryable, err := options.Retryable(ctx, params, out, err)");
-                        writer.write("if err != nil { return err }").write("");
+                        writer.write("if err != nil { return err }");
                         writer.write("if !retryable { return nil }").write("");
 
                         // update remaining time
                         writer.write("remainingTime -= time.Since(start)");
 
-                        // increment the attempt counter for retry
-                        writer.write("attempt++");
+                        // check if next iteration is possible
+                        writer.openBlock("if remainingTime < options.MinDelay || remainingTime <= 0 {", "}", () -> {
+                            writer.write("break");
+                        });
+                        writer.write("");
+
+                        // handle retry delay computation, sleep.
+                        Symbol computeDelaySymbol = SymbolUtils.createValueSymbolBuilder(
+                                "ComputeDelay", SmithyGoDependency.SMITHY_WAITERS
+                        ).build();
+                        writer.writeDocs("compute exponential backoff between waiter retries");
+                        writer.openBlock("delay, err := $T(", ")", computeDelaySymbol, () -> {
+                            writer.write("attempt, options.MinDelay, options.MaxDelay, remainingTime,");
+                        });
+
+                        writer.addUseImports(SmithyGoDependency.FMT);
+                        writer.write(
+                                "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
+                        writer.write("");
+
+                        // update remaining time as per computed delay
+                        writer.write("remainingTime -= delay");
+
+                        // sleep for delay
+                        Symbol sleepWithContextSymbol = SymbolUtils.createValueSymbolBuilder(
+                                "SleepWithContext", SmithyGoDependency.SMITHY_TIME
+                        ).build();
+                        writer.writeDocs("sleep for the delay amount before invoking a request");
+                        writer.openBlock("if err := $T(ctx, delay); err != nil {", "}", sleepWithContextSymbol,
+                                () -> {
+                                    writer.write(
+                                            "return fmt.Errorf(\"request cancelled while waiting, %w\", err)");
+                                });
                     });
                     writer.write("return fmt.Errorf(\"exceeded max wait time for $L waiter\")", waiterName);
                 });
