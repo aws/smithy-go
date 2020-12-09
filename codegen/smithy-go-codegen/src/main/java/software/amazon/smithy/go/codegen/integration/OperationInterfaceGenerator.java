@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -27,11 +28,11 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.PaginatedIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.traits.PaginatedTrait;
 import software.amazon.smithy.waiters.WaitableTrait;
 
 /**
@@ -60,17 +61,16 @@ public class OperationInterfaceGenerator implements GoIntegration {
     ) {
         ServiceShape serviceShape = settings.getService(model);
         TopDownIndex topDownIndex = TopDownIndex.of(model);
+        PaginatedIndex paginatedIndex = PaginatedIndex.of(model);
+
         Set<ShapeId> listOfClientInterfaceOperations = new TreeSet<>();
 
-        // fetch operations for which paginated trait is applied
+        // fetch operations for which paginators are generated
         topDownIndex.getContainedOperations(serviceShape).stream()
-                .filter(operationShape -> operationShape.hasTrait(PaginatedTrait.class))
-                .forEach(operationShape -> listOfClientInterfaceOperations.add(operationShape.getId()));
-
-        if (serviceShape.hasTrait(PaginatedTrait.class)) {
-            topDownIndex.getContainedOperations(serviceShape).stream()
-                    .forEach(operationShape -> listOfClientInterfaceOperations.add(operationShape.toShapeId()));
-        }
+                .map(operationShape -> paginatedIndex.getPaginationInfo(serviceShape, operationShape))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(paginationInfo -> listOfClientInterfaceOperations.add(paginationInfo.getOperation().getId()));
 
         // fetch operations for which waitable trait is applied
         topDownIndex.getContainedOperations(serviceShape).stream()
