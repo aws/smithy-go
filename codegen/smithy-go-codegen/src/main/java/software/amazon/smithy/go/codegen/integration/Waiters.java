@@ -145,7 +145,7 @@ public class Waiters implements GoIntegration {
                             String.format("MinDelay is the minimum amount of time to delay between retries. "
                                             + "If unset, %s will use default minimum delay of %s seconds. "
                                             + "Note that MinDelay must resolve to a value lesser than or equal "
-                                            + "to the MaxDelay.", waiterName, waiter.getMinDelay())
+                                            + "to the MaxDelay.", waiterClientName, waiter.getMinDelay())
                     );
                     writer.write("MinDelay time.Duration");
 
@@ -154,7 +154,7 @@ public class Waiters implements GoIntegration {
                             String.format("MaxDelay is the maximum amount of time to delay between retries. "
                                             + "If unset or set to zero, %s will use default max delay of %s seconds. "
                                             + "Note that MaxDelay must resolve to value greater than or equal "
-                                            + "to the MinDelay.", waiter.getMaxDelay(), waiterName)
+                                            + "to the MinDelay.", waiterClientName, waiter.getMaxDelay())
                     );
                     writer.write("MaxDelay time.Duration");
 
