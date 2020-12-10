@@ -70,7 +70,7 @@ public final class GoDelegator {
     /**
      * Gets a previously created writer or creates a new one if needed.
      *
-     * @param shape Shape to create the writer for.
+     * @param shape          Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     public void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
@@ -81,7 +81,7 @@ public final class GoDelegator {
     /**
      * Gets a previously created writer or creates a new one for the a Go test file for the associated shape.
      *
-     * @param shape Shape to create the writer for.
+     * @param shape          Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     public void useShapeTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
@@ -93,8 +93,31 @@ public final class GoDelegator {
         filename = b.toString();
 
         symbol = symbol.toBuilder()
-            .definitionFile(filename)
-        .build();
+                .definitionFile(filename)
+                .build();
+
+        useShapeWriter(symbol, writerConsumer);
+    }
+
+    /**
+     * Gets a previously created writer or creates a new one for the a Go public package test file for the associated
+     * shape.
+     *
+     * @param shape          Shape to create the writer for.
+     * @param writerConsumer Consumer that accepts and works with the file.
+     */
+    public void useShapePublicTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        String filename = symbol.getDefinitionFile();
+
+        StringBuilder b = new StringBuilder(filename);
+        b.insert(filename.lastIndexOf(".go"), "_public_test");
+        filename = b.toString();
+
+        symbol = symbol.toBuilder()
+                .definitionFile(filename)
+                .namespace(symbol.getNamespace() + "_test", symbol.getNamespaceDelimiter())
+                .build();
 
         useShapeWriter(symbol, writerConsumer);
     }
@@ -102,7 +125,7 @@ public final class GoDelegator {
     /**
      * Gets a previously created writer or creates a new one if needed.
      *
-     * @param symbol symbol to create the writer for.
+     * @param symbol         symbol to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     private void useShapeWriter(Symbol symbol, Consumer<GoWriter> writerConsumer) {
@@ -121,7 +144,7 @@ public final class GoDelegator {
      * Gets a previously created writer or creates a new one if needed
      * and adds a new line if the writer already exists.
      *
-     * @param filename Name of the file to create.
+     * @param filename       Name of the file to create.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     void useFileWriter(String filename, String namespace, Consumer<GoWriter> writerConsumer) {

@@ -16,6 +16,8 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Collection;
+import java.util.Set;
+import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -27,35 +29,44 @@ import software.amazon.smithy.model.shapes.UnionShape;
 /**
  * Renders unions and type aliases for all their members.
  */
-public class UnionGenerator implements Runnable {
+public class UnionGenerator {
     public static final String UNKNOWN_MEMBER_NAME = "UnknownUnionMember";
 
     private final Model model;
     private final SymbolProvider symbolProvider;
-    private final GoWriter writer;
     private final UnionShape shape;
 
-    UnionGenerator(Model model, SymbolProvider symbolProvider, GoWriter writer, UnionShape shape) {
+    UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
         this.model = model;
         this.symbolProvider = symbolProvider;
-        this.writer = writer;
         this.shape = shape;
     }
 
-    @Override
-    public void run() {
+    /**
+     * Generates the Go type definitions for the UnionShape.
+     *
+     * @param writer the writer
+     */
+    public void generateUnion(GoWriter writer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
-        writer.writeShapeDocs(shape);
+        Collection<MemberShape> memberShapes = shape.getAllMembers().values();
 
         // Creates the parent interface for the union, which only defines a
         // non-exported method whose purpose is only to enable satisfying the
         // interface.
+        if (writer.writeShapeDocs(shape)) {
+            writer.writeDocs("");
+        }
+        writer.writeDocs("The following types satisfy this interface:");
+        memberShapes.stream().map(symbolProvider::toMemberName).forEach(name -> {
+            writer.write("//  " + name);
+        });
         writer.openBlock("type $L interface {", "}", symbol.getName(), () -> {
             writer.write("is$L()", symbol.getName());
         }).write("");
 
         // Create structs for each member that satisfy the interface.
-        for (MemberShape member : shape.getAllMembers().values()) {
+        for (MemberShape member : memberShapes) {
             Symbol memberSymbol = symbolProvider.toSymbol(member);
             String exportedMemberName = symbolProvider.toMemberName(member);
             Shape target = model.expectShape(member.getTarget());
@@ -76,6 +87,42 @@ public class UnionGenerator implements Runnable {
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
         }
+    }
+
+    /**
+     * Generates union usage examples for documentation.
+     *
+     * @param writer the writer
+     */
+    public void generateUnionExamples(GoWriter writer) {
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        Set<MemberShape> members = new TreeSet<>(shape.getAllMembers().values());
+
+        writer.openBlock("func Example$L_outputUsage() {", "}", symbol.getName(), () -> {
+            writer.write("var union $P", symbol);
+
+            writer.writeDocs("type switches can be used to check the union value");
+            writer.openBlock("switch v := union.(type) {", "}", () -> {
+                for (MemberShape member : members) {
+                    Symbol targetSymbol = symbolProvider.toSymbol(model.expectShape(member.getTarget()));
+                    Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(symbolProvider.toMemberName(member),
+                            symbol.getNamespace()).build();
+
+                    writer.openBlock("case *$T:", "", memberSymbol, () -> {
+                        writer.write("_ = v.Value // Value is $L", targetSymbol.getName());
+                    });
+                }
+                writer.addUseImports(SmithyGoDependency.FMT);
+                Symbol unknownUnionMember = SymbolUtils.createPointableSymbolBuilder("UnknownUnionMember",
+                        symbol.getNamespace()).build();
+                writer.openBlock("case $P:", "", unknownUnionMember, () -> {
+                    writer.write("fmt.Println(\"unknown tag:\", v.Tag)");
+                });
+                writer.openBlock("default:", "", () -> {
+                    writer.write("fmt.Println(\"union is nil or unknown type\")");
+                });
+            });
+        });
     }
 
     /**
