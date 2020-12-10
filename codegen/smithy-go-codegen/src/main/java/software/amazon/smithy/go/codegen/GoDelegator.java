@@ -106,12 +106,12 @@ public final class GoDelegator {
      * @param shape          Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
-    public void useShapePublicTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
+    public void useShapeExportedTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
         String filename = symbol.getDefinitionFile();
 
         StringBuilder b = new StringBuilder(filename);
-        b.insert(filename.lastIndexOf(".go"), "_public_test");
+        b.insert(filename.lastIndexOf(".go"), "_exported_test");
         filename = b.toString();
 
         symbol = symbol.toBuilder()

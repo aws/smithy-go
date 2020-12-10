@@ -253,7 +253,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void unionShape(UnionShape shape) {
         UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
-        writers.useShapePublicTestWriter(shape, generator::generateUnionExamples);
+        writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
         return null;
     }
 
