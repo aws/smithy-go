@@ -3,6 +3,7 @@ namespace example.weather
 
 use smithy.test#httpRequestTests
 use smithy.test#httpResponseTests
+use smithy.waiters#waitable
 
 /// Provides weather forecasts.
 @fakeProtocol
@@ -36,6 +37,56 @@ resource CityImage {
 string CityId
 
 @readonly
+@waitable(
+    CityExists: {
+        description: "Waits until a city has been created",
+        acceptors: [
+            // Fail-fast if the thing transitions to a "failed" state.
+            {
+                state: "failure",
+                matcher: {
+                    errorType: "NoSuchResource"
+                }
+            },
+            // Fail-fast if the thing transitions to a "failed" state.
+            {
+                state: "failure",
+                matcher: {
+                    errorType: "UnModeledError"
+                }
+            },
+            // Succeed when the city image value is not empty i.e. enters into a "success" state.
+            {
+                state: "success",
+                matcher: {
+                    success: true
+                }
+            },
+            // Retry if city id input is of same length as city name in output
+            {
+                state: "retry",
+                matcher: {
+                    inputOutput: {
+                        path: "length(input.cityId) == length(output.name)",
+                        comparator: "booleanEquals",
+                        expected: "true",
+                    }
+                }
+            },
+            // Success if city name in output is seattle
+            {
+                state: "success",
+                matcher: {
+                    output: {
+                        path: "name",
+                        comparator: "stringEquals",
+                        expected: "seattle",
+                    }
+                }
+            }
+        ]
+    }
+)
 @http(method: "GET", uri: "/cities/{cityId}")
 operation GetCity {
     input: GetCityInput,
@@ -178,6 +229,35 @@ apply NoSuchResource @httpResponseTests([
 // return truncated results.
 @readonly
 @paginated(items: "items")
+@waitable(
+    "ListContainsCity": {
+        description: "Wait until ListCities operation response matches a given state",
+        acceptors: [
+            // failure in case all items returned match to seattle
+            {
+                state: "failure",
+                matcher: {
+                    output: {
+                        path: "items",
+                        comparator: "allStringEquals",
+                        expected: "seattle",
+                    }
+                }
+            },
+            // success in case any items returned match to NewYork
+            {
+                state: "success",
+                matcher: {
+                    output: {
+                        path: "items",
+                        comparator: "anyStringEquals",
+                        expected: "NewYork",
+                    }
+                }
+            }
+        ]
+    }
+)
 @http(method: "GET", uri: "/cities")
 operation ListCities {
     input: ListCitiesInput,
