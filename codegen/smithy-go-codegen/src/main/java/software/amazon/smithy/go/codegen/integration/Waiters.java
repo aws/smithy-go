@@ -29,6 +29,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.StringUtils;
@@ -430,7 +431,6 @@ public class Waiters implements GoIntegration {
 
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
-        Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
 
         writer.write("");
         writer.openBlock("func $L(ctx context.Context, input $P, output $P, err error) (bool, error) {",
@@ -504,16 +504,15 @@ public class Waiters implements GoIntegration {
                                 writer.openBlock("if err != nil {", "}", () -> {
 
                                     // identify if this is a modeled error shape
-                                    Optional<ShapeId> errorShape = operationShape.getErrors().stream().filter(
+                                    Optional<ShapeId> errorShapeId = operationShape.getErrors().stream().filter(
                                             shapeId -> {
                                                 return shapeId.getName().equalsIgnoreCase(errorType);
                                             }).findFirst();
 
                                     // if modeled error shape
-                                    if (errorShape.isPresent()) {
-                                        Symbol modeledErrorSymbol = SymbolUtils.createValueSymbolBuilder(
-                                                errorShape.get().getName(), operationSymbol.getNamespace() + "/types"
-                                        ).build();
+                                    if (errorShapeId.isPresent()) {
+                                        Shape errorShape = model.expectShape(errorShapeId.get());
+                                        Symbol modeledErrorSymbol = symbolProvider.toSymbol(errorShape);
                                         writer.addUseImports(SmithyGoDependency.ERRORS);
                                         writer.write("var errorType *$T", modeledErrorSymbol);
                                         writer.openBlock("if errors.As(err, &errorType) {", "}", () -> {
@@ -529,7 +528,8 @@ public class Waiters implements GoIntegration {
                                         writer.write("ok := errors.As(err, &apiErr)");
                                         writer.openBlock("if !ok {", "}", () -> {
                                             writer.write("return false, "
-                                                    + "fmt.Errorf(\"expected err to be of type smithy.APIError\")");
+                                                    + "fmt.Errorf(\"expected err to be of type smithy.APIError, "
+                                                    + "got %w\", err)");
                                         });
                                         writer.write("");
 
