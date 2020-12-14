@@ -430,6 +430,7 @@ public class Waiters implements GoIntegration {
 
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+        Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
 
         writer.write("");
         writer.openBlock("func $L(ctx context.Context, input $P, output $P, err error) (bool, error) {",
@@ -511,7 +512,7 @@ public class Waiters implements GoIntegration {
                                     // if modeled error shape
                                     if (errorShape.isPresent()) {
                                         Symbol modeledErrorSymbol = SymbolUtils.createValueSymbolBuilder(
-                                                errorShape.get().getName(), "types"
+                                                errorShape.get().getName(), operationSymbol.getNamespace() + "/types"
                                         ).build();
                                         writer.addUseImports(SmithyGoDependency.ERRORS);
                                         writer.write("var errorType *$T", modeledErrorSymbol);
