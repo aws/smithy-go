@@ -28,7 +28,7 @@ func TestNewStandardLogger(t *testing.T) {
 	}
 }
 
-func TestNoop(t *testing.T) {
+func TestNop(t *testing.T) {
 	logging.Nop{}.Logf(logging.Debug, "foo")
 }
 
@@ -69,4 +69,3 @@ func (m mockContextLogger) WithContext(ctx context.Context) logging.Logger {
 func (m mockContextLogger) Logf(level logging.Classification, format string, v ...interface{}) {
 	return
 }
-
