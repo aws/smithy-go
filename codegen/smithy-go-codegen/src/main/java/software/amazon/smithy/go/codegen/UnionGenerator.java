@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -98,6 +99,8 @@ public class UnionGenerator {
         Symbol symbol = symbolProvider.toSymbol(shape);
         Set<MemberShape> members = new TreeSet<>(shape.getAllMembers().values());
 
+        Set<Symbol> referenced = new HashSet<>();
+
         writer.openBlock("func Example$L_outputUsage() {", "}", symbol.getName(), () -> {
             writer.write("var union $P", symbol);
 
@@ -105,11 +108,12 @@ public class UnionGenerator {
             writer.openBlock("switch v := union.(type) {", "}", () -> {
                 for (MemberShape member : members) {
                     Symbol targetSymbol = symbolProvider.toSymbol(model.expectShape(member.getTarget()));
+                    referenced.add(targetSymbol);
                     Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(symbolProvider.toMemberName(member),
                             symbol.getNamespace()).build();
 
                     writer.openBlock("case *$T:", "", memberSymbol, () -> {
-                        writer.write("_ = v.Value // Value is $L", targetSymbol.getName());
+                        writer.write("_ = v.Value // Value is $T", targetSymbol);
                     });
                 }
                 writer.addUseImports(SmithyGoDependency.FMT);
@@ -122,6 +126,10 @@ public class UnionGenerator {
                     writer.write("fmt.Println(\"union is nil or unknown type\")");
                 });
             });
+        }).write("");
+
+        referenced.forEach(s -> {
+            writer.write("var _ $P", s);
         });
     }
 

@@ -29,6 +29,7 @@ import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.DeprecatedTrait;
 
 /**
  * Generates a client operation and associated custom shapes.
@@ -91,7 +92,20 @@ public final class OperationGenerator implements Runnable {
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
         // Generate operation method
-        writer.writeShapeDocs(operation);
+        final boolean hasDocs = writer.writeShapeDocs(operation);
+        operation.getTrait(DeprecatedTrait.class)
+                .ifPresent(trait -> {
+                    if (hasDocs) {
+                        writer.writeDocs("");
+                    }
+                    final String defaultMessage = "This operation has been deprecated.";
+                    writer.writeDocs("Deprecated: " + trait.getMessage().map(s -> {
+                        if (s.length() == 0) {
+                            return defaultMessage;
+                        }
+                        return s;
+                    }).orElse(defaultMessage));
+                });
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
         writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {

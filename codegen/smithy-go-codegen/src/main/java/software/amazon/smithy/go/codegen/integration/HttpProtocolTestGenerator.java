@@ -26,6 +26,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ShapeValueGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
@@ -135,6 +136,8 @@ public class HttpProtocolTestGenerator {
                             .service(service)
                             .operation(operation)
                             .testCases(trait.getTestCases())
+                            .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
+                                    .normalizeHttpPrefixHeaderKeys(true).build())
                             .build()
                             .generateTestFunction(writer);
                 });
