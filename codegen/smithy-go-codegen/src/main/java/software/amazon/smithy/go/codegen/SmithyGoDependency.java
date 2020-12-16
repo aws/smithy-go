@@ -45,14 +45,14 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
     public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
     public static final GoDependency SMITHY_TIME = smithy("time", "smithytime");
-    public static final GoDependency SMITHY_HTTP_BINDING = smithy("httpbinding");
-    public static final GoDependency SMITHY_JSON = smithy("json", "smithyjson");
+    public static final GoDependency SMITHY_HTTP_BINDING = smithy("encoding/httpbinding");
+    public static final GoDependency SMITHY_JSON = smithy("encoding/json", "smithyjson");
+    public static final GoDependency SMITHY_XML = smithy("encoding/xml", "smithyxml");
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
     public static final GoDependency SMITHY_LOGGING = smithy("logging");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
-    public static final GoDependency SMITHY_XML = smithy("xml", "smithyxml");
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
@@ -118,7 +118,7 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.15";
         private static final String GO_CMP = "v0.5.4";
-        private static final String SMITHY_GO = "v0.4.1-0.20201208232924-b8cdbaa577ff";
+        private static final String SMITHY_GO = "v0.4.1-0.20201216214517-20e212c92831";
         private static final String GO_JMESPATH = "v0.4.0";
     }
 }
