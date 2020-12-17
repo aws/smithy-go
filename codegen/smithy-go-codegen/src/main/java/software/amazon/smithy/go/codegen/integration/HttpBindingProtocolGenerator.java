@@ -1086,7 +1086,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                         String value = generateHttpHeaderValue(context, writer, valueMemberShape,
                                 binding, operand);
-                        writer.write("v.$L[headerKey[lenPrefix:]] = $L", memberName,
+                        writer.write("v.$L[strings.ToLower(headerKey[lenPrefix:])] = $L", memberName,
                                 CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
                                         GoPointableIndex.of(context.getModel()), valueMemberShape, value));
                     });

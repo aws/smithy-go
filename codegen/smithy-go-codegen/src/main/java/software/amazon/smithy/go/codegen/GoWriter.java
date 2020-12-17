@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.logging.Logger;
@@ -28,10 +29,13 @@ import software.amazon.smithy.codegen.core.SymbolContainer;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.codegen.core.SymbolReference;
+import software.amazon.smithy.go.codegen.knowledge.GoUsageIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.DocumentationTrait;
+import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
@@ -290,24 +294,60 @@ public final class GoWriter extends CodeWriter {
      * @return Returns true if docs were written.
      */
     boolean writeMemberDocs(Model model, MemberShape member) {
-        return member.getMemberTrait(model, DocumentationTrait.class)
+        boolean hasDocs;
+
+        hasDocs = member.getMemberTrait(model, DocumentationTrait.class)
                 .map(DocumentationTrait::getValue)
                 .map(docs -> {
                     writeDocs(docs);
-                    member.getMemberTrait(model, MediaTypeTrait.class)
-                            .map(StringTrait::getValue)
-                            .ifPresent(mediaType -> writeDocs(
-                                    "\n\nThis value conforms to the media type: " + mediaType));
-
-                    member.getMemberTrait(model, RequiredTrait.class)
-                            .ifPresent((value) -> {
-                                if (docs.length() != 0) {
-                                    writeDocs("");
-                                }
-                                writeDocs("This member is required.");
-                            });
                     return true;
                 }).orElse(false);
+
+        Optional<String> stringOptional = member.getMemberTrait(model, MediaTypeTrait.class)
+                .map(StringTrait::getValue);
+        if (stringOptional.isPresent()) {
+            if (hasDocs) {
+                writeDocs("");
+            }
+            writeDocs("This value conforms to the media type: " + stringOptional.get());
+            hasDocs = true;
+        }
+
+        GoUsageIndex usageIndex = GoUsageIndex.of(model);
+        if (usageIndex.isUsedForOutput(member)) {
+            if (member.getMemberTrait(model,
+                    HttpPrefixHeadersTrait.class).isPresent()) {
+                if (hasDocs) {
+                    writeDocs("");
+                }
+                writeDocs("Map keys will be normalized to lower-case.");
+                hasDocs = true;
+            }
+        }
+
+        if (member.getMemberTrait(model, RequiredTrait.class).isPresent()) {
+            if (hasDocs) {
+                writeDocs("");
+            }
+            writeDocs("This member is required.");
+            hasDocs = true;
+        }
+
+        Optional<DeprecatedTrait> deprecatedTrait = member.getMemberTrait(model, DeprecatedTrait.class);
+        if (deprecatedTrait.isPresent()) {
+            if (hasDocs) {
+                writeDocs("");
+            }
+            final String defaultMessage = "This member has been deprecated.";
+            writeDocs("Deprecated: " + deprecatedTrait.get().getMessage().map(s -> {
+                if (s.length() == 0) {
+                    return defaultMessage;
+                }
+                return s;
+            }).orElse(defaultMessage));
+        }
+
+        return hasDocs;
     }
 
     @Override

@@ -17,7 +17,9 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -32,6 +34,7 @@ import software.amazon.smithy.model.node.NullNode;
 import software.amazon.smithy.model.node.NumberNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -39,7 +42,12 @@ import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.model.traits.Trait;
+import software.amazon.smithy.utils.ListUtils;
+import software.amazon.smithy.utils.OptionalUtils;
+import software.amazon.smithy.utils.SmithyBuilder;
 
 /**
  * Generates a shape type declaration based on the parameters provided.
@@ -47,9 +55,10 @@ import software.amazon.smithy.model.traits.StreamingTrait;
 public final class ShapeValueGenerator {
     private static final Logger LOGGER = Logger.getLogger(ShapeValueGenerator.class.getName());
 
-    protected final Model model;
-    protected final SymbolProvider symbolProvider;
-    protected final GoPointableIndex pointableIndex;
+    private final Model model;
+    private final SymbolProvider symbolProvider;
+    private final GoPointableIndex pointableIndex;
+    private final Config config;
 
     /**
      * Initializes a shape value generator.
@@ -58,9 +67,21 @@ public final class ShapeValueGenerator {
      * @param symbolProvider the symbol provider.
      */
     public ShapeValueGenerator(Model model, SymbolProvider symbolProvider) {
+        this(model, symbolProvider, Config.builder().build());
+    }
+
+    /**
+     * Initializes a shape value generator.
+     *
+     * @param model          the Smithy model references.
+     * @param symbolProvider the symbol provider.
+     * @param config         the shape value generator config.
+     */
+    public ShapeValueGenerator(Model model, SymbolProvider symbolProvider, Config config) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.pointableIndex = GoPointableIndex.of(model);
+        this.config = config;
     }
 
     /**
@@ -79,7 +100,8 @@ public final class ShapeValueGenerator {
         // not within the context of a member shape reference.
         Symbol symbol = symbolProvider.toSymbol(shape);
         writer.write("&$T{", symbol);
-        params.accept(new ShapeValueNodeVisitor(writer, this, shape));
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape, ListUtils.copyOf(shape.getAllTraits().values()),
+                config));
         writer.writeInline("}");
     }
 
@@ -149,7 +171,8 @@ public final class ShapeValueGenerator {
 
         String addr = CodegenUtils.asAddressIfAddressable(model, pointableIndex, member, "");
         writer.write("$L$T{", addr, symbol);
-        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget()),
+                ListUtils.copyOf(member.getAllTraits().values()), config));
         writer.writeInline("}");
     }
 
@@ -197,7 +220,8 @@ public final class ShapeValueGenerator {
      */
     protected void listDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
         writer.write("$P{", symbolProvider.toSymbol(member));
-        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget()),
+                ListUtils.copyOf(member.getAllTraits().values()), config));
         writer.writeInline("}");
     }
 
@@ -210,7 +234,8 @@ public final class ShapeValueGenerator {
      */
     protected void mapDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
         writer.write("$P{", symbolProvider.toSymbol(member));
-        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget())));
+        params.accept(new ShapeValueNodeVisitor(writer, this, model.expectShape(member.getTarget()),
+                ListUtils.copyOf(member.getAllTraits().values()), config));
         writer.writeInline("}");
     }
 
@@ -327,17 +352,58 @@ public final class ShapeValueGenerator {
                 break;
         }
 
-        params.accept(new ShapeValueNodeVisitor(writer, this, target));
+        params.accept(new ShapeValueNodeVisitor(writer, this, target,
+                ListUtils.copyOf(member.getAllTraits().values()), config));
         writer.writeInline(closing);
+    }
+
+    /**
+     * Configuration that determines how shapes values are generated.
+     */
+    public static final class Config {
+        private final boolean normalizeHttpPrefixHeaderKeys;
+
+        private Config(Builder builder) {
+            normalizeHttpPrefixHeaderKeys = builder.normalizeHttpPrefixHeaderKeys;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * Returns whether maps with the httpPrefixHeader trait should have their keys normalized.
+         *
+         * @return whether to normalize http prefix header keys
+         */
+        public boolean isNormalizeHttpPrefixHeaderKeys() {
+            return normalizeHttpPrefixHeaderKeys;
+        }
+
+        public static final class Builder implements SmithyBuilder<Config> {
+            private boolean normalizeHttpPrefixHeaderKeys;
+
+            public Builder normalizeHttpPrefixHeaderKeys(boolean normalizeHttpPrefixHeaderKeys) {
+                this.normalizeHttpPrefixHeaderKeys = normalizeHttpPrefixHeaderKeys;
+                return this;
+            }
+
+            @Override
+            public Config build() {
+                return new Config(this);
+            }
+        }
     }
 
     /**
      * NodeVisitor to walk shape value declarations with node values.
      */
     private final class ShapeValueNodeVisitor implements NodeVisitor<Void> {
-        GoWriter writer;
-        ShapeValueGenerator valueGen;
-        Shape currentShape;
+        private final GoWriter writer;
+        private final ShapeValueGenerator valueGen;
+        private final Shape currentShape;
+        private final List<Trait> traits;
+        private final Config config;
 
         /**
          * Initializes shape value visitor.
@@ -347,9 +413,42 @@ public final class ShapeValueGenerator {
          * @param shape    the shape that visiting is relative to.
          */
         private ShapeValueNodeVisitor(GoWriter writer, ShapeValueGenerator valueGen, Shape shape) {
+            this(writer, valueGen, shape, ListUtils.of());
+        }
+
+        /**
+         * Initializes shape value visitor.
+         *
+         * @param writer   writer to write generated code with.
+         * @param valueGen shape value generator.
+         * @param shape    the shape that visiting is relative to.
+         * @param traits   the traits applied to the target shape by a MemberShape.
+         */
+        private ShapeValueNodeVisitor(GoWriter writer, ShapeValueGenerator valueGen, Shape shape, List<Trait> traits) {
+            this(writer, valueGen, shape, traits, Config.builder().build());
+        }
+
+        /**
+         * Initializes shape value visitor.
+         *
+         * @param writer   writer to write generated code with.
+         * @param valueGen shape value generator.
+         * @param shape    the shape that visiting is relative to.
+         * @param traits   the traits applied to the target shape by a MemberShape.
+         * @param config   the shape value generator config.
+         */
+        private ShapeValueNodeVisitor(
+                GoWriter writer,
+                ShapeValueGenerator valueGen,
+                Shape shape,
+                List<Trait> traits,
+                Config config
+        ) {
             this.writer = writer;
             this.valueGen = valueGen;
             this.currentShape = shape;
+            this.traits = traits;
+            this.config = config;
         }
 
         /**
@@ -395,10 +494,18 @@ public final class ShapeValueGenerator {
                         break;
 
                     case MAP:
-                        member = this.currentShape.asMapShape().get().getValue();
+                        MapShape mapShape = this.currentShape.asMapShape().get();
 
-                        writer.write("$S: ", keyNode.getValue());
-                        valueGen.writeMemberValueInline(writer, member, valueNode);
+                        String keyValue = keyNode.getValue();
+                        if (config.isNormalizeHttpPrefixHeaderKeys()) {
+                            keyValue = OptionalUtils.or(getTrait(HttpPrefixHeadersTrait.class),
+                                    () -> mapShape.getTrait(HttpPrefixHeadersTrait.class))
+                                    .map(httpPrefixHeadersTrait -> keyNode.getValue().toLowerCase())
+                                    .orElse(keyValue);
+                        }
+
+                        writer.write("$S: ", keyValue);
+                        valueGen.writeMemberValueInline(writer, mapShape.getValue(), valueNode);
                         writer.write(",");
                         break;
 
@@ -522,6 +629,15 @@ public final class ShapeValueGenerator {
                             + "    return i"
                             + "}()",
                     value, value);
+        }
+
+        private <T extends Trait> Optional<T> getTrait(Class<T> traitClass) {
+            for (Trait trait : traits) {
+                if (traitClass.isInstance(trait)) {
+                    return Optional.of((T) trait);
+                }
+            }
+            return Optional.empty();
         }
     }
 

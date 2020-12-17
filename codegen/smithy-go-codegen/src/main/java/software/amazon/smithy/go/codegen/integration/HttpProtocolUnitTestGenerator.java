@@ -63,6 +63,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
     protected final String protocolName;
     protected final Set<ConfigValue> clientConfigValues = new TreeSet<>();
     protected final Set<SkipTest> skipTests = new TreeSet<>();
+    protected final ShapeValueGenerator.Config shapeValueGeneratorConfig;
 
     /**
      * Initializes the abstract protocol tests generator.
@@ -78,6 +79,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         this.testCases = SmithyBuilder.requiredState("testCases", builder.testCases);
         this.clientConfigValues.addAll(builder.clientConfigValues);
         this.skipTests.addAll(builder.skipTests);
+        this.shapeValueGeneratorConfig = SmithyBuilder.requiredState("config", builder.shapeValueGeneratorConfig);
 
         opSymbol = symbolProvider.toSymbol(operation);
 
@@ -548,7 +550,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      * @param params values to initialize shape type with.
      */
     protected void writeShapeValueInline(GoWriter writer, StructureShape shape, ObjectNode params) {
-        new ShapeValueGenerator(model, symbolProvider)
+        new ShapeValueGenerator(model, symbolProvider, shapeValueGeneratorConfig)
                 .writePointableStructureShapeValueInline(writer, shape, params);
     }
 
@@ -575,6 +577,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         protected List<T> testCases = new ArrayList<>();
         protected Set<ConfigValue> clientConfigValues = new TreeSet<>();
         protected Set<SkipTest> skipTests = new TreeSet<>();
+        protected ShapeValueGenerator.Config shapeValueGeneratorConfig = ShapeValueGenerator.Config.builder().build();
 
         public Builder<T> model(Model model) {
             this.model = model;
@@ -638,6 +641,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
         public Builder<T> addSkipTests(Set<SkipTest> skipTests) {
             this.skipTests.addAll(skipTests);
+            return this;
+        }
+
+        public Builder<T> shapeValueGeneratorConfig(ShapeValueGenerator.Config config) {
+            this.shapeValueGeneratorConfig = config;
             return this;
         }
 
