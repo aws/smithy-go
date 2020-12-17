@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strconv"
 
-	"github.com/awslabs/smithy-go/internal/encoding"
+	"github.com/awslabs/smithy-go/encoding"
 )
 
 // Value represents a JSON Value type
