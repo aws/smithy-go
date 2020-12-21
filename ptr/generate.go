@@ -8,7 +8,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/awslabs/smithy-go/ptr"
+	"github.com/aws/smithy-go/ptr"
 )
 
 func main() {

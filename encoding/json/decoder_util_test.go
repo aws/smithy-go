@@ -3,8 +3,9 @@ package json
 import (
 	"bytes"
 	"encoding/json"
-	smithytesting "github.com/awslabs/smithy-go/testing"
 	"testing"
+
+	smithytesting "github.com/aws/smithy-go/testing"
 )
 
 func TestDiscardUnknownField(t *testing.T) {

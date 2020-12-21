@@ -60,7 +60,7 @@ public final class SmithyGoDependency {
 
     public static final GoDependency GO_JMESPATH = goJmespath(null);
 
-    private static final String SMITHY_SOURCE_PATH = "github.com/awslabs/smithy-go";
+    private static final String SMITHY_SOURCE_PATH = "github.com/aws/smithy-go";
     private static final String GO_CMP_SOURCE_PATH = "github.com/google/go-cmp";
     private static final String GO_JMESPATH_SOURCE_PATH = "github.com/jmespath/go-jmespath";
 

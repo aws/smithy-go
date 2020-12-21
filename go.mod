@@ -1,4 +1,4 @@
-module github.com/awslabs/smithy-go
+module github.com/aws/smithy-go
 
 go 1.14
 

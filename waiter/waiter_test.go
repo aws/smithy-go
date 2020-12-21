@@ -1,11 +1,12 @@
 package waiter
 
 import (
-	"github.com/awslabs/smithy-go/rand"
 	mathrand "math/rand"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aws/smithy-go/rand"
 )
 
 func TestComputeDelay(t *testing.T) {

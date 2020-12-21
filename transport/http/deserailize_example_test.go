@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/awslabs/smithy-go/middleware"
+	"github.com/aws/smithy-go/middleware"
 )
 
 func ExampleResponse_deserializeMiddleware() {

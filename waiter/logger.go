@@ -3,8 +3,9 @@ package waiter
 import (
 	"context"
 	"fmt"
-	"github.com/awslabs/smithy-go/logging"
-	"github.com/awslabs/smithy-go/middleware"
+
+	"github.com/aws/smithy-go/logging"
+	"github.com/aws/smithy-go/middleware"
 )
 
 // Logger is the Logger middleware used by the waiter to log an attempt

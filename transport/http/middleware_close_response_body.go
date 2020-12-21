@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/awslabs/smithy-go/middleware"
+	"github.com/aws/smithy-go/middleware"
 )
 
 // AddErrorCloseResponseBodyMiddleware adds the middleware to automatically
