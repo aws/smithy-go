@@ -40,7 +40,7 @@ import software.amazon.smithy.waiters.WaitableTrait;
  */
 public class OperationInterfaceGenerator implements GoIntegration {
 
-    private static Map<ShapeId, Set<ShapeId>> mapOfClientInterfaceOperations = new HashMap<>();
+    private final Map<ShapeId, Set<ShapeId>> mapOfClientInterfaceOperations = new HashMap<>();
 
     /**
      * Returns name of an API client interface.
@@ -48,17 +48,12 @@ public class OperationInterfaceGenerator implements GoIntegration {
      * @param operationSymbol Symbol of operation shape for which Api client interface is being generated.
      * @return name of the interface.
      */
-    public static String getApiClientInterfaceName(
-            Symbol operationSymbol
-    ) {
+    public static String getApiClientInterfaceName(Symbol operationSymbol) {
         return String.format("%sAPIClient", operationSymbol.getName());
     }
 
     @Override
-    public void processFinalizedModel(
-            GoSettings settings,
-            Model model
-    ) {
+    public void processFinalizedModel(GoSettings settings, Model model) {
         ServiceShape serviceShape = settings.getService(model);
         TopDownIndex topDownIndex = TopDownIndex.of(model);
         PaginatedIndex paginatedIndex = PaginatedIndex.of(model);
@@ -93,7 +88,7 @@ public class OperationInterfaceGenerator implements GoIntegration {
 
         if (mapOfClientInterfaceOperations.containsKey(serviceId)) {
             Set<ShapeId> listOfClientInterfaceOperations = mapOfClientInterfaceOperations.get(serviceId);
-            listOfClientInterfaceOperations.stream().forEach(shapeId -> {
+            listOfClientInterfaceOperations.forEach(shapeId -> {
                 OperationShape operationShape = model.expectShape(shapeId, OperationShape.class);
                 goDelegator.useShapeWriter(operationShape, writer -> {
                     generateApiClientInterface(writer, model, symbolProvider, operationShape);
