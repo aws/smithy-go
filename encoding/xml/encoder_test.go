@@ -5,7 +5,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/awslabs/smithy-go/encoding/xml"
+	"github.com/aws/smithy-go/encoding/xml"
 )
 
 var root = xml.StartElement{Name: xml.Name{Local: "root"}}

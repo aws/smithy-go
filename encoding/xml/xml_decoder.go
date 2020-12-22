@@ -3,6 +3,7 @@ package xml
 import (
 	"encoding/xml"
 	"fmt"
+	"strings"
 )
 
 // NodeDecoder is a XML decoder wrapper that is responsible to decoding
@@ -43,31 +44,67 @@ func (d NodeDecoder) Token() (t xml.StartElement, done bool, err error) {
 		// skip token if it is a comment or preamble or empty space value due to indentation
 		// or if it's a value and is not expected
 	}
+}
 
-	return
+// GetElement looks for the given tag name at the current level, and returns the element if found, and
+// skipping over non-matching elements. Returns an error if the node is not found, or if an error occurs while walking
+// the document.
+func (d NodeDecoder) GetElement(name string) (t xml.StartElement, err error) {
+	for {
+		token, done, err := d.Token()
+		if err != nil {
+			return t, err
+		}
+		if done {
+			return t, fmt.Errorf("%s node not found", name)
+		}
+		switch {
+		case strings.EqualFold(name, token.Name.Local):
+			return token, nil
+		default:
+			err = d.Decoder.Skip()
+			if err != nil {
+				return t, err
+			}
+		}
+	}
 }
 
 // Value provides an abstraction to retrieve char data value within an xml element.
 // The method will return an error if it encounters a nested xml element instead of char data.
 // This method should only be used to retrieve simple type or blob shape values as []byte.
-func (d NodeDecoder) Value() (c []byte, done bool, err error) {
+func (d NodeDecoder) Value() (c []byte, err error) {
 	t, e := d.Decoder.Token()
 	if e != nil {
-		return c, done, e
+		return c, e
 	}
 
-	// check if token is of type charData
-	if ev, ok := t.(xml.CharData); ok {
-		return ev, done, err
+	endElement := d.StartEl.End()
+
+	switch ev := t.(type) {
+	case xml.CharData:
+		c = ev.Copy()
+	case xml.EndElement: // end tag or self-closing
+		if ev == endElement {
+			return []byte{}, err
+		}
+		return c, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
+	default:
+		return c, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
+	}
+
+	t, e = d.Decoder.Token()
+	if e != nil {
+		return c, e
 	}
 
 	if ev, ok := t.(xml.EndElement); ok {
-		if ev == d.StartEl.End() {
-			return c, true, err
+		if ev == endElement {
+			return c, err
 		}
 	}
 
-	return c, done, fmt.Errorf("expected value for %v element, got %T type %v instead", d.StartEl.Name.Local, t, t)
+	return c, fmt.Errorf("expected end element %v, got %T type %v instead", endElement, t, t)
 }
 
 // FetchRootElement takes in a decoder and returns the first start element within the xml body.

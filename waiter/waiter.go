@@ -2,9 +2,10 @@ package waiter
 
 import (
 	"fmt"
-	"github.com/awslabs/smithy-go/rand"
 	"math"
 	"time"
+
+	"github.com/aws/smithy-go/rand"
 )
 
 // ComputeDelay computes delay between waiter attempts. The function takes in a current attempt count,

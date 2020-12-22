@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/awslabs/smithy-go/rand"
+	"github.com/aws/smithy-go/rand"
 )
 
 func TestUUID(t *testing.T) {

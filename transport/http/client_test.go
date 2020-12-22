@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	smithy "github.com/awslabs/smithy-go"
+	smithy "github.com/aws/smithy-go"
 )
 
 func TestClientHandler_Handle(t *testing.T) {

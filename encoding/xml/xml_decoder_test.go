@@ -160,7 +160,11 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 		},
 		"no value": {
 			responseBody: bytes.NewReader([]byte(`<Response></Response>`)),
-			expectedDone: true,
+			expectedValue: []byte{},
+		},
+		"self-closing": {
+			responseBody: bytes.NewReader([]byte(`<Response />`)),
+			expectedValue: []byte{},
 		},
 		"empty body": {
 			responseBody:  bytes.NewReader([]byte(``)),
@@ -186,7 +190,7 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 				}
 			}
 			nodeDecoder := WrapNodeDecoder(xmlDecoder, st)
-			token, done, err := nodeDecoder.Value()
+			token, err := nodeDecoder.Value()
 			if err != nil {
 				if len(c.expectedError) == 0 {
 					t.Fatalf("Expected no error, got %v", err)
@@ -195,10 +199,6 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 				if e, a := c.expectedError, err; !strings.Contains(err.Error(), c.expectedError) {
 					t.Fatalf("expected error to contain %v, found %v", e, a.Error())
 				}
-			}
-
-			if e, a := c.expectedDone, done; e != a {
-				t.Fatalf("expected a valid end element token for the xml document, got none")
 			}
 
 			if diff := cmp.Diff(c.expectedValue, token); len(diff) != 0 {

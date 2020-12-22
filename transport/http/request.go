@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	iointernal "github.com/awslabs/smithy-go/transport/http/internal/io"
+	iointernal "github.com/aws/smithy-go/transport/http/internal/io"
 )
 
 // Request provides the HTTP specific request structure for HTTP specific

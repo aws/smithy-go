@@ -44,8 +44,8 @@ public class GoDependencyTest {
     public void testSingleDependency() {
         GoDependency dependency = GoDependency.builder()
                 .type(GoDependency.Type.DEPENDENCY)
-                .sourcePath("github.com/awslabs/smithy-go")
-                .importPath("github.com/awslabs/smithy-go/middleware")
+                .sourcePath("github.com/aws/smithy-go")
+                .importPath("github.com/aws/smithy-go/middleware")
                 .version("1.2.3")
                 .build();
         List<SymbolDependency> symbolDependencies = dependency.getDependencies();
@@ -53,7 +53,7 @@ public class GoDependencyTest {
         SymbolDependency symbolDependency = symbolDependencies.get(0);
 
         assertThat(symbolDependency.getDependencyType(), Matchers.equalTo("dependency"));
-        assertThat(symbolDependency.getPackageName(), Matchers.equalTo("github.com/awslabs/smithy-go"));
+        assertThat(symbolDependency.getPackageName(), Matchers.equalTo("github.com/aws/smithy-go"));
         assertThat(symbolDependency.getVersion(), Matchers.equalTo("1.2.3"));
     }
 
@@ -66,8 +66,8 @@ public class GoDependencyTest {
                 .version("1.2.3")
                 .addDependency(GoDependency.builder()
                         .type(GoDependency.Type.DEPENDENCY)
-                        .sourcePath("github.com/awslabs/smithy-go")
-                        .importPath("github.com/awslabs/smithy-go/middleware")
+                        .sourcePath("github.com/aws/smithy-go")
+                        .importPath("github.com/aws/smithy-go/middleware")
                         .version("3.4.5")
                         .build())
                 .build();
@@ -81,7 +81,7 @@ public class GoDependencyTest {
                         .build()),
                 Matchers.equalTo(SymbolDependency.builder()
                         .dependencyType("dependency")
-                        .packageName("github.com/awslabs/smithy-go")
+                        .packageName("github.com/aws/smithy-go")
                         .version("3.4.5")
                         .build())
         ));
@@ -96,8 +96,8 @@ public class GoDependencyTest {
                 .version("1.2.3")
                 .addDependency(GoDependency.builder()
                         .type(GoDependency.Type.DEPENDENCY)
-                        .sourcePath("github.com/awslabs/smithy-go")
-                        .importPath("github.com/awslabs/smithy-go/middleware")
+                        .sourcePath("github.com/aws/smithy-go")
+                        .importPath("github.com/aws/smithy-go/middleware")
                         .version("3.4.5")
                         .addDependency(GoDependency.builder()
                                 .type(GoDependency.Type.DEPENDENCY)
@@ -128,7 +128,7 @@ public class GoDependencyTest {
                         .build()),
                 Matchers.equalTo(SymbolDependency.builder()
                         .dependencyType("dependency")
-                        .packageName("github.com/awslabs/smithy-go")
+                        .packageName("github.com/aws/smithy-go")
                         .version("3.4.5")
                         .build()),
                 Matchers.equalTo(SymbolDependency.builder()
