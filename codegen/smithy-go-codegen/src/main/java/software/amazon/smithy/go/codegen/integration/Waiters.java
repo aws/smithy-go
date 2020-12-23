@@ -299,7 +299,7 @@ public class Waiters implements GoIntegration {
                 () -> {
                     writer.openBlock("if maxWaitDur <= 0 {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.write("fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
+                        writer.write("return fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
                     }).write("");
 
                     writer.write("options := w.options");
