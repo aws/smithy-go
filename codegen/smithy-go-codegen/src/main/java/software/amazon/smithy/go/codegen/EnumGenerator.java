@@ -59,8 +59,15 @@ final class EnumGenerator implements Runnable {
                 for (EnumDefinition definition : enumTrait.getValues()) {
                     StringBuilder labelBuilder = new StringBuilder(symbol.getName());
                     String name = definition.getName().get();
+
                     for (String part : name.split("(?U)[\\W_]")) {
-                        labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
+                        if (part.matches(".*[a-z].*") && part.matches(".*[A-Z].*")) {
+                            // Mixed case names should not be changed other than first letter capitalized.
+                            labelBuilder.append(StringUtils.capitalize(part));
+                        } else {
+                            // For all non-mixed case parts title case first letter, followed by all other lower cased.
+                            labelBuilder.append(StringUtils.capitalize(part.toLowerCase(Locale.US)));
+                        }
                     }
                     String label = labelBuilder.toString();
 
