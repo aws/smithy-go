@@ -28,11 +28,13 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
     private final String name;
     private final Symbol type;
     private final String documentation;
+    private final Boolean withHelper;
 
     public ConfigField(Builder builder) {
         this.name = Objects.requireNonNull(builder.name);
         this.type = Objects.requireNonNull(builder.type);
         this.documentation = builder.documentation;
+        this.withHelper = builder.withHelper;
     }
 
     /**
@@ -47,6 +49,13 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
      */
     public Symbol getType() {
         return type;
+    }
+
+    /**
+     * @return Returns if the config option should have a with helper or not.
+     */
+    public Boolean withHelper() {
+        return withHelper;
     }
 
     /**
@@ -91,6 +100,7 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
         private String name;
         private Symbol type;
         private String documentation;
+        private Boolean withHelper = false;
 
         @Override
         public ConfigField build() {
@@ -127,6 +137,27 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
          */
         public Builder documentation(String documentation) {
             this.documentation = documentation;
+            return this;
+        }
+
+        /**
+         * Sets if the client include a With__ helper for this config option.
+         *
+         * @param withHelper if with helper should be generated or not.
+         * @return Returns the builder.
+         */
+        public Builder withHelper(Boolean withHelper) {
+            this.withHelper = withHelper;
+            return this;
+        }
+
+        /**
+         * Sets that the client will  include a With__ helper for the client option.
+         *
+         * @return Returns the builder.
+         */
+        public Builder withHelper() {
+            this.withHelper = true;
             return this;
         }
     }

@@ -138,6 +138,28 @@ final class ServiceGenerator implements Runnable {
             generateApplicationProtocolConfig();
         }).write("");
 
+        writer.writeDocs("WithAPIOptions returns a functional option for setting the Client's APIOptions option.");
+        writer.openBlock("func WithAPIOptions(optFns ...func(*middleware.Stack) error) func(*Options) {", "}", () -> {
+            writer.openBlock("return func(o *Options) {", "}", () -> {
+                writer.write("o.APIOptions = append(o.APIOptions, optFns...)");
+            });
+        });
+
+        getAllConfigFields().stream().filter(ConfigField::withHelper)
+                .forEach(configField -> {
+                    writer.writeDocs(
+                            String.format("With%s returns a functional option for setting the Client's %s option.",
+                                    configField.getName(), configField.getName()));
+                    writer.openBlock("func With$L(v $P) func(*Options) {", "}", configField.getName(),
+                            configField.getType(),
+                            () -> {
+                                writer.openBlock("return func(o *Options) {", "}", () -> {
+                                    writer.write("o.$L = v", configField.getName());
+                                });
+                            }).write("");
+
+                });
+
         generateApplicationProtocolTypes();
 
         writer.writeDocs("Copy creates a clone where the APIOptions list is deep copied.");
