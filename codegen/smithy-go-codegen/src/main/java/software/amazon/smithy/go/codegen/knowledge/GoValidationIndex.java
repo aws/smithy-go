@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.KnowledgeIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -44,6 +45,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.model.traits.HttpLabelTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
@@ -53,8 +55,8 @@ import software.amazon.smithy.utils.SetUtils;
  * Provides a knowledge index of which service operations and shapes require validation helpers.
  */
 public class GoValidationIndex implements KnowledgeIndex {
-    private final Map<ToShapeId, Set<OperationShape>> serviceToOperationMap = new HashMap<>();
-    private final Map<ToShapeId, Set<Shape>> serviceValidationHelpers = new HashMap<>();
+    private final Map<ShapeId, Set<ShapeId>> serviceToOperationMap = new HashMap<>();
+    private final Map<ShapeId, Set<ShapeId>> serviceValidationHelpers = new HashMap<>();
 
     public GoValidationIndex(Model model) {
         TopDownIndex topDownIndex = model.getKnowledge(TopDownIndex.class);
@@ -63,7 +65,7 @@ public class GoValidationIndex implements KnowledgeIndex {
         model.shapes(ServiceShape.class).forEach(serviceShape -> {
             // Go uses unique input shapes per operation so we can index using the input shape as our key
             Map<Shape, OperationShape> inputShapeToOperation = new HashMap<>();
-            Set<Shape> requireValidationHelpers = new TreeSet<>();
+            Set<ShapeId> requireValidationHelpers = new TreeSet<>();
 
             // First pass is to collect member containers that contain members requiring validation
             Set<OperationShape> operations = topDownIndex.getContainedOperations(serviceShape);
@@ -74,7 +76,7 @@ public class GoValidationIndex implements KnowledgeIndex {
                         Shape container = model.expectShape(((MemberShape) shape).getContainer());
                         if (isRequiredParameter(model, (MemberShape) shape, inputShape.equals(container))) {
                             inputShapeToOperation.put(inputShape, operationShape);
-                            requireValidationHelpers.add(container);
+                            requireValidationHelpers.add(container.toShapeId());
                         }
                     }
                 });
@@ -83,16 +85,16 @@ public class GoValidationIndex implements KnowledgeIndex {
             // 2nd step is final all containers that reference the initial containers which require validation until
             // we've discovered all intermediate containing types
             inputShapeToOperation.keySet().forEach(input -> {
-                Set<Shape> helpers = new TreeSet<>();
+                Set<ShapeId> helpers = new TreeSet<>();
                 do {
                     GoValidationIndex.walkValidationTree(walker, input, shape -> {
                         if (shape.isMemberShape()) {
                             MemberShape memberShape = shape.asMemberShape().get();
                             Shape container = model.expectShape(memberShape.getContainer());
                             Shape target = model.expectShape(memberShape.getTarget());
-                            if (requireValidationHelpers.contains(target)
-                                    && !requireValidationHelpers.contains(container)) {
-                                helpers.add(container);
+                            if (requireValidationHelpers.contains(target.toShapeId())
+                                    && !requireValidationHelpers.contains(container.toShapeId())) {
+                                helpers.add(container.toShapeId());
                             }
                         }
                     });
@@ -104,9 +106,14 @@ public class GoValidationIndex implements KnowledgeIndex {
                 } while (true);
             });
 
-            serviceToOperationMap.put(serviceShape, new TreeSet<>(inputShapeToOperation.values()));
-            serviceValidationHelpers.put(serviceShape, requireValidationHelpers);
+            serviceToOperationMap.put(serviceShape.toShapeId(), new TreeSet<>(inputShapeToOperation.values().stream()
+                    .map(OperationShape::toShapeId).collect(Collectors.toSet())));
+            serviceValidationHelpers.put(serviceShape.toShapeId(), requireValidationHelpers);
         });
+    }
+
+    public static GoValidationIndex of(Model model) {
+        return model.getKnowledge(GoValidationIndex.class, GoValidationIndex::new);
     }
 
     /**
@@ -115,8 +122,8 @@ public class GoValidationIndex implements KnowledgeIndex {
      * @param service service to find operations for
      * @return operations requiring validation
      */
-    public Set<OperationShape> getOperationsRequiringValidation(ToShapeId service) {
-        return serviceToOperationMap.getOrDefault(service, SetUtils.of());
+    public Set<ShapeId> getOperationsRequiringValidation(ToShapeId service) {
+        return serviceToOperationMap.getOrDefault(service.toShapeId(), SetUtils.of());
     }
 
     /**
@@ -125,15 +132,25 @@ public class GoValidationIndex implements KnowledgeIndex {
      * @param service service to find operations for
      * @return operations requiring validation
      */
-    public Set<Shape> getShapesRequiringValidationHelpers(ToShapeId service) {
-        return serviceValidationHelpers.getOrDefault(service, SetUtils.of());
+    public Set<ShapeId> getShapesRequiringValidationHelpers(ToShapeId service) {
+        return serviceValidationHelpers.getOrDefault(service.toShapeId(), SetUtils.of());
+    }
+
+    /**
+     * Returns whether the given shape requires a validation helper.
+     *
+     * @param shape the shape to check
+     * @return whether the shape requires a validation helper
+     */
+    public boolean isValidationHelperRequired(ToShapeId shape) {
+        return serviceValidationHelpers.containsKey(shape.toShapeId());
     }
 
     /**
      * Checks whether a {@link MemberShape} has any validation constraints.
      *
-     * @param model the model
-     * @param shape the {@link MemberShape} to check
+     * @param model                the model
+     * @param shape                the {@link MemberShape} to check
      * @param validateHttpBindings whether http bindings should be checked for additional implicit constraints
      * @return whether the {@link MemberShape} has validation costraints
      */
@@ -144,8 +161,8 @@ public class GoValidationIndex implements KnowledgeIndex {
     /**
      * Checks whether a {@link MemberShape} is marked as being required explicitly or implicitly.
      *
-     * @param model the model
-     * @param shape the {@link MemberShape} to check
+     * @param model                the model
+     * @param shape                the {@link MemberShape} to check
      * @param validateHttpBindings whether http bindings should be checked for additional implicit constraints
      * @return whether the {@link MemberShape} is a required parameter
      */
@@ -159,6 +176,7 @@ public class GoValidationIndex implements KnowledgeIndex {
         walker.walkShapes(shape, relationship -> {
             switch (relationship.getRelationshipType()) {
                 case STRUCTURE_MEMBER:
+                case UNION_MEMBER:
                 case MAP_VALUE:
                 case LIST_MEMBER:
                 case SET_MEMBER:
