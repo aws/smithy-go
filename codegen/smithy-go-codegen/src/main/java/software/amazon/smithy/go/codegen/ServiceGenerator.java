@@ -217,6 +217,9 @@ final class ServiceGenerator implements Runnable {
             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
+            // Ensure operation stack invocations start with clean set of stack values.
+            writer.write("ctx = middleware.ClearStackValues(ctx)");
+
             generateConstructStack();
             writer.write("options := c.options.Copy()");
             writer.write("for _, fn := range optFns { fn(&options) }");
