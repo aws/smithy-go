@@ -405,7 +405,7 @@ map StringMap {
 }
 
 @readonly
-@http(method: "GET", uri: "/cities/{cityId}/image")
+@http(method: "POST", uri: "/cities/{cityId}/image")
 operation GetCityImage {
     input: GetCityImageInput,
     output: GetCityImageOutput,
@@ -415,6 +415,22 @@ operation GetCityImage {
 structure GetCityImageInput {
     @required @httpLabel
     cityId: CityId,
+
+    @required
+    imageType: ImageType,
+}
+
+union ImageType {
+    raw: DefaultBool,
+    png: PNGImage,
+}
+
+structure PNGImage {
+    @required
+    height: Integer,
+
+    @required
+    width: Integer,
 }
 
 structure GetCityImageOutput {

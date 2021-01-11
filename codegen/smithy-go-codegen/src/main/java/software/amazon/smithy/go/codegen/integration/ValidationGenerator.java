@@ -36,7 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -57,6 +59,8 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -83,11 +87,12 @@ public class ValidationGenerator implements GoIntegration {
     private void execute(GoWriter writer, Model model, SymbolProvider symbolProvider, ServiceShape service) {
         GoValidationIndex validationIndex = model.getKnowledge(GoValidationIndex.class);
         Map<Shape, OperationShape> inputShapeToOperation = new TreeMap<>();
-        validationIndex.getOperationsRequiringValidation(service).forEach(operationShape -> {
+        validationIndex.getOperationsRequiringValidation(service).forEach(shapeId -> {
+            OperationShape operationShape = model.expectShape(shapeId).asOperationShape().get();
             Shape inputShape = model.expectShape(operationShape.getInput().get());
             inputShapeToOperation.put(inputShape, operationShape);
         });
-        Set<Shape> shapesWithHelpers = validationIndex.getShapesRequiringValidationHelpers(service);
+        Set<ShapeId> shapesWithHelpers = validationIndex.getShapesRequiringValidationHelpers(service);
 
         generateOperationValidationMiddleware(writer, symbolProvider, inputShapeToOperation);
         generateAddMiddlewareStackHelper(writer, symbolProvider, inputShapeToOperation.values());
@@ -127,11 +132,12 @@ public class ValidationGenerator implements GoIntegration {
             GoWriter writer,
             Model model, SymbolProvider symbolProvider,
             Set<Shape> operationInputShapes,
-            Set<Shape> shapesWithHelpers
+            Set<ShapeId> shapesWithHelpers
     ) {
         GoPointableIndex pointableIndex = GoPointableIndex.of(model);
 
-        for (Shape shape : shapesWithHelpers) {
+        for (ShapeId shapeId : shapesWithHelpers) {
+            Shape shape = model.expectShape(shapeId);
             boolean topLevelShape = operationInputShapes.contains(shape);
             String functionName = getShapeValidationFunctionName(shape, topLevelShape);
             Symbol shapeSymbol = symbolProvider.toSymbol(shape);
@@ -149,7 +155,7 @@ public class ValidationGenerator implements GoIntegration {
                             String memberName = symbolProvider.toMemberName(memberShape);
                             Shape targetShape = model.expectShape(memberShape.getTarget());
                             boolean required = GoValidationIndex.isRequiredParameter(model, memberShape, topLevelShape);
-                            boolean hasHelper = shapesWithHelpers.contains(targetShape);
+                            boolean hasHelper = shapesWithHelpers.contains(targetShape.getId());
                             boolean isEnum = targetShape.getTrait(EnumTrait.class).isPresent();
 
                             if (required) {
@@ -207,7 +213,7 @@ public class ValidationGenerator implements GoIntegration {
                             writer.openBlock("if err := $L($Lv[i]); err != nil {", "}", helperName, addr, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
                                 writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%d]\", i), "
-                                                + "err.(smithy.InvalidParamsError))");
+                                        + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
@@ -227,13 +233,49 @@ public class ValidationGenerator implements GoIntegration {
                             writer.openBlock("if err := $L($L); err != nil {", "}", helperName, valueVar, () -> {
                                 writer.addUseImports(SmithyGoDependency.SMITHY);
                                 writer.write("invalidParams.AddNested(fmt.Sprintf(\"[%q]\", key), "
-                                                + "err.(smithy.InvalidParamsError))");
+                                        + "err.(smithy.InvalidParamsError))");
                             });
                         });
                         break;
 
                     case UNION:
-                        // TODO: Implement Union support
+                        UnionShape unionShape = shape.asUnionShape().get();
+                        Symbol unionSymbol = symbolProvider.toSymbol(unionShape);
+
+                        Set<MemberShape> memberShapes = unionShape.getAllMembers().values().stream()
+                                .filter(memberShape ->
+                                        shapesWithHelpers.contains(model.expectShape(memberShape.getTarget()).getId()))
+                                .collect(Collectors.toCollection(TreeSet::new));
+
+                        if (memberShapes.size() > 0) {
+                            writer.openBlock("switch uv := v.(type) {", "}", () -> {
+                                // Use a TreeSet to sort the members.
+                                for (MemberShape unionMember : memberShapes) {
+                                    Shape target = model.expectShape(unionMember.getTarget());
+                                    Symbol memberSymbol = SymbolUtils.createValueSymbolBuilder(
+                                            symbolProvider.toMemberName(unionMember),
+                                            unionSymbol.getNamespace()
+                                    ).build();
+                                    String memberHelper = getShapeValidationFunctionName(target, false);
+
+                                    writer.openBlock("case *$T:", "", memberSymbol, () -> {
+                                        String addr = "";
+                                        if (!pointableIndex.isPointable(unionMember)
+                                                && pointableIndex.isPointable(target)) {
+                                            addr = "&";
+                                        }
+                                        writer.openBlock("if err := $L($Luv.Value); err != nil {", "}", memberHelper,
+                                                addr, () -> {
+                                                    writer.addUseImports(SmithyGoDependency.SMITHY);
+                                                    writer.write("invalidParams.AddNested(\"[$L]\", "
+                                                                    + "err.(smithy.InvalidParamsError))",
+                                                            unionMember.getMemberName());
+                                                });
+                                    });
+                                }
+                            });
+                        }
+                        break;
 
                     default:
                         throw new CodegenException("Unexpected validation helper shape type " + shape.getType());
@@ -301,12 +343,12 @@ public class ValidationGenerator implements GoIntegration {
 
     @Override
     public void processFinalizedModel(GoSettings settings, Model model) {
-        GoValidationIndex validationIndex = model.getKnowledge(GoValidationIndex.class);
+        GoValidationIndex validationIndex = GoValidationIndex.of(model);
         ServiceShape service = settings.getService(model);
-        Set<OperationShape> requiringValidation = validationIndex.getOperationsRequiringValidation(
-                service);
+        Set<ShapeId> requiringValidation = validationIndex.getOperationsRequiringValidation(service);
 
-        for (OperationShape operationShape : requiringValidation) {
+        for (ShapeId shapeId : requiringValidation) {
+            OperationShape operationShape = model.expectShape(shapeId).asOperationShape().get();
             String helperFunctionName = getAddMiddlewareStackHelperFunctionName(operationShape);
             runtimeClientPlugins.add(RuntimeClientPlugin.builder()
                     .servicePredicate((m, s) -> s.equals(service))
