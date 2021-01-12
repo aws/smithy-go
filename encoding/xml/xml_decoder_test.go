@@ -52,6 +52,30 @@ func TestXMLNodeDecoder_Token(t *testing.T) {
 				Attr: []xml.Attr{},
 			},
 		},
+		"attr with namespace": {
+			responseBody: bytes.NewReader([]byte(`<Response><Grantee xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="CanonicalUser"></Grantee></Response>`)),
+			expectedStartElement: xml.StartElement{
+				Name: xml.Name{
+					Local: "Grantee",
+				},
+				Attr: []xml.Attr{
+					{
+						Name: xml.Name{
+							Space: "xmlns",
+							Local: "xsi",
+						},
+						Value: "http://www.w3.org/2001/XMLSchema-instance",
+					},
+					{
+						Name: xml.Name{
+							Space: "xsi",
+							Local: "type",
+						},
+						Value: "CanonicalUser",
+					},
+				},
+			},
+		},
 	}
 
 	for name, c := range cases {
