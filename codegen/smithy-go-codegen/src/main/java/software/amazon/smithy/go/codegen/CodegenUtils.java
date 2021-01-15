@@ -160,7 +160,7 @@ public final class CodegenUtils {
         }
 
         SyntheticClone synthClone = optional.get();
-        return synthClone.getArchetype() == null;
+        return !synthClone.getArchetype().isPresent();
     }
 
     /**

@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Optional;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -25,7 +26,7 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
 
 /**
  * Defines a shape as being a clone of another modeled shape.
- *
+ * <p>
  * Must only be used as a runtime trait-only applied to shapes based on model processing
  */
 public final class SyntheticClone extends AbstractTrait implements ToSmithyBuilder<SyntheticClone> {
@@ -33,7 +34,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
 
     private static final String ARCHETYPE = "archetype";
 
-    private final ShapeId archetype;
+    private final Optional<ShapeId> archetype;
 
     private SyntheticClone(Builder builder) {
         super(ID, builder.getSourceLocation());
@@ -45,7 +46,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
      *
      * @return the original archetype shape
      */
-    public ShapeId getArchetype() {
+    public Optional<ShapeId> getArchetype() {
         return archetype;
     }
 
@@ -56,8 +57,10 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
 
     @Override
     public SmithyBuilder<SyntheticClone> toBuilder() {
-        return builder()
-                .archetype(getArchetype());
+        Builder builder = builder();
+        getArchetype().ifPresent(builder::archetype);
+
+        return builder;
     }
 
     /**
@@ -71,7 +74,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
      * Builder for {@link SyntheticClone}.
      */
     public static final class Builder extends AbstractTraitBuilder<SyntheticClone, Builder> {
-        private ShapeId archetype;
+        private Optional<ShapeId> archetype = Optional.empty();
 
         private Builder() {
         }
@@ -82,7 +85,12 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
         }
 
         public Builder archetype(ShapeId archetype) {
-            this.archetype = archetype;
+            this.archetype = Optional.ofNullable(archetype);
+            return this;
+        }
+
+        public Builder removeArchetype() {
+            this.archetype = Optional.empty();
             return this;
         }
     }

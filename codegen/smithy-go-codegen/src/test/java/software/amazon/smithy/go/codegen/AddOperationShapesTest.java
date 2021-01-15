@@ -72,7 +72,7 @@ public class AddOperationShapesTest {
             if (opSynthClone.isPresent()) {
                 SyntheticClone synthClone = opSynthClone.get();
                 MatcherAssert.assertThat(shapeId + " shape must not have archetype",
-                        synthClone.getArchetype(), Matchers.equalTo(null));
+                        synthClone.getArchetype().isPresent(), Matchers.equalTo(false));
             } else {
                 MatcherAssert.assertThat(shapeId + " shape must be synthetic clone", false);
             }
@@ -132,7 +132,7 @@ public class AddOperationShapesTest {
             if (!syntheticClone.isPresent()) {
                 MatcherAssert.assertThat(shapeId + " shape must be marked as synthetic clone", false);
             } else {
-                MatcherAssert.assertThat(syntheticClone.get().getArchetype().toString(),
+                MatcherAssert.assertThat(syntheticClone.get().getArchetype().get().toString(),
                         Matchers.is(Matchers.oneOf(NAMESPACE + "#TestOperationRequest",
                                 NAMESPACE + "#TestOperationResponse")));
             }
@@ -189,7 +189,7 @@ public class AddOperationShapesTest {
                     if (opSynthClone.isPresent()) {
                         SyntheticClone synthClone = opSynthClone.get();
                         MatcherAssert.assertThat(shapeId + " shape must not have archetype",
-                                synthClone.getArchetype(), Matchers.equalTo(null));
+                                synthClone.getArchetype().isPresent(), Matchers.equalTo(false));
                     } else {
                         MatcherAssert.assertThat(shapeId + " shape must be synthetic clone", false);
                     }
