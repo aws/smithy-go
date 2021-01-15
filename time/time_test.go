@@ -6,7 +6,7 @@ import (
 )
 
 func TestDateTime(t *testing.T) {
-	refTime := time.Date(1985, 4, 12, 23, 20, 0, int(50.52*float64(time.Second)), time.UTC)
+	refTime := time.Date(1985, 4, 12, 23, 20, 50, int(520*time.Millisecond), time.UTC)
 
 	dateTime := FormatDateTime(refTime)
 	if e, a := "1985-04-12T23:20:50.52Z", dateTime; e != a {
@@ -42,7 +42,7 @@ func TestHTTPDate(t *testing.T) {
 }
 
 func TestEpochSeconds(t *testing.T) {
-	refTime := time.Date(2018, 1, 9, 20, 51, 0, int(21.123399936*float64(time.Second)), time.UTC)
+	refTime := time.Date(2018, 1, 9, 20, 51, 21, 123399936, time.UTC)
 
 	epochSeconds := FormatEpochSeconds(refTime)
 	if e, a := 1515531081.1234, epochSeconds; e != a {
