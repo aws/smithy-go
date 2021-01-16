@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -145,6 +146,22 @@ public final class CodegenUtils {
         return CodegenUtils.SYNTHETIC_NAMESPACE;
     }
 
+    /**
+     * Get if the passed in shape is decorated as a synthetic clone, but there is no other shape the clone is
+     * created from.
+     *
+     * @param shape the shape to check if its a stubbed synthetic clone without an archetype.
+     * @return if the shape is synthetic clone, but not based on a specific shape.
+     */
+    public static boolean isStubSyntheticClone(Shape shape) {
+        Optional<SyntheticClone> optional = shape.getTrait(SyntheticClone.class);
+        if (!optional.isPresent()) {
+            return false;
+        }
+
+        SyntheticClone synthClone = optional.get();
+        return !synthClone.getArchetype().isPresent();
+    }
 
     /**
      * Returns the operand decorated with an &amp; if the address of the shape type can be taken.

@@ -81,6 +81,7 @@ public final class AddOperationShapes {
     private static StructureShape emptyOperationStructure(ShapeId opShapeId, String suffix) {
         return StructureShape.builder()
                 .id(ShapeId.fromParts(CodegenUtils.getSyntheticTypeNamespace(), opShapeId.getName() + suffix))
+                .addTrait(SyntheticClone.builder().build())
                 .build();
     }
 

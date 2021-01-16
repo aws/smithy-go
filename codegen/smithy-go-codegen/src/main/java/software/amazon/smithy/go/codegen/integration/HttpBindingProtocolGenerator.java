@@ -141,8 +141,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
         generateOperationSerializerMiddleware(context, operation);
         generateOperationHttpBindingSerializer(context, operation);
-        generateOperationDocumentSerializer(context, operation);
-        addOperationDocumentShapeBindersForSerializer(context, operation);
+
+        if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
+            generateOperationDocumentSerializer(context, operation);
+            addOperationDocumentShapeBindersForSerializer(context, operation);
+        }
     }
 
     /**
@@ -240,32 +243,36 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("");
             }
 
-            // document bindings vs payload bindings
-            HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
-            boolean hasDocumentBindings = !httpBindingIndex
-                    .getRequestBindings(operation, HttpBinding.Location.DOCUMENT)
-                    .isEmpty();
-            Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
-                    HttpBinding.Location.PAYLOAD).stream().findFirst();
+            // Don't consider serializing the body if the input shape is a stubbed synthetic clone, without an
+            // archetype.
+            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(model, operation))) {
+                // document bindings vs payload bindings
+                HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
+                boolean hasDocumentBindings = !httpBindingIndex
+                        .getRequestBindings(operation, HttpBinding.Location.DOCUMENT)
+                        .isEmpty();
+                Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
+                        HttpBinding.Location.PAYLOAD).stream().findFirst();
 
+                if (hasDocumentBindings) {
+                    // delegate the setup and usage of the document serializer function for the protocol
+                    writeMiddlewareDocumentSerializerDelegator(context, operation, generator);
 
-            if (hasDocumentBindings) {
-                // delegate the setup and usage of the document serializer function for the protocol
-                writeMiddlewareDocumentSerializerDelegator(context, operation, generator);
-
-            } else if (payloadBinding.isPresent()) {
-                // delegate the setup and usage of the payload serializer function for the protocol
-                MemberShape memberShape = payloadBinding.get().getMember();
-                writeMiddlewarePayloadSerializerDelegator(context, memberShape);
+                } else if (payloadBinding.isPresent()) {
+                    // delegate the setup and usage of the payload serializer function for the protocol
+                    MemberShape memberShape = payloadBinding.get().getMember();
+                    writeMiddlewarePayloadSerializerDelegator(context, memberShape);
+                }
+                writer.write("");
             }
 
-            writer.write("");
+            // Serialize HTTP request with payload, if set.
             writer.openBlock("if request.Request, err = restEncoder.Encode(request.Request); err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
-            // Ensure the request value is updated.
             writer.write("in.Request = request");
             writer.write("");
+
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
     }
@@ -331,12 +338,21 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("");
             }
 
-            // Output Shape Document Binding middleware generation
-            if (isShapeWithResponseBindings(model, operation, HttpBinding.Location.DOCUMENT)
+            // Discard without deserializing the response if the input shape is a stubbed synthetic clone
+            // without an archetype.
+            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))) {
+                writer.addUseImports(SmithyGoDependency.IOUTIL);
+                writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}", () -> {
+                    writer.openBlock("return out, metadata, &smithy.DeserializationError{", "}", () -> {
+                        writer.write("Err: fmt.Errorf(\"failed to discard response body, %w\", err),");
+                    });
+                });
+            } else if (isShapeWithResponseBindings(model, operation, HttpBinding.Location.DOCUMENT)
                     || isShapeWithResponseBindings(model, operation, HttpBinding.Location.PAYLOAD)) {
+                // Output Shape Document Binding middleware generation
                 writeMiddlewareDocumentDeserializerDelegator(context, operation, generator);
-                writer.write("");
             }
+            writer.write("");
 
             writer.write("return out, metadata, err");
         });
@@ -800,8 +816,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         for (OperationShape operation : getHttpBindingOperations(context)) {
             generateOperationDeserializerMiddleware(context, operation);
             generateHttpBindingDeserializer(context, operation);
-            generateOperationDocumentDeserializer(context, operation);
-            addOperationDocumentShapeBindersForDeserializer(context, operation);
+
+            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(context.getModel(), operation))) {
+                generateOperationDocumentDeserializer(context, operation);
+                addOperationDocumentShapeBindersForDeserializer(context, operation);
+            }
         }
 
         for (StructureShape error : deserializingErrorShapes) {

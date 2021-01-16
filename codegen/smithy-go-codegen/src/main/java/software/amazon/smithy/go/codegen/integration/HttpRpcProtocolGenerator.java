@@ -20,6 +20,7 @@ import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -38,7 +39,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     /**
      * Creates an Http RPC protocol generator.
      */
-    public HttpRpcProtocolGenerator() { }
+    public HttpRpcProtocolGenerator() {
+    }
 
     @Override
     public ApplicationProtocol getApplicationProtocol() {
@@ -111,6 +113,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
             // Cast the input parameters to the operation request type and check for errors.
             writer.write("input, ok := in.Parameters.($P)", inputSymbol);
+            writer.write("_ = input");
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
                         + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
@@ -129,13 +132,18 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
             // delegate the setup and usage of the document serializer function for the protocol
             serializeInputDocument(context, operation);
-            serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
+            // Skipping calling serializer method for the input shape is responsibility of the
+            // serializeInputDocument implementation.
+            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
+                serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
+            }
+
             writer.write("");
 
             writer.openBlock("if request.Request, err = httpBindingEncoder.Encode(request.Request); err != nil {",
                     "}", () -> {
-                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
-            });
+                        writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                    });
             // Ensure the request value is updated if modified for a document.
             writer.write("in.Request = request");
 
@@ -164,7 +172,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
      * @param operation The operation being generated.
      * @param writer    The writer to use.
      */
-    protected void writeDefaultHeaders(GenerationContext context, OperationShape operation, GoWriter writer) {}
+    protected void writeDefaultHeaders(GenerationContext context, OperationShape operation, GoWriter writer) {
+    }
 
     /**
      * Provides the request path for the operation.
@@ -256,8 +265,20 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("out.Result = output");
             writer.write("");
 
-            deserializeOutputDocument(context, operation);
-            deserializingDocumentShapes.add(ProtocolUtils.expectOutput(model, operation));
+            // Discard without deserializing the response if the input shape is a stubbed synthetic clone
+            // without an archetype.
+            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))) {
+                writer.addUseImports(SmithyGoDependency.IOUTIL);
+                writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}",
+                        () -> {
+                            writer.openBlock("return out, metadata, &smithy.DeserializationError{", "}", () -> {
+                                writer.write("Err: fmt.Errorf(\"failed to discard response body, %w\", err),");
+                            });
+                        });
+            } else {
+                deserializeOutputDocument(context, operation);
+                deserializingDocumentShapes.add(ProtocolUtils.expectOutput(model, operation));
+            }
             writer.write("");
 
             writer.write("return out, metadata, err");
