@@ -145,7 +145,7 @@ final class ServiceGenerator implements Runnable {
             });
         });
 
-        getAllConfigFields().stream().filter(ConfigField::withHelper)
+        getAllConfigFields().stream().filter(ConfigField::getWithHelper)
                 .forEach(configField -> {
                     writer.writeDocs(
                             String.format("With%s returns a functional option for setting the Client's %s option.",
