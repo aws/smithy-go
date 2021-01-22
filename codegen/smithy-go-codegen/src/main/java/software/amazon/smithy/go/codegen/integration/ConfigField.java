@@ -54,7 +54,7 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
     /**
      * @return Returns if the config option should have a with helper or not.
      */
-    public Boolean withHelper() {
+    public Boolean getWithHelper() {
         return withHelper;
     }
 
@@ -67,7 +67,7 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
 
     @Override
     public SmithyBuilder<ConfigField> toBuilder() {
-        return builder().type(type).name(name).documentation(documentation);
+        return builder().type(type).name(name).documentation(documentation).withHelper(withHelper);
     }
 
     public static Builder builder() {
@@ -85,12 +85,13 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
         ConfigField that = (ConfigField) o;
         return Objects.equals(getName(), that.getName())
                 && Objects.equals(getType(), that.getType())
-                && Objects.equals(getDocumentation(), that.getDocumentation());
+                && Objects.equals(getDocumentation(), that.getDocumentation())
+                && Objects.equals(getWithHelper(), that.getWithHelper());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getName(), getType(), getDocumentation());
+        return Objects.hash(getName(), getType(), getDocumentation(), getWithHelper());
     }
 
     /**
