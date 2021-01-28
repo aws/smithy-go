@@ -238,7 +238,7 @@ apply NoSuchResource @httpResponseTests([
                 state: "failure",
                 matcher: {
                     output: {
-                        path: "items",
+                        path: "items[].name",
                         comparator: "allStringEquals",
                         expected: "seattle",
                     }
@@ -249,7 +249,7 @@ apply NoSuchResource @httpResponseTests([
                 state: "success",
                 matcher: {
                     output: {
-                        path: "items",
+                        path: "items[].name",
                         comparator: "anyStringEquals",
                         expected: "NewYork",
                     }

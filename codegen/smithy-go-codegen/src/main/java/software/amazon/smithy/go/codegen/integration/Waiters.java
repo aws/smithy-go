@@ -27,10 +27,13 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.StringUtils;
 import software.amazon.smithy.waiters.Acceptor;
@@ -456,10 +459,33 @@ public class Waiters implements GoIntegration {
                                                         + "fmt.Errorf(\"error evaluating waiter state: %w\", err)");
                                     }).write("");
                                     writer.write("expectedValue := $S", expectedValue);
-                                    writeWaiterComparator(writer, acceptor, comparator, "pathValue",
-                                            "expectedValue");
-                                });
 
+                                    if (comparator == PathComparator.BOOLEAN_EQUALS) {
+                                        writeWaiterComparator(writer, acceptor, comparator, null, "pathValue",
+                                                "expectedValue");
+                                    } else {
+                                        String[] pathMembers = path.split("\\.");
+                                        Shape targetShape = outputShape;
+                                        for (int i = 0; i < pathMembers.length; i++) {
+                                            MemberShape member = getComparedMember(model, targetShape, pathMembers[i]);
+                                            if (member == null) {
+                                                targetShape = null;
+                                                break;
+                                            }
+                                            targetShape = model.expectShape(member.getTarget());
+                                        }
+
+                                        if (targetShape == null) {
+                                            writeWaiterComparator(writer, acceptor, comparator, null, "pathValue",
+                                                    "expectedValue");
+                                        } else {
+                                            Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+                                            writeWaiterComparator(writer, acceptor, comparator, targetSymbol,
+                                                    "pathValue",
+                                                    "expectedValue");
+                                        }
+                                    }
+                                });
                                 break;
 
                             case "inputOutput":
@@ -484,7 +510,7 @@ public class Waiters implements GoIntegration {
                                     });
                                     writer.write("");
                                     writer.write("expectedValue := $S", expectedValue);
-                                    writeWaiterComparator(writer, acceptor, comparator, "pathValue",
+                                    writeWaiterComparator(writer, acceptor, comparator, outputSymbol, "pathValue",
                                             "expectedValue");
                                 });
                                 break;
@@ -556,30 +582,41 @@ public class Waiters implements GoIntegration {
     /**
      * writes comparators for a given waiter. The comparators are defined within the waiter acceptor.
      *
-     * @param writer     the Gowriter
-     * @param acceptor   the waiter acceptor that defines the comparator and acceptor states
-     * @param comparator the comparator
-     * @param actual     the variable carrying the actual value obtained.
-     *                   This may be computed via a jmespath expression or operation response status (success/failure)
-     * @param expected   the variable carrying the expected value. This value is as per the modeled waiter.
+     * @param writer       the Gowriter
+     * @param acceptor     the waiter acceptor that defines the comparator and acceptor states
+     * @param comparator   the comparator
+     * @param targetSymbol the shape symbol of the compared type.
+     * @param actual       the variable carrying the actual value obtained.
+     *                     This may be computed via a jmespath expression or operation response status (success/failure)
+     * @param expected     the variable carrying the expected value. This value is as per the modeled waiter.
      */
     private void writeWaiterComparator(
             GoWriter writer,
             Acceptor acceptor,
             PathComparator comparator,
+            Symbol targetSymbol,
             String actual,
             String expected
     ) {
+        if (targetSymbol == null) {
+            targetSymbol = SymbolUtils.createValueSymbolBuilder("string").build();
+        }
+
+        String valueAccessor = "string(value)";
+        Optional<Boolean> isPointable = targetSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class);
+        if (isPointable.isPresent() && isPointable.get().booleanValue()) {
+            valueAccessor = "string(*value)";
+        }
+
         switch (comparator) {
             case STRING_EQUALS:
-                writer.write("value, ok := $L.(string)", actual);
-                writer.openBlock(" if !ok {", "}", () -> {
-                    writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected string value got %T\", $L)", actual);
-                });
+                writer.write("value, ok := $L.($P)", actual, targetSymbol);
+                writer.write("if !ok {");
+                writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
+                        targetSymbol, actual);
                 writer.write("");
 
-                writer.openBlock("if value == $L {", "}", expected, () -> {
+                writer.openBlock("if $L == $L {", "}", valueAccessor, expected, () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
@@ -605,17 +642,24 @@ public class Waiters implements GoIntegration {
 
             case ALL_STRING_EQUALS:
                 writer.write("var match = true");
-                writer.write("listOfValues, ok := $L.([]string)", actual);
+                writer.write("listOfValues, ok := $L.([]interface{})", actual);
                 writer.openBlock(" if !ok {", "}", () -> {
                     writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected []string value got %T\", $L)", actual);
+                            + "fmt.Errorf(\"waiter comparator expected list got %T\", $L)", actual);
                 });
                 writer.write("");
 
                 writer.write("if len(listOfValues) == 0 { match = false }");
 
+                String allStringValueAccessor = valueAccessor;
+                Symbol allStringTargetSymbol = targetSymbol;
                 writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.write("if v != $L { match = false }", expected);
+                    writer.write("value, ok := v.($P)", allStringTargetSymbol);
+                    writer.write("if !ok {");
+                    writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
+                            allStringTargetSymbol, actual);
+                    writer.write("");
+                    writer.write("if $L != $L { match = false }", allStringValueAccessor, expected);
                 });
                 writer.write("");
 
@@ -625,15 +669,22 @@ public class Waiters implements GoIntegration {
                 break;
 
             case ANY_STRING_EQUALS:
-                writer.write("listOfValues, ok := $L.([]string)", actual);
+                writer.write("listOfValues, ok := $L.([]interface{})", actual);
                 writer.openBlock(" if !ok {", "}", () -> {
                     writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected []string value got %T\", $L)", actual);
+                            + "fmt.Errorf(\"waiter comparator expected list got %T\", $L)", actual);
                 });
                 writer.write("");
 
+                String anyStringValueAccessor = valueAccessor;
+                Symbol anyStringTargetSymbol = targetSymbol;
                 writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.openBlock("if v == $L {", "}", expected, () -> {
+                    writer.write("value, ok := v.($P)", anyStringTargetSymbol);
+                    writer.write("if !ok {");
+                    writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
+                            anyStringTargetSymbol, actual);
+                    writer.write("");
+                    writer.openBlock("if $L == $L {", "}", anyStringValueAccessor, expected, () -> {
                         writeMatchedAcceptorReturn(writer, acceptor);
                     });
                 });
@@ -691,5 +742,51 @@ public class Waiters implements GoIntegration {
     ) {
         waiterName = StringUtils.uncapitalize(waiterName);
         return String.format("%sStateRetryable", waiterName);
+    }
+
+
+    /**
+     * Returns the MemberShape wrt to the provided Shape and name.
+     * For eg, If shape `A` has MemberShape `B`, and the name provided is `B` as string.
+     * We return the MemberShape `B`.
+     *
+     * @param model the generation model.
+     * @param shape the shape that is walked to retreive the shape matching provided name.
+     * @param name  name is a single scope path string, and should only match to one or less shapes.
+     * @return MemberShape matching the name.
+     */
+    private MemberShape getComparedMember(Model model, Shape shape, String name) {
+
+        name = name.replaceAll("\\[\\]", "");
+
+        // if shape is a simple shape, just return shape as member shape
+        if (shape instanceof SimpleShape) {
+            return shape.asMemberShape().get();
+        }
+
+        switch (shape.getType()) {
+            case STRUCTURE:
+                StructureShape st = shape.asStructureShape().get();
+                for (MemberShape memberShape : st.getAllMembers().values()) {
+                    if (name.equalsIgnoreCase(memberShape.getMemberName())) {
+                        return memberShape;
+                    }
+                }
+                break;
+
+            case LIST:
+                ListShape listShape = shape.asListShape().get();
+                MemberShape listMember = listShape.getMember();
+                Shape listTarget = model.expectShape(listMember.getTarget());
+                return getComparedMember(model, listTarget, name);
+
+            default:
+                // TODO: add support for * usage with jmespath expression.
+                return null;
+        }
+
+        // TODO: add support for * usage with jmespath expression.
+        // return null if no shape type matched (this would happen in case of * usage with jmespath expression).
+        return null;
     }
 }
