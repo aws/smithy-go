@@ -3,6 +3,7 @@ package xml_test
 import (
 	"bytes"
 	"log"
+	"sort"
 	"testing"
 
 	"github.com/aws/smithy-go/encoding/xml"
@@ -475,6 +476,53 @@ func TestEncodeListNamedShape(t *testing.T) {
 	}()
 
 	ex := []byte(`<root><liststr><namedMember><value>abc</value></namedMember><namedMember><value>123</value></namedMember></liststr></root>`)
+	verify(t, encoder, ex)
+}
+
+func TestEncodeEscaping(t *testing.T) {
+	b := bytes.NewBuffer(nil)
+	encoder := xml.NewEncoder(b)
+
+	func() {
+		r := encoder.RootElement(root)
+		defer r.Close()
+
+		cases := map[string]rune{
+			"quote":          '"',
+			"apos":           '\'',
+			"amp":            '&',
+			"lt":             '<',
+			"gt":             '>',
+			"tab":            '\t',
+			"newLine":        '\n',
+			"carriageReturn": '\r',
+			"nextLine":       '\u0085',
+			"lineSeparator":  '\u2028',
+		}
+
+		var sortedKeys []string
+		for name := range cases {
+			sortedKeys = append(sortedKeys, name)
+		}
+
+		sort.Strings(sortedKeys)
+
+		for _, name := range sortedKeys {
+			rr := cases[name]
+
+			st := xml.StartElement{Name: xml.Name{Local: name}}
+			st.Attr = append(st.Attr, xml.Attr{
+				Name: xml.Name{
+					Local: "key",
+				},
+				Value: name + string(rr) + name,
+			})
+			value := r.MemberElement(st)
+			value.String(name + string(rr) + name)
+		}
+	}()
+
+	ex := []byte(`<root><amp key="amp&amp;amp">amp&amp;amp</amp><apos key="apos&#39;apos">apos&#39;apos</apos><carriageReturn key="carriageReturn&#xD;carriageReturn">carriageReturn&#xD;carriageReturn</carriageReturn><gt key="gt&gt;gt">gt&gt;gt</gt><lineSeparator key="lineSeparator&#x2028;lineSeparator">lineSeparator&#x2028;lineSeparator</lineSeparator><lt key="lt&lt;lt">lt&lt;lt</lt><newLine key="newLine&#xA;newLine">newLine&#xA;newLine</newLine><nextLine key="nextLine&#x85;nextLine">nextLine&#x85;nextLine</nextLine><quote key="quote&#34;quote">quote&#34;quote</quote><tab key="tab&#x9;tab">tab&#x9;tab</tab></root>`)
 	verify(t, encoder, ex)
 }
 
