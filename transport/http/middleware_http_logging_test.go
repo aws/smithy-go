@@ -33,8 +33,7 @@ func TestRequestResponseLogger(t *testing.T) {
 		Output      *smithyhttp.Response
 		ExpectedLog string
 	}{
-		"no logging": {
-		},
+		"no logging": {},
 		"request": {
 			Middleware: smithyhttp.RequestResponseLogger{
 				LogRequest: true,

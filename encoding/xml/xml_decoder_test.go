@@ -183,11 +183,11 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 			expectedValue: []byte(`abc`),
 		},
 		"no value": {
-			responseBody: bytes.NewReader([]byte(`<Response></Response>`)),
+			responseBody:  bytes.NewReader([]byte(`<Response></Response>`)),
 			expectedValue: []byte{},
 		},
 		"self-closing": {
-			responseBody: bytes.NewReader([]byte(`<Response />`)),
+			responseBody:  bytes.NewReader([]byte(`<Response />`)),
 			expectedValue: []byte{},
 		},
 		"empty body": {

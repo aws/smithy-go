@@ -31,7 +31,7 @@ func TestContentLengthMiddleware(t *testing.T) {
 			ExpectLen: 5,
 		},
 		"empty stream": {
-			Stream: strings.NewReader(""),
+			Stream:    strings.NewReader(""),
 			ExpectLen: 0,
 		},
 		"nil stream": {

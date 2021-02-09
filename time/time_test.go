@@ -65,7 +65,7 @@ func TestEpochSeconds(t *testing.T) {
 			expectedTime: time.Date(2018, 1, 9, 20, 51, 21, 1.23e8, time.UTC),
 		},
 		{
-			reference: time.Unix(0, math.MaxInt64).UTC(),
+			reference:    time.Unix(0, math.MaxInt64).UTC(),
 			expectedUnix: 9223372036.854,
 			expectedTime: time.Date(2262, 04, 11, 23, 47, 16, 8.54e8, time.UTC),
 		},
