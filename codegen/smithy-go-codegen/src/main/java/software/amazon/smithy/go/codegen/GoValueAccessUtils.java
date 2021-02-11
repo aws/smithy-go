@@ -52,7 +52,7 @@ public final class GoValueAccessUtils {
             GoWriter writer,
             MemberShape member,
             String operand,
-            Boolean ignoreEmptyString,
+            boolean ignoreEmptyString,
             Runnable lambda
     ) {
         Shape targetShape = model.expectShape(member.getTarget());
@@ -191,7 +191,7 @@ public final class GoValueAccessUtils {
             GoWriter writer,
             MemberShape member,
             String operand,
-            Boolean ignoreEmptyString,
+            boolean ignoreEmptyString,
             Runnable lambda
     ) {
         Shape targetShape = model.expectShape(member.getTarget());
