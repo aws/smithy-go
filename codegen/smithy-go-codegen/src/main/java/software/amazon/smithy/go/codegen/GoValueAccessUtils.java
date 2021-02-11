@@ -40,12 +40,13 @@ public final class GoValueAccessUtils {
      * Note: Collections and map member values by default will not have individual checks on member values. To check
      * not empty strings set the ignoreEmptyString to false.
      *
-     * @param model             smithy model
-     * @param writer            go writer
-     * @param member            API shape member to determine wrapping check with
-     * @param operand           string of text with access to value
-     * @param ignoreEmptyString if empty strings also checked
-     * @param lambda            lambda to run
+     * @param model              smithy model
+     * @param writer             go writer
+     * @param member             API shape member to determine wrapping check with
+     * @param operand            string of text with access to value
+     * @param ignoreEmptyString  if empty strings also checked
+     * @param ignoreUnboxedTypes if unboxed member types should be ignored
+     * @param lambda             lambda to run
      */
     public static void writeIfNonZeroValue(
             Model model,
@@ -53,6 +54,7 @@ public final class GoValueAccessUtils {
             MemberShape member,
             String operand,
             boolean ignoreEmptyString,
+            boolean ignoreUnboxedTypes,
             Runnable lambda
     ) {
         Shape targetShape = model.expectShape(member.getTarget());
@@ -74,10 +76,10 @@ public final class GoValueAccessUtils {
         } else if (targetShape.hasTrait(EnumTrait.class)) {
             check = String.format("if len(%s) > 0 {", operand);
 
-        } else if (targetShape.getType() == ShapeType.BOOLEAN) {
+        } else if (!ignoreUnboxedTypes && targetShape.getType() == ShapeType.BOOLEAN) {
             check = String.format("if %s {", operand);
 
-        } else if (CodegenUtils.isNumber(targetShape)) {
+        } else if (!ignoreUnboxedTypes && CodegenUtils.isNumber(targetShape)) {
             check = String.format("if %s != 0 {", operand);
 
         } else if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
@@ -105,7 +107,7 @@ public final class GoValueAccessUtils {
             String operand,
             Runnable lambda
     ) {
-        writeIfNonZeroValue(model, writer, member, operand, true, lambda);
+        writeIfNonZeroValue(model, writer, member, operand, true, false, lambda);
     }
 
     /**
@@ -128,12 +130,7 @@ public final class GoValueAccessUtils {
             String container,
             Consumer<String> lambda
     ) {
-        String memberName = symbolProvider.toMemberName(member);
-        String operand = container + "." + memberName;
-
-        writeIfNonZeroValue(model, writer, member, operand, true, () -> {
-            lambda.accept(operand);
-        });
+        writeIfNonZeroValueMember(model, symbolProvider, writer, member, container, true, false, lambda);
     }
 
     /**
@@ -142,13 +139,14 @@ public final class GoValueAccessUtils {
      * Note: Collections and map member values by default will not have individual checks on member values. To check
      * not empty strings set the ignoreEmptyString to false.
      *
-     * @param model             smithy model
-     * @param symbolProvider    symbol provider
-     * @param writer            go writer
-     * @param member            API shape member to determine wrapping check with
-     * @param container         operand of source member is a part of.
-     * @param ignoreEmptyString if empty strings also checked
-     * @param lambda            lambda to run
+     * @param model              smithy model
+     * @param symbolProvider     symbol provider
+     * @param writer             go writer
+     * @param member             API shape member to determine wrapping check with
+     * @param container          operand of source member is a part of.
+     * @param ignoreEmptyString  if empty strings also checked
+     * @param ignoreUnboxedTypes if unboxed member types should be ignored
+     * @param lambda             lambda to run
      */
     public static void writeIfNonZeroValueMember(
             Model model,
@@ -157,12 +155,13 @@ public final class GoValueAccessUtils {
             MemberShape member,
             String container,
             boolean ignoreEmptyString,
+            boolean ignoreUnboxedTypes,
             Consumer<String> lambda
     ) {
         String memberName = symbolProvider.toMemberName(member);
         String operand = container + "." + memberName;
 
-        writeIfNonZeroValue(model, writer, member, operand, ignoreEmptyString, () -> {
+        writeIfNonZeroValue(model, writer, member, operand, ignoreEmptyString, ignoreUnboxedTypes, () -> {
             lambda.accept(operand);
         });
     }
@@ -179,12 +178,13 @@ public final class GoValueAccessUtils {
      * Note: Collections and map member values by default will not have individual checks on member values. To check
      * for empty strings set the ignoreEmptyString to false.
      *
-     * @param model             smithy model
-     * @param writer            go writer
-     * @param member            API shape member to determine wrapping check with
-     * @param operand           string of text with access to value
-     * @param ignoreEmptyString if empty strings also checked
-     * @param lambda            lambda to run
+     * @param model              smithy model
+     * @param writer             go writer
+     * @param member             API shape member to determine wrapping check with
+     * @param operand            string of text with access to value
+     * @param ignoreEmptyString  if empty strings also checked
+     * @param ignoreUnboxedTypes if unboxed member types should be ignored
+     * @param lambda             lambda to run
      */
     public static void writeIfZeroValue(
             Model model,
@@ -192,6 +192,7 @@ public final class GoValueAccessUtils {
             MemberShape member,
             String operand,
             boolean ignoreEmptyString,
+            boolean ignoreUnboxedTypes,
             Runnable lambda
     ) {
         Shape targetShape = model.expectShape(member.getTarget());
@@ -216,10 +217,10 @@ public final class GoValueAccessUtils {
         } else if (targetShape.hasTrait(EnumTrait.class)) {
             check = String.format("if len(%s) == 0 {", operand);
 
-        } else if (targetShape.getType() == ShapeType.BOOLEAN) {
+        } else if (!ignoreUnboxedTypes && targetShape.getType() == ShapeType.BOOLEAN) {
             check = String.format("if !%s {", operand);
 
-        } else if (CodegenUtils.isNumber(targetShape)) {
+        } else if (!ignoreUnboxedTypes && CodegenUtils.isNumber(targetShape)) {
             check = String.format("if %s == 0 {", operand);
 
         } else if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
@@ -251,7 +252,7 @@ public final class GoValueAccessUtils {
             String operand,
             Runnable lambda
     ) {
-        writeIfZeroValue(model, writer, member, operand, true, lambda);
+        writeIfZeroValue(model, writer, member, operand, true, false, lambda);
     }
 
     /**
@@ -274,12 +275,7 @@ public final class GoValueAccessUtils {
             String container,
             Consumer<String> lambda
     ) {
-        String memberName = symbolProvider.toMemberName(member);
-        String operand = container + "." + memberName;
-
-        writeIfZeroValue(model, writer, member, operand, () -> {
-            lambda.accept(operand);
-        });
+        writeIfZeroValueMember(model, symbolProvider, writer, member, container, true, false, lambda);
     }
 
     /**
@@ -287,13 +283,14 @@ public final class GoValueAccessUtils {
      * <p>
      * Ignores empty strings of string pointers, and members nested within list and maps.
      *
-     * @param model             smithy model
-     * @param symbolProvider    symbol provider
-     * @param writer            go writer
-     * @param member            API shape member to determine wrapping check with
-     * @param container         operand of source member is a part of.
-     * @param ignoreEmptyString if empty strings also checked
-     * @param lambda            lambda to run
+     * @param model              smithy model
+     * @param symbolProvider     symbol provider
+     * @param writer             go writer
+     * @param member             API shape member to determine wrapping check with
+     * @param container          operand of source member is a part of.
+     * @param ignoreEmptyString  if empty strings also checked
+     * @param ignoreUnboxedTypes if unboxed member types should be ignored
+     * @param lambda             lambda to run
      */
     public static void writeIfZeroValueMember(
             Model model,
@@ -302,12 +299,13 @@ public final class GoValueAccessUtils {
             MemberShape member,
             String container,
             boolean ignoreEmptyString,
+            boolean ignoreUnboxedTypes,
             Consumer<String> lambda
     ) {
         String memberName = symbolProvider.toMemberName(member);
         String operand = container + "." + memberName;
 
-        writeIfZeroValue(model, writer, member, operand, ignoreEmptyString, () -> {
+        writeIfZeroValue(model, writer, member, operand, ignoreEmptyString, ignoreUnboxedTypes, () -> {
             lambda.accept(operand);
         });
     }

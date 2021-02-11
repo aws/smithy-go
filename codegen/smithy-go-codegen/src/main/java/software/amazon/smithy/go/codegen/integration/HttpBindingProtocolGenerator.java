@@ -683,7 +683,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         if (location.equals(HttpBinding.Location.LABEL)) {
             // labels must always be set to be serialized on URI, and non empty strings,
             GoValueAccessUtils.writeIfZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
-                    memberShape, "v", false, operand -> {
+                    memberShape, "v", false, true, operand -> {
                         writer.addUseImports(SmithyGoDependency.SMITHY);
                         writer.write("return &smithy.SerializationError { "
                                         + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
@@ -694,7 +694,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         boolean allowZeroStrings = location != HttpBinding.Location.HEADER;
 
         GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
-                memberShape, "v", allowZeroStrings, (operand) -> {
+                memberShape, "v", allowZeroStrings, memberShape.isRequired(), (operand) -> {
                     final String locationName = binding.getLocationName().isEmpty()
                             ? memberShape.getMemberName() : binding.getLocationName();
                     switch (location) {
@@ -716,7 +716,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             writer.addUseImports(SmithyGoDependency.NET_HTTP);
                             writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
                                 GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, valueMemberShape,
-                                        "mapVal", false, () -> {
+                                        "mapVal", false, false, () -> {
                                             writeHeaderBinding(context, valueMemberShape, "mapVal", location,
                                                     "http.CanonicalHeaderKey(mapKey)", "hv");
                                         });
@@ -781,7 +781,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Only set non-empty non-nil header values
             String indexedOperand = operand + "[i]";
             GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, collectionMemberShape, indexedOperand,
-                    false, () -> {
+                    false, false, () -> {
                         String op = conditionallyBase64Encode(writer, targetShape, indexedOperand);
                         writeHttpBindingSetter(context, writer, collectionMemberShape, location, op, (w, s) -> {
                             w.writeInline("$L.AddHeader($L).$L", dest, locationName, s);
