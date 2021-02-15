@@ -45,6 +45,18 @@ func TestParseTime(t *testing.T) {
 			date:    "1985-04-12T23:20:50.52Z",
 			wantErr: true,
 		},
+		"shortened year with double digit day": {
+			date:   "Thu, 11 Feb 21 11:04:03 GMT",
+			expect: time.Date(2021, 2, 11, 11, 04, 03, 0, time.UTC),
+		},
+		"shortened year without leading zero day": {
+			date:   "Thu, 5 Feb 21 11:04:03 GMT",
+			expect: time.Date(2021, 2, 5, 11, 04, 03, 0, time.UTC),
+		},
+		"shortened year with leading zero day": {
+			date:   "Thu, 05 Feb 21 11:04:03 GMT",
+			expect: time.Date(2021, 2, 5, 11, 04, 03, 0, time.UTC),
+		},
 	}
 
 	for name, tt := range cases {
