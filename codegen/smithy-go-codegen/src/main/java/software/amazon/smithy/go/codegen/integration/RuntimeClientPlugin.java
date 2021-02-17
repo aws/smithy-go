@@ -297,7 +297,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @param configFieldResolver The config field resolver.
          * @return Returns the builder.
          */
-        public Builder addconfigFieldResolver(ConfigFieldResolver configFieldResolver) {
+        public Builder addConfigFieldResolver(ConfigFieldResolver configFieldResolver) {
             this.configFieldResolvers.add(configFieldResolver);
             return this;
         }
