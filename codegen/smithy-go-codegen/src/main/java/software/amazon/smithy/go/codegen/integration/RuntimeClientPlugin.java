@@ -21,7 +21,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -38,18 +37,18 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
  * build-time.
  */
 public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientPlugin> {
-    private final Symbol resolveFunction;
     private final BiPredicate<Model, ServiceShape> servicePredicate;
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
+    private final Set<ConfigFieldResolver> configFieldResolvers;
     private final MiddlewareRegistrar registerMiddleware;
 
     private RuntimeClientPlugin(Builder builder) {
-        resolveFunction = builder.resolveFunction;
         operationPredicate = builder.operationPredicate;
         servicePredicate = builder.servicePredicate;
         configFields = builder.configFields;
         registerMiddleware = builder.registerMiddleware;
+        configFieldResolvers = builder.configFieldResolvers;
     }
 
 
@@ -58,8 +57,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         /**
          * Tests if middleware is applied to an individual operation.
          *
-         * @param model Model the operation belongs to.
-         * @param service Service the operation belongs to.
+         * @param model     Model the operation belongs to.
+         * @param service   Service the operation belongs to.
          * @param operation Operation to test.
          * @return Returns true if middleware should be applied to the operation.
          */
@@ -67,20 +66,11 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     }
 
     /**
-     * Gets the optionally present symbol that points to a function that operates
-     * on the client options at creation time.
-     *
-     * <p>Any configuration that a plugin requires in order to function should be
-     * checked in this function, either setting a default value if possible or
-     * returning an error if not.
-     *
-     * <p>This function must take a client options struct as input and return a
-     * client options struct and an error as output.
-     *
-     * @return Returns the optionally present resolve function.
+     * Gets the config fields that will be added to the client config by this plugin.
+     * @return the config field resolvers.
      */
-    public Optional<Symbol> getResolveFunction() {
-        return Optional.ofNullable(resolveFunction);
+    public Set<ConfigFieldResolver> getConfigFieldResolvers() {
+        return configFieldResolvers;
     }
 
     /**
@@ -102,7 +92,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      * the plugin is meant to by command-specific and not on every
      * command executed by the service).
      *
-     * @param model The model the service belongs to.
+     * @param model   The model the service belongs to.
      * @param service Service shape to test against.
      * @return Returns true if the plugin is applied to the given service.
      * @see #matchesOperation(Model, ServiceShape, OperationShape)
@@ -114,8 +104,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     /**
      * Returns true if this plugin applies to the given operation.
      *
-     * @param model Model the operation belongs to.
-     * @param service Service the operation belongs to.
+     * @param model     Model the operation belongs to.
+     * @param service   Service the operation belongs to.
      * @param operation Operation to test against.
      * @return Returns true if the plugin is applied to the given operation.
      * @see #matchesService(Model, ServiceShape)
@@ -129,14 +119,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      *
      * <p>Each config field will be added to the client's Config object and will
      * result in a corresponding getter method being added to the config. E.g.:
-     *
+     * <p>
      * type ClientOptions struct {
-     *     // My docs.
-     *     MyField string
+     * // My docs.
+     * MyField string
      * }
-     *
+     * <p>
      * func (o ClientOptions) GetMyField() string {
-     *     return o.MyField
+     * return o.MyField
      * }
      *
      * @return Returns the config fields to add to the client config.
@@ -152,7 +142,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     @Override
     public SmithyBuilder<RuntimeClientPlugin> toBuilder() {
         return builder()
-                .resolveFunction(resolveFunction)
+                .configFieldResolvers(configFieldResolvers)
                 .servicePredicate(servicePredicate)
                 .operationPredicate(operationPredicate)
                 .registerMiddleware(registerMiddleware);
@@ -162,26 +152,15 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      * Builds a {@code RuntimeClientPlugin}.
      */
     public static final class Builder implements SmithyBuilder<RuntimeClientPlugin> {
-        private Symbol resolveFunction;
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new HashSet<>();
+        private Set<ConfigFieldResolver> configFieldResolvers = new HashSet<>();
         private MiddlewareRegistrar registerMiddleware;
 
         @Override
         public RuntimeClientPlugin build() {
             return new RuntimeClientPlugin(this);
-        }
-
-        /**
-         * Sets the symbol used to configure client options.
-         *
-         * @param resolveFunction Resolved configuration symbol to set.
-         * @return Returns the builder.
-         */
-        public Builder resolveFunction(Symbol resolveFunction) {
-            this.resolveFunction = resolveFunction;
-            return this;
         }
 
         /**
@@ -260,14 +239,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          *
          * <p>Each config field will be added to the client's Config object and will
          * result in a corresponding getter method being added to the config. E.g.:
-         *
+         * <p>
          * type ClientOptions struct {
-         *     // My docs.
-         *     MyField string
+         * // My docs.
+         * MyField string
          * }
-         *
+         * <p>
          * func (o ClientOptions) GetMyField() string {
-         *     return o.MyField
+         * return o.MyField
          * }
          *
          * @param configFields The config fields to add to the client config.
@@ -283,14 +262,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          *
          * <p>Each config field will be added to the client's Config object and will
          * result in a corresponding getter method being added to the config. E.g.:
-         *
+         * <p>
          * type ClientOptions struct {
-         *     // My docs.
-         *     MyField string
+         * // My docs.
+         * MyField string
          * }
-         *
+         * <p>
          * func (o ClientOptions) GetMyField() string {
-         *     return o.MyField
+         * return o.MyField
          * }
          *
          * @param configField The config field to add to the client config.
@@ -298,6 +277,28 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addConfigField(ConfigField configField) {
             this.configFields.add(configField);
+            return this;
+        }
+
+        /**
+         * Sets the config field resolvers that will be added to the client by this plugin.
+         *
+         * @param configFieldResolvers The config field resolvers.
+         * @return Returns the builder.
+         */
+        public Builder configFieldResolvers(Collection<ConfigFieldResolver> configFieldResolvers) {
+            this.configFieldResolvers = new HashSet<>(configFieldResolvers);
+            return this;
+        }
+
+        /**
+         * Adds a config field resolver that will be added to the client by this plugin.
+         *
+         * @param configFieldResolver The config field resolver.
+         * @return Returns the builder.
+         */
+        public Builder addconfigFieldResolver(ConfigFieldResolver configFieldResolver) {
+            this.configFieldResolvers.add(configFieldResolver);
             return this;
         }
     }
