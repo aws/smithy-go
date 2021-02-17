@@ -18,10 +18,12 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
+import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
@@ -87,6 +89,18 @@ final class ServiceGenerator implements Runnable {
         generateClientInvokeOperation();
     }
 
+    private void writeConfigFieldResolvers(
+            GoWriter writer,
+            RuntimeClientPlugin plugin,
+            Predicate<ConfigFieldResolver> predicate
+    ) {
+        plugin.getConfigFieldResolvers().stream().filter(predicate)
+                .forEach(resolver -> {
+                    writer.write("$T(&options)", resolver.getResolver());
+                    writer.write("");
+                });
+    }
+
     private void generateConstructor(Symbol serviceSymbol) {
         writer.writeDocs(String.format("New returns an initialized %s based on the functional options. "
                 + "Provide additional functional options to further configure the behavior "
@@ -97,18 +111,26 @@ final class ServiceGenerator implements Runnable {
                 serviceSymbol, () -> {
                     writer.write("options = options.Copy()").write("");
 
+                    List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
+                            plugin.matchesService(model, service))
+                            .collect(Collectors.toList());
+
                     // Run any config initialization functions registered by runtime plugins.
-                    for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
-                        if (!runtimeClientPlugin.matchesService(model, service)
-                                || !runtimeClientPlugin.getResolveFunction().isPresent()) {
-                            continue;
-                        }
-                        writer.write("$T(&options)", runtimeClientPlugin.getResolveFunction().get());
-                        writer.write("");
+                    for (RuntimeClientPlugin plugin : plugins) {
+                        writeConfigFieldResolvers(writer, plugin, resolver ->
+                                resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
+                                        && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
                     }
 
                     writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
                     writer.write("");
+
+                    // Run any config finalization functions registered by runtime plugins.
+                    for (RuntimeClientPlugin plugin : plugins) {
+                        writeConfigFieldResolvers(writer, plugin, resolver ->
+                                resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
+                                        && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
+                    }
 
                     writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
                         writer.write("options: options,");
@@ -222,8 +244,25 @@ final class ServiceGenerator implements Runnable {
 
             generateConstructStack();
             writer.write("options := c.options.Copy()");
+
+            List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
+                    plugin.matchesService(model, service))
+                    .collect(Collectors.toList());
+
+            for (RuntimeClientPlugin plugin : plugins) {
+                writeConfigFieldResolvers(writer, plugin, resolver ->
+                        resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
+                                && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
+            }
+
             writer.write("for _, fn := range optFns { fn(&options) }");
             writer.write("");
+
+            for (RuntimeClientPlugin plugin : plugins) {
+                writeConfigFieldResolvers(writer, plugin, resolver ->
+                        resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
+                                && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
+            }
 
             writer.openBlock("for _, fn := range stackFns {", "}", () -> {
                 writer.write("if err := fn(stack, options); err != nil { return nil, metadata, err }");
