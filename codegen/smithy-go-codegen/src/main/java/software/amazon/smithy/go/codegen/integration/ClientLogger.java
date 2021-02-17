@@ -78,7 +78,7 @@ public class ClientLogger implements GoIntegration {
                                         .build())
                                 .documentation("The logger writer interface to write logging messages to.")
                                 .build())
-                        .addconfigFieldResolver(ConfigFieldResolver.builder()
+                        .addConfigFieldResolver(ConfigFieldResolver.builder()
                                 .location(ConfigFieldResolver.Location.CLIENT)
                                 .target(ConfigFieldResolver.Target.INITIALIZATION)
                                 .resolver(SymbolUtils.createValueSymbolBuilder(DEFAULT_LOGGER_RESOLVER).build())
