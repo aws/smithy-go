@@ -28,11 +28,14 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.go.codegen.trait.PagingExtensionTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.PaginatedIndex;
 import software.amazon.smithy.model.knowledge.PaginationInfo;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 
@@ -95,7 +98,10 @@ public class Paginators implements GoIntegration {
     ) {
         String inputMember = symbolProvider.toMemberName(paginationInfo.getInputTokenMember());
 
-        Symbol operationSymbol = symbolProvider.toSymbol(paginationInfo.getOperation());
+        OperationShape operation = paginationInfo.getOperation();
+        Optional<PagingExtensionTrait> pagingExtensionTrait = operation.getTrait(PagingExtensionTrait.class);
+
+        Symbol operationSymbol = symbolProvider.toSymbol(operation);
         Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
         Symbol inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
 
@@ -187,25 +193,51 @@ public class Paginators implements GoIntegration {
 
                     List<MemberShape> outputMemberPath = paginationInfo.getOutputTokenMemberPath();
                     MemberShape tokenMember = outputMemberPath.get(outputMemberPath.size() - 1);
-                    Consumer<String> setToken = (container) -> {
+                    Consumer<String> setNextTokenFromOutput = (container) -> {
                         writer.write("p.nextToken = $L", container + "."
                                 + symbolProvider.toMemberName(tokenMember));
                     };
 
                     for (int i = outputMemberPath.size() - 2; i >= 0; i--) {
                         MemberShape memberShape = outputMemberPath.get(i);
-                        Consumer<String> inner = setToken;
-                        setToken = (container) -> {
+                        Consumer<String> inner = setNextTokenFromOutput;
+                        setNextTokenFromOutput = (container) -> {
                             GoValueAccessUtils.writeIfNonZeroValueMember(model, symbolProvider, writer, memberShape,
                                     container, inner);
                         };
                     }
 
-                    writer.write("prevToken := p.nextToken");
-                    if (outputMemberPath.size() > 1) {
-                        writer.write("p.nextToken = nil");
+                    {
+                        final Consumer<String> inner = setNextTokenFromOutput;
+                        setNextTokenFromOutput = s -> {
+                            if (outputMemberPath.size() > 1) {
+                                writer.write("p.nextToken = nil");
+                            }
+                            inner.accept(s);
+                        };
                     }
-                    setToken.accept("result");
+
+                    {
+                        final Consumer<String> setToken = setNextTokenFromOutput;
+                        writer.write("prevToken := p.nextToken");
+                        Optional<MemberShape> moreResults = pagingExtensionTrait
+                                .flatMap(PagingExtensionTrait::getMoreResults);
+
+                        if (moreResults.isPresent()) {
+                            MemberShape memberShape = moreResults.get();
+                            model.expectShape(memberShape.getTarget(), BooleanShape.class); // Must be boolean
+                            writer.write("p.nextToken = nil");
+                            String memberName = symbolProvider.toMemberName(memberShape);
+                            if (pointableIndex.isNillable(memberShape.getTarget())) {
+                                writer.openBlock("if result.$L != nil && *result.$L {", "}", memberName, memberName,
+                                        () -> setToken.accept("result"));
+                            } else {
+                                writer.openBlock("if result.$L {", "}", memberName, () -> setToken.accept("result"));
+                            }
+                        } else {
+                            setToken.accept("result");
+                        }
+                    }
                     writer.write("");
 
                     if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
