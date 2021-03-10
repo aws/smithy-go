@@ -122,6 +122,8 @@ public class Paginators implements GoIntegration {
         writer.writeDocs(String.format("%s returns a new %s", newPagiantor.getName(), paginatorSymbol.getName()));
         writer.openBlock("func $T(client $T, params $P, optFns ...func($P)) $P {", "}",
                 newPagiantor, interfaceSymbol, inputSymbol, optionsSymbol, paginatorSymbol, () -> {
+                    writer.openBlock("if params == nil {", "}", () -> writer.write("params = &$T{}", inputSymbol));
+                    writer.write("");
                     writer.write("options := $T{}", optionsSymbol);
                     paginationInfo.getPageSizeMember().ifPresent(memberShape -> {
                         GoValueAccessUtils.writeIfNonZeroValueMember(model, symbolProvider, writer, memberShape,
@@ -135,8 +137,6 @@ public class Paginators implements GoIntegration {
                     writer.openBlock("for _, fn := range optFns {", "}", () -> {
                         writer.write("fn(&options)");
                     });
-                    writer.write("");
-                    writer.openBlock("if params == nil {", "}", () -> writer.write("params = &$T{}", inputSymbol));
                     writer.write("");
                     writer.openBlock("return &$T{", "}", paginatorSymbol, () -> {
                         writer.write("options: options,");
