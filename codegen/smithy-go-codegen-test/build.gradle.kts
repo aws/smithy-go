@@ -36,6 +36,6 @@ dependencies {
 tasks.create<Exec>("verifyGoCodegen") {
     dependsOn ("build")
     workingDir("$buildDir/smithyprojections/smithy-go-codegen-test/source/go-codegen")
-    commandLine ("go", "test", "-run", "NONE", "./...")
+    commandLine ("go", "test", "-mod", "mod", "-run", "NONE", "./...")
 }
 tasks["build"].finalizedBy(tasks["verifyGoCodegen"])
