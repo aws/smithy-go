@@ -4,7 +4,7 @@ import "strings"
 
 // JoinPath returns an absolute URL path composed of the two paths provided.
 // Enforces that the returned path begins with '/'. If added path is empty the
-// returned path will be suffixed with '/'.
+// returned path suffix will match the first parameter suffix.
 func JoinPath(a, b string) string {
 	if len(a) == 0 {
 		a = "/"

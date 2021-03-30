@@ -43,6 +43,10 @@ func TestJoinPath(t *testing.T) {
 			Expect: "/foo",
 		},
 		8: {
+			A: "foo/", B: "",
+			Expect: "/foo/",
+		},
+		9: {
 			A: "foo//", B: "//bar",
 			Expect: "/foo///bar",
 		},
