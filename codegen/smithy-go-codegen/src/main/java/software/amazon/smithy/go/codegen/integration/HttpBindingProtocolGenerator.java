@@ -218,13 +218,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write("");
             writer.write("opPath, opQuery := httpbinding.SplitURI($S)", httpTrait.getUri());
-            writer.write("request.URL.Path = opPath");
-            writer.openBlock("if len(request.URL.RawQuery) > 0 {", "", () -> {
-                writer.write("request.URL.RawQuery = \"&\" + opQuery");
-                writer.openBlock("} else {", "}", () -> {
-                    writer.write("request.URL.RawQuery = opQuery");
-                });
-            });
+            writer.write("request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)");
+            writer.write("request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)");
             writer.write("request.Method = $S", httpTrait.getMethod());
             writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
                     + "request.Header)");
