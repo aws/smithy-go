@@ -2,7 +2,10 @@ package io
 
 import (
 	"bytes"
+	"github.com/google/go-cmp/cmp"
 	"io"
+	"io/ioutil"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -49,8 +52,8 @@ func TestRingBuffer_Write(t *testing.T) {
 			expectedWrittenBuffer: []byte(""),
 		},
 	}
-	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			byteSlice := make([]byte, c.sliceCapacity)
 			ringBuffer := NewRingBuffer(byteSlice)
 			ringBuffer.Write(c.input)
@@ -84,7 +87,7 @@ func TestRingBuffer_Read(t *testing.T) {
 		"Read capacity matches Bytes written": {
 			input:                         []byte("Hello world"),
 			numberOfBytesToRead:           11,
-			expectedStartAfterRead:        0,
+			expectedStartAfterRead:        11,
 			expectedEndAfterRead:          11,
 			expectedSizeOfBufferAfterRead: 0,
 			expectedReadSlice:             []byte("Hello world"),
@@ -102,7 +105,7 @@ func TestRingBuffer_Read(t *testing.T) {
 		"Read capacity is more than Bytes written": {
 			input:                         []byte("hello world"),
 			numberOfBytesToRead:           15,
-			expectedStartAfterRead:        0,
+			expectedStartAfterRead:        11,
 			expectedEndAfterRead:          11,
 			expectedSizeOfBufferAfterRead: 0,
 			expectedReadSlice:             []byte("hello world"),
@@ -136,9 +139,9 @@ func TestRingBuffer_Read(t *testing.T) {
 			expectedErrorAfterRead:        io.EOF,
 		},
 	}
-	for _, c := range cases {
+	for name, c := range cases {
 		byteSlice := make([]byte, 11)
-		t.Run("", func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			ringBuffer := NewRingBuffer(byteSlice)
 			readSlice := make([]byte, c.numberOfBytesToRead)
 
@@ -221,11 +224,11 @@ func TestRingBuffer_forConsecutiveReadWrites(t *testing.T) {
 			expectedErrorAfterRead:        []error{io.EOF, io.EOF},
 		},
 	}
-	for _, c := range cases {
+	for name, c := range cases {
 		writeSlice := make([]byte, c.sliceCapacity)
 		ringBuffer := NewRingBuffer(writeSlice)
 
-		t.Run("", func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			ringBuffer.Write([]byte(c.input[0]))
 			if e, a := c.expectedWrittenBuffer[0], string(ringBuffer.slice); !strings.Contains(a, e) {
 				t.Errorf("Expected %v, got %v", e, a)
@@ -392,5 +395,71 @@ func TestRingBuffer_Reset(t *testing.T) {
 	}
 	if e, a := 0, readCount; e != a {
 		t.Errorf("expected read string to be of length %v, got %v", e, a)
+	}
+}
+
+func TestRingBufferWriteRead(t *testing.T) {
+	cases := []struct {
+		Input      []byte
+		BufferSize int
+		Expected   []byte
+	}{
+		{
+			Input: func() []byte {
+				return []byte(`hello world!`)
+			}(),
+			BufferSize: 6,
+			Expected:   []byte(`world!`),
+		},
+		{
+			Input: func() []byte {
+				return []byte(`hello world!`)
+			}(),
+			BufferSize: 12,
+			Expected:   []byte(`hello world!`),
+		},
+		{
+			Input: func() []byte {
+				return []byte(`hello`)
+			}(),
+			BufferSize: 6,
+			Expected:   []byte(`hello`),
+		},
+		{
+			Input: func() []byte {
+				return []byte(`hello!!`)
+			}(),
+			BufferSize: 6,
+			Expected:   []byte(`ello!!`),
+		},
+	}
+
+	for i, tt := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			dataReader := bytes.NewReader(tt.Input)
+
+			ringBuffer := NewRingBuffer(make([]byte, tt.BufferSize))
+
+			n, err := io.Copy(ringBuffer, dataReader)
+			if err != nil {
+				t.Errorf("unexpected error, %v", err)
+				return
+			}
+
+			if e, a := int64(len(tt.Input)), n; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+
+			actual, err := ioutil.ReadAll(ringBuffer)
+			if err != nil {
+				t.Errorf("unexpected error, %v", err)
+				return
+			}
+
+			if diff := cmp.Diff(tt.Expected, actual); len(diff) > 0 {
+				t.Error(diff)
+				return
+			}
+		})
 	}
 }
