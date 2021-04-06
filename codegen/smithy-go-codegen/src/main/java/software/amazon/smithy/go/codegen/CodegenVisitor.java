@@ -219,7 +219,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.flushWriters();
 
         LOGGER.fine("Generating go.mod file");
-        GoModGenerator.writeGoMod(settings, fileManifest, SymbolDependency.gatherDependencies(dependencies.stream()));
+        GoModGenerator.writeGoMod(settings, fileManifest, dependencies);
+
+        LOGGER.fine("Generating build manifest file");
+        ManifestWriter.writeManifest(settings, fileManifest, dependencies);
 
         LOGGER.fine("Running go fmt");
         CodegenUtils.runCommand("gofmt -w -s .", fileManifest.getBaseDir());

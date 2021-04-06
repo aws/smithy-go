@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.utils.SetUtils;
@@ -52,6 +53,34 @@ public final class GoDependency implements SymbolDependencyContainer, Comparable
                 .packageName(this.sourcePath)
                 .version(this.version)
                 .build();
+    }
+
+    /**
+     * Given two {@link SymbolDependency} referring to the same package, return the minimum dependency version using
+     * minimum version selection. The version strings must be semver compatible.
+     *
+     * @param dx the first dependency
+     * @param dy the second dependency
+     * @return the minimum dependency
+     */
+    public static SymbolDependency mergeByMinimumVersionSelection(SymbolDependency dx, SymbolDependency dy) {
+        SemanticVersion sx = SemanticVersion.parseVersion(dx.getVersion());
+        SemanticVersion sy = SemanticVersion.parseVersion(dy.getVersion());
+
+        // This *shouldn't* happen in Go since the Go module import path must end with the major version component.
+        // Exception is the case where the major version is 0 or 1.
+        if (sx.getMajor() != sy.getMajor() && !(sx.getMajor() == 0 || sy.getMajor() == 0)) {
+            throw new CodegenException(String.format("Dependency %s has conflicting major versions",
+                    dx.getPackageName()));
+        }
+
+        int cmp = sx.compareTo(sy);
+        if (cmp < 0) {
+            return dy;
+        } else if (cmp > 0) {
+            return dx;
+        }
+        return dx;
     }
 
     /**

@@ -18,8 +18,8 @@ package software.amazon.smithy.go.codegen;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -32,12 +32,13 @@ import software.amazon.smithy.codegen.core.SymbolDependency;
  */
 final class GoModGenerator {
 
-    private GoModGenerator() {}
+    private GoModGenerator() {
+    }
 
     static void writeGoMod(
             GoSettings settings,
             FileManifest manifest,
-            Map<String, Map<String, SymbolDependency>> dependencies
+            List<SymbolDependency> dependencies
     ) {
         Path goModFile = manifest.getBaseDir().resolve("go.mod");
 
@@ -51,6 +52,8 @@ final class GoModGenerator {
                 throw new CodegenException("Failed to delete existing go.mod file", e);
             }
         }
+        manifest.addFile(goModFile);
+
         CodegenUtils.runCommand("go mod init " + settings.getModuleName(), manifest.getBaseDir());
 
         Map<String, String> externalDependencies = getExternalDependencies(dependencies);
@@ -61,13 +64,11 @@ final class GoModGenerator {
         }
     }
 
-    private static Map<String, String> getExternalDependencies(
-            Map<String, Map<String, SymbolDependency>> dependencies
-    ) {
-        return dependencies.entrySet().stream()
-                .filter(entry -> !entry.getKey().equals("stdlib"))
-                .flatMap(entry -> entry.getValue().entrySet().stream())
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey, entry -> entry.getValue().getVersion(), (a, b) -> b, TreeMap::new));
+    private static Map<String, String> getExternalDependencies(List<SymbolDependency> dependencies) {
+        return SymbolDependency.gatherDependencies(dependencies.stream()
+                        .filter(s -> !s.getDependencyType().equals(GoDependency.Type.STANDARD_LIBRARY.toString())),
+                GoDependency::mergeByMinimumVersionSelection)
+                .entrySet().stream().flatMap(e -> e.getValue().entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getVersion()));
     }
 }
