@@ -68,7 +68,7 @@ public final class ManifestWriter {
         fileManifest.addFile(manifestFile);
 
         Node generatedJson = buildManifestFile(settings, fileManifest, dependencies);
-        fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson)+"\n");
+        fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson) + "\n");
     }
 
     private static Node buildManifestFile(
