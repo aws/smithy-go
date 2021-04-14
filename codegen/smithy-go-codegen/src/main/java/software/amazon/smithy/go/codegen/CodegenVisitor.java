@@ -85,13 +85,13 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         fileManifest = context.getFileManifest();
 
         Model resolvedModel = context.getModel();
+        // Add unique operation input/output shapes
+        resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
+
         LOGGER.info(() -> "Preprocessing smithy model");
         for (GoIntegration goIntegration : integrations) {
             resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
         }
-
-        // Add unique operation input/output shapes
-        resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
 
         model = resolvedModel;
 
