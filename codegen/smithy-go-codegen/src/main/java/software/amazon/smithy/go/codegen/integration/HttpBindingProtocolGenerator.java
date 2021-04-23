@@ -727,13 +727,16 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             });
                             break;
                         case QUERY:
-                            writeQueryBinding(context, targetShape, operand, location, locationName, "encoder");
+                            writeQueryBinding(context, memberShape, targetShape, operand,
+                                    location, locationName, "encoder", false);
                             break;
                         case QUERY_PARAMS:
-                            MemberShape valueMemberShape = CodegenUtils.expectMapShape(targetShape).getValue();
+                            MemberShape queryMapValueMemberShape = CodegenUtils.expectMapShape(targetShape).getValue();
+                            MemberShape queryMapKeyMemberShape = CodegenUtils.expectMapShape(targetShape).getKey();
                             writer.openBlock("for qkey, qvalue := range $L {", "}", operand, () -> {
                                 writer.write("if encoder.HasQuery(qkey) { continue }");
-                                writeQueryBinding(context, valueMemberShape, "qvalue", location, "qkey", "encoder");
+                                writeQueryBinding(context, queryMapKeyMemberShape, queryMapValueMemberShape,
+                                        "qvalue", location, "qkey", "encoder", true);
                             });
                             break;
 
@@ -750,6 +753,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * outside the scope of this function.
      *
      * @param context is the generation context
+     * @param memberShape is the member shape for which query is serialized
      * @param targetShape is the target shape of the query member.
      *                    This can either be string, or a list/set of string.
      * @param operand is the member value accessor .
@@ -760,11 +764,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     private void writeQueryBinding(
             GenerationContext context,
+            MemberShape memberShape,
             Shape targetShape,
             String operand,
             HttpBinding.Location location,
             String locationName,
-            String dest
+            String dest,
+            boolean isQueryParams
     ) {
         GoWriter writer = context.getWriter();
 
@@ -778,13 +784,22 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                         });
                 writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
                         (w, s) -> {
-                            w.writeInline("$S.AddQuery($S).$L", dest, locationName, s);
+                            if (isQueryParams) {
+                                w.writeInline("$L.AddQuery($L).$L", dest, locationName, s);
+                            } else {
+                                w.writeInline("$L.AddQuery($S).$L", dest, locationName, s);
+                            }
                         });
             });
         } else {
             writeHttpBindingSetter(context, writer, memberShape, location, operand,
-                    (w, s) -> w.writeInline(
-                            "$S.SetQuery($S).$L", dest, locationName, s));
+                    (w, s) -> {
+                        if (isQueryParams) {
+                            w.writeInline("$L.SetQuery($L).$L", dest, locationName, s);
+                        } else {
+                            w.writeInline("$L.SetQuery($S).$L", dest, locationName, s);
+                        }
+                    });
         }
     }
 
