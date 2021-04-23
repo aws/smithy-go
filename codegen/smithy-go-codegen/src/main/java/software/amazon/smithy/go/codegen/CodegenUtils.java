@@ -314,6 +314,21 @@ public final class CodegenUtils {
     }
 
     /**
+     * Returns the shape unpacked as a MapShape. Throws and exception if the passed in
+     * shape is not a map.
+     *
+     * @param shape the map shape.
+     * @return The unpacked MapShape.
+     */
+    public static MapShape expectMapShape(Shape shape) {
+        if (shape instanceof MapShape) {
+            return (MapShape) (shape);
+        }
+
+        throw new CodegenException("expect shape " + shape.getId() + " to be Map, was " + shape.getType());
+    }
+
+    /**
      * Comparator to sort ShapeMember lists alphabetically, with required members first followed by optional members.
      */
     public static final class SortedMembers implements Comparator<MemberShape> {

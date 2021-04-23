@@ -487,6 +487,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || location == HttpBinding.Location.PREFIX_HEADERS
                 || location == HttpBinding.Location.LABEL
                 || location == HttpBinding.Location.QUERY
+                || location == HttpBinding.Location.QUERY_PARAMS
                 || location == HttpBinding.Location.RESPONSE_CODE;
     }
 
@@ -665,14 +666,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHttpBindingMember(
-            GenerationContext context,
+            final GenerationContext context,
             HttpBinding binding
     ) {
         GoWriter writer = context.getWriter();
         Model model = context.getModel();
         MemberShape memberShape = binding.getMember();
-        Shape targetShape = model.expectShape(memberShape.getTarget());
-        HttpBinding.Location location = binding.getLocation();
+        final Shape targetShape = model.expectShape(memberShape.getTarget());
+        final HttpBinding.Location location = binding.getLocation();
 
         // return an error if member shape targets location label, but is unset.
         if (location.equals(HttpBinding.Location.LABEL)) {
@@ -726,29 +727,65 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             });
                             break;
                         case QUERY:
-                            if (targetShape instanceof CollectionShape) {
-                                MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
-                                        .getMember();
-                                writer.openBlock("for i := range $L {", "}", operand, () -> {
-                                    GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
-                                            operand + "[i]", () -> {
-                                                writer.write("continue");
-                                            });
-                                    writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
-                                            (w, s) -> {
-                                                w.writeInline("encoder.AddQuery($S).$L", locationName, s);
-                                            });
-                                });
-                            } else {
-                                writeHttpBindingSetter(context, writer, memberShape, location, operand,
-                                        (w, s) -> w.writeInline(
-                                                "encoder.SetQuery($S).$L", locationName, s));
-                            }
+                            writeQueryBinding(context, targetShape, operand, location, locationName, "encoder");
                             break;
+                        case QUERY_PARAMS:
+                            MemberShape valueMemberShape = CodegenUtils.expectMapShape(targetShape).getValue();
+                            writer.openBlock("for qkey, qvalue := range $L {", "}", operand, () -> {
+                                writer.write("if encoder.HasQuery(qkey) { continue }");
+                                writeQueryBinding(context, valueMemberShape, "qvalue", location, "qkey", "encoder");
+                            });
+                            break;
+
                         default:
                             throw new CodegenException("unexpected http binding found");
                     }
                 });
+    }
+
+    /**
+     * Writes query bindings, as per the target shape. This method is shared
+     * between members modeled with Location.Query and Location.QueryParams.
+     * Precedence across Location.Query and Location.QueryParams is handled
+     * outside the scope of this function.
+     *
+     * @param context is the generation context
+     * @param targetShape is the target shape of the query member.
+     *                    This can either be string, or a list/set of string.
+     * @param operand is the member value accessor .
+     * @param location is the location of the member - can be Location.Query
+     *                 or Location.QueryParams.
+     * @param locationName is the key for which query is encoded.
+     * @param dest is the query encoder destination.
+     */
+    private void writeQueryBinding(
+            GenerationContext context,
+            Shape targetShape,
+            String operand,
+            HttpBinding.Location location,
+            String locationName,
+            String dest
+    ) {
+        GoWriter writer = context.getWriter();
+
+        if (targetShape instanceof CollectionShape) {
+            MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
+                    .getMember();
+            writer.openBlock("for i := range $L {", "}", operand, () -> {
+                GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
+                        operand + "[i]", () -> {
+                            writer.write("continue");
+                        });
+                writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
+                        (w, s) -> {
+                            w.writeInline("$S.AddQuery($S).$L", dest, locationName, s);
+                        });
+            });
+        } else {
+            writeHttpBindingSetter(context, writer, memberShape, location, operand,
+                    (w, s) -> w.writeInline(
+                            "$S.SetQuery($S).$L", dest, locationName, s));
+        }
     }
 
     private void writeHeaderBinding(
