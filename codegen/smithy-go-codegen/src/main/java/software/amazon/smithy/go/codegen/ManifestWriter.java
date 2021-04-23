@@ -30,10 +30,13 @@ import java.util.stream.Stream;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolDependency;
+import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ArrayNode;
+import software.amazon.smithy.model.node.BooleanNode;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
+import software.amazon.smithy.model.traits.UnstableTrait;
 
 /**
  * Generates a manifest description of the generated code, minimum go version, and minimum dependencies required.
@@ -48,11 +51,13 @@ public final class ManifestWriter {
      * Write the manifest description of the generated code.
      *
      * @param settings     the go settings
+     * @param model        the smithy model
      * @param fileManifest the file manifest
      * @param dependencies the list of symbol dependencies
      */
     public static void writeManifest(
             GoSettings settings,
+            Model model,
             FileManifest fileManifest,
             List<SymbolDependency> dependencies
     ) {
@@ -67,15 +72,17 @@ public final class ManifestWriter {
         }
         fileManifest.addFile(manifestFile);
 
-        Node generatedJson = buildManifestFile(settings, fileManifest, dependencies);
+        Node generatedJson = buildManifestFile(settings, model, fileManifest, dependencies);
         fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson) + "\n");
     }
 
     private static Node buildManifestFile(
             GoSettings settings,
+            Model model,
             FileManifest fileManifest,
             List<SymbolDependency> dependencies
     ) {
+
         List<SymbolDependency> nonStdLib = new ArrayList<>();
         Optional<SymbolDependency> minStandard = Optional.empty();
 
@@ -115,6 +122,8 @@ public final class ManifestWriter {
                 manifestNodes.put(StringNode.from("go"), StringNode.from(symbolDependency.getVersion())));
         manifestNodes.put(StringNode.from("dependencies"), ObjectNode.objectNode(dependencyNodes));
         manifestNodes.put(StringNode.from("files"), ArrayNode.fromStrings(generatedFiles));
+        manifestNodes.put(StringNode.from("unstable"),
+                BooleanNode.from(settings.getService(model).getTrait(UnstableTrait.class).isPresent()));
 
         return ObjectNode.objectNode(manifestNodes).withDeepSortedKeys();
     }

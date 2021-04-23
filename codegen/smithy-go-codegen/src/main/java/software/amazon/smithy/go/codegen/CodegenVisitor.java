@@ -219,7 +219,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.flushWriters();
 
         LOGGER.fine("Generating build manifest file");
-        ManifestWriter.writeManifest(settings, fileManifest, dependencies);
+        ManifestWriter.writeManifest(settings, model, fileManifest, dependencies);
     }
 
     @Override
