@@ -79,12 +79,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private final ReservedWordSymbolProvider.Escaper errorMemberEscaper;
     private final Map<ShapeId, ReservedWordSymbolProvider.Escaper> structureSpecificMemberEscapers = new HashMap<>();
     private final GoPointableIndex pointableIndex;
+    private final GoSettings settings;
 
-
-    SymbolVisitor(Model model, String rootModuleName) {
+    SymbolVisitor(Model model, GoSettings settings) {
         this.model = model;
-        this.rootModuleName = rootModuleName;
-        this.typesPackageName = rootModuleName + "/types";
+        this.settings = settings;
+        this.rootModuleName = settings.getModuleName();
+        this.typesPackageName = this.rootModuleName + "/types";
         this.pointableIndex = GoPointableIndex.of(model);
 
         // Reserve the generated names for union members, including the unknown case.
@@ -223,7 +224,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     }
 
     private String getDefaultShapeName(Shape shape) {
-        return StringUtils.capitalize(removeLeadingInvalidIdentCharacters(shape.getId().getName()));
+        ServiceShape serviceShape = model.expectShape(settings.getService(), ServiceShape.class);
+        return StringUtils.capitalize(removeLeadingInvalidIdentCharacters(shape.getId().getName(serviceShape)));
     }
 
     private String getDefaultMemberName(MemberShape shape) {

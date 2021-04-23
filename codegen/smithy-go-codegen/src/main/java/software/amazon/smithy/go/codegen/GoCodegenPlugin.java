@@ -57,11 +57,11 @@ public final class GoCodegenPlugin implements SmithyBuildPlugin {
     /**
      * Creates a Go symbol provider.
      *
-     * @param model          The model to generate symbols for.
-     * @param rootModuleName The name of the package root.
+     * @param model    The model to generate symbols for.
+     * @param settings The Gosettings to use to create symbol provider
      * @return Returns the created provider.
      */
-    public static SymbolProvider createSymbolProvider(Model model, String rootModuleName) {
-        return new SymbolVisitor(model, rootModuleName);
+    public static SymbolProvider createSymbolProvider(Model model, GoSettings settings) {
+        return new SymbolVisitor(model, settings);
     }
 }
