@@ -24,6 +24,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
+import software.amazon.smithy.go.codegen.SyntheticClone;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.DocumentShape;
 import software.amazon.smithy.model.shapes.ListShape;
@@ -323,7 +324,12 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
         GoWriter writer = context.getWriter();
 
         Symbol symbol = symbolProvider.toSymbol(shape);
-        String functionName = ProtocolGenerator.getDocumentSerializerFunctionName(shape, context.getProtocolName());
+
+        String functionName = shape.hasTrait(SyntheticClone.class) ?
+                ProtocolGenerator.getOperationDocumentSerFuncName(
+                shape, context.getProtocolName()) :
+                ProtocolGenerator.getDocumentSerializerFunctionName(
+                shape, context.getService(), context.getProtocolName());
 
         String additionalArguments = getAdditionalSerArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))

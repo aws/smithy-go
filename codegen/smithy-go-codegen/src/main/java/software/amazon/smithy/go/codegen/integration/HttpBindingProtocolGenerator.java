@@ -732,10 +732,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             break;
                         case QUERY_PARAMS:
                             MemberShape queryMapValueMemberShape = CodegenUtils.expectMapShape(targetShape).getValue();
+                            Shape queryMapValueTargetShape = model.expectShape(queryMapValueMemberShape.getTarget());
                             MemberShape queryMapKeyMemberShape = CodegenUtils.expectMapShape(targetShape).getKey();
                             writer.openBlock("for qkey, qvalue := range $L {", "}", operand, () -> {
                                 writer.write("if encoder.HasQuery(qkey) { continue }");
-                                writeQueryBinding(context, queryMapKeyMemberShape, queryMapValueMemberShape,
+                                writeQueryBinding(context, queryMapKeyMemberShape, queryMapValueTargetShape,
                                         "qvalue", location, "qkey", "encoder", true);
                             });
                             break;
@@ -752,15 +753,17 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * Precedence across Location.Query and Location.QueryParams is handled
      * outside the scope of this function.
      *
-     * @param context is the generation context
-     * @param memberShape is the member shape for which query is serialized
-     * @param targetShape is the target shape of the query member.
-     *                    This can either be string, or a list/set of string.
-     * @param operand is the member value accessor .
-     * @param location is the location of the member - can be Location.Query
-     *                 or Location.QueryParams.
-     * @param locationName is the key for which query is encoded.
-     * @param dest is the query encoder destination.
+     * @param context       is the generation context
+     * @param memberShape   is the member shape for which query is serialized
+     * @param targetShape   is the target shape of the query member.
+     *                      This can either be string, or a list/set of string.
+     * @param operand       is the member value accessor .
+     * @param location      is the location of the member - can be Location.Query
+     *                      or Location.QueryParams.
+     * @param locationName  is the key for which query is encoded.
+     * @param dest          is the query encoder destination.
+     * @param isQueryParams boolean representing if Location used for query binding is
+     *                      QUERY_PARAMS.
      */
     private void writeQueryBinding(
             GenerationContext context,
@@ -1280,7 +1283,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();
-        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(
+                shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();
 
         writer.addUseImports(SmithyGoDependency.BYTES);

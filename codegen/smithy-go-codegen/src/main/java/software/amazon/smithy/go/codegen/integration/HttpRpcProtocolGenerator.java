@@ -308,7 +308,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();
-        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(
+                shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();
 
         writer.addUseImports(SmithyGoDependency.BYTES);

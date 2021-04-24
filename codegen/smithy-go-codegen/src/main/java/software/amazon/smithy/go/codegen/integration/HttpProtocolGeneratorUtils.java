@@ -90,7 +90,7 @@ public final class HttpProtocolGeneratorUtils {
                     StructureShape error = context.getModel().expectShape(errorId).asStructureShape().get();
                     errorShapes.add(error);
                     String errorDeserFunctionName = ProtocolGenerator.getErrorDeserFunctionName(
-                            error, context.getProtocolName());
+                            error, context.getService(), context.getProtocolName());
                     writer.addUseImports(SmithyGoDependency.STRINGS);
                     writer.openBlock("case strings.EqualFold($S, errorCode):", "", errorId.getName(), () -> {
                         writer.write("return $L(response, errorBody)", errorDeserFunctionName);

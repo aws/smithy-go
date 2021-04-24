@@ -408,7 +408,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        return symbolBuilderFor(shape, "Document", SmithyGoDependency.SMITHY)
+        String name = getDefaultShapeName(shape);
+        return symbolBuilderFor(shape, name, SmithyGoDependency.SMITHY)
                 .build();
     }
 
