@@ -666,14 +666,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void writeHttpBindingMember(
-            final GenerationContext context,
+            GenerationContext context,
             HttpBinding binding
     ) {
         GoWriter writer = context.getWriter();
         Model model = context.getModel();
         MemberShape memberShape = binding.getMember();
-        final Shape targetShape = model.expectShape(memberShape.getTarget());
-        final HttpBinding.Location location = binding.getLocation();
+        Shape targetShape = model.expectShape(memberShape.getTarget());
+        HttpBinding.Location location = binding.getLocation();
 
         // return an error if member shape targets location label, but is unset.
         if (location.equals(HttpBinding.Location.LABEL)) {
@@ -782,28 +782,18 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     .getMember();
             writer.openBlock("for i := range $L {", "}", operand, () -> {
                 GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
-                        operand + "[i]", () -> {
-                            writer.write("continue");
-                        });
+                        operand + "[i]", () -> writer.write("continue"));
+
+                String addQuery = String.format("$L.AddQuery(%s).$L", isQueryParams ? "$L" : "$S");
                 writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
-                        (w, s) -> {
-                            if (isQueryParams) {
-                                w.writeInline("$L.AddQuery($L).$L", dest, locationName, s);
-                            } else {
-                                w.writeInline("$L.AddQuery($S).$L", dest, locationName, s);
-                            }
-                        });
+                        (w, s) -> w.writeInline(addQuery, dest, locationName, s));
             });
-        } else {
-            writeHttpBindingSetter(context, writer, memberShape, location, operand,
-                    (w, s) -> {
-                        if (isQueryParams) {
-                            w.writeInline("$L.SetQuery($L).$L", dest, locationName, s);
-                        } else {
-                            w.writeInline("$L.SetQuery($S).$L", dest, locationName, s);
-                        }
-                    });
+            return;
         }
+
+        String setQuery = String.format("$L.SetQuery(%s).$L", isQueryParams ? "$L" : "$S");
+        writeHttpBindingSetter(context, writer, memberShape, location, operand,
+                (w, s) -> w.writeInline(setQuery, dest, locationName, s));
     }
 
     private void writeHeaderBinding(

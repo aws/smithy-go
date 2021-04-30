@@ -325,11 +325,14 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
 
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        String functionName = shape.hasTrait(SyntheticClone.class)
-                ? ProtocolGenerator.getOperationDocumentSerFuncName(
-                shape, context.getProtocolName())
-                : ProtocolGenerator.getDocumentSerializerFunctionName(
-                shape, context.getService(), context.getProtocolName());
+        String functionName;
+        if (shape.hasTrait(SyntheticClone.class)) {
+           functionName = ProtocolGenerator.getOperationDocumentSerFuncName(
+                   shape, context.getProtocolName());
+        } else {
+            functionName = ProtocolGenerator.getDocumentSerializerFunctionName(
+                    shape, context.getService(), context.getProtocolName());
+        }
 
         String additionalArguments = getAdditionalSerArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))
