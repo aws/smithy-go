@@ -24,6 +24,7 @@ import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SyntheticClone;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -165,10 +166,10 @@ public interface ProtocolGenerator {
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getOperationHttpBindingsSerFunctionName(Shape shape, String protocol) {
+    static String getOperationHttpBindingsSerFunctionName(Shape shape, ServiceShape service, String protocol) {
         return protocol
                 + "_serializeOpHttpBindings"
-                + StringUtils.capitalize(shape.getId().getName());
+                + StringUtils.capitalize(shape.getId().getName(service));
     }
 
     /**
@@ -178,10 +179,10 @@ public interface ProtocolGenerator {
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
-    static String getOperationHttpBindingsDeserFunctionName(Shape shape, String protocol) {
+    static String getOperationHttpBindingsDeserFunctionName(Shape shape, ServiceShape service, String protocol) {
         return protocol
                 + "_deserializeOpHttpBindings"
-                + StringUtils.capitalize(shape.getId().getName());
+                + StringUtils.capitalize(shape.getId().getName(service));
     }
 
     /**
@@ -194,44 +195,11 @@ public interface ProtocolGenerator {
      */
     static String getDocumentSerializerFunctionName(Shape shape, ServiceShape service, String protocol) {
         String name = shape.getId().getName(service);
-        return getDocumentSerializerFunctionName(name, protocol);
-    }
-
-    /**
-     * Generates the name of a serializer function for shapes of a service.
-     *
-     * @param name     The resolved named of the serializer function being generated for.
-     * @param protocol Name of the protocol being generated.
-     * @return Returns the generated function name.
-     */
-    static String getDocumentSerializerFunctionName(String name, String protocol) {
-        return protocol + "_serializeDocument" + StringUtils.capitalize(name);
-    }
-
-    /**
-     * Generates the name of the top level shape serializer function targeting document shape.
-     *
-     * @param shape    The shape the deserializer function is being generated for.
-     * @param protocol Name of the protocol being generated.
-     * @return Returns the generated function name.
-     */
-    static String getOperationDocumentSerFuncName(Shape shape, String protocol) {
-        return protocol + "_serializeOpDocument" + StringUtils.capitalize(shape.getId().getName());
-    }
-
-    static String getOperationErrorDeserFunctionName(OperationShape shape, String protocol) {
-        return protocol + "_deserializeOpError" + StringUtils.capitalize(shape.getId().getName());
-    }
-
-    /**
-     * Generates the name of the top level shape deserializer function targeting document shape.
-     *
-     * @param shape    The shape the deserializer function is being generated for.
-     * @param protocol Name of the protocol being generated.
-     * @return Returns the generated function name.
-     */
-    static String getOperationDocumentDeserFuncName(Shape shape, String protocol) {
-        return protocol + "_deserializeOpDocument" + StringUtils.capitalize(shape.getId().getName());
+        String extra = "";
+        if (shape.hasTrait(SyntheticClone.class)) {
+            extra = "Op";
+        }
+        return protocol + "_serialize" + extra + "Document" + StringUtils.capitalize(name);
     }
 
     /**
@@ -244,18 +212,15 @@ public interface ProtocolGenerator {
      */
     static String getDocumentDeserializerFunctionName(Shape shape, ServiceShape service, String protocol) {
         String name = shape.getId().getName(service);
-        return getDocumentDeserializerFunctionName(name, protocol);
+        String extra = "";
+        if (shape.hasTrait(SyntheticClone.class)) {
+            extra = "Op";
+        }
+        return protocol + "_deserialize" + extra + "Document" + StringUtils.capitalize(name);
     }
 
-    /**
-     * Generates the name of a deserializer function for shapes of a service.
-     *
-     * @param name    The resolved shape name of the deserializer function being generated for.
-     * @param protocol Name of the protocol being generated.
-     * @return Returns the generated function name.
-     */
-    static String getDocumentDeserializerFunctionName(String name, String protocol) {
-        return protocol + "_deserializeDocument" + StringUtils.capitalize(name);
+    static String getOperationErrorDeserFunctionName(OperationShape shape, ServiceShape service, String protocol) {
+        return protocol + "_deserializeOpError" + StringUtils.capitalize(shape.getId().getName(service));
     }
 
     /**
@@ -268,31 +233,19 @@ public interface ProtocolGenerator {
      */
     static String getErrorDeserFunctionName(StructureShape shape, ServiceShape service, String protocol) {
         String name = shape.getId().getName(service);
-        return getErrorDeserFunctionName(name, protocol);
-    }
-
-    /**
-     * Generates the name of an error deserializer function for shapes of a service.
-     *
-     * @param name    The resolved shape name of the error deserializer function being generated for.
-     * @param protocol Name of the protocol being generated.
-     * @return Returns the generated function name.
-     */
-    static String getErrorDeserFunctionName(String name, String protocol) {
         return protocol + "_deserializeError" + StringUtils.capitalize(name);
     }
 
-
-    static String getSerializeMiddlewareName(ShapeId operationShapeId, String protocol) {
+    static String getSerializeMiddlewareName(ShapeId operationShapeId, ServiceShape service, String protocol) {
         return protocol
                 + "_serializeOp"
-                + operationShapeId.getName();
+                + operationShapeId.getName(service);
     }
 
-    static String getDeserializeMiddlewareName(ShapeId operationShapeId, String protocol) {
+    static String getDeserializeMiddlewareName(ShapeId operationShapeId, ServiceShape service, String protocol) {
         return protocol
                 + "_deserializeOp"
-                + operationShapeId.getName();
+                + operationShapeId.getName(service);
     }
 
     /**

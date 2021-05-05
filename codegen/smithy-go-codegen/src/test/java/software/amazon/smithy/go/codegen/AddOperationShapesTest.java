@@ -126,7 +126,8 @@ public class AddOperationShapesTest {
             ShapeId id = fooMember.get().getId();
             MatcherAssert.assertThat("foo is correct namespace", id.getNamespace(),
                     Matchers.equalTo(shapeId.getNamespace()));
-            MatcherAssert.assertThat("foo is correct parent", id.getName(), Matchers.equalTo(shapeId.getName()));
+            MatcherAssert.assertThat("foo is correct parent", id.getName(service),
+                    Matchers.equalTo(shapeId.getName(service)));
 
             Optional<SyntheticClone> syntheticClone = shape.get().getTrait(SyntheticClone.class);
             if (!syntheticClone.isPresent()) {

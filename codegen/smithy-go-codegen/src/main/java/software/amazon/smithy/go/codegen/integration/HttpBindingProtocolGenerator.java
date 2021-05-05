@@ -47,6 +47,7 @@ import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -181,18 +182,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void generateOperationSerializerMiddleware(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
-                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        ServiceShape service = context.getService();
         Shape inputShape = model.expectShape(operation.getInput()
                 .orElseThrow(() -> new CodegenException("expect input shape for operation: " + operation.getId())));
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
         HttpTrait httpTrait = operation.expectTrait(HttpTrait.class);
+
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -230,8 +232,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // we only generate an operations http bindings function if there are bindings
             if (isOperationWithRestRequestBindings(model, operation)) {
-                String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
-                        getProtocolName());
+                String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(
+                        inputShape, service, getProtocolName());
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
                 });
@@ -275,19 +277,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     // Generates operation deserializer middleware that delegates to appropriate deserializers for the error,
     // output shapes for the operation.
     private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
-                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        ServiceShape service = context.getService();
 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         GoWriter goWriter = context.getWriter();
 
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
+
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
-                operation, context.getProtocolName());
+                operation, service, context.getProtocolName());
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -322,7 +325,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Output shape HTTP binding middleware generation
             if (isShapeWithRestResponseBindings(model, operation)) {
                 String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
-                        outputShape, getProtocolName());
+                        outputShape, service, getProtocolName());
 
                 writer.write("err= $L(output, response)", deserFuncName);
                 writer.openBlock("if err != nil {", "}", () -> {
@@ -541,7 +544,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         Symbol httpBindingEncoder = getHttpBindingEncoderSymbol();
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
-        String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
+        String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(
+                inputShape, context.getService(), getProtocolName());
 
         writer.addUseImports(SmithyGoDependency.FMT);
         writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, httpBindingEncoder,
@@ -896,8 +900,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         writer.addUseImports(SmithyGoDependency.FMT);
 
-        String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(targetShape,
-                getProtocolName());
+        String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
+                targetShape, context.getService(), getProtocolName());
         writer.openBlock("func $L(v $P, response $P) error {", "}", functionName, targetSymbol,
                 smithyHttpResponsePointableSymbol, () -> {
                     writer.openBlock("if v == nil {", "}", () -> {

@@ -24,7 +24,6 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SyntheticClone;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.DocumentShape;
@@ -416,10 +415,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
 
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        String functionName = shape.hasTrait(SyntheticClone.class)
-                ? ProtocolGenerator.getOperationDocumentDeserFuncName(
-                        shape, context.getProtocolName())
-                : ProtocolGenerator.getDocumentDeserializerFunctionName(
+        String functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(
                         shape, context.getService(), context.getProtocolName());
 
         String additionalArguments = getAdditionalArguments().entrySet().stream()

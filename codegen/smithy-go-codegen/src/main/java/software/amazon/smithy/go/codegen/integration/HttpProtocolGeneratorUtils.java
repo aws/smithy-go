@@ -27,6 +27,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
@@ -57,10 +58,12 @@ public final class HttpProtocolGeneratorUtils {
             Consumer<GenerationContext> errorMessageCodeGenerator
     ) {
         GoWriter writer = context.getWriter();
+        ServiceShape service = context.getService();
+        String protocolName = context.getProtocolName();
         Set<StructureShape> errorShapes = new TreeSet<>();
 
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
-                operation, context.getProtocolName());
+                operation, service, protocolName);
 
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
         writer.openBlock("func $L(response $P, metadata *middleware.Metadata) error {", "}",
@@ -90,9 +93,9 @@ public final class HttpProtocolGeneratorUtils {
                     StructureShape error = context.getModel().expectShape(errorId).asStructureShape().get();
                     errorShapes.add(error);
                     String errorDeserFunctionName = ProtocolGenerator.getErrorDeserFunctionName(
-                            error, context.getService(), context.getProtocolName());
+                            error, service, protocolName);
                     writer.addUseImports(SmithyGoDependency.STRINGS);
-                    writer.openBlock("case strings.EqualFold($S, errorCode):", "", errorId.getName(), () -> {
+                    writer.openBlock("case strings.EqualFold($S, errorCode):", "", errorId.getName(service), () -> {
                         writer.write("return $L(response, errorBody)", errorDeserFunctionName);
                     });
                 });

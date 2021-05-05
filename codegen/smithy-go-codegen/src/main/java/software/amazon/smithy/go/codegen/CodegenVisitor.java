@@ -237,7 +237,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
         writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, shape, symbol).run());
+                model, symbolProvider, writer, service, shape, symbol).run());
         return null;
     }
 
