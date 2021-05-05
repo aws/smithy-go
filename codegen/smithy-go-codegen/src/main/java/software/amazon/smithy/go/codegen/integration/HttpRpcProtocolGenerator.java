@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
@@ -83,17 +84,18 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     }
 
     private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
-                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        ServiceShape service = context.getService();
         Shape inputShape = ProtocolUtils.expectInput(model, operation);
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
         GoWriter writer = context.getWriter();
+
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
         middleware.writeMiddleware(context.getWriter(), (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.SMITHY);
@@ -228,19 +230,20 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     }
 
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
-                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
         GoWriter writer = context.getWriter();
+        ServiceShape service = context.getService();
         StructureShape outputShape = ProtocolUtils.expectOutput(context.getModel(), operation);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
-                operation, context.getProtocolName());
+                operation, context.getService(), context.getProtocolName());
+
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
 
         middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -308,7 +311,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();
-        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(
+                shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();
 
         writer.addUseImports(SmithyGoDependency.BYTES);

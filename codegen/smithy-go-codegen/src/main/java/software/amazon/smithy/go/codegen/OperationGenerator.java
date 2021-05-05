@@ -124,20 +124,21 @@ public final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, inputShape, inputSymbol)
+        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol)
                 .renderStructure(() -> {
                 }, true);
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
-        new StructureGenerator(model, symbolProvider, writer, outputShape, outputSymbol).renderStructure(() -> {
-            if (outputShape.getMemberNames().size() != 0) {
-                writer.write("");
-            }
-            writer.writeDocs("Metadata pertaining to the operation's result.");
-            writer.write("ResultMetadata $T", metadataSymbol);
-        });
+        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol)
+                .renderStructure(() -> {
+                    if (outputShape.getMemberNames().size() != 0) {
+                        writer.write("");
+                    }
+                    writer.writeDocs("Metadata pertaining to the operation's result.");
+                    writer.write("ResultMetadata $T", metadataSymbol);
+                });
 
         // Generate operation protocol middleware helper function
         generateAddOperationMiddleware();
@@ -212,15 +213,13 @@ public final class OperationGenerator implements Runnable {
 
         // Add request serializer middleware
         String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
-                operation.getId(),
-                protocolGenerator.getProtocolName());
+                operation.getId(), service, protocolGenerator.getProtocolName());
         writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
         writer.write("if err != nil { return err }");
 
         // Adds response deserializer middleware
         String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
-                operation.getId(),
-                protocolGenerator.getProtocolName());
+                operation.getId(), service, protocolGenerator.getProtocolName());
         writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
         writer.write("if err != nil { return err }");
     }

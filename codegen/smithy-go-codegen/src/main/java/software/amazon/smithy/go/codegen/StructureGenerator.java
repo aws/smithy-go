@@ -21,6 +21,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.utils.MapUtils;
@@ -42,17 +43,20 @@ final class StructureGenerator implements Runnable {
     private final GoWriter writer;
     private final StructureShape shape;
     private final Symbol symbol;
+    private final ServiceShape service;
 
     StructureGenerator(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
+            ServiceShape service,
             StructureShape shape,
             Symbol symbol
     ) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.writer = writer;
+        this.service = service;
         this.shape = shape;
         this.symbol = symbol;
     }
@@ -146,7 +150,7 @@ final class StructureGenerator implements Runnable {
             writer.write("return *e.Message");
         });
         writer.write("func (e *$L) ErrorCode() string { return $S }",
-                structureSymbol.getName(), shape.getId().getName());
+                structureSymbol.getName(), shape.getId().getName(service));
 
         String fault = "smithy.FaultUnknown";
         if (errorTrait.isClientError()) {

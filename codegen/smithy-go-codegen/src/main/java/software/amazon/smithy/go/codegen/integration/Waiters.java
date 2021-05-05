@@ -67,7 +67,7 @@ public class Waiters implements GoIntegration {
                     Map<String, Waiter> waiters = operation.expectTrait(WaitableTrait.class).getWaiters();
 
                     goDelegator.useShapeWriter(operation, writer -> {
-                        generateOperationWaiter(model, symbolProvider, writer, operation, waiters);
+                        generateOperationWaiter(model, symbolProvider, writer, serviceShape, operation, waiters);
                     });
                 });
     }
@@ -80,6 +80,7 @@ public class Waiters implements GoIntegration {
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
+            ServiceShape service,
             OperationShape operation,
             Map<String, Waiter> waiters
     ) {
@@ -95,7 +96,7 @@ public class Waiters implements GoIntegration {
             generateWaiterInvoker(model, symbolProvider, writer, operation, name, waiter);
 
             // write waiter state mutator for each waiter
-            generateRetryable(model, symbolProvider, writer, operation, name, waiter);
+            generateRetryable(model, symbolProvider, writer, service, operation, name, waiter);
 
         });
     }
@@ -413,6 +414,7 @@ public class Waiters implements GoIntegration {
      * @param model          the smithy model
      * @param symbolProvider symbol provider
      * @param writer         the Gowriter
+     * @param serviceShape   service shape for which operation waiter is modeled
      * @param operationShape operation shape on which the waiter is modeled
      * @param waiterName     the waiter name
      * @param waiter         the waiter structure that contains info on modeled waiter
@@ -421,6 +423,7 @@ public class Waiters implements GoIntegration {
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
+            ServiceShape serviceShape,
             OperationShape operationShape,
             String waiterName,
             Waiter waiter
@@ -532,7 +535,7 @@ public class Waiters implements GoIntegration {
                                     // identify if this is a modeled error shape
                                     Optional<ShapeId> errorShapeId = operationShape.getErrors().stream().filter(
                                             shapeId -> {
-                                                return shapeId.getName().equalsIgnoreCase(errorType);
+                                                return shapeId.getName(serviceShape).equalsIgnoreCase(errorType);
                                             }).findFirst();
 
                                     // if modeled error shape

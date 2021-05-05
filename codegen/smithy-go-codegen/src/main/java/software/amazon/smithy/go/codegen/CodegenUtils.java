@@ -32,6 +32,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -311,6 +312,21 @@ public final class CodegenUtils {
         }
 
         throw new CodegenException("expect shape " + shape.getId() + " to be Collection, was " + shape.getType());
+    }
+
+    /**
+     * Returns the shape unpacked as a MapShape. Throws and exception if the passed in
+     * shape is not a map.
+     *
+     * @param shape the map shape.
+     * @return The unpacked MapShape.
+     */
+    public static MapShape expectMapShape(Shape shape) {
+        if (shape instanceof MapShape) {
+            return (MapShape) (shape);
+        }
+
+        throw new CodegenException("expect shape " + shape.getId() + " to be Map, was " + shape.getType());
     }
 
     /**

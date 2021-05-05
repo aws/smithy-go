@@ -323,7 +323,9 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
         GoWriter writer = context.getWriter();
 
         Symbol symbol = symbolProvider.toSymbol(shape);
-        String functionName = ProtocolGenerator.getDocumentSerializerFunctionName(shape, context.getProtocolName());
+
+        String functionName = ProtocolGenerator.getDocumentSerializerFunctionName(
+                shape, context.getService(), context.getProtocolName());
 
         String additionalArguments = getAdditionalSerArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))

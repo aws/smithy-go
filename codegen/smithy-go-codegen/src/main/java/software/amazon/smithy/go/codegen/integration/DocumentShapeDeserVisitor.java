@@ -414,7 +414,9 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
         GoWriter writer = context.getWriter();
 
         Symbol symbol = symbolProvider.toSymbol(shape);
-        String functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(shape, context.getProtocolName());
+
+        String functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(
+                        shape, context.getService(), context.getProtocolName());
 
         String additionalArguments = getAdditionalArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))

@@ -47,6 +47,7 @@ import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -181,18 +182,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     }
 
     private void generateOperationSerializerMiddleware(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
-                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        ServiceShape service = context.getService();
         Shape inputShape = model.expectShape(operation.getInput()
                 .orElseThrow(() -> new CodegenException("expect input shape for operation: " + operation.getId())));
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
         HttpTrait httpTrait = operation.expectTrait(HttpTrait.class);
+
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
+                ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
         middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -230,8 +232,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // we only generate an operations http bindings function if there are bindings
             if (isOperationWithRestRequestBindings(model, operation)) {
-                String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape,
-                        getProtocolName());
+                String serFunctionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(
+                        inputShape, service, getProtocolName());
                 writer.openBlock("if err := $L(input, restEncoder); err != nil {", "}", serFunctionName, () -> {
                     writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
                 });
@@ -275,19 +277,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     // Generates operation deserializer middleware that delegates to appropriate deserializers for the error,
     // output shapes for the operation.
     private void generateOperationDeserializerMiddleware(GenerationContext context, OperationShape operation) {
-        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
-                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), getProtocolName()),
-                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
-
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
+        ServiceShape service = context.getService();
 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
         GoWriter goWriter = context.getWriter();
 
+        GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
+                ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
+                ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
+
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
-                operation, context.getProtocolName());
+                operation, service, context.getProtocolName());
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -322,7 +325,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Output shape HTTP binding middleware generation
             if (isShapeWithRestResponseBindings(model, operation)) {
                 String deserFuncName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
-                        outputShape, getProtocolName());
+                        outputShape, service, getProtocolName());
 
                 writer.write("err= $L(output, response)", deserFuncName);
                 writer.openBlock("if err != nil {", "}", () -> {
@@ -487,6 +490,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 || location == HttpBinding.Location.PREFIX_HEADERS
                 || location == HttpBinding.Location.LABEL
                 || location == HttpBinding.Location.QUERY
+                || location == HttpBinding.Location.QUERY_PARAMS
                 || location == HttpBinding.Location.RESPONSE_CODE;
     }
 
@@ -540,7 +544,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         Symbol httpBindingEncoder = getHttpBindingEncoderSymbol();
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
-        String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(inputShape, getProtocolName());
+        String functionName = ProtocolGenerator.getOperationHttpBindingsSerFunctionName(
+                inputShape, context.getService(), getProtocolName());
 
         writer.addUseImports(SmithyGoDependency.FMT);
         writer.openBlock("func $L(v $P, encoder $P) error {", "}", functionName, inputSymbol, httpBindingEncoder,
@@ -726,29 +731,73 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             });
                             break;
                         case QUERY:
-                            if (targetShape instanceof CollectionShape) {
-                                MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
-                                        .getMember();
-                                writer.openBlock("for i := range $L {", "}", operand, () -> {
-                                    GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
-                                            operand + "[i]", () -> {
-                                                writer.write("continue");
-                                            });
-                                    writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
-                                            (w, s) -> {
-                                                w.writeInline("encoder.AddQuery($S).$L", locationName, s);
-                                            });
-                                });
-                            } else {
-                                writeHttpBindingSetter(context, writer, memberShape, location, operand,
-                                        (w, s) -> w.writeInline(
-                                                "encoder.SetQuery($S).$L", locationName, s));
-                            }
+                            writeQueryBinding(context, memberShape, targetShape, operand,
+                                    location, locationName, "encoder", false);
                             break;
+                        case QUERY_PARAMS:
+                            MemberShape queryMapValueMemberShape = CodegenUtils.expectMapShape(targetShape).getValue();
+                            Shape queryMapValueTargetShape = model.expectShape(queryMapValueMemberShape.getTarget());
+                            MemberShape queryMapKeyMemberShape = CodegenUtils.expectMapShape(targetShape).getKey();
+                            writer.openBlock("for qkey, qvalue := range $L {", "}", operand, () -> {
+                                writer.write("if encoder.HasQuery(qkey) { continue }");
+                                writeQueryBinding(context, queryMapKeyMemberShape, queryMapValueTargetShape,
+                                        "qvalue", location, "qkey", "encoder", true);
+                            });
+                            break;
+
                         default:
                             throw new CodegenException("unexpected http binding found");
                     }
                 });
+    }
+
+    /**
+     * Writes query bindings, as per the target shape. This method is shared
+     * between members modeled with Location.Query and Location.QueryParams.
+     * Precedence across Location.Query and Location.QueryParams is handled
+     * outside the scope of this function.
+     *
+     * @param context       is the generation context
+     * @param memberShape   is the member shape for which query is serialized
+     * @param targetShape   is the target shape of the query member.
+     *                      This can either be string, or a list/set of string.
+     * @param operand       is the member value accessor .
+     * @param location      is the location of the member - can be Location.Query
+     *                      or Location.QueryParams.
+     * @param locationName  is the key for which query is encoded.
+     * @param dest          is the query encoder destination.
+     * @param isQueryParams boolean representing if Location used for query binding is
+     *                      QUERY_PARAMS.
+     */
+    private void writeQueryBinding(
+            GenerationContext context,
+            MemberShape memberShape,
+            Shape targetShape,
+            String operand,
+            HttpBinding.Location location,
+            String locationName,
+            String dest,
+            boolean isQueryParams
+    ) {
+        GoWriter writer = context.getWriter();
+
+        if (targetShape instanceof CollectionShape) {
+            MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
+                    .getMember();
+            writer.openBlock("for i := range $L {", "}", operand, () -> {
+                GoValueAccessUtils.writeIfZeroValue(context.getModel(), writer, collectionMember,
+                        operand + "[i]", () -> writer.write("continue"));
+
+                String addQuery = String.format("$L.AddQuery(%s).$L", isQueryParams ? "$L" : "$S");
+                writeHttpBindingSetter(context, writer, collectionMember, location, operand + "[i]",
+                        (w, s) -> w.writeInline(addQuery, dest, locationName, s));
+            });
+            return;
+        }
+
+        String setQuery = String.format("$L.SetQuery(%s).$L", isQueryParams ? "$L" : "$S");
+        writeHttpBindingSetter(context, writer, memberShape, location, operand,
+                (w, s) -> w.writeInline(setQuery, dest, locationName, s));
     }
 
     private void writeHeaderBinding(
@@ -851,8 +900,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         writer.addUseImports(SmithyGoDependency.FMT);
 
-        String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(targetShape,
-                getProtocolName());
+        String functionName = ProtocolGenerator.getOperationHttpBindingsDeserFunctionName(
+                targetShape, context.getService(), getProtocolName());
         writer.openBlock("func $L(v $P, response $P) error {", "}", functionName, targetSymbol,
                 smithyHttpResponsePointableSymbol, () -> {
                     writer.openBlock("if v == nil {", "}", () -> {
@@ -1228,7 +1277,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
         GoWriter writer = context.getWriter();
-        String functionName = ProtocolGenerator.getErrorDeserFunctionName(shape, context.getProtocolName());
+        String functionName = ProtocolGenerator.getErrorDeserFunctionName(
+                shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();
 
         writer.addUseImports(SmithyGoDependency.BYTES);

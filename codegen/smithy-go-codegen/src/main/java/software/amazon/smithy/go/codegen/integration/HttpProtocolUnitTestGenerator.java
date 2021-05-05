@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -38,6 +39,7 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.IdempotencyTokenTrait;
+import software.amazon.smithy.protocoltests.traits.AppliesTo;
 import software.amazon.smithy.protocoltests.traits.HttpMessageTestCase;
 import software.amazon.smithy.utils.SmithyBuilder;
 
@@ -222,6 +224,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                     generateTestCaseParams(writer);
                     writer.openBlock("}{", "}", () -> {
                         for (T testCase : testCases) {
+                            Optional<AppliesTo> appliesTo = testCase.getAppliesTo();
+                            if (appliesTo.isPresent() && !(appliesTo.get().equals(AppliesTo.CLIENT))) {
+                                continue;
+                            }
+
                             testCase.getDocumentation().ifPresent(writer::writeDocs);
                             writer.openBlock("$S: {", "},", testCase.getId(), () -> {
                                 generateTestCaseValues(writer, testCase);

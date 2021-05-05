@@ -81,6 +81,24 @@ func TestEncoderHasHeader(t *testing.T) {
 
 }
 
+func TestEncoderHasQuery(t *testing.T) {
+	encoder, err := NewEncoder("/", "", http.Header{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if q := "i-dont-exist"; encoder.HasQuery(q) {
+		t.Errorf("expect %v not to be set", q)
+	}
+
+	encoder.AddQuery("I-do-exist").String("some value")
+
+	if q := "I-do-exist"; !encoder.HasQuery(q) {
+		t.Errorf("expect %v to be set", q)
+	}
+
+}
+
 func TestEncodeContentLength(t *testing.T) {
 	cases := map[string]struct {
 		headerValue string
