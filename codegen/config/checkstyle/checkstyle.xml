@@ -30,9 +30,9 @@
     </module>
 
     <!-- Files must contain a copyright header. -->
-    <module name="Header">
+    <module name="RegexpHeader">
         <property name="header"
-                  value="/*\n * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.\n"/>
+                  value="/*\n * Copyright \d\d\d\d Amazon.com, Inc. or its affiliates. All Rights Reserved.\n"/>
         <property name="fileExtensions" value="java"/>
     </module>
 

@@ -34,11 +34,9 @@ public final class GoSettings {
     private static final String SERVICE = "service";
     private static final String MODULE_NAME = "module";
     private static final String MODULE_DESCRIPTION = "moduleDescription";
-    private static final String MODULE_VERSION = "moduleVersion";
 
     private ShapeId service;
     private String moduleName;
-    private String moduleVersion;
     private String moduleDescription = "";
     private ShapeId protocol;
 
@@ -50,11 +48,10 @@ public final class GoSettings {
      */
     public static GoSettings from(ObjectNode config) {
         GoSettings settings = new GoSettings();
-        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION));
+        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION));
 
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
-        settings.setModuleVersion(config.expectStringMember(MODULE_VERSION).getValue());
         settings.setModuleDescription(config.getStringMemberOrDefault(
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
 
@@ -113,25 +110,6 @@ public final class GoSettings {
      */
     public void setModuleName(String moduleName) {
         this.moduleName = Objects.requireNonNull(moduleName);
-    }
-
-    /**
-     * Gets the required module version for the module that will be generated.
-     *
-     * @return The version of the module that will be generated.
-     * @throws NullPointerException if the module version has not been set.
-     */
-    public String getModuleVersion() {
-        return Objects.requireNonNull(moduleVersion, MODULE_VERSION + " not set");
-    }
-
-    /**
-     * Sets the required module version for the module that will be generated.
-     *
-     * @param moduleVersion The version of the module that will be generated.
-     */
-    public void setModuleVersion(String moduleVersion) {
-        this.moduleVersion = Objects.requireNonNull(moduleVersion);
     }
 
     /**
