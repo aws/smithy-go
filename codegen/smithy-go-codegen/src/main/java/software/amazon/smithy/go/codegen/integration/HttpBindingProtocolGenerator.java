@@ -421,7 +421,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                     } else if (payloadShape.isStringShape()) {
                         writer.addUseImports(SmithyGoDependency.STRINGS);
-                        writer.write("payload := strings.NewReader(*$L)", s);
+                        if (payloadShape.hasTrait(EnumTrait.class)) {
+                            writer.write("payload := strings.NewReader(string($L))", s);
+                        } else {
+                            writer.write("payload := strings.NewReader(*$L)", s);
+                        }
 
                     } else {
                         writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, s);
