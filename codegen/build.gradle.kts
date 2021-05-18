@@ -24,7 +24,7 @@ plugins {
 }
 
 allprojects {
-    group = "software.amazon.smithy"
+    group = "software.amazon.smithy.go"
     version = "0.1.0"
 }
 
