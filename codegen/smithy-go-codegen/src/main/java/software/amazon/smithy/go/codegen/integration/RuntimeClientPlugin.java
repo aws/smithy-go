@@ -41,6 +41,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
     private final Set<ConfigFieldResolver> configFieldResolvers;
+    private final Set<ClientMember> clientMembers;
+    private final Set<ClientMemberResolver> clientMemberResolvers;
     private final MiddlewareRegistrar registerMiddleware;
 
     private RuntimeClientPlugin(Builder builder) {
@@ -48,6 +50,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         servicePredicate = builder.servicePredicate;
         configFields = builder.configFields;
         registerMiddleware = builder.registerMiddleware;
+        clientMembers = builder.clientMembers;
+        clientMemberResolvers = builder.clientMemberResolvers;
         configFieldResolvers = builder.configFieldResolvers;
     }
 
@@ -71,6 +75,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Set<ConfigFieldResolver> getConfigFieldResolvers() {
         return configFieldResolvers;
+    }
+
+    /**
+     * Gets the client members that will be added to the client structure by this plugin.
+     * @return the client member resolvers.
+     */
+    public Set<ClientMemberResolver> getClientMemberResolvers() {
+        return clientMemberResolvers;
     }
 
     /**
@@ -135,6 +147,27 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return configFields;
     }
 
+    /**
+     * Gets the client member fields that will be added to the client structure by this plugin.
+     *
+     * <p>Each client member field will be added to the client's structure.
+     * E.g.:
+     * <p>
+     * type Client struct {
+     *
+     * options Options
+     *
+     * // My cache.
+     * cache map[string]string
+     * }
+     * <p>
+     *
+     * @return Returns the client members to add to the client structure.
+     */
+    public Set<ClientMember> getClientMembers() {
+        return clientMembers;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -142,6 +175,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     @Override
     public SmithyBuilder<RuntimeClientPlugin> toBuilder() {
         return builder()
+                .clientMemberResolvers(clientMemberResolvers)
                 .configFieldResolvers(configFieldResolvers)
                 .servicePredicate(servicePredicate)
                 .operationPredicate(operationPredicate)
@@ -156,6 +190,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new HashSet<>();
         private Set<ConfigFieldResolver> configFieldResolvers = new HashSet<>();
+        private Set<ClientMember> clientMembers = new HashSet<>();
+        private Set<ClientMemberResolver> clientMemberResolvers = new HashSet<>();
         private MiddlewareRegistrar registerMiddleware;
 
         @Override
@@ -299,6 +335,72 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addConfigFieldResolver(ConfigFieldResolver configFieldResolver) {
             this.configFieldResolvers.add(configFieldResolver);
+            return this;
+        }
+
+        /**
+         * Sets the client member fields that will be added to the client struct
+         * by this plugin.
+         *
+         * <p>Each client member field will be added to the client's struct.
+         * E.g.:
+         * <p>
+         * type Client struct {
+         * option Options
+         *
+         * // My cache added using plugin
+         * cache map[string]string
+         * }
+         * <p>
+         *
+         * @param clientMembers The client members to add on the client.
+         * @return Returns the builder.
+         */
+        public Builder clientMembers(Collection<ClientMember> clientMembers) {
+            this.clientMembers = new HashSet<>(clientMembers);
+            return this;
+        }
+
+        /**
+         * Adds a client member that will be added to the client structure by this plugin.
+         *
+         * <p>Each client member field will be added to the client's structure.
+         * E.g.:
+         * <p>
+         * type Client struct {
+         * option Options
+         *
+         * // my cache added using plugin
+         * cache map[string]string
+         * }
+         *
+         * @param clientMember The clientMember to add to the client structure.
+         * @return Returns the builder.
+         */
+        public Builder addClientMember(ClientMember clientMember) {
+            this.clientMembers.add(clientMember);
+            return this;
+        }
+
+        /**
+         * Sets the client member resolvers that will be added to the client by this plugin.
+         *
+         * @param clientMemberResolvers The client member resolvers.
+         * @return Returns the builder.
+         */
+        public Builder clientMemberResolvers(Collection<ClientMemberResolver> clientMemberResolvers) {
+            this.clientMemberResolvers = new HashSet<>(clientMemberResolvers);
+            return this;
+        }
+
+        /**
+         * Adds a client member resolver that will be added to the client by this plugin.
+         *
+         * @param clientMemberResolver The client member resolver.
+         * @return Returns the builder.
+         */
+        public Builder addClientMemberResolver(ClientMemberResolver clientMemberResolver) {
+            this.clientMemberResolvers.add(clientMemberResolver);
             return this;
         }
     }

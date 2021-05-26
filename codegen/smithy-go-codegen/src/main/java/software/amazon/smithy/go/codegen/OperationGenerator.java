@@ -112,7 +112,7 @@ public final class OperationGenerator implements Runnable {
                     writer.write("if params == nil { params = &$T{} }", inputSymbol);
                     writer.write("");
 
-                    writer.write("result, metadata, err := c.invokeOperation(ctx, $S, params, optFns, $L)",
+                    writer.write("result, metadata, err := c.invokeOperation(ctx, $S, params, optFns, c.$L)",
                             operationSymbol.getName(), getAddOperationMiddlewareFuncName(operationSymbol));
                     writer.write("if err != nil { return nil, err }");
                     writer.write("");
@@ -151,7 +151,7 @@ public final class OperationGenerator implements Runnable {
         Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
 
-        writer.openBlock("func $L(stack $P, options Options) (err error) {", "}",
+        writer.openBlock("func (c *Client) $L(stack $P, options Options) (err error) {", "}",
                 getAddOperationMiddlewareFuncName(operationSymbol), stackSymbol,
                 () -> {
                     generateOperationProtocolMiddlewareAdders();

@@ -22,6 +22,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.ClientMember;
+import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
@@ -82,11 +84,30 @@ final class ServiceGenerator implements Runnable {
                 CodegenUtils.getServiceTitle(service, "the API")));
         writer.openBlock("type $T struct {", "}", serviceSymbol, () -> {
             writer.write("options $L", CONFIG_NAME);
+
+            // Add client members resolved from runtime plugins to the client struct.
+            for (ClientMember clientMember : getAllClientMembers()) {
+                writer.write("");
+                clientMember.getDocumentation().ifPresent(writer::writeDocs);
+                writer.write("$L $P", clientMember.getName(), clientMember.getType());
+            }
         });
 
         generateConstructor(serviceSymbol);
         generateConfig();
         generateClientInvokeOperation();
+    }
+
+    private void writeClientMemberResolvers(
+            GoWriter writer,
+            RuntimeClientPlugin plugin,
+            Predicate<ClientMemberResolver> predicate
+    ) {
+        plugin.getClientMemberResolvers().stream().filter(predicate)
+                .forEach(resolver -> {
+                   writer.write("$T(client)", resolver.getResolver());
+                   writer.write("");
+                });
     }
 
     private void writeConfigFieldResolvers(
@@ -136,6 +157,11 @@ final class ServiceGenerator implements Runnable {
                         writer.write("options: options,");
                     }).write("");
 
+                    // Run any client member resolver functions registered by runtime plugins.
+                    for (RuntimeClientPlugin plugin : plugins) {
+                        writeClientMemberResolvers(writer, plugin, resolver -> true);
+                    }
+
                     writer.write("return client");
                 });
     }
@@ -150,7 +176,7 @@ final class ServiceGenerator implements Runnable {
                     .build();
             writer.write("APIOptions []func($P) error", stackSymbol).write("");
 
-            // Add config fields to the options struct.
+            // Add config fields to the options struct. - getAllClientMembers
             for (ConfigField configField : getAllConfigFields()) {
                 configField.getDocumentation().ifPresent(writer::writeDocs);
                 writer.write("$L $P", configField.getName(), configField.getType());
@@ -179,7 +205,6 @@ final class ServiceGenerator implements Runnable {
                                     writer.write("o.$L = v", configField.getName());
                                 });
                             }).write("");
-
                 });
 
         generateApplicationProtocolTypes();
@@ -206,6 +231,21 @@ final class ServiceGenerator implements Runnable {
         return configFields.stream()
                 .distinct()
                 .sorted(Comparator.comparing(ConfigField::getName))
+                .collect(Collectors.toList());
+    }
+
+    private List<ClientMember> getAllClientMembers() {
+        List<ClientMember> clientMembers = new ArrayList<>();
+        for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
+            if (!runtimeClientPlugin.matchesService(model, service)) {
+                continue;
+            }
+
+            clientMembers.addAll(runtimeClientPlugin.getClientMembers());
+        }
+        return clientMembers.stream()
+                .distinct()
+                .sorted(Comparator.comparing(ClientMember::getName))
                 .collect(Collectors.toList());
     }
 
