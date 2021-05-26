@@ -176,7 +176,7 @@ final class ServiceGenerator implements Runnable {
                     .build();
             writer.write("APIOptions []func($P) error", stackSymbol).write("");
 
-            // Add config fields to the options struct. - getAllClientMembers
+            // Add config fields to the options struct.
             for (ConfigField configField : getAllConfigFields()) {
                 configField.getDocumentation().ifPresent(writer::writeDocs);
                 writer.write("$L $P", configField.getName(), configField.getType());
