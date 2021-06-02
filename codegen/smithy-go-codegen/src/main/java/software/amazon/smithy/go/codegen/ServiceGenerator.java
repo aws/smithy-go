@@ -153,6 +153,12 @@ final class ServiceGenerator implements Runnable {
             // Add config fields to the options struct.
             for (ConfigField configField : getAllConfigFields()) {
                 configField.getDocumentation().ifPresent(writer::writeDocs);
+                configField.getDeprecated().ifPresent(s -> {
+                    if (configField.getDocumentation().isPresent()) {
+                        writer.writeDocs("");
+                    }
+                    writer.writeDocs(String.format("Deprecated: %s", s));
+                });
                 writer.write("$L $P", configField.getName(), configField.getType());
                 writer.write("");
             }
