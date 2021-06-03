@@ -22,7 +22,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -146,12 +148,20 @@ public final class HttpProtocolGeneratorUtils {
     /**
      * Returns a map of error names to their {@link ShapeId}.
      *
-     * @param context the generation context
+     * @param context   the generation context
      * @param operation the operation shape to retrieve errors for
      * @return map of error names to {@link ShapeId}
      */
     public static Map<String, ShapeId> getOperationErrors(GenerationContext context, OperationShape operation) {
-        return new TreeMap<>(operation.getErrors().stream()
-                .collect(Collectors.toMap(shapeId -> shapeId.getName(context.getService()), shapeId -> shapeId)));
+        return operation.getErrors().stream()
+                .collect(Collectors.toMap(
+                        shapeId -> shapeId.getName(context.getService()),
+                        Function.identity(),
+                        (x, y) -> {
+                            if (!x.equals(y)) {
+                                throw new CodegenException(String.format("conflicting error shape ids: %s, %s", x, y));
+                            }
+                            return x;
+                        }, TreeMap::new));
     }
 }
