@@ -357,7 +357,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         goWriter.write("");
 
         Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
-                context, operation, responseType, this::writeErrorMessageCodeDeserializer);
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer,
+                this::getOperationErrors);
         deserializingErrorShapes.addAll(errorShapes);
         deserializeDocumentBindingShapes.addAll(errorShapes);
     }

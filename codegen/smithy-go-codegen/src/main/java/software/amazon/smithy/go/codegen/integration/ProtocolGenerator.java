@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -246,6 +247,17 @@ public interface ProtocolGenerator {
         return protocol
                 + "_deserializeOp"
                 + operationShapeId.getName(service);
+    }
+
+    /**
+     * Returns a map of error names to their {@link ShapeId}.
+     *
+     * @param context the generation context
+     * @param operation the operation shape to retrieve errors for
+     * @return map of error names to {@link ShapeId}
+     */
+    default Map<String, ShapeId> getOperationErrors(GenerationContext context, OperationShape operation) {
+        return HttpProtocolGeneratorUtils.getOperationErrors(context, operation);
     }
 
     /**
