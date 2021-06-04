@@ -28,12 +28,14 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
     private final String name;
     private final Symbol type;
     private final String documentation;
+    private final String deprecated;
     private final Boolean withHelper;
 
     public ConfigField(Builder builder) {
         this.name = Objects.requireNonNull(builder.name);
         this.type = Objects.requireNonNull(builder.type);
         this.documentation = builder.documentation;
+        this.deprecated = builder.deprecated;
         this.withHelper = builder.withHelper;
     }
 
@@ -63,6 +65,13 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
      */
     public Optional<String> getDocumentation() {
         return Optional.ofNullable(documentation);
+    }
+
+    /**
+     * @return The optional deprecation documentation for the field.
+     */
+    public Optional<String> getDeprecated() {
+        return Optional.ofNullable(deprecated);
     }
 
     @Override
@@ -101,6 +110,7 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
         private String name;
         private Symbol type;
         private String documentation;
+        private String deprecated;
         private Boolean withHelper = false;
 
         @Override
@@ -138,6 +148,17 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
          */
         public Builder documentation(String documentation) {
             this.documentation = documentation;
+            return this;
+        }
+
+        /**
+         * Sets the configuration field as deprecated with the provided message.
+         *
+         * @param deprecated The deprecation message for the config field.
+         * @return Returns the builder.
+         */
+        public Builder deprecated(String deprecated) {
+            this.deprecated = deprecated;
             return this;
         }
 
