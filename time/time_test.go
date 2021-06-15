@@ -22,14 +22,20 @@ func TestDateTime(t *testing.T) {
 		"with negative offset": {
 			TimeString: "1985-04-12T23:20:50.52-07:00",
 			TimeValue: time.Date(1985, 4, 12, 23, 20, 50, int(520*time.Millisecond),
-				time.FixedZone("PST", -7*60*60)),
+				time.FixedZone("-0700", -7*60*60)),
 			SymmetricString: false,
 		},
 		"with positive offset": {
 			TimeString: "1985-04-12T23:20:50.52+07:00",
 			TimeValue: time.Date(1985, 4, 12, 23, 20, 50, int(520*time.Millisecond),
-				time.FixedZone("PST", +7*60*60)),
+				time.FixedZone("-0700", +7*60*60)),
 			SymmetricString: false,
+		},
+		"UTC serialize": {
+			TimeString: "1985-04-13T06:20:50.52Z",
+			TimeValue: time.Date(1985, 4, 12, 23, 20, 50, int(520*time.Millisecond),
+				time.FixedZone("-0700", -7*60*60)),
+			SymmetricString: true,
 		},
 	}
 
@@ -80,6 +86,13 @@ func TestHTTPDate(t *testing.T) {
 	}
 
 	if e, a := refTime, parseTime; !e.Equal(a) {
+		t.Errorf("expected %v, got %v", e, a)
+	}
+
+	// UTC serialize date time.
+	refTime = time.Date(2014, 4, 29, 18, 30, 38, 0, time.FixedZone("-700", -7*60*60))
+	httpDate = FormatHTTPDate(refTime)
+	if e, a := "Wed, 30 Apr 2014 01:30:38 GMT", httpDate; e != a {
 		t.Errorf("expected %v, got %v", e, a)
 	}
 }
@@ -180,6 +193,11 @@ func TestEpochSeconds(t *testing.T) {
 			reference:    time.Unix(0, math.MaxInt64).UTC(),
 			expectedUnix: 9223372036.854,
 			expectedTime: time.Date(2262, 04, 11, 23, 47, 16, 8.54e8, time.UTC),
+		},
+		{
+			reference:    time.Date(2018, 1, 9, 20, 51, 21, 123567891, time.FixedZone("-0700", -7*60*60)),
+			expectedUnix: 1515556281.123,
+			expectedTime: time.Date(2018, 1, 10, 03, 51, 21, 1.23e8, time.UTC),
 		},
 	}
 
