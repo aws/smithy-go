@@ -604,6 +604,15 @@ public final class ShapeValueGenerator {
                     writeInlineBigDecimalInit(writer, node.getValue());
                     break;
 
+                case DOUBLE:
+                    writeInlineNonNumericFloat(writer, node.getValue());
+                    break;
+                case FLOAT:
+                    writer.writeInline("float32(");
+                    writeInlineNonNumericFloat(writer, node.getValue());
+                    writer.writeInline(")");
+                    break;
+
                 default:
                     throw new CodegenException("unexpected shape type " + currentShape.getType());
             }
@@ -629,6 +638,24 @@ public final class ShapeValueGenerator {
                             + "    return i"
                             + "}()",
                     value, value);
+        }
+
+        private void writeInlineNonNumericFloat(GoWriter writer, String value) {
+            writer.addUseImports(SmithyGoDependency.stdlib("math"));
+            switch (value) {
+                case "NaN":
+                    writer.writeInline("math.NaN()");
+                    break;
+                case "Infinity":
+                    writer.writeInline("math.Inf(1)");
+                    break;
+                case "-Infinity":
+                    writer.writeInline("math.Inf(-1)");
+                    break;
+                default:
+                    throw new CodegenException(String.format(
+                            "Unexpected string value for `%s`: \"%s\"", currentShape.getId(), value));
+            }
         }
 
         private <T extends Trait> Optional<T> getTrait(Class<T> traitClass) {
