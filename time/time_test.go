@@ -42,11 +42,9 @@ func TestDateTime(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			formattedTimeValue := FormatDateTime(c.TimeValue)
-			t.Logf("formated: %v -> %v", c.TimeValue, formattedTimeValue)
 
 			// Round Trip time value ensure format and parse are compatible.
 			parsedTimeValue, err := ParseDateTime(formattedTimeValue)
-			t.Logf("parsed formated: %v -> (%v, %v)", formattedTimeValue, parsedTimeValue, err)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
