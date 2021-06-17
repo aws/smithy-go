@@ -153,22 +153,6 @@ public interface GoIntegration {
         return Collections.emptyList();
     }
 
-    /**
-     * Adds additional client config interface fields.
-     *
-     * @param settings Settings used to generate.
-     * @param model Model to generate from.
-     * @param symbolProvider Symbol provider used for codegen.
-     * @param writer TypeScript writer to write to.
-     */
-    default void addConfigInterfaceFields(
-            GoSettings settings,
-            Model model,
-            SymbolProvider symbolProvider,
-            GoWriter writer
-    ) {
-        // pass
-    }
 
     /**
      * Processes the finalized model before runtime plugins are consumed and
