@@ -1,4 +1,4 @@
-# Release v1.5.0 (pending)
+# Release v1.5.0 (2021-06-25)
 
 ### Smithy Go module
 * `time`: Update time parsing to not be as strict for HTTPDate and DateTime ([#307](https://github.com/aws/smithy-go/pull/307)) 
