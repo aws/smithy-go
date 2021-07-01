@@ -27,7 +27,7 @@ import org.commonmark.renderer.html.HtmlRenderer;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
-import org.jsoup.safety.Whitelist;
+import org.jsoup.safety.Safelist;
 import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 import software.amazon.smithy.utils.CodeWriter;
@@ -39,9 +39,9 @@ import software.amazon.smithy.utils.StringUtils;
  */
 public final class DocumentationConverter {
     // godoc only supports text blocks, root-level non-inline code blocks, headers, and links.
-    // This whitelist strips out anything we can't reasonably convert, vastly simplifying the
+    // This allowlist strips out anything we can't reasonably convert, vastly simplifying the
     // node tree we end up having to crawl through.
-    private static final Whitelist GODOC_WHITELIST = new Whitelist()
+    private static final Safelist GODOC_ALLOWLIST = new Safelist()
             .addTags("code", "pre", "ul", "ol", "li", "a", "br", "h1", "h2", "h3", "h4", "h5", "h6")
             .addAttributes("a", "href")
             .addProtocols("a", "href", "http", "https", "mailto");
@@ -69,7 +69,7 @@ public final class DocumentationConverter {
         String htmlDocs = HtmlRenderer.builder().escapeHtml(false).build().render(MARKDOWN_PARSER.parse(docs));
 
         // Strip out tags and attributes we can't reasonably convert to godoc.
-        htmlDocs = Jsoup.clean(htmlDocs, GODOC_WHITELIST);
+        htmlDocs = Jsoup.clean(htmlDocs, GODOC_ALLOWLIST);
 
         // Now we parse the html and visit the resultant nodes to render the godoc.
         FormattingVisitor formatter = new FormattingVisitor();
