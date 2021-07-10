@@ -86,12 +86,14 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         opSymbol = symbolProvider.toSymbol(operation);
 
         inputShape = model.expectShape(operation.getInput()
-                .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())),
+                        .orElseThrow(() -> new CodegenException("missing input shape for operation: "
+                                + operation.getId())),
                 StructureShape.class);
         inputSymbol = symbolProvider.toSymbol(inputShape);
 
         outputShape = model.expectShape(operation.getOutput()
-                .orElseThrow(() -> new CodegenException("missing output shape for operation: " + operation.getId())),
+                        .orElseThrow(() -> new CodegenException("missing output shape for operation: "
+                                + operation.getId())),
                 StructureShape.class);
         outputSymbol = symbolProvider.toSymbol(outputShape);
     }
@@ -440,17 +442,30 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             GoWriter writer, String expect, String actual, String[] ignoreTypes
     ) {
         writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+        writer.addUseImports(SmithyGoDependency.GO_CMP);
         writer.addUseImports(SmithyGoDependency.GO_CMP_OPTIONS);
+        writer.addUseImports(SmithyGoDependency.MATH);
 
-        writer.writeInline("if err := smithytesting.CompareValues($L, $L, cmpopts.IgnoreUnexported(", expect, actual);
+        writer.openBlock("opts := cmp.Options{", "}", () -> {
+            writer.openBlock("cmpopts.IgnoreUnexported(", "),", () -> {
+                for (String ignoreType : ignoreTypes) {
+                    writer.write("$L,", ignoreType);
+                }
+            });
+            writer.write("cmp.FilterValues(func(x, y float64) bool {\n"
+                    + "\treturn math.IsNaN(x) && math.IsNaN(y)\n"
+                    + "},"
+                    + "cmp.Comparer(func(_, _ interface{}) bool { return true })),");
+            writer.write("cmp.FilterValues(func(x, y float32) bool {\n"
+                    + "\treturn math.IsNaN(float64(x)) && math.IsNaN(float64(y))\n"
+                    + "},"
+                    + "cmp.Comparer(func(_, _ interface{}) bool { return true })),");
+        });
 
-        for (String ignoreType : ignoreTypes) {
-            writer.write("$L,", ignoreType);
-        }
-
-        writer.writeInline(")); err != nil {");
-        writer.write("   t.Errorf(\"expect $L value match:\\n%v\", err)", expect);
-        writer.write("}");
+        writer.openBlock("if err := smithytesting.CompareValues($L, $L, opts...); err != nil {", "}",
+                expect, actual, () -> {
+                    writer.write("t.Errorf(\"expect $L value match:\\n%v\", err)", expect);
+                });
     }
 
     /**

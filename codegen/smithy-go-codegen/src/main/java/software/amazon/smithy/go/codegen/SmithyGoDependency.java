@@ -59,6 +59,7 @@ public final class SmithyGoDependency {
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");
 
     public static final GoDependency GO_JMESPATH = goJmespath(null);
+    public static final GoDependency MATH = stdlib("math");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/aws/smithy-go";
     private static final String GO_CMP_SOURCE_PATH = "github.com/google/go-cmp";
@@ -69,6 +70,7 @@ public final class SmithyGoDependency {
 
     /**
      * Get a {@link GoDependency} representing the standard library package import path.
+     *
      * @param importPath standard library import path
      * @return the {@link GoDependency} for the package import path
      */
@@ -78,8 +80,9 @@ public final class SmithyGoDependency {
 
     /**
      * Get a {@link GoDependency} representing the standard library package import path with the given alias.
+     *
      * @param importPath standard library package import path
-     * @param alias the package alias
+     * @param alias      the package alias
      * @return the {@link GoDependency} for the package import path
      */
     public static GoDependency stdlib(String importPath, String alias) {
