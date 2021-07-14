@@ -1,3 +1,12 @@
+# Release v1.6.0 (2021-07-15)
+
+### Smithy Go Module
+* `encoding/httpbinding`: Support has been added for encoding `float32` and `float64` values that are `NaN`, `Infinity`, or `-Infinity`. ([#316](https://github.com/aws/smithy-go/pull/316))
+
+### Codegen
+* Adds support for handling `float32` and `float64` `NaN` values in HTTP Protocol Unit Tests. ([#316](https://github.com/aws/smithy-go/pull/316))
+* Adds support protocol generator implementations to override the error code string returned by `ErrorCode` methods on generated error types. ([#315](https://github.com/aws/smithy-go/pull/315))
+
 # Release v1.5.0 (2021-06-25)
 
 ### Smithy Go module
