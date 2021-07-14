@@ -27,11 +27,13 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SyntheticClone;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.StringUtils;
@@ -258,6 +260,19 @@ public interface ProtocolGenerator {
      */
     default Map<String, ShapeId> getOperationErrors(GenerationContext context, OperationShape operation) {
         return HttpProtocolGeneratorUtils.getOperationErrors(context, operation);
+    }
+
+    /**
+     * Returns an error code for an error shape. Defaults to error shape name as error code.
+     *
+     * @param service the service enclosure for the error shape.
+     * @param errorShape the error shape for which error code is retrieved.
+     * @return the error code associated with the provided shape.
+     * @throws ExpectationNotMetException if provided shape is not modeled with an {@link ErrorTrait}.
+     */
+    default String getErrorCode(ServiceShape service, StructureShape errorShape) {
+        errorShape.expectTrait(ErrorTrait.class);
+        return errorShape.getId().getName(service);
     }
 
     /**

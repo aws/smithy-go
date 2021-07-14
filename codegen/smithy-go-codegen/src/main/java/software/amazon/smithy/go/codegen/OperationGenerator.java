@@ -124,14 +124,14 @@ public final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol)
+        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, protocolGenerator)
                 .renderStructure(() -> {
                 }, true);
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
-        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol)
+        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");

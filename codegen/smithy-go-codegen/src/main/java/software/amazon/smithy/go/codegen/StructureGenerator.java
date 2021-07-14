@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -44,6 +45,7 @@ final class StructureGenerator implements Runnable {
     private final StructureShape shape;
     private final Symbol symbol;
     private final ServiceShape service;
+    private final ProtocolGenerator protocolGenerator;
 
     StructureGenerator(
             Model model,
@@ -51,7 +53,8 @@ final class StructureGenerator implements Runnable {
             GoWriter writer,
             ServiceShape service,
             StructureShape shape,
-            Symbol symbol
+            Symbol symbol,
+            ProtocolGenerator protocolGenerator
     ) {
         this.model = model;
         this.symbolProvider = symbolProvider;
@@ -59,6 +62,7 @@ final class StructureGenerator implements Runnable {
         this.service = service;
         this.shape = shape;
         this.symbol = symbol;
+        this.protocolGenerator = protocolGenerator;
     }
 
     @Override
@@ -149,8 +153,10 @@ final class StructureGenerator implements Runnable {
             });
             writer.write("return *e.Message");
         });
-        writer.write("func (e *$L) ErrorCode() string { return $S }",
-                structureSymbol.getName(), shape.getId().getName(service));
+
+        String errorCode = protocolGenerator == null ? shape.getId().getName(service)
+                : protocolGenerator.getErrorCode(service, shape);
+        writer.write("func (e *$L) ErrorCode() string { return $S }", structureSymbol.getName(), errorCode);
 
         String fault = "smithy.FaultUnknown";
         if (errorTrait.isClientError()) {
