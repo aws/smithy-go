@@ -213,7 +213,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             });
         }
 
-
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();
         writers.flushWriters();
@@ -234,7 +233,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
         writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol).run());
+                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
         return null;
     }
 
