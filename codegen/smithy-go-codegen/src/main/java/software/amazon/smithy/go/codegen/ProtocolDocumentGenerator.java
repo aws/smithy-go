@@ -21,9 +21,8 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
-import software.amazon.smithy.model.neighbor.Walker;
-import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.selector.Selector;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.IoUtils;
 
 /**
@@ -58,33 +57,10 @@ public final class ProtocolDocumentGenerator {
         this.model = model;
         this.delegator = delegator;
 
-        NeighborProviderIndex index = NeighborProviderIndex.of(this.model);
-        Walker walker = new Walker(index.getProvider());
-        boolean documentShapesPresent = false;
-        for (Shape shape : walker.walkShapes(settings.getService(model), relationship -> {
-            switch (relationship.getRelationshipType()) {
-                case OPERATION:
-                case STRUCTURE_MEMBER:
-                case MAP_VALUE:
-                case SET_MEMBER:
-                case UNION_MEMBER:
-                case LIST_MEMBER:
-                case ERROR:
-                case OUTPUT:
-                case INPUT:
-                case MEMBER_TARGET:
-                case MEMBER_CONTAINER:
-                    return true;
-                default:
-                    return false;
-            }
-        })) {
-            if (shape.asDocumentShape().isPresent()) {
-                documentShapesPresent = true;
-                break;
-            }
-        }
-        this.hasDocumentShapes = documentShapesPresent;
+        ShapeId serviceId = settings.getService().toShapeId();
+        this.hasDocumentShapes = Selector.parse(String.format("[service = %s] ~> document", serviceId))
+                .matches(model).findAny()
+                .isPresent();
     }
 
     /**
