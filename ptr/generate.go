@@ -25,9 +25,9 @@ func main() {
 }
 
 func generateFile(filename string, tmplName string, types ptr.Scalars) (err error) {
-	f, cerr := os.Create(filename)
-	if cerr != nil {
-		return fmt.Errorf("failed to create %s file, %v", filename, cerr)
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create %s file, %v", filename, err)
 	}
 
 	defer func() {
@@ -39,7 +39,7 @@ func generateFile(filename string, tmplName string, types ptr.Scalars) (err erro
 		}
 	}()
 
-	if err := ptrTmpl.ExecuteTemplate(f, tmplName, types); err != nil {
+	if err = ptrTmpl.ExecuteTemplate(f, tmplName, types); err != nil {
 		return fmt.Errorf("failed to generate %s file, %v", filename, err)
 	}
 
