@@ -1,4 +1,4 @@
-# Release v1.7.0 (pending)
+# Release v1.7.0
 
 ### Smithy Go Module
 * `ptr`:  Handle error for deferred file close call ([#314](https://github.com/aws/smithy-go/pull/314))
