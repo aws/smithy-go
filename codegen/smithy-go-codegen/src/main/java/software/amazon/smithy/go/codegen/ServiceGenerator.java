@@ -117,7 +117,11 @@ final class ServiceGenerator implements Runnable {
     ) {
         plugin.getConfigFieldResolvers().stream().filter(predicate)
                 .forEach(resolver -> {
-                    writer.write("$T(&options)", resolver.getResolver());
+                    writer.writeInline("$T(&options", resolver.getResolver());
+                    if (resolver.isWithOperationName()) {
+                        writer.writeInline(", opID");
+                    }
+                    writer.write(")");
                     writer.write("");
                 });
     }

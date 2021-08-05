@@ -2,7 +2,9 @@ package rand_test
 
 import (
 	"bytes"
+	mathrand "math/rand"
 	"testing"
+	"time"
 
 	"github.com/aws/smithy-go/rand"
 )
@@ -29,5 +31,17 @@ func TestUUID(t *testing.T) {
 	}
 	if e, a := `01010101-0101-4101-8101-010101010101`, v; e != a {
 		t.Errorf("expect %v, got %v", e, a)
+	}
+}
+
+func BenchmarkUUID_GetUUID(b *testing.B) {
+	src := mathrand.NewSource(time.Now().Unix())
+	uuid := rand.NewUUID(mathrand.New(src))
+
+	for i := 0; i < b.N; i++ {
+		_, err := uuid.GetUUID()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }

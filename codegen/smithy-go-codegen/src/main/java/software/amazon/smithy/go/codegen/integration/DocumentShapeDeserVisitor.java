@@ -40,14 +40,14 @@ import software.amazon.smithy.model.shapes.UnionShape;
 
 /**
  * Visitor to generate deserialization functions for shapes in protocol document bodies.
- *
+ * <p>
  * Visitor methods for aggregate types except maps and collections are final and will
  * generate functions that dispatch their loading from the body to the matching abstract method.
- *
+ * <p>
  * Visitor methods for all other types will default to not generating deserialization
  * functions. This may be overwritten by downstream implementations if the protocol requires
  * more complex deserialization strategies for those types.
- *
+ * <p>
  * The standard implementation is as follows; no assumptions are made about the protocol
  * being generated for.
  *
@@ -59,10 +59,20 @@ import software.amazon.smithy.model.shapes.UnionShape;
  * </ul>
  */
 public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Void> {
+    public interface DeserializerNameProvider {
+        String getName(Shape shape, ServiceShape service, String protocol);
+    }
+
     private final GenerationContext context;
+    private final DeserializerNameProvider deserializerNameProvider;
 
     public DocumentShapeDeserVisitor(GenerationContext context) {
+        this(context, null);
+    }
+
+    public DocumentShapeDeserVisitor(GenerationContext context, DeserializerNameProvider deserializerNameProvider) {
         this.context = context;
+        this.deserializerNameProvider = deserializerNameProvider;
     }
 
     /**
@@ -153,7 +163,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The collection shape being generated.
+     * @param shape   The collection shape being generated.
      */
     protected abstract void deserializeCollection(GenerationContext context, CollectionShape shape);
 
@@ -180,7 +190,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * the json.
      *
      * @param context The generation context.
-     * @param shape The document shape being generated.
+     * @param shape   The document shape being generated.
      */
     protected abstract void deserializeDocument(GenerationContext context, DocumentShape shape);
 
@@ -270,7 +280,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The map shape being generated.
+     * @param shape   The map shape being generated.
      */
     protected abstract void deserializeMap(GenerationContext context, MapShape shape);
 
@@ -366,7 +376,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The structure shape being generated.
+     * @param shape   The structure shape being generated.
      */
     protected abstract void deserializeStructure(GenerationContext context, StructureShape shape);
 
@@ -394,7 +404,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * the json.
      *
      * @param context The generation context.
-     * @param shape The union shape being generated.
+     * @param shape   The union shape being generated.
      */
     protected abstract void deserializeUnion(GenerationContext context, UnionShape shape);
 
@@ -402,7 +412,7 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
      * Generates a function for deserializing the output shape, dispatching body handling
      * to the supplied function.
      *
-     * @param shape The shape to generate a deserializer for.
+     * @param shape        The shape to generate a deserializer for.
      * @param functionBody An implementation that will generate a function body to
      *                     deserialize the shape.
      */
@@ -415,8 +425,13 @@ public abstract class DocumentShapeDeserVisitor extends ShapeVisitor.Default<Voi
 
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        String functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(
-                        shape, context.getService(), context.getProtocolName());
+        final String functionName;
+        if (this.deserializerNameProvider != null) {
+            functionName = deserializerNameProvider.getName(shape, context.getService(), context.getProtocolName());
+        } else {
+            functionName = ProtocolGenerator.getDocumentDeserializerFunctionName(
+                    shape, context.getService(), context.getProtocolName());
+        }
 
         String additionalArguments = getAdditionalArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))

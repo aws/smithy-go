@@ -39,14 +39,14 @@ import software.amazon.smithy.model.shapes.UnionShape;
 
 /**
  * Visitor to generate serialization for shapes in protocol document bodies.
- *
+ * <p>
  * Visitor methods for aggregate types are final and will generate functions that dispatch
  * their body generation to the matching abstract method.
- *
+ * <p>
  * Visitor methods for all other types will default to not generating serialization functions.
  * This may be overwritten by downstream implementations if the protocol requires a more
  * complex serialization strategy for those types.
- *
+ * <p>
  * The standard implementation is as follows; no assumptions are made about the protocol
  * being generated for.
  *
@@ -58,10 +58,20 @@ import software.amazon.smithy.model.shapes.UnionShape;
  * </ul>
  */
 public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void> {
+    public interface SerializerNameProvider {
+        String getName(Shape shape, ServiceShape service, String protocol);
+    }
+
     private final GenerationContext context;
+    private final SerializerNameProvider serializerNameProvider;
 
     public DocumentShapeSerVisitor(GenerationContext context) {
+        this(context, null);
+    }
+
+    public DocumentShapeSerVisitor(GenerationContext context, SerializerNameProvider serializerNameProvider) {
         this.context = context;
+        this.serializerNameProvider = serializerNameProvider;
     }
 
     /**
@@ -119,7 +129,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The collection shape being generated.
+     * @param shape   The collection shape being generated.
      */
     protected abstract void serializeCollection(GenerationContext context, CollectionShape shape);
 
@@ -146,7 +156,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * around to build up the json.
      *
      * @param context The generation context.
-     * @param shape The document shape being generated.
+     * @param shape   The document shape being generated.
      */
     protected abstract void serializeDocument(GenerationContext context, DocumentShape shape);
 
@@ -197,7 +207,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The map shape being generated.
+     * @param shape   The map shape being generated.
      */
     protected abstract void serializeMap(GenerationContext context, MapShape shape);
 
@@ -250,7 +260,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The structure shape being generated.
+     * @param shape   The structure shape being generated.
      */
     protected abstract void serializeStructure(GenerationContext context, StructureShape shape);
 
@@ -304,7 +314,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * }</pre>
      *
      * @param context The generation context.
-     * @param shape The union shape being generated.
+     * @param shape   The union shape being generated.
      */
     protected abstract void serializeUnion(GenerationContext context, UnionShape shape);
 
@@ -312,7 +322,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
      * Generates a function for serializing the input shape, dispatching the body generation
      * to the supplied function.
      *
-     * @param shape The shape to generate a serializer for.
+     * @param shape        The shape to generate a serializer for.
      * @param functionBody An implementation that will generate a function body to serialize the shape.
      */
     private void generateSerFunction(
@@ -324,8 +334,13 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
 
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        String functionName = ProtocolGenerator.getDocumentSerializerFunctionName(
-                shape, context.getService(), context.getProtocolName());
+        final String functionName;
+        if (serializerNameProvider != null) {
+            functionName = serializerNameProvider.getName(shape, context.getService(), context.getProtocolName());
+        } else {
+            functionName = ProtocolGenerator.getDocumentSerializerFunctionName(
+                    shape, context.getService(), context.getProtocolName());
+        }
 
         String additionalArguments = getAdditionalSerArguments().entrySet().stream()
                 .map(entry -> String.format(", %s %s", entry.getKey(), entry.getValue()))
@@ -340,7 +355,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
 
     /**
      * Gets any additional arguments needed for every serializer function.
-     *
+     * <p>
      * For example, a json protocol may wish to pass around a {@code smithy/json.Value} builder.
      *
      * @return a map of argument name to argument type.

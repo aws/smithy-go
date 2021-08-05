@@ -70,7 +70,7 @@ public final class ProtocolUtils {
             processed.add(shape.getId());
             resolvedShapes.add(shape);
             walker.iterateShapes(shape, relationship -> MEMBER_RELATIONSHIPS.contains(
-                    relationship.getRelationshipType()))
+                            relationship.getRelationshipType()))
                     .forEachRemaining(walkedShape -> {
                         // MemberShape type itself is not what we are interested in
                         if (walkedShape.getType() == ShapeType.MEMBER) {
@@ -109,7 +109,7 @@ public final class ProtocolUtils {
      * @return The operation's input as a structure shape.
      */
     public static StructureShape expectInput(Model model, OperationShape operation) {
-        return model.getKnowledge(OperationIndex.class).getInput(operation)
+        return OperationIndex.of(model).getInput(operation)
                 .orElseThrow(() -> new CodegenException(
                         "Expected input shape for operation " + operation.getId().toString()));
     }
@@ -122,7 +122,7 @@ public final class ProtocolUtils {
      * @return The operation's output as a structure shape.
      */
     public static StructureShape expectOutput(Model model, OperationShape operation) {
-        return model.getKnowledge(OperationIndex.class).getOutput(operation)
+        return OperationIndex.of(model).getOutput(operation)
                 .orElseThrow(() -> new CodegenException(
                         "Expected output shape for operation " + operation.getId().toString()));
     }

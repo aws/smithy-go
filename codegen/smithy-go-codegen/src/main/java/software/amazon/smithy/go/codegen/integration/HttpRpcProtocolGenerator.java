@@ -15,21 +15,26 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.GoEventStreamIndex;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.EventStreamInfo;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 
 public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
@@ -74,14 +79,48 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
     @Override
     public void generateRequestSerializers(GenerationContext context) {
-        TopDownIndex topDownIndex = context.getModel().getKnowledge(TopDownIndex.class);
+        Model model = context.getModel();
 
-        Set<OperationShape> containedOperations = new TreeSet<>(
-                topDownIndex.getContainedOperations(context.getService()));
-        for (OperationShape operation : containedOperations) {
+        TopDownIndex topDownIndex = TopDownIndex.of(model);
+
+        for (OperationShape operation : topDownIndex.getContainedOperations(context.getService())) {
             generateOperationSerializer(context, operation);
         }
+
+        GoEventStreamIndex goEventStreamIndex = GoEventStreamIndex.of(context.getModel());
+
+        goEventStreamIndex.getInputEventStreams(context.getService()).ifPresent(shapeIdSetMap ->
+                shapeIdSetMap.forEach((shapeId, eventStreamInfos) -> {
+                    generateEventStreamSerializers(context, context.getModel().expectShape(shapeId, UnionShape.class),
+                            eventStreamInfos);
+                }));
     }
+
+    /**
+     * Generate the event stream serializers for the given event stream target and associated operations.
+     *
+     * @param context          the generation context
+     * @param eventUnion       the event stream union
+     * @param eventStreamInfos the event stream infos
+     */
+    protected abstract void generateEventStreamSerializers(
+            GenerationContext context,
+            UnionShape eventUnion,
+            Set<EventStreamInfo> eventStreamInfos
+    );
+
+    /**
+     * Generate the event stream deserializers for the given event stream target and asscioated operations.
+     *
+     * @param context          the generation context
+     * @param eventUnion       the event stream union
+     * @param eventStreamInfos the event stream infos
+     */
+    protected abstract void generateEventStreamDeserializers(
+            GenerationContext context,
+            UnionShape eventUnion,
+            Set<EventStreamInfo> eventStreamInfos
+    );
 
     private void generateOperationSerializer(GenerationContext context, OperationShape operation) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
@@ -110,7 +149,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}");
+                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}"
+                );
             }).write("");
 
             // Cast the input parameters to the operation request type and check for errors.
@@ -118,26 +158,32 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("_ = input");
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
-                        + " in.Parameters)}");
+                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                             + " in.Parameters)}");
             }).write("");
 
             writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
             writer.write("request.Request.Method = \"POST\"");
             writer.write("httpBindingEncoder, err := httpbinding.NewEncoder(request.URL.Path, "
-                    + "request.URL.RawQuery, request.Header)");
+                         + "request.URL.RawQuery, request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
             writeRequestHeaders(context, operation, writer);
             writer.write("");
 
-            // delegate the setup and usage of the document serializer function for the protocol
-            serializeInputDocument(context, operation);
-            // Skipping calling serializer method for the input shape is responsibility of the
-            // serializeInputDocument implementation.
-            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
-                serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
+            Optional<EventStreamInfo> inputInfo = EventStreamIndex.of(model).getInputInfo(operation);
+            // Skip and Handle Input Event Stream Setup Separately
+            if (inputInfo.isEmpty()) {
+                // delegate the setup and usage of the document serializer function for the protocol
+                serializeInputDocument(context, operation);
+                // Skipping calling serializer method for the input shape is responsibility of the
+                // serializeInputDocument implementation.
+                if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
+                    serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
+                }
+            } else {
+                writeOperationSerializerMiddlewareEventStreamSetup(context, inputInfo.get());
             }
 
             writer.write("");
@@ -153,6 +199,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
     }
+
+    protected abstract void writeOperationSerializerMiddlewareEventStreamSetup(
+            GenerationContext context,
+            EventStreamInfo eventStreamInfo
+    );
 
     private void writeRequestHeaders(GenerationContext context, OperationShape operation, GoWriter writer) {
         writer.write("httpBindingEncoder.SetHeader(\"Content-Type\").String($S)", getDocumentContentType());
@@ -227,6 +278,14 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         for (OperationShape operation : containedOperations) {
             generateOperationDeserializer(context, operation);
         }
+
+        GoEventStreamIndex goEventStreamIndex = GoEventStreamIndex.of(context.getModel());
+
+        goEventStreamIndex.getOutputEventStreams(context.getService()).ifPresent(shapeIdSetMap ->
+                shapeIdSetMap.forEach((shapeId, eventStreamInfos) -> {
+                    generateEventStreamDeserializers(context, context.getModel().expectShape(shapeId, UnionShape.class),
+                            eventStreamInfos);
+                }));
     }
 
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
@@ -268,9 +327,12 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("out.Result = output");
             writer.write("");
 
+            Optional<EventStreamInfo> streamInfoOptional = EventStreamIndex.of(model).getOutputInfo(operation);
+
             // Discard without deserializing the response if the input shape is a stubbed synthetic clone
             // without an archetype.
-            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))) {
+            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))
+                && streamInfoOptional.isEmpty()) {
                 writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}",
                         () -> {
@@ -278,7 +340,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                                 writer.write("Err: fmt.Errorf(\"failed to discard response body, %w\", err),");
                             });
                         });
-            } else {
+            } else if (streamInfoOptional.isEmpty()) {
                 deserializeOutputDocument(context, operation);
                 deserializingDocumentShapes.add(ProtocolUtils.expectOutput(model, operation));
             }
