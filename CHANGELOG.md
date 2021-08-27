@@ -1,4 +1,4 @@
-# Release pending
+# Release v1.8.0
 
 ### Smithy Go Module
 
