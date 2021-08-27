@@ -1,3 +1,11 @@
+# Release pending
+
+### Smithy Go Module
+
+* `time`: Add support for parsing additional DateTime timestamp format ([#324](https://github.com/aws/smithy-go/pull/324))
+  * Adds support for parsing DateTime timestamp formatted time similar to RFC 3339, but without the `Z` character, nor UTC offset.
+  * Fixes [#1387](https://github.com/aws/aws-sdk-go-v2/issues/1387)
+
 # Release v1.7.0
 
 ### Smithy Go Module

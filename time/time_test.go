@@ -19,6 +19,12 @@ func TestDateTime(t *testing.T) {
 				time.UTC),
 			SymmetricString: true,
 		},
+		"no offset, no Z": {
+			TimeString: "1985-04-12T23:20:50.524",
+			TimeValue: time.Date(1985, 4, 12, 23, 20, 50, int(524*time.Millisecond),
+				time.UTC),
+			SymmetricString: false,
+		},
 		"with negative offset": {
 			TimeString: "1985-04-12T23:20:50.52-07:00",
 			TimeValue: time.Date(1985, 4, 12, 23, 20, 50, int(520*time.Millisecond),
