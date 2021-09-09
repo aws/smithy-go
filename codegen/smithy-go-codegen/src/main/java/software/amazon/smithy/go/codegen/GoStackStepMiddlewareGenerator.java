@@ -118,7 +118,7 @@ public final class GoStackStepMiddlewareGenerator {
      * Generates a new step middleware generator.
      *
      * @param name              the name of the middleware type.
-     * @param id   the unique ID for the middleware.
+     * @param id                the unique ID for the middleware.
      * @param handlerMethodName method name to be implemented.
      * @param inputType         the middleware input type.
      * @param outputType        the middleware output type.

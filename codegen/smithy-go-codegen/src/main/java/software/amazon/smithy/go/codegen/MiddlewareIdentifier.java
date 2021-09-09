@@ -65,6 +65,11 @@ public final class MiddlewareIdentifier {
     }
 
 
+    /**
+     * Writes the middleware identifier inline using the provided writer.
+     *
+     * @param writer the {@link GoWriter}
+     */
     public void writeInline(GoWriter writer) {
         if (getSymbol().isPresent()) {
             writer.writeInline("$T", getSymbol().get());

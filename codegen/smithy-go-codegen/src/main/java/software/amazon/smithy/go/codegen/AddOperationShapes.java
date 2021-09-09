@@ -17,7 +17,6 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.TreeSet;
 import java.util.logging.Logger;
-
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.AbstractShapeBuilder;

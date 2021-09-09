@@ -55,7 +55,8 @@ public final class DocumentationConverter {
                     BlockQuote.class, ListBlock.class))
             .build();
 
-    private DocumentationConverter() {}
+    private DocumentationConverter() {
+    }
 
     /**
      * Converts a commonmark formatted string into a godoc formatted string.

@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -178,7 +179,7 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
-        return runtimeClientPlugins;
+        return Collections.unmodifiableList(runtimeClientPlugins);
     }
 
     /**

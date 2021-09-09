@@ -19,7 +19,7 @@ plugins {
     signing
     checkstyle
     jacoco
-    id("com.github.spotbugs") version "1.6.10"
+    id("com.github.spotbugs") version "4.7.4"
     id("io.codearte.nexus-staging") version "0.21.0"
 }
 
@@ -72,8 +72,8 @@ subprojects {
         apply(plugin = "java-library")
 
         java {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            sourceCompatibility = JavaVersion.VERSION_16
+            targetCompatibility = JavaVersion.VERSION_16
         }
 
         tasks.withType<JavaCompile> {
@@ -87,10 +87,10 @@ subprojects {
 
         // Apply junit 5 and hamcrest test dependencies to all java projects.
         dependencies {
-            testCompile("org.junit.jupiter:junit-jupiter-api:5.4.0")
-            testRuntime("org.junit.jupiter:junit-jupiter-engine:5.4.0")
-            testCompile("org.junit.jupiter:junit-jupiter-params:5.4.0")
-            testCompile("org.hamcrest:hamcrest:2.1")
+            testImplementation("org.junit.jupiter:junit-jupiter-api:5.4.0")
+            testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.4.0")
+            testImplementation("org.junit.jupiter:junit-jupiter-params:5.4.0")
+            testImplementation("org.hamcrest:hamcrest:2.1")
         }
 
         // Reusable license copySpec
@@ -229,9 +229,9 @@ subprojects {
         // Configure jacoco to generate an HTML report.
         tasks.jacocoTestReport {
             reports {
-                xml.isEnabled = false
-                csv.isEnabled = false
-                html.destination = file("$buildDir/reports/jacoco")
+                xml.required.set(false)
+                csv.required.set(false)
+                html.outputLocation.set(file("$buildDir/reports/jacoco"))
             }
         }
 
@@ -245,13 +245,11 @@ subprojects {
         tasks["spotbugsTest"].enabled = false
 
         // Configure the bug filter for spotbugs.
-        tasks.withType<com.github.spotbugs.SpotBugsTask> {
-            effort = "max"
-            excludeFilterConfig = project.resources.text.fromFile("${project.rootDir}/config/spotbugs/filter.xml")
-            reports {
-                xml.setEnabled(false)
-                html.setEnabled(true)
-            }
+        tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
+            effort.set(com.github.spotbugs.snom.Effort.MAX)
+            excludeFilter.set(file("${project.rootDir}/config/spotbugs/filter.xml"))
+            reports.maybeCreate("xml").isEnabled = false
+            reports.maybeCreate("html").isEnabled = true
         }
     }
 }

@@ -69,6 +69,11 @@ public interface ProtocolGenerator {
      */
     ShapeId getProtocol();
 
+    /**
+     * Gets the protocol name.
+     *
+     * @return the protocol name
+     */
     default String getProtocolName() {
         ShapeId protocol = getProtocol();
         String prefix = protocol.getNamespace();
@@ -245,12 +250,28 @@ public interface ProtocolGenerator {
         return protocol + "_deserializeError" + StringUtils.capitalize(name);
     }
 
+    /**
+     * Generates the name of a serializer middleware for the service.
+     *
+     * @param operationShapeId The operation's {@link ShapeId}.
+     * @param service          The service enclosing the shape.
+     * @param protocol         Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
     static String getSerializeMiddlewareName(ShapeId operationShapeId, ServiceShape service, String protocol) {
         return protocol
                 + "_serializeOp"
                 + operationShapeId.getName(service);
     }
 
+    /**
+     * Generates the name of a deserializer middleware for the service.
+     *
+     * @param operationShapeId The operation's {@link ShapeId}.
+     * @param service          The service enclosing the shape.
+     * @param protocol         Name of the protocol being generated.
+     * @return Returns the generated function name.
+     */
     static String getDeserializeMiddlewareName(ShapeId operationShapeId, ServiceShape service, String protocol) {
         return protocol
                 + "_deserializeOp"
@@ -415,7 +436,7 @@ public interface ProtocolGenerator {
     /**
      * Returns an error code for an error shape. Defaults to error shape name as error code.
      *
-     * @param service the service enclosure for the error shape.
+     * @param service    the service enclosure for the error shape.
      * @param errorShape the error shape for which error code is retrieved.
      * @return the error code associated with the provided shape.
      * @throws ExpectationNotMetException if provided shape is not modeled with an {@link ErrorTrait}.

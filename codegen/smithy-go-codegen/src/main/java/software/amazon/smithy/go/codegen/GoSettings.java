@@ -18,7 +18,6 @@ package software.amazon.smithy.go.codegen;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
-
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;

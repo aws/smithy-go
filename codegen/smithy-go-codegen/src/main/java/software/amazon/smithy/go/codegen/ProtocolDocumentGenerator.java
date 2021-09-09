@@ -16,7 +16,6 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.function.Consumer;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
