@@ -87,10 +87,10 @@ subprojects {
 
         // Apply junit 5 and hamcrest test dependencies to all java projects.
         dependencies {
-            testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.4.0")
+            testImplementation("org.junit.jupiter:junit-jupiter-api:5.4.0")
             testImplementation("org.junit.jupiter:junit-jupiter-engine:5.4.0")
             testCompileOnly("org.junit.jupiter:junit-jupiter-params:5.4.0")
-            testCompileOnly("org.hamcrest:hamcrest:2.1")
+            testImplementation("org.hamcrest:hamcrest:2.1")
         }
 
         // Reusable license copySpec
