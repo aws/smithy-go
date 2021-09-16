@@ -19,8 +19,8 @@ plugins {
     signing
     checkstyle
     jacoco
-    id("com.github.spotbugs") version "1.6.10"
-    id("io.codearte.nexus-staging") version "0.21.0"
+    id("com.github.spotbugs") version "4.7.1"
+    id("io.codearte.nexus-staging") version "0.30.0"
 }
 
 allprojects {
@@ -87,10 +87,10 @@ subprojects {
 
         // Apply junit 5 and hamcrest test dependencies to all java projects.
         dependencies {
-            testCompile("org.junit.jupiter:junit-jupiter-api:5.4.0")
-            testRuntime("org.junit.jupiter:junit-jupiter-engine:5.4.0")
-            testCompile("org.junit.jupiter:junit-jupiter-params:5.4.0")
-            testCompile("org.hamcrest:hamcrest:2.1")
+            testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.4.0")
+            testImplementation("org.junit.jupiter:junit-jupiter-engine:5.4.0")
+            testCompileOnly("org.junit.jupiter:junit-jupiter-params:5.4.0")
+            testCompileOnly("org.hamcrest:hamcrest:2.1")
         }
 
         // Reusable license copySpec
@@ -139,7 +139,7 @@ subprojects {
         publishing {
             repositories {
                 mavenCentral {
-                    url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+                    url = uri("https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/")
                     credentials {
                         username = sonatypeUser
                         password = sonatypePassword
@@ -245,12 +245,11 @@ subprojects {
         tasks["spotbugsTest"].enabled = false
 
         // Configure the bug filter for spotbugs.
-        tasks.withType<com.github.spotbugs.SpotBugsTask> {
-            effort = "max"
-            excludeFilterConfig = project.resources.text.fromFile("${project.rootDir}/config/spotbugs/filter.xml")
-            reports {
-                xml.setEnabled(false)
-                html.setEnabled(true)
+        spotbugs {
+            setEffort("max")
+            val excludeFile = File("${project.rootDir}/config/spotbugs/filter.xml")
+            if (excludeFile.exists()) {
+                excludeFilter.set(excludeFile)
             }
         }
     }
