@@ -19,7 +19,7 @@ plugins {
     signing
     checkstyle
     jacoco
-    id("com.github.spotbugs") version "4.7.1"
+    id("com.github.spotbugs") version "4.7.4"
     id("io.codearte.nexus-staging") version "0.30.0"
 }
 
@@ -246,12 +246,11 @@ subprojects {
         tasks["spotbugsTest"].enabled = false
 
         // Configure the bug filter for spotbugs.
-        spotbugs {
-            setEffort("max")
-            val excludeFile = File("${project.rootDir}/config/spotbugs/filter.xml")
-            if (excludeFile.exists()) {
-                excludeFilter.set(excludeFile)
-            }
+        tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
+            effort.set(com.github.spotbugs.snom.Effort.MAX)
+            excludeFilter.set(file("${project.rootDir}/config/spotbugs/filter.xml"))
+            reports.maybeCreate("xml").isEnabled = false
+            reports.maybeCreate("html").isEnabled = true
         }
     }
 }
