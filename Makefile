@@ -11,7 +11,7 @@ REPOTOOLS_CMD_GENERATE_CHANGELOG = ${REPOTOOLS_MODULE}/cmd/generatechangelog@${R
 REPOTOOLS_CMD_CHANGELOG = ${REPOTOOLS_MODULE}/cmd/changelog@${REPOTOOLS_VERSION}
 REPOTOOLS_CMD_TAG_RELEASE = ${REPOTOOLS_MODULE}/cmd/tagrelease@${REPOTOOLS_VERSION}
 
-schangelogmithy-publish-local:
+smithy-publish-local:
 	cd codegen && ./gradlew publishToMavenLocal
 
 smithy-build:
