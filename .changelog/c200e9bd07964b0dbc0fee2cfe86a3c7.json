@@ -1,8 +1,0 @@
-{
-    "id": "c200e9bd-0796-4b0d-bc0f-ee2cfe86a3c7",
-    "type": "bugfix",
-    "description": "Fixed an issue that would cause the HTTP Content-Length to be set to 0 if the stream body was not set.",
-    "modules": [
-        "."
-    ]
-}
