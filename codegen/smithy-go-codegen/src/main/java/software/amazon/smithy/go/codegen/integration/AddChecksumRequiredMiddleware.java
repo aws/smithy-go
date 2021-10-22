@@ -30,7 +30,7 @@ import software.amazon.smithy.utils.ListUtils;
 public class AddChecksumRequiredMiddleware implements GoIntegration {
     @Override
     public byte getOrder() {
-        return 127;
+        return 0;
     }
 
     @Override
