@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/aws/smithy-go/middleware"
 )
@@ -28,6 +29,9 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 	out, metadata, err := next.HandleDeserialize(ctx, input)
 	if err != nil {
 		if resp, ok := out.RawResponse.(*Response); ok && resp != nil && resp.Body != nil {
+			if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+				return out, metadata, fmt.Errorf("consume response body failed, %w", err)
+			}
 			// Do not validate that the response closes successfully.
 			resp.Body.Close()
 		}
@@ -60,6 +64,9 @@ func (m *closeResponseBody) HandleDeserialize(
 	}
 
 	if resp, ok := out.RawResponse.(*Response); ok {
+		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+			return out, metadata, fmt.Errorf("consume response body failed, %w", err)
+		}
 		if err = resp.Body.Close(); err != nil {
 			return out, metadata, fmt.Errorf("close response body failed, %w", err)
 		}
