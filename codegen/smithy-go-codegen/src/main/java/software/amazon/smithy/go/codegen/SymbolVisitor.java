@@ -99,6 +99,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 // the go reserved words are lower case, it's functionally impossible to conflict,
                 // so we only need to protect against common names. As of now there's only one.
                 .put("String", "String_")
+                .put("GetStream", "GetStream_")
                 .build();
 
         model.shapes(StructureShape.class)
@@ -409,7 +410,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol documentShape(DocumentShape shape) {
         return ProtocolDocumentGenerator.Utilities.getDocumentSymbolBuilder(settings,
-                ProtocolDocumentGenerator.DOCUMENT_INTERFACE_NAME)
+                        ProtocolDocumentGenerator.DOCUMENT_INTERFACE_NAME)
                 .build();
     }
 

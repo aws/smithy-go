@@ -163,10 +163,11 @@ public final class EventStreamGenerator {
                 var eventStreamTarget = eventStreamInfo.getEventStreamTarget();
                 var writerInterfaceName = getEventStreamWriterInterfaceName(serviceShape, eventStreamTarget);
 
-                writer.writeDocs(String.format("%s is the EventStream writer for the %s events. This value is "
-                                               + "automatically set by the SDK when the API call is made Use this "
-                                               + "member when unit testing your code with the SDK to mock out the "
-                                               + "EventStream Writer.",
+                writer.writeDocs(String.format("""
+                                               %s is the EventStream writer for the %s events. This value is
+                                               automatically set by the SDK when the API call is made Use this
+                                               member when unit testing your code with the SDK to mock out the
+                                               EventStream Writer.""",
                                 writerInterfaceName, eventStreamTarget.getId().getName(serviceShape)))
                         .writeDocs("")
                         .writeDocs("Must not be nil.")
@@ -177,10 +178,11 @@ public final class EventStreamGenerator {
                 var eventStreamTarget = eventStreamInfo.getEventStreamTarget();
                 var readerInterfaceName = getEventStreamReaderInterfaceName(serviceShape, eventStreamTarget);
 
-                writer.writeDocs(String.format("%s is the EventStream reader for the %s events. This value is "
-                                               + "automatically set by the SDK when the API call is made Use this "
-                                               + "member when unit testing your code with the SDK to mock out the "
-                                               + "EventStream Reader.",
+                writer.writeDocs(String.format("""
+                                               %s is the EventStream reader for the %s events. This value is
+                                               automatically set by the SDK when the API call is made Use this
+                                               member when unit testing your code with the SDK to mock out the
+                                               EventStream Reader.""",
                                 readerInterfaceName, eventStreamTarget.getId().getName(serviceShape)))
                         .writeDocs("")
                         .writeDocs("Must not be nil.")
@@ -200,14 +202,12 @@ public final class EventStreamGenerator {
                      // stream within your application.""", constructor, opEventStreamStructure,
                 opEventStreamStructure);
         if (inputInfo.isPresent()) {
-            writer.write("""
-                         //
-                         // The Writer member must be set before writing events to the stream.""");
+            writer.writeDocs("");
+            writer.writeDocs("The Writer member must be set before writing events to the stream.");
         }
         if (outputInfo.isPresent()) {
-            writer.write("""
-                         //
-                         // The Reader member must be set before writing events to the stream.""");
+            writer.writeDocs("");
+            writer.writeDocs("The Reader member must be set before reading events from the stream.");
         }
         writer.openBlock("func $T(optFns ...func($P)) $P {", "}", constructor,
                 opEventStreamStructure, opEventStreamStructure, () -> writer
@@ -256,9 +256,7 @@ public final class EventStreamGenerator {
         writer.openBlock("func (es $P) safeClose() {", "}",
                 opEventStreamStructure, () -> {
                     writer.write("""
-                                 if es.done != nil {
-                                     close(es.done)
-                                 }
+                                 close(es.done)
                                  """);
 
                     if (inputInfo.isPresent()) {
@@ -321,10 +319,6 @@ public final class EventStreamGenerator {
         writer.openBlock("func (es $P) waitStreamClose() {", "}", opEventStreamStructure,
                 () -> {
                     writer.write("""
-                                 if es.done == nil {
-                                     return
-                                 }
-
                                  type errorSet interface {
                                      ErrorSet() <-chan struct{}
                                  }

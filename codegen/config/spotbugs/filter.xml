@@ -22,6 +22,6 @@
 
     <!-- Exceptions aren't going to be serialized. -->
     <Match>
-        <Bug pattern="SE_NO_SERIALVERSIONID,SE_BAD_FIELD,EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Bug pattern="SE_NO_SERIALVERSIONID,SE_BAD_FIELD,EI_EXPOSE_REP,EI_EXPOSE_REP2,VA_FORMAT_STRING_USES_NEWLINE"/>
     </Match>
 </FindBugsFilter>
