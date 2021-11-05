@@ -15,12 +15,12 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.EventStreamInfo;
@@ -49,8 +49,10 @@ public class GoEventStreamIndex implements KnowledgeIndex {
                     if (serviceInputStreams.containsKey(eventStreamTargetId)) {
                         serviceInputStreams.get(eventStreamTargetId).add(eventStreamInfo);
                     } else {
-                        serviceInputStreams.put(eventStreamTargetId,
-                                new HashSet<>(Collections.singleton(eventStreamInfo)));
+                        TreeSet<EventStreamInfo> infos = new TreeSet<>(
+                                Comparator.comparing(EventStreamInfo::getOperation));
+                        infos.add(eventStreamInfo);
+                        serviceInputStreams.put(eventStreamTargetId, infos);
                     }
                 });
                 eventStreamIndex.getOutputInfo(operationShape).ifPresent(eventStreamInfo -> {
@@ -58,8 +60,10 @@ public class GoEventStreamIndex implements KnowledgeIndex {
                     if (serviceOutputStreams.containsKey(eventStreamTargetId)) {
                         serviceInputStreams.get(eventStreamTargetId).add(eventStreamInfo);
                     } else {
-                        serviceOutputStreams.put(eventStreamTargetId,
-                                new HashSet<>(Collections.singleton(eventStreamInfo)));
+                        TreeSet<EventStreamInfo> infos = new TreeSet<>(
+                                Comparator.comparing(EventStreamInfo::getOperation));
+                        infos.add(eventStreamInfo);
+                        serviceOutputStreams.put(eventStreamTargetId, infos);
                     }
                 });
             });

@@ -1,7 +1,7 @@
 package rand
 
 import (
-	"github.com/aws/smithy-go/internal/uuid"
+	"encoding/hex"
 	"io"
 )
 
@@ -44,7 +44,7 @@ func (r *UUID) GetUUID() (string, error) {
 		return "", err
 	}
 	r.makeUUIDv4(b[:])
-	return uuid.Format(b), nil
+	return format(b), nil
 }
 
 // GetBytes returns a byte slice containing a random UUID version 4 sourced from the random reader the
@@ -63,4 +63,25 @@ func (r *UUID) makeUUIDv4(u []byte) {
 	u[6] = (u[6] & 0x0f) | 0x40 // Version 4
 	// 17th character is "8", "9", "a", or "b"
 	u[8] = (u[8] & 0x3f) | 0x80 // Variant most significant bits are 10x where x can be either 1 or 0
+}
+
+// Format returns the canonical text representation of a UUID.
+// This implementation is optimized to not use fmt.
+// Example: 82e42f16-b6cc-4d5b-95f5-d403c4befd3d
+func format(u [16]byte) string {
+	// https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29
+
+	var scratch [36]byte
+
+	hex.Encode(scratch[:8], u[0:4])
+	scratch[8] = dash
+	hex.Encode(scratch[9:13], u[4:6])
+	scratch[13] = dash
+	hex.Encode(scratch[14:18], u[6:8])
+	scratch[18] = dash
+	hex.Encode(scratch[19:23], u[8:10])
+	scratch[23] = dash
+	hex.Encode(scratch[24:], u[10:])
+
+	return string(scratch[:])
 }
