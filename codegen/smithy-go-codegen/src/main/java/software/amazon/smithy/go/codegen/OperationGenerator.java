@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -30,6 +31,7 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 
 /**
  * Generates a client operation and associated custom shapes.
@@ -73,7 +75,7 @@ public final class OperationGenerator implements Runnable {
 
     @Override
     public void run() {
-        OperationIndex operationIndex = model.getKnowledge(OperationIndex.class);
+        OperationIndex operationIndex = OperationIndex.of(model);
         Symbol serviceSymbol = symbolProvider.toSymbol(service);
 
         if (!operationIndex.getInput(operation).isPresent()) {
@@ -131,14 +133,36 @@ public final class OperationGenerator implements Runnable {
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
+
+        boolean hasEventStream = Stream.concat(inputShape.members().stream(),
+                        outputShape.members().stream())
+                .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
+
         new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
                     }
+
+                    if (hasEventStream) {
+                        writer.write("eventStream $P",
+                                        EventStreamGenerator.getEventStreamOperationStructureSymbol(service, operation))
+                                .write("");
+                    }
+
                     writer.writeDocs("Metadata pertaining to the operation's result.");
                     writer.write("ResultMetadata $T", metadataSymbol);
                 });
+
+        if (hasEventStream) {
+            writer.write("""
+                         // GetStream returns the type to interact with the event stream.
+                         func (o $P) GetStream() $P {
+                             return o.eventStream
+                         }
+                         """, outputSymbol, EventStreamGenerator.getEventStreamOperationStructureSymbol(
+                    service, operation));
+        }
 
         // Generate operation protocol middleware helper function
         generateAddOperationMiddleware();
@@ -159,7 +183,7 @@ public final class OperationGenerator implements Runnable {
                     // Populate middleware's from runtime client plugins
                     runtimeClientPlugins.forEach(runtimeClientPlugin -> {
                         if (!runtimeClientPlugin.matchesService(model, service)
-                                && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
+                            && !runtimeClientPlugin.matchesOperation(model, service, operation)) {
                             return;
                         }
 

@@ -134,7 +134,7 @@ public final class HttpProtocolGeneratorUtils {
      * @return boolean indicating presence of response bindings in the shape for provided location
      */
     public static boolean isShapeWithResponseBindings(Model model, Shape shape, HttpBinding.Location location) {
-        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+        Collection<HttpBinding> bindings = HttpBindingIndex.of(model)
                 .getResponseBindings(shape).values();
 
         for (HttpBinding binding : bindings) {

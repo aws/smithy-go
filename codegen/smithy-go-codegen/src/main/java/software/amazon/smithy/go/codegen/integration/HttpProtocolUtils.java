@@ -23,6 +23,7 @@ import java.util.function.BiPredicate;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -54,9 +55,16 @@ public final class HttpProtocolUtils {
                 // Add deserialization middleware to close the response in case of errors.
                 RuntimeClientPlugin.builder()
                         .servicePredicate(servicePredicate)
+                        .operationPredicate((model, service, operation) -> {
+                            var eventStreamIndex = EventStreamIndex.of(model);
+
+                            return eventStreamIndex.getInputInfo(operation).isEmpty()
+                                   && eventStreamIndex.getOutputInfo(operation).isEmpty();
+                        })
                         .registerMiddleware(MiddlewareRegistrar.builder()
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
-                                        "AddErrorCloseResponseBodyMiddleware", SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
+                                                "AddErrorCloseResponseBodyMiddleware",
+                                                SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
                                         .build())
                                 .build()
                         )
@@ -66,12 +74,18 @@ public final class HttpProtocolUtils {
                 RuntimeClientPlugin.builder()
                         .servicePredicate(servicePredicate)
                         .operationPredicate((model, service, operation) -> {
-                            // TODO operation output NOT event stream
-
                             // Don't auto close response body when response is streaming.
-                            HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
+                            HttpBindingIndex httpBindingIndex = HttpBindingIndex.of(model);
                             Optional<HttpBinding> payloadBinding = httpBindingIndex.getResponseBindings(operation,
                                     HttpBinding.Location.PAYLOAD).stream().findFirst();
+
+                            var eventStreamIndex = EventStreamIndex.of(model);
+
+                            if (eventStreamIndex.getInputInfo(operation).isPresent()
+                                || eventStreamIndex.getOutputInfo(operation).isPresent()) {
+                                return false;
+                            }
+
                             if (payloadBinding.isPresent()) {
                                 MemberShape memberShape = payloadBinding.get().getMember();
                                 Shape payloadShape = model.expectShape(memberShape.getTarget());
@@ -83,8 +97,8 @@ public final class HttpProtocolUtils {
                         })
                         .registerMiddleware(MiddlewareRegistrar.builder()
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
-                                        "AddCloseResponseBodyMiddleware",
-                                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
+                                                "AddCloseResponseBodyMiddleware",
+                                                SmithyGoDependency.SMITHY_HTTP_TRANSPORT)
                                         .build())
                                 .build()
                         )

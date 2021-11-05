@@ -25,6 +25,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
 
@@ -68,7 +69,8 @@ final class StructureGenerator implements Runnable {
     @Override
     public void run() {
         if (!shape.hasTrait(ErrorTrait.class)) {
-            renderStructure(() -> { });
+            renderStructure(() -> {
+            });
         } else {
             renderErrorStructure();
         }
@@ -78,7 +80,7 @@ final class StructureGenerator implements Runnable {
      * Renders a non-error structure.
      *
      * @param runnable A runnable that runs before the structure definition is closed. This can be used to write
-     *     additional members.
+     *                 additional members.
      */
     public void renderStructure(Runnable runnable) {
         renderStructure(runnable, false);
@@ -87,8 +89,8 @@ final class StructureGenerator implements Runnable {
     /**
      * Renders a non-error structure.
      *
-     * @param runnable A runnable that runs before the structure definition is closed. This can be used to write
-     *     additional members.
+     * @param runnable         A runnable that runs before the structure definition is closed. This can be used to write
+     *                         additional members.
      * @param isInputStructure A boolean indicating if input variants for member symbols should be used.
      */
     public void renderStructure(Runnable runnable, boolean isInputStructure) {
@@ -96,19 +98,23 @@ final class StructureGenerator implements Runnable {
         writer.openBlock("type $L struct {", symbol.getName());
 
         CodegenUtils.SortedMembers sortedMembers = new CodegenUtils.SortedMembers(symbolProvider);
-        shape.getAllMembers().values().stream().sorted(sortedMembers).forEach((member) -> {
-            writer.write("");
+        shape.getAllMembers().values().stream()
+                .filter(memberShape -> !StreamingTrait.isEventStream(model, memberShape))
+                .sorted(sortedMembers)
+                .forEach((member) -> {
+                    writer.write("");
 
-            String memberName = symbolProvider.toMemberName(member);
-            writer.writeMemberDocs(model, member);
+                    String memberName = symbolProvider.toMemberName(member);
+                    writer.writeMemberDocs(model, member);
 
-            Symbol memberSymbol = symbolProvider.toSymbol(member);
-            if (isInputStructure) {
-                memberSymbol = memberSymbol.getProperty(SymbolUtils.INPUT_VARIANT, Symbol.class).orElse(memberSymbol);
-            }
+                    Symbol memberSymbol = symbolProvider.toSymbol(member);
+                    if (isInputStructure) {
+                        memberSymbol = memberSymbol.getProperty(SymbolUtils.INPUT_VARIANT, Symbol.class)
+                                .orElse(memberSymbol);
+                    }
 
-            writer.write("$L $P", memberName, memberSymbol);
-        });
+                    writer.write("$L $P", memberName, memberSymbol);
+                });
 
         runnable.run();
 

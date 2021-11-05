@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -26,6 +27,8 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 
 /**
  * Renders unions and type aliases for all their members.
@@ -36,11 +39,13 @@ public class UnionGenerator {
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final UnionShape shape;
+    private final boolean isEventStream;
 
     UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.shape = shape;
+        this.isEventStream = StreamingTrait.isEventStream(shape);
     }
 
     /**
@@ -50,7 +55,10 @@ public class UnionGenerator {
      */
     public void generateUnion(GoWriter writer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
-        Collection<MemberShape> memberShapes = shape.getAllMembers().values();
+        Collection<MemberShape> memberShapes = shape.getAllMembers().values()
+                .stream()
+                .filter(memberShape -> !isEventStreamErrorMember(memberShape))
+                .collect(Collectors.toCollection(TreeSet::new));
 
         // Creates the parent interface for the union, which only defines a
         // non-exported method whose purpose is only to enable satisfying the
@@ -92,6 +100,10 @@ public class UnionGenerator {
         }
     }
 
+    private boolean isEventStreamErrorMember(MemberShape memberShape) {
+        return isEventStream && memberShape.getMemberTrait(model, ErrorTrait.class).isPresent();
+    }
+
     /**
      * Generates union usage examples for documentation.
      *
@@ -99,7 +111,9 @@ public class UnionGenerator {
      */
     public void generateUnionExamples(GoWriter writer) {
         Symbol symbol = symbolProvider.toSymbol(shape);
-        Set<MemberShape> members = new TreeSet<>(shape.getAllMembers().values());
+        Set<MemberShape> members = shape.getAllMembers().values().stream()
+                .filter(memberShape -> !isEventStreamErrorMember(memberShape))
+                .collect(Collectors.toCollection(TreeSet::new));
 
         Set<Symbol> referenced = new HashSet<>();
 
@@ -138,8 +152,8 @@ public class UnionGenerator {
     /**
      * Generates a struct for unknown union values that applies to every union in the given set.
      *
-     * @param writer The writer to write the union to.
-     * @param unions A set of unions whose interfaces the union should apply to.
+     * @param writer         The writer to write the union to.
+     * @param unions         A set of unions whose interfaces the union should apply to.
      * @param symbolProvider A symbol provider used to get the symbols for the unions.
      */
     public static void generateUnknownUnion(

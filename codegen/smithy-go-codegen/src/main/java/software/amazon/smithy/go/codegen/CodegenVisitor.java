@@ -70,6 +70,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final ApplicationProtocol applicationProtocol;
     private final List<RuntimeClientPlugin> runtimePlugins = new ArrayList<>();
     private final ProtocolDocumentGenerator protocolDocumentGenerator;
+    private final EventStreamGenerator eventStreamGenerator;
 
     CodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -128,6 +129,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
 
         protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
+
+        this.eventStreamGenerator = new EventStreamGenerator(settings, model, writers, symbolProvider, service);
     }
 
     private static ProtocolGenerator resolveProtocolGenerator(
@@ -186,6 +189,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
 
+        eventStreamGenerator.generateEventStreamInterfaces();
+        TopDownIndex.of(model).getContainedOperations(service)
+                .forEach(eventStreamGenerator::generateOperationEventStreamStructure);
+
         if (protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
@@ -210,6 +217,13 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 protocolGenerator.generateResponseDeserializers(context);
                 protocolGenerator.generateSharedDeserializerComponents(context);
             });
+
+            if (eventStreamGenerator.hasEventStreamOperations()) {
+                eventStreamGenerator.writeEventStreamImplementation(writer -> {
+                    ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                    protocolGenerator.generateEventStreamComponents(context);
+                });
+            }
 
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
                     + " unit tests for " + service.getId());

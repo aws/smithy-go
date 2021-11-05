@@ -62,6 +62,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -152,6 +153,10 @@ public class ValidationGenerator implements GoIntegration {
                 switch (shape.getType()) {
                     case STRUCTURE:
                         shape.members().forEach(memberShape -> {
+                            if (StreamingTrait.isEventStream(model, memberShape)) {
+                                return;
+                            }
+
                             String memberName = symbolProvider.toMemberName(memberShape);
                             Shape targetShape = model.expectShape(memberShape.getTarget());
                             boolean required = GoValidationIndex.isRequiredParameter(model, memberShape, topLevelShape);

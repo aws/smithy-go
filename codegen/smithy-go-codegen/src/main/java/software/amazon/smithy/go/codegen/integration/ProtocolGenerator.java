@@ -426,6 +426,15 @@ public interface ProtocolGenerator {
     }
 
     /**
+     * Generate specific components for the protocol's event stream implementation. These components
+     * types should provide implementations that satisfy the reader and writer event stream interfaces.
+     *
+     * @param context the generation context.
+     */
+    default void generateEventStreamComponents(GenerationContext context) {
+    }
+
+    /**
      * Context object used for service serialization and deserialization.
      */
     class GenerationContext {

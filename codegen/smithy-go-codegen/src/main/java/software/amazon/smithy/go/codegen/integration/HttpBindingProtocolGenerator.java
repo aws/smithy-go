@@ -15,7 +15,6 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import static software.amazon.smithy.go.codegen.integration.HttpProtocolGeneratorUtils.isShapeWithResponseBindings;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
 
 import java.util.Collection;
@@ -32,6 +31,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.GoEventStreamIndex;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoValueAccessUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -40,6 +40,8 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.NoSerializeTrait;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.EventStreamInfo;
 import software.amazon.smithy.model.knowledge.HttpBinding;
 import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -53,6 +55,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.HttpTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
@@ -112,7 +115,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     httpTrait -> containedOperations.add(operation),
                     () -> LOGGER.warning(String.format(
                             "Unable to fetch %s protocol request bindings for %s because it does not have an "
-                                    + "http binding trait", getProtocol(), operation.getId()))
+                            + "http binding trait", getProtocol(), operation.getId()))
             );
         }
         return containedOperations;
@@ -120,10 +123,46 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateRequestSerializers(GenerationContext context) {
-        for (OperationShape operation : getHttpBindingOperations(context)) {
+        Set<OperationShape> operations = getHttpBindingOperations(context);
+
+        for (OperationShape operation : operations) {
             generateOperationSerializer(context, operation);
         }
+
+        GoEventStreamIndex goEventStreamIndex = GoEventStreamIndex.of(context.getModel());
+
+        goEventStreamIndex.getInputEventStreams(context.getService()).ifPresent(shapeIdSetMap ->
+                shapeIdSetMap.forEach((shapeId, eventStreamInfos) -> {
+                    generateEventStreamSerializers(context, context.getModel().expectShape(shapeId, UnionShape.class),
+                            eventStreamInfos);
+                }));
     }
+
+    /**
+     * Generate the event stream serializers for the given event stream target and associated operations.
+     *
+     * @param context          the generation context
+     * @param eventUnion       the event stream union
+     * @param eventStreamInfos the event stream infos
+     */
+    protected abstract void generateEventStreamSerializers(
+            GenerationContext context,
+            UnionShape eventUnion,
+            Set<EventStreamInfo> eventStreamInfos
+    );
+
+    /**
+     * Generate the event stream deserializers for the given event stream target and asscioated operations.
+     *
+     * @param context          the generation context
+     * @param eventUnion       the event stream union
+     * @param eventStreamInfos the event stream infos
+     */
+    protected abstract void generateEventStreamDeserializers(
+            GenerationContext context,
+            UnionShape eventUnion,
+            Set<EventStreamInfo> eventStreamInfos
+    );
 
     /**
      * Gets the default serde format for timestamps.
@@ -143,7 +182,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         generateOperationSerializerMiddleware(context, operation);
         generateOperationHttpBindingSerializer(context, operation);
 
-        if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
+        Optional<EventStreamInfo> streamInfo = EventStreamIndex.of(context.getModel()).getInputInfo(operation);
+
+        if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))
+            && streamInfo.isEmpty()) {
             generateOperationDocumentSerializer(context, operation);
             addOperationDocumentShapeBindersForSerializer(context, operation);
         }
@@ -167,14 +209,17 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
 
         // Walk and add members shapes to the list that will require serializer functions
-        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+        Collection<HttpBinding> bindings = HttpBindingIndex.of(model)
                 .getRequestBindings(operation).values();
 
         for (HttpBinding binding : bindings) {
-            Shape targetShape = model.expectShape(binding.getMember().getTarget());
-            // Check if the input shape has a members that target the document or payload and require serializers
+            MemberShape memberShape = binding.getMember();
+            Shape targetShape = model.expectShape(memberShape.getTarget());
+
+            // Check if the input shape has a members that target the document or payload and require serializers.
+            // If an operation has an input event stream it will have seperate serializers generated.
             if (requiresDocumentSerdeFunction(targetShape)
-                    && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                 serializeDocumentBindingShapes.add(targetShape);
             }
@@ -205,7 +250,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}");
+                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}"
+                );
             });
             writer.write("");
 
@@ -214,8 +260,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("_ = input");
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
-                        + " in.Parameters)}");
+                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                             + " in.Parameters)}");
             });
 
             writer.write("");
@@ -224,7 +270,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)");
             writer.write("request.Method = $S", httpTrait.getMethod());
             writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
-                    + "request.Header)");
+                         + "request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
@@ -243,15 +289,29 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Don't consider serializing the body if the input shape is a stubbed synthetic clone, without an
             // archetype.
             if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(model, operation))) {
-                // document bindings vs payload bindings
-                HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
-                boolean hasDocumentBindings = !httpBindingIndex
-                        .getRequestBindings(operation, HttpBinding.Location.DOCUMENT)
-                        .isEmpty();
-                Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
-                        HttpBinding.Location.PAYLOAD).stream().findFirst();
+                Optional<EventStreamInfo> eventStreamInfo = EventStreamIndex.of(model).getInputInfo(operation);
 
-                if (hasDocumentBindings) {
+                // document bindings vs payload bindings vs event streams
+                HttpBindingIndex httpBindingIndex = HttpBindingIndex.of(model);
+                boolean hasDocumentBindings = httpBindingIndex
+                        .getRequestBindings(operation, HttpBinding.Location.DOCUMENT)
+                        .stream().anyMatch(httpBinding -> eventStreamInfo.map(streamInfo ->
+                                !streamInfo.getEventStreamMember().equals(httpBinding.getMember())).orElse(true));
+
+                Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
+                                HttpBinding.Location.PAYLOAD).stream()
+                        .filter(httpBinding -> eventStreamInfo.map(streamInfo ->
+                                !streamInfo.getEventStreamMember().equals(httpBinding.getMember())).orElse(true))
+                        .findFirst();
+
+                if (eventStreamInfo.isPresent() && (hasDocumentBindings || payloadBinding.isPresent())) {
+                    throw new CodegenException("HTTP Binding Protocol unexpected document or payload bindings with "
+                                               + "input event stream");
+                }
+
+                if (eventStreamInfo.isPresent()) {
+                    writeOperationSerializerMiddlewareEventStreamSetup(context, eventStreamInfo.get());
+                } else if (hasDocumentBindings) {
                     // delegate the setup and usage of the document serializer function for the protocol
                     writeMiddlewareDocumentSerializerDelegator(context, operation, generator);
 
@@ -273,6 +333,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
     }
+
+    protected abstract void writeOperationSerializerMiddlewareEventStreamSetup(
+            GenerationContext context,
+            EventStreamInfo eventStreamInfo
+    );
 
     // Generates operation deserializer middleware that delegates to appropriate deserializers for the error,
     // output shapes for the operation.
@@ -336,19 +401,32 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("");
             }
 
+            Optional<EventStreamInfo> streamInfoOptional = EventStreamIndex.of(model).getOutputInfo(operation);
+
             // Discard without deserializing the response if the input shape is a stubbed synthetic clone
             // without an archetype.
-            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))) {
+            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))
+                && streamInfoOptional.isEmpty()) {
                 writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}", () -> {
                     writer.openBlock("return out, metadata, &smithy.DeserializationError{", "}", () -> {
                         writer.write("Err: fmt.Errorf(\"failed to discard response body, %w\", err),");
                     });
                 });
-            } else if (isShapeWithResponseBindings(model, operation, HttpBinding.Location.DOCUMENT)
-                    || isShapeWithResponseBindings(model, operation, HttpBinding.Location.PAYLOAD)) {
-                // Output Shape Document Binding middleware generation
-                writeMiddlewareDocumentDeserializerDelegator(context, operation, generator);
+            } else {
+                boolean hasBodyBinding = HttpBindingIndex.of(model).getResponseBindings(operation).values().stream()
+                        .filter(httpBinding -> httpBinding.getLocation() == HttpBinding.Location.DOCUMENT
+                                               || httpBinding.getLocation() == HttpBinding.Location.PAYLOAD)
+                        .anyMatch(httpBinding -> streamInfoOptional.map(esi -> !esi.getEventStreamMember()
+                                .equals(httpBinding.getMember())).orElse(true));
+                if (hasBodyBinding && streamInfoOptional.isPresent()) {
+                    throw new CodegenException("HTTP Binding Protocol unexpected document or payload bindings with "
+                                               + "output event stream");
+                }
+                if (hasBodyBinding) {
+                    // Output Shape Document Binding middleware generation
+                    writeMiddlewareDocumentDeserializerDelegator(context, operation, generator);
+                }
             }
             writer.write("");
 
@@ -492,16 +570,16 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
-                || location == HttpBinding.Location.PREFIX_HEADERS
-                || location == HttpBinding.Location.LABEL
-                || location == HttpBinding.Location.QUERY
-                || location == HttpBinding.Location.QUERY_PARAMS
-                || location == HttpBinding.Location.RESPONSE_CODE;
+               || location == HttpBinding.Location.PREFIX_HEADERS
+               || location == HttpBinding.Location.LABEL
+               || location == HttpBinding.Location.QUERY
+               || location == HttpBinding.Location.QUERY_PARAMS
+               || location == HttpBinding.Location.RESPONSE_CODE;
     }
 
     // returns whether an operation shape has Rest Request Bindings
     private boolean isOperationWithRestRequestBindings(Model model, OperationShape operationShape) {
-        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
+        Collection<HttpBinding> bindings = HttpBindingIndex.of(model)
                 .getRequestBindings(operationShape).values();
 
         for (HttpBinding binding : bindings) {
@@ -522,8 +600,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @return boolean indicating presence of rest response bindings in the shape
      */
     protected boolean isShapeWithRestResponseBindings(Model model, Shape shape) {
-        Collection<HttpBinding> bindings = model.getKnowledge(HttpBindingIndex.class)
-                .getResponseBindings(shape).values();
+        Collection<HttpBinding> bindings = HttpBindingIndex.of(model).getResponseBindings(shape).values();
 
         for (HttpBinding binding : bindings) {
             if (isRestBinding(binding.getLocation())) {
@@ -691,7 +768,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     memberShape, "v", false, true, operand -> {
                         writer.addUseImports(SmithyGoDependency.SMITHY);
                         writer.write("return &smithy.SerializationError { "
-                                        + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                                     + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
                                 memberShape.getMemberName());
                     });
         }
@@ -714,7 +791,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                             if (targetShape.getType() != ShapeType.MAP) {
                                 throw new CodegenException("Unexpected prefix headers target shape "
-                                        + valueMemberTarget.getType() + ", " + valueMemberShape.getId());
+                                                           + valueMemberTarget.getType() + ", "
+                                                           + valueMemberShape.getId());
                             }
 
                             writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
@@ -862,15 +940,28 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
+        EventStreamIndex streamIndex = EventStreamIndex.of(context.getModel());
+
         for (OperationShape operation : getHttpBindingOperations(context)) {
             generateOperationDeserializerMiddleware(context, operation);
             generateHttpBindingDeserializer(context, operation);
 
-            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(context.getModel(), operation))) {
+            Optional<EventStreamInfo> streamInfo = streamIndex.getOutputInfo(operation);
+
+            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(context.getModel(), operation))
+                && streamInfo.isEmpty()) {
                 generateOperationDocumentDeserializer(context, operation);
                 addOperationDocumentShapeBindersForDeserializer(context, operation);
             }
         }
+
+        GoEventStreamIndex goEventStreamIndex = GoEventStreamIndex.of(context.getModel());
+
+        goEventStreamIndex.getOutputEventStreams(context.getService()).ifPresent(shapeIdSetMap ->
+                shapeIdSetMap.forEach((shapeId, eventStreamInfos) -> {
+                    generateEventStreamDeserializers(context, context.getModel().expectShape(shapeId, UnionShape.class),
+                            eventStreamInfos);
+                }));
 
         for (StructureShape error : deserializingErrorShapes) {
             generateHttpBindingDeserializer(context, error);
@@ -1143,7 +1234,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.openBlock(
                     "if lenPrefix := len($S); "
-                            + "len(headerKey) >= lenPrefix && strings.EqualFold(headerKey[:lenPrefix], $S) {",
+                    + "len(headerKey) >= lenPrefix && strings.EqualFold(headerKey[:lenPrefix], $S) {",
                     "}", prefix, prefix, () -> {
                         writer.openBlock("if v.$L == nil {", "}", memberName, () -> {
                             writer.write("v.$L = $P{}", memberName, targetSymbol);
@@ -1242,7 +1333,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     private void addOperationDocumentShapeBindersForDeserializer(GenerationContext context, OperationShape operation) {
         Model model = context.getModel();
-        HttpBindingIndex httpBindingIndex = model.getKnowledge(HttpBindingIndex.class);
+        HttpBindingIndex httpBindingIndex = HttpBindingIndex.of(model);
+
         addDocumentDeserializerBindingShapes(model, httpBindingIndex, operation);
 
         for (ShapeId errorShapeId : operation.getErrors()) {
@@ -1250,12 +1342,29 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         }
     }
 
+    /**
+     * Adds shapes from provided shape that require document deserializer functions to be generated.
+     *
+     * @param model the smithy model.
+     * @param index the http binding index
+     * @param shape the shape to enumerate member shapes for document deserializers
+     */
     private void addDocumentDeserializerBindingShapes(Model model, HttpBindingIndex index, ToShapeId shape) {
         // Walk and add members shapes to the list that will require deserializer functions
         for (HttpBinding binding : index.getResponseBindings(shape).values()) {
-            Shape targetShape = model.expectShape(binding.getMember().getTarget());
+            MemberShape memberShape = binding.getMember();
+            Shape targetShape = model.expectShape(memberShape.getTarget());
+
+            // Event Stream Member should not immediately generate a document deserializer
+            // and is handled via generateOperationEventMessageDeserializers.
+            if (StreamingTrait.isEventStream(model, memberShape)) {
+                continue;
+            }
+
+            // Add deserializer helpers for document and payload shape bindings if the operation does not have
+            // any output event streams.
             if (requiresDocumentSerdeFunction(targetShape)
-                    && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                 deserializeDocumentBindingShapes.add(targetShape);
             }
@@ -1271,7 +1380,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     protected abstract void generateOperationDocumentDeserializer(GenerationContext context, OperationShape operation);
 
     /**
-     * Generates deserialization functions for shapes in the passed set. These functions
+     * Generates deserialization functions for shapes in the provided set. These functions
      * should return a value that can then be deserialized by the implementation of
      * {@code deserializeOutputDocument}.
      *

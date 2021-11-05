@@ -40,6 +40,7 @@ public final class SmithyGoDependency {
     public static final GoDependency TESTING = stdlib("testing");
     public static final GoDependency ERRORS = stdlib("errors");
     public static final GoDependency XML = stdlib("encoding/xml");
+    public static final GoDependency SYNC = stdlib("sync");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
@@ -56,6 +57,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
     public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
+    public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");

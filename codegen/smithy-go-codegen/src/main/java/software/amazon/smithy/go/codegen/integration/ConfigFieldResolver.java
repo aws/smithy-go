@@ -33,11 +33,13 @@ public final class ConfigFieldResolver {
     private final Location location;
     private final Target target;
     private final Symbol resolver;
+    private final boolean withOperationName;
 
     private ConfigFieldResolver(Builder builder) {
         location = SmithyBuilder.requiredState("location", builder.location);
         target = SmithyBuilder.requiredState("target", builder.target);
         resolver = SmithyBuilder.requiredState("resolver", builder.resolver);
+        withOperationName = builder.withOperationName;
     }
 
     public Location getLocation() {
@@ -50,6 +52,10 @@ public final class ConfigFieldResolver {
 
     public Symbol getResolver() {
         return resolver;
+    }
+
+    public boolean isWithOperationName() {
+        return withOperationName && location == Location.OPERATION;
     }
 
     public static Builder builder() {
@@ -66,12 +72,13 @@ public final class ConfigFieldResolver {
         }
         ConfigFieldResolver that = (ConfigFieldResolver) o;
         return location == that.location
-                && target == that.target
-                && resolver.equals(that.resolver);
+               && target == that.target
+               && resolver.equals(that.resolver);
     }
 
     /**
      * Returns a hash code value for the object.
+     *
      * @return the hash code.
      */
     @Override
@@ -112,6 +119,7 @@ public final class ConfigFieldResolver {
         private Location location;
         private Target target;
         private Symbol resolver;
+        private boolean withOperationName = false;
 
         public Builder location(Location location) {
             this.location = location;
@@ -125,6 +133,11 @@ public final class ConfigFieldResolver {
 
         public Builder resolver(Symbol resolver) {
             this.resolver = resolver;
+            return this;
+        }
+
+        public Builder withOperationName(boolean withOperationName) {
+            this.withOperationName = withOperationName;
             return this;
         }
 
