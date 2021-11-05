@@ -1,8 +1,0 @@
-{
-    "id": "30510402-b3a7-4cd6-a6cd-cd8433cc4a99",
-    "type": "feature",
-    "description": "sync: OnceErr, can be used to concurrently record a signal when an error has occurred.",
-    "modules": [
-        "."
-    ]
-}

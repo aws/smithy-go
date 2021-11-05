@@ -1,8 +1,0 @@
-{
-    "id": "5b3cc4be-442e-40fb-936d-f6ed43f5d801",
-    "type": "bugfix",
-    "description": "`transport/http`: CloseResponseBody and ErrorCloseResponseBody middleware have been updated to ensure that the body is fully drained before closing.",
-    "modules": [
-        "."
-    ]
-}
