@@ -28,6 +28,15 @@ type RequireMinimumProtocol struct {
 	ProtoMinor int
 }
 
+// AddRequireMinimumProtocol adds the RequireMinimumProtocol middleware to the stack using the provided minimum
+// protocol major and minor version.
+func AddRequireMinimumProtocol(stack *middleware.Stack, major, minor int) error {
+	return stack.Deserialize.Insert(&RequireMinimumProtocol{
+		ProtoMajor: major,
+		ProtoMinor: minor,
+	}, "OperationDeserializer", middleware.Before)
+}
+
 // ID returns the middleware identifier string.
 func (r *RequireMinimumProtocol) ID() string {
 	return "RequireMinimumProtocol"
