@@ -118,7 +118,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     protected void generateTestServer(GoWriter writer, String name, Consumer<GoWriter> handler) {
         // We aren't using a test server, but we do need a URL to set.
-        writer.write("url := \"http://localhost:8888/\"");
+        writer.write("serverURL := \"http://localhost:8888/\"");
     }
 
     /**

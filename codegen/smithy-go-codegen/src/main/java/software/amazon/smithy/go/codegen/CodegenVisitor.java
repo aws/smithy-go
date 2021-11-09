@@ -87,8 +87,18 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         fileManifest = context.getFileManifest();
 
         Model resolvedModel = context.getModel();
+
+        var modelTransformer = ModelTransformer.create();
+
         // Add unique operation input/output shapes
         resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
+
+        /*
+         smithy 1.12.0 added support for binding common errors to the service shape
+         this transform copies these common errors to the operations
+        */
+        resolvedModel = modelTransformer.copyServiceErrorsToOperations(resolvedModel,
+                settings.getService(resolvedModel));
 
         LOGGER.info(() -> "Preprocessing smithy model");
         for (GoIntegration goIntegration : integrations) {
@@ -110,7 +120,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             });
         });
 
-        modelWithoutTraitShapes = ModelTransformer.create().getModelWithoutTraitShapes(model);
+        modelWithoutTraitShapes = modelTransformer.getModelWithoutTraitShapes(model);
 
         service = settings.getService(model);
         LOGGER.info(() -> "Generating Go client for service " + service.getId());
@@ -205,7 +215,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     .delegator(writers);
 
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
-                    + " on " + service.getId());
+                        + " on " + service.getId());
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateRequestSerializers(context);
@@ -226,7 +236,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
 
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                    + " unit tests for " + service.getId());
+                        + " unit tests for " + service.getId());
             writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
                 protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
             });

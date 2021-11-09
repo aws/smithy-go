@@ -17,9 +17,11 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
 
 /**
@@ -81,6 +83,9 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writer.write("RequireHeader []string");
         writer.write("ForbidHeader []string");
 
+        writer.write("Host $P", SymbolUtils.createPointableSymbolBuilder("URL",
+                SmithyGoDependency.NET_URL).build());
+
         writer.write("BodyMediaType string");
         writer.addUseImports(SmithyGoDependency.IO);
         writer.write("BodyAssert func(io.Reader) error");
@@ -108,6 +113,35 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeStringSliceStructField(writer, "RequireHeader", testCase.getRequireHeaders());
         writeStringSliceStructField(writer, "ForbidHeader", testCase.getForbidHeaders());
 
+        writeStructField(writer, "Host", (w) -> {
+            var hostValue = testCase.getHost()
+                    .orElse("");
+            if (hostValue.length() > 0) {
+                if (hostValue.split("://", 1).length == 1) {
+                    hostValue = "http://" +  hostValue;
+                }
+            }
+            w.pushState();
+            w.putContext("url", SymbolUtils.createPointableSymbolBuilder("URL",
+                    SmithyGoDependency.NET_URL).build());
+            w.putContext("parse", SymbolUtils.createPointableSymbolBuilder("Parse",
+                    SmithyGoDependency.NET_URL).build());
+            w.putContext("host", hostValue);
+            w.write("""
+                    func () $url:P {
+                        host := $host:S
+                        if len(host) == 0 {
+                            return nil
+                        }
+                        u, err := $parse:T(host)
+                        if err != nil {
+                            panic(err)
+                        }
+                        return u
+                    }(),""");
+            w.popState();
+        });
+
         String bodyMediaType = "";
         if (testCase.getBodyMediaType().isPresent()) {
             bodyMediaType = testCase.getBodyMediaType().get();
@@ -120,8 +154,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             writer.addUseImports(SmithyGoDependency.IO);
             if (body.length() == 0) {
                 writeStructField(writer, "BodyAssert", "func(actual io.Reader) error {\n"
-                        + "   return smithytesting.CompareReaderEmpty(actual)\n"
-                        + "}");
+                                                       + "   return smithytesting.CompareReaderEmpty(actual)\n"
+                                                       + "}");
             } else {
                 String compareFunc = "";
                 switch (bodyMediaType.toLowerCase()) {
@@ -236,5 +270,29 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         public HttpProtocolUnitTestRequestGenerator build() {
             return new HttpProtocolUnitTestRequestGenerator(this);
         }
+    }
+
+    @Override
+    protected void generateTestServer(
+            GoWriter writer,
+            String name,
+            Consumer<GoWriter> handler
+    ) {
+        super.generateTestServer(writer, name, handler);
+        writer.pushState();
+        writer.putContext("parse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL)
+                .build());
+        writer.write("""
+                     if c.Host != nil {
+                         u, err := $parse:T(serverURL)
+                         if err != nil {
+                             t.Fatalf("expect no error, got %v", err)
+                         }
+                         u.Path = c.Host.Path
+                         u.RawPath = c.Host.RawPath
+                         u.RawQuery = c.Host.RawQuery
+                         serverURL = u.String()
+                     }""");
+        writer.popState();
     }
 }

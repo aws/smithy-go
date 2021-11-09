@@ -176,7 +176,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                     handler.accept(writer);
                 });
         writer.write("defer $L.Close()", name);
-        writer.write("url := server.URL");
+        writer.write("serverURL := server.URL");
     }
 
     /**
