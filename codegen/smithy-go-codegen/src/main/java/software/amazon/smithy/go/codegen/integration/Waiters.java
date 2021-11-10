@@ -47,6 +47,7 @@ import software.amazon.smithy.waiters.Waiter;
  */
 public class Waiters implements GoIntegration {
     private static final String WAITER_INVOKER_FUNCTION_NAME = "Wait";
+    private static final String WAITER_INVOKER_WITH_OUTPUT_FUNCTION_NAME = "WaitForOutput";
 
     @Override
     public void writeAdditionalFiles(
@@ -94,6 +95,9 @@ public class Waiters implements GoIntegration {
 
             // write waiter specific invoker
             generateWaiterInvoker(model, symbolProvider, writer, operation, name, waiter);
+
+            // write waiter specific invoker with output
+            generateWaiterInvokerWithOutput(model, symbolProvider, writer, operation, name, waiter);
 
             // write waiter state mutator for each waiter
             generateRetryable(model, symbolProvider, writer, service, operation, name, waiter);
@@ -276,7 +280,6 @@ public class Waiters implements GoIntegration {
                 operationShape.getInput().get(), StructureShape.class
         );
 
-        Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
 
         Symbol waiterOptionsSymbol = SymbolUtils.createPointableSymbolBuilder(
@@ -301,9 +304,71 @@ public class Waiters implements GoIntegration {
                 "}",
                 clientSymbol, WAITER_INVOKER_FUNCTION_NAME, inputSymbol, waiterOptionsSymbol,
                 () -> {
+                    writer.write(
+                            "_, err := w.$L(ctx, params, maxWaitDur, optFns...)",
+                            WAITER_INVOKER_WITH_OUTPUT_FUNCTION_NAME
+                    );
+
+                    writer.write("return err");
+                });
+    }
+
+    /**
+     * Generates waiter invoker functions to call specific operation waiters
+     * and return the output of the successful operation.
+     * These waiter invoker functions is defined on each modeled waiter client.
+     * The invoker function takes in a context, along with operation input, and
+     * optional functional options for the waiter.
+     */
+    private void generateWaiterInvokerWithOutput(
+            Model model,
+            SymbolProvider symbolProvider,
+            GoWriter writer,
+            OperationShape operationShape,
+            String waiterName,
+            Waiter waiter
+    ) {
+        StructureShape inputShape = model.expectShape(
+                operationShape.getInput().get(), StructureShape.class
+        );
+
+        StructureShape outputShape = model.expectShape(
+                operationShape.getOutput().get(), StructureShape.class
+        );
+
+        Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
+        Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
+        Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+
+        Symbol waiterOptionsSymbol = SymbolUtils.createPointableSymbolBuilder(
+                generateWaiterOptionsName(waiterName)
+        ).build();
+
+        Symbol clientSymbol = SymbolUtils.createPointableSymbolBuilder(
+                generateWaiterClientName(waiterName)
+        ).build();
+
+        writer.write("");
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.TIME);
+        writer.writeDocs(
+                String.format(
+                        "%s calls the waiter function for %s waiter and returns the output of the successful "
+                                + "operation. The maxWaitDur is the maximum wait duration the waiter will wait. The "
+                                + "maxWaitDur is required and must be greater than zero.",
+                        WAITER_INVOKER_WITH_OUTPUT_FUNCTION_NAME, waiterName)
+        );
+        writer.openBlock(
+                "func (w $P) $L(ctx context.Context, params $P, maxWaitDur time.Duration, optFns ...func($P)) "
+                        + "($P, error) {",
+                "}",
+                clientSymbol, WAITER_INVOKER_WITH_OUTPUT_FUNCTION_NAME, inputSymbol, waiterOptionsSymbol, outputSymbol,
+                () -> {
                     writer.openBlock("if maxWaitDur <= 0 {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.write("return fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")");
+                        writer.write(
+                                "return nil, fmt.Errorf(\"maximum wait time for waiter must be greater than zero\")"
+                        );
                     }).write("");
 
                     writer.write("options := w.options");
@@ -323,7 +388,7 @@ public class Waiters implements GoIntegration {
                     // validate that MinDelay is lesser than or equal to resolved MaxDelay
                     writer.openBlock("if options.MinDelay > options.MaxDelay {", "}", () -> {
                         writer.addUseImports(SmithyGoDependency.FMT);
-                        writer.write("return fmt.Errorf(\"minimum waiter delay %v must be lesser than or equal to "
+                        writer.write("return nil, fmt.Errorf(\"minimum waiter delay %v must be lesser than or equal to "
                                 + "maximum waiter delay of %v.\", options.MinDelay, options.MaxDelay)");
                     }).write("");
 
@@ -363,8 +428,8 @@ public class Waiters implements GoIntegration {
 
                         // handle response and identify waiter state
                         writer.write("retryable, err := options.Retryable(ctx, params, out, err)");
-                        writer.write("if err != nil { return err }");
-                        writer.write("if !retryable { return nil }").write("");
+                        writer.write("if err != nil { return nil, err }");
+                        writer.write("if !retryable { return out, nil }").write("");
 
                         // update remaining time
                         writer.write("remainingTime -= time.Since(start)");
@@ -386,7 +451,7 @@ public class Waiters implements GoIntegration {
 
                         writer.addUseImports(SmithyGoDependency.FMT);
                         writer.write(
-                                "if err != nil { return fmt.Errorf(\"error computing waiter delay, %w\", err)}");
+                                "if err != nil { return nil, fmt.Errorf(\"error computing waiter delay, %w\", err)}");
                         writer.write("");
 
                         // update remaining time as per computed delay
@@ -400,10 +465,10 @@ public class Waiters implements GoIntegration {
                         writer.openBlock("if err := $T(ctx, delay); err != nil {", "}", sleepWithContextSymbol,
                                 () -> {
                                     writer.write(
-                                            "return fmt.Errorf(\"request cancelled while waiting, %w\", err)");
+                                            "return nil, fmt.Errorf(\"request cancelled while waiting, %w\", err)");
                                 });
                     });
-                    writer.write("return fmt.Errorf(\"exceeded max wait time for $L waiter\")", waiterName);
+                    writer.write("return nil, fmt.Errorf(\"exceeded max wait time for $L waiter\")", waiterName);
                 });
     }
 
