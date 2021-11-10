@@ -26,6 +26,7 @@ import software.amazon.smithy.go.codegen.GoEventStreamIndex;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.EventStreamInfo;
@@ -132,6 +133,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         Symbol requestType = applicationProtocol.getRequestType();
         GoWriter writer = context.getWriter().get();
 
+        writer.pushState();
+
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
                 ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
@@ -162,7 +165,19 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                              + " in.Parameters)}");
             }).write("");
 
-            writer.write("request.Request.URL.Path = $S", getOperationPath(context, operation));
+            writer.putContext("opPath", getOperationPath(context, operation));
+            writer.putContext("pathJoin", SymbolUtils.createValueSymbolBuilder("Join",
+                    SmithyGoDependency.PATH).build());
+            writer.write("""
+                         operationPath := $opPath:S
+                         if len(request.Request.URL.Path) == 0 {
+                             request.Request.URL.Path = operationPath
+                         } else {
+                             request.Request.URL.Path = $pathJoin:T(request.Request.URL.Path, operationPath)
+                             if operationPath[len(operationPath)-1] == '/' {
+                                 request.Request.URL.Path += "/"
+                             }
+                         }""");
             writer.write("request.Request.Method = \"POST\"");
             writer.write("httpBindingEncoder, err := httpbinding.NewEncoder(request.URL.Path, "
                          + "request.URL.RawQuery, request.Header)");
@@ -198,6 +213,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
+
+        writer.popState();
     }
 
     protected abstract void writeOperationSerializerMiddlewareEventStreamSetup(

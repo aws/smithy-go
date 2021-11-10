@@ -41,6 +41,7 @@ public final class SmithyGoDependency {
     public static final GoDependency ERRORS = stdlib("errors");
     public static final GoDependency XML = stdlib("encoding/xml");
     public static final GoDependency SYNC = stdlib("sync");
+    public static final GoDependency PATH = stdlib("path");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
