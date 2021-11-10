@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -483,38 +484,47 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
-        GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
-                memberShape, "input", (s) -> {
-                    writer.openBlock("if !restEncoder.HasHeader(\"Content-Type\") {", "}", () -> {
-                        writer.write("restEncoder.SetHeader(\"Content-Type\").String($S)",
-                                getPayloadShapeMediaType(payloadShape));
-                    });
-                    writer.write("");
+        writer.write("""
+                     if !restEncoder.HasHeader("Content-Type") {
+                         restEncoder.SetHeader("Content-Type").String($S)
+                     }
+                     """, getPayloadShapeMediaType(payloadShape));
 
-                    if (payloadShape.hasTrait(StreamingTrait.class)) {
+        Consumer<GoWriter> setStream = (w) -> {
+            w.write("""
+                    if request, err = request.SetStream(payload); err != nil {
+                        return out, metadata, &smithy.SerializationError{Err: err}
+                    }
+                    """);
+        };
+
+        if (payloadShape.hasTrait(StreamingTrait.class)) {
+            GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                    memberShape, "input", (s) -> {
                         writer.write("payload := $L", s);
-
-                    } else if (payloadShape.isBlobShape()) {
+                        setStream.accept(writer);
+                    });
+        } else if (payloadShape.isBlobShape()) {
+            GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                    memberShape, "input", (s) -> {
                         writer.addUseImports(SmithyGoDependency.BYTES);
                         writer.write("payload := bytes.NewReader($L)", s);
-
-                    } else if (payloadShape.isStringShape()) {
+                        setStream.accept(writer);
+                    });
+        } else if (payloadShape.isStringShape()) {
+            GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
+                    memberShape, "input", (s) -> {
                         writer.addUseImports(SmithyGoDependency.STRINGS);
                         if (payloadShape.hasTrait(EnumTrait.class)) {
                             writer.write("payload := strings.NewReader(string($L))", s);
                         } else {
                             writer.write("payload := strings.NewReader(*$L)", s);
                         }
-
-                    } else {
-                        writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, s);
-                    }
-
-                    writer.openBlock("if request, err = request.SetStream(payload); err != nil {", "}",
-                            () -> {
-                                writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
-                            });
-                });
+                        setStream.accept(writer);
+                    });
+        } else {
+            writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, "input", setStream);
+        }
     }
 
     /**
@@ -548,11 +558,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context     the generation context
      * @param memberShape the payload target member
      * @param operand     the operand that is used to access the member value
+     * @param setStream   a consumer that will write the stream body for the request
      */
     protected abstract void writeMiddlewarePayloadAsDocumentSerializerDelegator(
             GenerationContext context,
             MemberShape memberShape,
-            String operand
+            String operand,
+            Consumer<GoWriter> setStream
     );
 
     /**
