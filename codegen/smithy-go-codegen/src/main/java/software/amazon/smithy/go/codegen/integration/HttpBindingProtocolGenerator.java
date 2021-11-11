@@ -24,7 +24,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -471,6 +470,33 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     );
 
     /**
+     * Writes a payload content-type header setter.
+     *
+     * @param writer       the {@link GoWriter}.
+     * @param payloadShape the payload shape.
+     */
+    protected void writeSetPayloadShapeHeader(GoWriter writer, Shape payloadShape) {
+        writer.write("""
+                     if !restEncoder.HasHeader("Content-Type") {
+                         restEncoder.SetHeader("Content-Type").String($S)
+                     }
+                     """, getPayloadShapeMediaType(payloadShape));
+    }
+
+    /**
+     * Writes the stream setter that set the operand as the HTTP body.
+     *
+     * @param writer  the {@link GoWriter}.
+     * @param operand the operand for the value to be set as the HTTP body.
+     */
+    protected void writeSetStream(GoWriter writer, String operand) {
+        writer.write("""
+                     if request, err = request.SetStream($L); err != nil {
+                         return out, metadata, &smithy.SerializationError{Err: err}
+                     }""", operand);
+    }
+
+    /**
      * Generate the payload serializer logic for the serializer middleware body.
      *
      * @param context     the generation context
@@ -484,46 +510,35 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Model model = context.getModel();
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
-        writer.write("""
-                     if !restEncoder.HasHeader("Content-Type") {
-                         restEncoder.SetHeader("Content-Type").String($S)
-                     }
-                     """, getPayloadShapeMediaType(payloadShape));
-
-        Consumer<GoWriter> setStream = (w) -> {
-            w.write("""
-                    if request, err = request.SetStream(payload); err != nil {
-                        return out, metadata, &smithy.SerializationError{Err: err}
-                    }
-                    """);
-        };
-
         if (payloadShape.hasTrait(StreamingTrait.class)) {
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
+                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.write("payload := $L", s);
-                        setStream.accept(writer);
+                        writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isBlobShape()) {
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
+                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.BYTES);
                         writer.write("payload := bytes.NewReader($L)", s);
-                        setStream.accept(writer);
+                        writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isStringShape()) {
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
+                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.STRINGS);
                         if (payloadShape.hasTrait(EnumTrait.class)) {
                             writer.write("payload := strings.NewReader(string($L))", s);
                         } else {
                             writer.write("payload := strings.NewReader(*$L)", s);
                         }
-                        setStream.accept(writer);
+                        writeSetStream(writer, "payload");
                     });
         } else {
-            writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, "input", setStream);
+            writeMiddlewarePayloadAsDocumentSerializerDelegator(context, memberShape, "input");
         }
     }
 
@@ -558,13 +573,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param context     the generation context
      * @param memberShape the payload target member
      * @param operand     the operand that is used to access the member value
-     * @param setStream   a consumer that will write the stream body for the request
      */
     protected abstract void writeMiddlewarePayloadAsDocumentSerializerDelegator(
             GenerationContext context,
             MemberShape memberShape,
-            String operand,
-            Consumer<GoWriter> setStream
+            String operand
     );
 
     /**

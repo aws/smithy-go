@@ -113,34 +113,38 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeStringSliceStructField(writer, "RequireHeader", testCase.getRequireHeaders());
         writeStringSliceStructField(writer, "ForbidHeader", testCase.getForbidHeaders());
 
-        writeStructField(writer, "Host", (w) -> {
-            var hostValue = testCase.getHost()
-                    .orElse("");
-            if (hostValue.length() > 0) {
-                if (hostValue.split("://", 1).length == 1) {
-                    hostValue = "http://" +  hostValue;
+        if (testCase.getHost().isPresent()) {
+            writeStructField(writer, "Host", (w) -> {
+                var hostValue = testCase.getHost()
+                        .orElse("");
+                if (hostValue.length() == 0) {
+                    w.write("nil,");
+                    return;
                 }
-            }
-            w.pushState();
-            w.putContext("url", SymbolUtils.createPointableSymbolBuilder("URL",
-                    SmithyGoDependency.NET_URL).build());
-            w.putContext("parse", SymbolUtils.createPointableSymbolBuilder("Parse",
-                    SmithyGoDependency.NET_URL).build());
-            w.putContext("host", hostValue);
-            w.write("""
-                    func () $url:P {
-                        host := $host:S
-                        if len(host) == 0 {
-                            return nil
-                        }
-                        u, err := $parse:T(host)
-                        if err != nil {
-                            panic(err)
-                        }
-                        return u
-                    }(),""");
-            w.popState();
-        });
+                if (hostValue.split("://", 2).length == 1) {
+                    hostValue = "https://" + hostValue;
+                }
+                w.pushState();
+                w.putContext("url", SymbolUtils.createPointableSymbolBuilder("URL",
+                        SmithyGoDependency.NET_URL).build());
+                w.putContext("parse", SymbolUtils.createPointableSymbolBuilder("Parse",
+                        SmithyGoDependency.NET_URL).build());
+                w.putContext("host", hostValue);
+                w.write("""
+                        func () $url:P {
+                            host := $host:S
+                            if len(host) == 0 {
+                                return nil
+                            }
+                            u, err := $parse:T(host)
+                            if err != nil {
+                                panic(err)
+                            }
+                            return u
+                        }(),""");
+                w.popState();
+            });
+        }
 
         String bodyMediaType = "";
         if (testCase.getBodyMediaType().isPresent()) {
