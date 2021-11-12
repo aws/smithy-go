@@ -174,7 +174,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                              request.Request.URL.Path = operationPath
                          } else {
                              request.Request.URL.Path = $pathJoin:T(request.Request.URL.Path, operationPath)
-                             if operationPath[len(operationPath)-1] == '/' {
+                             if request.Request.URL.Path != "/" && operationPath[len(operationPath)-1] == '/' {
                                  request.Request.URL.Path += "/"
                              }
                          }""");
