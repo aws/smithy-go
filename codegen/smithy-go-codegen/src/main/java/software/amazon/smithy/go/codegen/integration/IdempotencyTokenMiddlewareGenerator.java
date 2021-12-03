@@ -30,6 +30,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -211,11 +212,10 @@ public class IdempotencyTokenMiddlewareGenerator implements GoIntegration {
      */
     public static Map<ShapeId, MemberShape> getOperationsWithIdempotencyToken(Model model, ServiceShape service) {
         Map<ShapeId, MemberShape> map = new TreeMap<>();
-        service.getAllOperations().stream().forEach((operation) -> {
-            OperationShape operationShape = model.expectShape(operation).asOperationShape().get();
+        TopDownIndex.of(model).getContainedOperations(service).stream().forEach((operationShape) -> {
             MemberShape memberShape = getMemberWithIdempotencyToken(model, operationShape);
             if (memberShape != null) {
-                map.put(operation, memberShape);
+                map.put(operationShape.getId(), memberShape);
             }
         });
         return map;

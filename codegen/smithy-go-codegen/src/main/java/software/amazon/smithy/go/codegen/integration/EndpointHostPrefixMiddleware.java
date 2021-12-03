@@ -28,6 +28,7 @@ import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.pattern.SmithyPattern;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -43,13 +44,13 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
 
     private static final MiddlewareIdentifier MIDDLEWARE_ID = MiddlewareIdentifier.string("EndpointHostPrefix");
 
-    List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
-    List<OperationShape> endpointPrefixOperations = new ArrayList<>();
+    final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
+    final List<OperationShape> endpointPrefixOperations = new ArrayList<>();
 
     @Override
     public void processFinalizedModel(GoSettings settings, Model model) {
         ServiceShape service = settings.getService(model);
-        endpointPrefixOperations = getOperationsWithEndpointPrefix(model, service);
+        endpointPrefixOperations.addAll(getOperationsWithEndpointPrefix(model, service));
 
         endpointPrefixOperations.forEach((operation) -> {
             String middlewareHelperName = getMiddlewareHelperName(operation);
@@ -176,8 +177,7 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
      */
     public static List<OperationShape> getOperationsWithEndpointPrefix(Model model, ServiceShape service) {
         List<OperationShape> operations = new ArrayList<>();
-        service.getAllOperations().stream().forEach((operationId) -> {
-            OperationShape operation = model.expectShape(operationId).asOperationShape().get();
+        TopDownIndex.of(model).getContainedOperations(service).stream().forEach((operation) -> {
             if (!operation.hasTrait(EndpointTrait.ID)) {
                 return;
             }
