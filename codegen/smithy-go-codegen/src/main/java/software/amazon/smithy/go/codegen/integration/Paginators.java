@@ -15,7 +15,6 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -35,8 +34,8 @@ import software.amazon.smithy.model.knowledge.PaginationInfo;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.MemberShape;
-import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 
 /**
@@ -96,35 +95,52 @@ public class Paginators implements GoIntegration {
             Symbol paginatorSymbol,
             Symbol optionsSymbol
     ) {
-        String inputMember = symbolProvider.toMemberName(paginationInfo.getInputTokenMember());
+        var inputMember = symbolProvider.toMemberName(paginationInfo.getInputTokenMember());
 
-        OperationShape operation = paginationInfo.getOperation();
-        Optional<PagingExtensionTrait> pagingExtensionTrait = operation.getTrait(PagingExtensionTrait.class);
+        var operation = paginationInfo.getOperation();
+        var pagingExtensionTrait = operation.getTrait(PagingExtensionTrait.class);
 
-        Symbol operationSymbol = symbolProvider.toSymbol(operation);
-        Symbol inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
-        Symbol inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
+        var operationSymbol = symbolProvider.toSymbol(operation);
+        var inputSymbol = symbolProvider.toSymbol(paginationInfo.getInput());
+        var inputTokenSymbol = symbolProvider.toSymbol(paginationInfo.getInputTokenMember());
+        var inputTokenShape = model.expectShape(paginationInfo.getInputTokenMember().getTarget());
 
         GoPointableIndex pointableIndex = GoPointableIndex.of(model);
 
+        writer.pushState();
+        writer.putContext("paginator", paginatorSymbol);
+        writer.putContext("options", optionsSymbol);
+        writer.putContext("client", interfaceSymbol);
+        writer.putContext("input", inputSymbol);
+        writer.putContext("token", inputTokenSymbol);
+        writer.putContext("inputMember", inputMember);
+
         writer.writeDocs(String.format("%s is a paginator for %s", paginatorSymbol, operationSymbol.getName()));
-        writer.openBlock("type $T struct {", "}", paginatorSymbol, () -> {
-            writer.write("options $T", optionsSymbol);
-            writer.write("client $T", interfaceSymbol);
-            writer.write("params $P", inputSymbol);
-            writer.write("nextToken $P", inputTokenSymbol);
-            writer.write("firstPage bool");
-        });
-        writer.write("");
+        writer.write("""
+                     type $paginator:T struct {
+                         options $options:T
+                         client $client:T
+                         params $input:P
+                         nextToken $token:P
+                         firstPage bool
+                     }
+                     """);
 
         Symbol newPagiantor = SymbolUtils.createValueSymbolBuilder(String.format("New%s",
                 paginatorSymbol.getName())).build();
+
+        writer.putContext("newPaginator", newPagiantor);
+
         writer.writeDocs(String.format("%s returns a new %s", newPagiantor.getName(), paginatorSymbol.getName()));
-        writer.openBlock("func $T(client $T, params $P, optFns ...func($P)) $P {", "}",
-                newPagiantor, interfaceSymbol, inputSymbol, optionsSymbol, paginatorSymbol, () -> {
-                    writer.openBlock("if params == nil {", "}", () -> writer.write("params = &$T{}", inputSymbol));
-                    writer.write("");
-                    writer.write("options := $T{}", optionsSymbol);
+        writer.openBlock("func $newPaginator:T(client $client:T, params $input:P, "
+                         + "optFns ...func($options:P)) $paginator:P {", "}",
+                () -> {
+                    writer.write("""
+                                 if params == nil {
+                                     params = &$input:T{}
+                                 }
+
+                                 options := $options:T{}""");
                     paginationInfo.getPageSizeMember().ifPresent(memberShape -> {
                         GoValueAccessUtils.writeIfNonZeroValueMember(model, symbolProvider, writer, memberShape,
                                 "params", op -> {
@@ -133,73 +149,91 @@ public class Paginators implements GoIntegration {
                                 });
 
                     });
-                    writer.write("");
-                    writer.openBlock("for _, fn := range optFns {", "}", () -> {
-                        writer.write("fn(&options)");
-                    });
-                    writer.write("");
-                    writer.openBlock("return &$T{", "}", paginatorSymbol, () -> {
-                        writer.write("options: options,");
-                        writer.write("client: client,");
-                        writer.write("params: params,");
-                        writer.write("firstPage: true,");
-                    });
-                });
-        writer.write("");
+                    writer.write("""
+
+                                 for _, fn := range optFns {
+                                     fn(&options)
+                                 }
+
+                                 return &$paginator:T{
+                                     options: options,
+                                     client: client,
+                                     params: params,
+                                     firstPage: true,
+                                     nextToken: params.$inputMember:L,
+                                 }""");
+                }).write("");
 
         writer.writeDocs("HasMorePages returns a boolean indicating whether more pages are available");
-        writer.openBlock("func (p $P) HasMorePages() bool {", "}", paginatorSymbol, () -> {
-            writer.write("return p.firstPage || p.nextToken != nil");
-        });
-        writer.write("");
+        writer.openBlock("func (p $paginator:P) HasMorePages() bool {", "}", () -> {
+            writer.writeInline("return p.firstPage || ");
+            Runnable checkNotNil = () -> writer.writeInline("p.nextToken != nil");
+            if (inputTokenShape.getType() == ShapeType.STRING) {
+                writer.writeInline("(");
+                checkNotNil.run();
+                writer.write(" && len(*p.nextToken) != 0 )");
+            } else {
+                checkNotNil.run();
+            }
+        }).write("");
 
-        Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT)
+        var contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT)
                 .build();
-        Symbol outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
-        Optional<MemberShape> pageSizeMember = paginationInfo.getPageSizeMember();
+        var outputSymbol = symbolProvider.toSymbol(paginationInfo.getOutput());
+        var pageSizeMember = paginationInfo.getPageSizeMember();
+
+        writer.putContext("context", contextSymbol);
+        writer.putContext("output", outputSymbol);
 
         writer.writeDocs(String.format("NextPage retrieves the next %s page.", operationSymbol.getName()));
-        writer.openBlock("func (p $P) NextPage(ctx $T, optFns ...func(*Options)) ($P, error) {", "}",
-                paginatorSymbol, contextSymbol, outputSymbol, () -> {
-                    writer.addUseImports(SmithyGoDependency.FMT);
-                    writer.openBlock("if !p.HasMorePages() {", "}", () -> {
-                        writer.write("return nil, fmt.Errorf(\"no more pages available\")");
-                    });
+        writer.openBlock("func (p $paginator:P) NextPage(ctx $context:T, optFns ...func(*Options)) "
+                         + "($output:P, error) {", "}",
+                () -> {
+                    writer.putContext("errorf", SymbolUtils.createValueSymbolBuilder("Errorf",
+                            SmithyGoDependency.FMT).build());
+                    writer.write("""
+                                 if !p.HasMorePages() {
+                                     return nil, $errorf:T("no more pages available")
+                                 }
 
-                    writer.write("");
-                    writer.write("params := *p.params");
-                    writer.write("params.$L = p.nextToken", inputMember);
+                                 params := *p.params
+                                 params.$inputMember:L = p.nextToken
+                                 """);
+
                     pageSizeMember.ifPresent(memberShape -> {
-                        writer.write("");
                         if (pointableIndex.isPointable(model.expectShape(memberShape.getTarget()))) {
-                            writer.write("var limit $P", symbolProvider.toSymbol(memberShape));
-                            writer.openBlock("if p.options.Limit > 0 {", "}", () -> {
-                                writer.write("limit = &p.options.Limit");
-                            });
-                            writer.openBlock("params.$L = limit", symbolProvider.toMemberName(memberShape));
+                            writer.write("""
+                                         var limit $P
+                                         if p.options.Limit > 0 {
+                                             limit = &p.options.Limit
+                                         }
+                                         params.$L = limit
+                                         """,
+                                    symbolProvider.toSymbol(memberShape),
+                                    symbolProvider.toMemberName(memberShape));
                         } else {
-                            writer.openBlock("params.$L = p.options.Limit", symbolProvider.toMemberName(memberShape));
+                            writer.write("params.$L = p.options.Limit", symbolProvider.toMemberName(memberShape))
+                                    .write("");
                         }
                     });
 
-                    writer.write("");
-                    writer.write("result, err := p.client.$L(ctx, &params, optFns...)",
-                            operationSymbol.getName());
-                    writer.openBlock("if err != nil {", "}", () -> {
-                        writer.write("return nil, err");
-                    });
-                    writer.write("p.firstPage = false");
-                    writer.write("");
+                    writer.write("""
+                                 result, err := p.client.$L(ctx, &params, optFns...)
+                                 if err != nil {
+                                     return nil, err
+                                 }
+                                 p.firstPage = false
+                                 """, operationSymbol.getName());
 
-                    List<MemberShape> outputMemberPath = paginationInfo.getOutputTokenMemberPath();
-                    MemberShape tokenMember = outputMemberPath.get(outputMemberPath.size() - 1);
+                    var outputMemberPath = paginationInfo.getOutputTokenMemberPath();
+                    var tokenMember = outputMemberPath.get(outputMemberPath.size() - 1);
                     Consumer<String> setNextTokenFromOutput = (container) -> {
                         writer.write("p.nextToken = $L", container + "."
-                                + symbolProvider.toMemberName(tokenMember));
+                                                         + symbolProvider.toMemberName(tokenMember));
                     };
 
                     for (int i = outputMemberPath.size() - 2; i >= 0; i--) {
-                        MemberShape memberShape = outputMemberPath.get(i);
+                        var memberShape = outputMemberPath.get(i);
                         Consumer<String> inner = setNextTokenFromOutput;
                         setNextTokenFromOutput = (container) -> {
                             GoValueAccessUtils.writeIfNonZeroValueMember(model, symbolProvider, writer, memberShape,
@@ -240,19 +274,23 @@ public class Paginators implements GoIntegration {
                     }
                     writer.write("");
 
-                    if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
-                        writer.openBlock("if p.options.StopOnDuplicateToken && "
-                                + "prevToken != nil && p.nextToken != nil && "
-                                + "*prevToken == *p.nextToken {", "}", () -> {
-                            writer.write("p.nextToken = nil");
-                        });
+                    if (inputTokenShape.isStringShape()) {
+                        writer.write("""
+                                     if p.options.StopOnDuplicateToken &&
+                                         prevToken != nil &&
+                                         p.nextToken != nil &&
+                                         *prevToken == *p.nextToken {
+                                         p.nextToken = nil
+                                     }
+                                     """);
                     } else {
-                        writer.write("_ = prevToken");
+                        writer.write("_ = prevToken").write("");
                     }
 
-                    writer.write("");
                     writer.write("return result, nil");
                 });
+
+        writer.popState();
     }
 
     private void writePaginatorOptions(
@@ -275,7 +313,7 @@ public class Paginators implements GoIntegration {
             });
             if (model.expectShape(paginationInfo.getInputTokenMember().getTarget()).isStringShape()) {
                 writer.writeDocs("Set to true if pagination should stop if the service returns a pagination token that "
-                        + "matches the most recent token provided to the service.");
+                                 + "matches the most recent token provided to the service.");
                 writer.write("StopOnDuplicateToken bool");
             }
         });
