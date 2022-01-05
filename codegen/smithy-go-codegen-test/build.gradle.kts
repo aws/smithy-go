@@ -13,6 +13,8 @@
  * permissions and limitations under the License.
  */
 
+val smithyVersion: String by project
+
 extra["displayName"] = "Smithy :: Go :: Codegen :: Test"
 extra["moduleName"] = "software.amazon.smithy.go.codegen.test"
 
@@ -28,6 +30,6 @@ repositories {
 }
 
 dependencies {
-    implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.14.0,2.0.0[")
+    implementation("software.amazon.smithy:smithy-protocol-test-traits:$smithyVersion")
     implementation(project(":smithy-go-codegen"))
 }

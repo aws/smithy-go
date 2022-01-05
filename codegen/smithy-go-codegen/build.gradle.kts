@@ -13,14 +13,16 @@
  * permissions and limitations under the License.
  */
 
+val smithyVersion: String by project
+
 description = "Generates Go code from Smithy models"
 extra["displayName"] = "Smithy :: Go :: Codegen"
 extra["moduleName"] = "software.amazon.smithy.go.codegen"
 
 dependencies {
-    api("software.amazon.smithy:smithy-codegen-core:[1.14.0,2.0.0[")
-    implementation("software.amazon.smithy:smithy-waiters:[1.14.0,2.0.0[")
+    api("software.amazon.smithy:smithy-codegen-core:$smithyVersion")
+    implementation("software.amazon.smithy:smithy-waiters:$smithyVersion")
     api("com.atlassian.commonmark:commonmark:0.15.2")
     api("org.jsoup:jsoup:1.14.1")
-    implementation("software.amazon.smithy:smithy-protocol-test-traits:[1.14.0,2.0.0[")
+    implementation("software.amazon.smithy:smithy-protocol-test-traits:$smithyVersion")
 }
