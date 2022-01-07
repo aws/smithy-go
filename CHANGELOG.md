@@ -1,3 +1,9 @@
+# Release (v1.9.1)
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.9.1
+  * **Documentation**: Fixes various typos in Go package documentation.
+
 # Release (v1.9.0)
 
 ## Module Highlights

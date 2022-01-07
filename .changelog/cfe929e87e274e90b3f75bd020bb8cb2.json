@@ -1,8 +1,0 @@
-{
-    "id": "cfe929e8-7e27-4e90-b3f7-5bd020bb8cb2",
-    "type": "documentation",
-    "description": "Fixes various typos in Go package documentation.",
-    "modules": [
-        "."
-    ]
-}
