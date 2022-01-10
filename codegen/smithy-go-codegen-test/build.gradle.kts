@@ -20,6 +20,16 @@ extra["moduleName"] = "software.amazon.smithy.go.codegen.test"
 
 tasks["jar"].enabled = false
 
+buildscript {
+    val smithyVersion: String by project
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        "classpath"("software.amazon.smithy:smithy-cli:$smithyVersion")
+    }
+}
+
 plugins {
     id("software.amazon.smithy").version("0.5.3")
 }
