@@ -105,8 +105,8 @@ final class ServiceGenerator implements Runnable {
     ) {
         plugin.getClientMemberResolvers().stream().filter(predicate)
                 .forEach(resolver -> {
-                   writer.write("$T(client)", resolver.getResolver());
-                   writer.write("");
+                    writer.write("$T(client)", resolver.getResolver());
+                    writer.write("");
                 });
     }
 
@@ -128,23 +128,23 @@ final class ServiceGenerator implements Runnable {
 
     private void generateConstructor(Symbol serviceSymbol) {
         writer.writeDocs(String.format("New returns an initialized %s based on the functional options. "
-                + "Provide additional functional options to further configure the behavior "
-                + "of the client, such as changing the client's endpoint or adding custom "
-                + "middleware behavior.", serviceSymbol.getName()));
+                                       + "Provide additional functional options to further configure the behavior "
+                                       + "of the client, such as changing the client's endpoint or adding custom "
+                                       + "middleware behavior.", serviceSymbol.getName()));
         Symbol optionsSymbol = SymbolUtils.createPointableSymbolBuilder(CONFIG_NAME).build();
         writer.openBlock("func New(options $T, optFns ...func($P)) $P {", "}", optionsSymbol, optionsSymbol,
                 serviceSymbol, () -> {
                     writer.write("options = options.Copy()").write("");
 
                     List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
-                            plugin.matchesService(model, service))
+                                    plugin.matchesService(model, service))
                             .collect(Collectors.toList());
 
                     // Run any config initialization functions registered by runtime plugins.
                     for (RuntimeClientPlugin plugin : plugins) {
                         writeConfigFieldResolvers(writer, plugin, resolver ->
                                 resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
-                                        && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
+                                && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
                     }
 
                     writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
@@ -154,7 +154,7 @@ final class ServiceGenerator implements Runnable {
                     for (RuntimeClientPlugin plugin : plugins) {
                         writeConfigFieldResolvers(writer, plugin, resolver ->
                                 resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
-                                        && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
+                                && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
                     }
 
                     writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
@@ -173,8 +173,8 @@ final class ServiceGenerator implements Runnable {
     private void generateConfig() {
         writer.openBlock("type $L struct {", "}", CONFIG_NAME, () -> {
             writer.writeDocs("Set of options to modify how an operation is invoked. These apply to all operations "
-                    + "invoked for this client. Use functional options on operation call to modify this "
-                    + "list for per operation behavior."
+                             + "invoked for this client. Use functional options on operation call to modify this "
+                             + "list for per operation behavior."
             );
             Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
                     .build();
@@ -194,6 +194,8 @@ final class ServiceGenerator implements Runnable {
             }
 
             generateApplicationProtocolConfig();
+
+            writer.write("clientInitializedOptions map[struct{}]interface{}");
         }).write("");
 
         writer.writeDocs("WithAPIOptions returns a functional option for setting the Client's APIOptions option.");
@@ -225,7 +227,13 @@ final class ServiceGenerator implements Runnable {
             Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
                     .build();
             writer.write("to.APIOptions = make([]func($P) error, len(o.APIOptions))", stackSymbol);
-            writer.write("copy(to.APIOptions, o.APIOptions)");
+            writer.write("copy(to.APIOptions, o.APIOptions)").write("");
+            writer.write("""
+                         to.clientInitializedOptions = make(map[struct{}]interface{}, len(o.clientInitializedOptions))
+                         for k, v := range o.clientInitializedOptions {
+                             to.clientInitializedOptions[k] = v
+                         }
+                         """);
             writer.write("return to");
         });
     }
@@ -279,13 +287,13 @@ final class ServiceGenerator implements Runnable {
         writer.addUseImports(SmithyGoDependency.SMITHY);
 
         writer.openBlock("func (c *Client) invokeOperation("
-                + "ctx context.Context, "
-                + "opID string, "
-                + "params interface{}, "
-                + "optFns []func(*Options), "
-                + "stackFns ...func(*middleware.Stack, Options) error"
-                + ") "
-                + "(result interface{}, metadata middleware.Metadata, err error) {", "}", () -> {
+                         + "ctx context.Context, "
+                         + "opID string, "
+                         + "params interface{}, "
+                         + "optFns []func(*Options), "
+                         + "stackFns ...func(*middleware.Stack, Options) error"
+                         + ") "
+                         + "(result interface{}, metadata middleware.Metadata, err error) {", "}", () -> {
             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
@@ -296,13 +304,13 @@ final class ServiceGenerator implements Runnable {
             writer.write("options := c.options.Copy()");
 
             List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
-                    plugin.matchesService(model, service))
+                            plugin.matchesService(model, service))
                     .collect(Collectors.toList());
 
             for (RuntimeClientPlugin plugin : plugins) {
                 writeConfigFieldResolvers(writer, plugin, resolver ->
                         resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
-                                && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
+                        && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
             }
 
             writer.write("for _, fn := range optFns { fn(&options) }");
@@ -311,7 +319,7 @@ final class ServiceGenerator implements Runnable {
             for (RuntimeClientPlugin plugin : plugins) {
                 writeConfigFieldResolvers(writer, plugin, resolver ->
                         resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
-                                && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
+                        && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
             }
 
             writer.openBlock("for _, fn := range stackFns {", "}", () -> {

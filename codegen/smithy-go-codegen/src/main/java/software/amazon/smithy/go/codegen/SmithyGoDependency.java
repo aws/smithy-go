@@ -28,6 +28,7 @@ public final class SmithyGoDependency {
     public static final GoDependency CONTEXT = stdlib("context");
     public static final GoDependency STRCONV = stdlib("strconv");
     public static final GoDependency BASE64 = stdlib("encoding/base64");
+    public static final GoDependency NET = stdlib("net");
     public static final GoDependency NET_URL = stdlib("net/url");
     public static final GoDependency NET_HTTP = stdlib("net/http");
     public static final GoDependency NET_HTTP_TEST = stdlib("net/http/httptest");
