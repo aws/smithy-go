@@ -1,0 +1,8 @@
+{
+    "id": "2d948e1f-47af-4f18-9862-d70834135e7c",
+    "type": "feature",
+    "description": "Add `ptr.Duration`, `ptr.ToDuration`, `ptr.DurationSlice`, `ptr.ToDurationSlice`, `ptr.DurationMap`, and `ptr.ToDurationMap` functions for the `time.Duration` type.",
+    "modules": [
+        "."
+    ]
+}
