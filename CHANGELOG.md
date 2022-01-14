@@ -1,3 +1,9 @@
+# Release (v1.10.0)
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.10.0
+  * **Feature**: Add `ptr.Duration`, `ptr.ToDuration`, `ptr.DurationSlice`, `ptr.ToDurationSlice`, `ptr.DurationMap`, and `ptr.ToDurationMap` functions for the `time.Duration` type.
+
 # Release (v1.9.1)
 
 ## Module Highlights
