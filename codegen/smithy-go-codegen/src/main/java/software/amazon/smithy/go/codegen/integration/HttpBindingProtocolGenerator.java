@@ -115,7 +115,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     httpTrait -> containedOperations.add(operation),
                     () -> LOGGER.warning(String.format(
                             "Unable to fetch %s protocol request bindings for %s because it does not have an "
-                            + "http binding trait", getProtocol(), operation.getId()))
+                                    + "http binding trait", getProtocol(), operation.getId()))
             );
         }
         return containedOperations;
@@ -185,7 +185,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Optional<EventStreamInfo> streamInfo = EventStreamIndex.of(context.getModel()).getInputInfo(operation);
 
         if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))
-            && streamInfo.isEmpty()) {
+                && streamInfo.isEmpty()) {
             generateOperationDocumentSerializer(context, operation);
             addOperationDocumentShapeBindersForSerializer(context, operation);
         }
@@ -219,7 +219,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Check if the input shape has a members that target the document or payload and require serializers.
             // If an operation has an input event stream it will have seperate serializers generated.
             if (requiresDocumentSerdeFunction(targetShape)
-                && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                    && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                 serializeDocumentBindingShapes.add(targetShape);
             }
@@ -250,7 +250,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}"
+                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown transport type %T\", in.Request)}"
                 );
             });
             writer.write("");
@@ -260,8 +260,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("_ = input");
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write("return out, metadata, "
-                             + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
-                             + " in.Parameters)}");
+                        + "&smithy.SerializationError{Err: fmt.Errorf(\"unknown input parameters type %T\","
+                        + " in.Parameters)}");
             });
 
             writer.write("");
@@ -270,7 +270,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)");
             writer.write("request.Method = $S", httpTrait.getMethod());
             writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
-                         + "request.Header)");
+                    + "request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
@@ -299,14 +299,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                                 !streamInfo.getEventStreamMember().equals(httpBinding.getMember())).orElse(true));
 
                 Optional<HttpBinding> payloadBinding = httpBindingIndex.getRequestBindings(operation,
-                                HttpBinding.Location.PAYLOAD).stream()
+                        HttpBinding.Location.PAYLOAD).stream()
                         .filter(httpBinding -> eventStreamInfo.map(streamInfo ->
                                 !streamInfo.getEventStreamMember().equals(httpBinding.getMember())).orElse(true))
                         .findFirst();
 
                 if (eventStreamInfo.isPresent() && (hasDocumentBindings || payloadBinding.isPresent())) {
                     throw new CodegenException("HTTP Binding Protocol unexpected document or payload bindings with "
-                                               + "input event stream");
+                            + "input event stream");
                 }
 
                 if (eventStreamInfo.isPresent()) {
@@ -406,7 +406,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Discard without deserializing the response if the input shape is a stubbed synthetic clone
             // without an archetype.
             if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))
-                && streamInfoOptional.isEmpty()) {
+                    && streamInfoOptional.isEmpty()) {
                 writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}", () -> {
                     writer.openBlock("return out, metadata, &smithy.DeserializationError{", "}", () -> {
@@ -416,12 +416,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             } else {
                 boolean hasBodyBinding = HttpBindingIndex.of(model).getResponseBindings(operation).values().stream()
                         .filter(httpBinding -> httpBinding.getLocation() == HttpBinding.Location.DOCUMENT
-                                               || httpBinding.getLocation() == HttpBinding.Location.PAYLOAD)
+                                || httpBinding.getLocation() == HttpBinding.Location.PAYLOAD)
                         .anyMatch(httpBinding -> streamInfoOptional.map(esi -> !esi.getEventStreamMember()
                                 .equals(httpBinding.getMember())).orElse(true));
                 if (hasBodyBinding && streamInfoOptional.isPresent()) {
                     throw new CodegenException("HTTP Binding Protocol unexpected document or payload bindings with "
-                                               + "output event stream");
+                            + "output event stream");
                 }
                 if (hasBodyBinding) {
                     // Output Shape Document Binding middleware generation
@@ -477,10 +477,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     protected void writeSetPayloadShapeHeader(GoWriter writer, Shape payloadShape) {
         writer.write("""
-                     if !restEncoder.HasHeader("Content-Type") {
-                         restEncoder.SetHeader("Content-Type").String($S)
-                     }
-                     """, getPayloadShapeMediaType(payloadShape));
+                if !restEncoder.HasHeader("Content-Type") {
+                    restEncoder.SetHeader("Content-Type").String($S)
+                }
+                """, getPayloadShapeMediaType(payloadShape));
     }
 
     /**
@@ -491,9 +491,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      */
     protected void writeSetStream(GoWriter writer, String operand) {
         writer.write("""
-                     if request, err = request.SetStream($L); err != nil {
-                         return out, metadata, &smithy.SerializationError{Err: err}
-                     }""", operand);
+                if request, err = request.SetStream($L); err != nil {
+                    return out, metadata, &smithy.SerializationError{Err: err}
+                }""", operand);
     }
 
     /**
@@ -595,11 +595,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     private boolean isRestBinding(HttpBinding.Location location) {
         return location == HttpBinding.Location.HEADER
-               || location == HttpBinding.Location.PREFIX_HEADERS
-               || location == HttpBinding.Location.LABEL
-               || location == HttpBinding.Location.QUERY
-               || location == HttpBinding.Location.QUERY_PARAMS
-               || location == HttpBinding.Location.RESPONSE_CODE;
+                || location == HttpBinding.Location.PREFIX_HEADERS
+                || location == HttpBinding.Location.LABEL
+                || location == HttpBinding.Location.QUERY
+                || location == HttpBinding.Location.QUERY_PARAMS
+                || location == HttpBinding.Location.RESPONSE_CODE;
     }
 
     // returns whether an operation shape has Rest Request Bindings
@@ -793,7 +793,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     memberShape, "v", false, true, operand -> {
                         writer.addUseImports(SmithyGoDependency.SMITHY);
                         writer.write("return &smithy.SerializationError { "
-                                     + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
+                                        + "Err: fmt.Errorf(\"input member $L must not be empty\")}",
                                 memberShape.getMemberName());
                     });
         }
@@ -816,8 +816,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
                             if (targetShape.getType() != ShapeType.MAP) {
                                 throw new CodegenException("Unexpected prefix headers target shape "
-                                                           + valueMemberTarget.getType() + ", "
-                                                           + valueMemberShape.getId());
+                                        + valueMemberTarget.getType() + ", "
+                                        + valueMemberShape.getId());
                             }
 
                             writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
@@ -921,7 +921,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Shape targetShape = model.expectShape(memberShape.getTarget());
 
         if (!(targetShape instanceof CollectionShape)) {
-            String op = conditionallyBase64Encode(writer, targetShape, operand);
+            String op = conditionallyBase64Encode(context, writer, targetShape, operand);
             writeHttpBindingSetter(context, writer, memberShape, location, op, (w, s) -> {
                 w.writeInline("$L.SetHeader($L).$L", dest, locationName, s);
             });
@@ -934,23 +934,108 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String indexedOperand = operand + "[i]";
             GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, collectionMemberShape, indexedOperand,
                     false, false, () -> {
-                        String op = conditionallyBase64Encode(writer, targetShape, indexedOperand);
-                        writeHttpBindingSetter(context, writer, collectionMemberShape, location, op, (w, s) -> {
-                            w.writeInline("$L.AddHeader($L).$L", dest, locationName, s);
-                        });
+                        String op = conditionallyEscapeHeader(context, writer, collectionMemberShape, indexedOperand);
+                        writeHttpBindingSetter(context, writer, collectionMemberShape, location, op,
+                                (w, s) -> {
+                                    w.writeInline("$L.AddHeader($L).$L", dest, locationName, s);
+                                });
                     });
         });
     }
 
-    private String conditionallyBase64Encode(GoWriter writer, Shape targetShape, String operand) {
-        // MediaType strings written to headers must be base64 encoded
-        if (targetShape.isStringShape() && targetShape.hasTrait(MediaTypeTrait.class)) {
-            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
-            writer.addUseImports(SmithyGoDependency.BASE64);
-            writer.write("encoded := ptr.String(base64.StdEncoding.EncodeToString([]byte(*$L)))", operand);
-            return "encoded";
+    private String conditionallyEscapeHeader(
+            GenerationContext context,
+            GoWriter writer,
+            MemberShape memberShape,
+            String operand
+    ) {
+        var targetShape = context.getModel().expectShape(memberShape.getTarget());
+        if (!targetShape.isStringShape()) {
+            return operand;
         }
-        return operand;
+        if (targetShape.hasTrait(MediaTypeTrait.class)) {
+            return conditionallyBase64Encode(context, writer, targetShape, operand);
+        }
+
+        writer.pushState();
+
+        var returnVar = "escaped";
+        var pointableIndex = GoPointableIndex.of(context.getModel());
+        var shouldDereference = pointableIndex.isDereferencable(memberShape);
+        if (shouldDereference) {
+            operand = CodegenUtils.getAsValueIfDereferencable(pointableIndex, memberShape, operand);
+            writer.putContext("escapedVar", "escapedVal");
+            returnVar = "escapedPtr";
+        } else {
+            writer.putContext("escapedVar", returnVar);
+        }
+        writer.putContext("returnVar", returnVar);
+
+        if (targetShape.hasTrait(EnumTrait.class)) {
+            operand = "string(" + operand + ")";
+        }
+
+        writer.putContext("value", operand);
+        writer.putContext("quoteValue", SymbolUtils.createValueSymbolBuilder(
+                "Quote", SmithyGoDependency.STRCONV).build());
+        writer.putContext("indexOf", SymbolUtils.createValueSymbolBuilder(
+                "Index", SmithyGoDependency.STRINGS).build());
+        writer.putContext("ptrString", SymbolUtils.createValueSymbolBuilder(
+                "String", SmithyGoDependency.SMITHY_PTR).build());
+
+        writer.write("""
+                $escapedVar:L := $value:L
+                if $indexOf:T($value:L, `,`) != -1 || $indexOf:T($value:L, `"`) != -1 {
+                    $escapedVar:L = $quoteValue:T($value:L)
+                }
+                """);
+        if (shouldDereference) {
+            writer.write("$returnVar:L := $ptrString:T($escapedVar:L)");
+        }
+
+        writer.popState();
+
+        return returnVar;
+    }
+
+    private String conditionallyBase64Encode(
+            GenerationContext context,
+            GoWriter writer,
+            Shape targetShape,
+            String operand
+    ) {
+        // MediaType strings written to headers must be base64 encoded
+        if (!targetShape.isStringShape() || !targetShape.hasTrait(MediaTypeTrait.class)) {
+            return operand;
+        }
+
+        writer.pushState();
+
+        var returnVar = "encoded";
+        var pointableIndex = GoPointableIndex.of(context.getModel());
+        var shouldDereference = pointableIndex.isDereferencable(targetShape);
+        if (shouldDereference) {
+            operand = CodegenUtils.getAsValueIfDereferencable(pointableIndex, targetShape, operand);
+            writer.putContext("encodedVar", "encodedVal");
+            returnVar = "encodedPtr";
+        } else {
+            writer.putContext("encodedVar", returnVar);
+        }
+        writer.putContext("returnVar", returnVar);
+
+        writer.putContext("value", operand);
+        writer.putContext("ptrString", SymbolUtils.createValueSymbolBuilder(
+                "String", SmithyGoDependency.SMITHY_PTR).build());
+        writer.putContext("encodeToString", SymbolUtils.createValueSymbolBuilder(
+                "StdEncoding.EncodeToString", SmithyGoDependency.BASE64).build());
+
+        writer.write("$encodedVar:L := $encodeToString:T([]byte($value:L))");
+        if (shouldDereference) {
+            writer.write("$returnVar:L := $ptrString:T($encodedVar:L)");
+        }
+
+        writer.popState();
+        return returnVar;
     }
 
     /**
@@ -974,7 +1059,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             Optional<EventStreamInfo> streamInfo = streamIndex.getOutputInfo(operation);
 
             if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(context.getModel(), operation))
-                && streamInfo.isEmpty()) {
+                    && streamInfo.isEmpty()) {
                 generateOperationDocumentDeserializer(context, operation);
                 addOperationDocumentShapeBindersForDeserializer(context, operation);
             }
@@ -1259,7 +1344,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.openBlock(
                     "if lenPrefix := len($S); "
-                    + "len(headerKey) >= lenPrefix && strings.EqualFold(headerKey[:lenPrefix], $S) {",
+                            + "len(headerKey) >= lenPrefix && strings.EqualFold(headerKey[:lenPrefix], $S) {",
                     "}", prefix, prefix, () -> {
                         writer.openBlock("if v.$L == nil {", "}", memberName, () -> {
                             writer.write("v.$L = $P{}", memberName, targetSymbol);
@@ -1389,7 +1474,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // Add deserializer helpers for document and payload shape bindings if the operation does not have
             // any output event streams.
             if (requiresDocumentSerdeFunction(targetShape)
-                && (binding.getLocation() == HttpBinding.Location.DOCUMENT
+                    && (binding.getLocation() == HttpBinding.Location.DOCUMENT
                     || binding.getLocation() == HttpBinding.Location.PAYLOAD)) {
                 deserializeDocumentBindingShapes.add(targetShape);
             }

@@ -9,8 +9,9 @@ import (
 
 func TestSplitHeaderListValues(t *testing.T) {
 	cases := map[string]struct {
-		Values []string
-		Expect []string
+		Values    []string
+		Expect    []string
+		ExpectErr string
 	}{
 		"no split": {
 			Values: []string{
@@ -38,10 +39,56 @@ func TestSplitHeaderListValues(t *testing.T) {
 		},
 		"empty values": {
 			Values: []string{
-				"", "1, 23", "hello,world",
+				"",
+				", 1, 23, hello,world",
 			},
 			Expect: []string{
-				"", "1", "23", "hello", "world",
+				"", "", "1", "23", "hello", "world",
+			},
+		},
+		"quoted values": {
+			Values: []string{
+				`abc, 123, "abc,123", "456,efg"`,
+			},
+			Expect: []string{
+				"abc",
+				"123",
+				"abc,123",
+				"456,efg",
+			},
+		},
+		"quoted escaped values": {
+			Values: []string{
+				`abc,123, "abc,123"   ,   "   \"abc , 123\"  " , "\\456,efg\\b"  ,`,
+			},
+			Expect: []string{
+				"abc",
+				"123",
+				"abc,123",
+				"   \"abc , 123\"  ",
+				"\\456,efg\\b",
+				"",
+			},
+		},
+		"wrapping space": {
+			Values: []string{
+				`   abc,123, "abc,123"   ,   "   \"abc , 123\"  " , "\\456,efg\\b"  ,`,
+			},
+			Expect: []string{
+				"abc",
+				"123",
+				"abc,123",
+				"   \"abc , 123\"  ",
+				"\\456,efg\\b",
+				"",
+			},
+		},
+		"trailing empty value": {
+			Values: []string{
+				`, , `,
+			},
+			Expect: []string{
+				"", "", "",
 			},
 		},
 	}
@@ -54,7 +101,7 @@ func TestSplitHeaderListValues(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(c.Expect, actual); len(diff) != 0 {
-				t.Errorf("expect values to match\n,%s", diff)
+				t.Errorf("expect match\n%s", diff)
 			}
 		})
 	}
