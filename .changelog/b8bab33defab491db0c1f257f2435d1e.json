@@ -1,0 +1,8 @@
+{
+    "id": "b8bab33d-efab-491d-b0c1-f257f2435d1e",
+    "type": "feature",
+    "description": "Updates deserialization of header list to supported quoted strings",
+    "modules": [
+        "."
+    ]
+}
