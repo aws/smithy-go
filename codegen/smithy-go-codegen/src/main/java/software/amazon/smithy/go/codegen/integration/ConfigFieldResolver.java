@@ -34,12 +34,14 @@ public final class ConfigFieldResolver {
     private final Target target;
     private final Symbol resolver;
     private final boolean withOperationName;
+    private final boolean withClientInput;
 
     private ConfigFieldResolver(Builder builder) {
         location = SmithyBuilder.requiredState("location", builder.location);
         target = SmithyBuilder.requiredState("target", builder.target);
         resolver = SmithyBuilder.requiredState("resolver", builder.resolver);
         withOperationName = builder.withOperationName;
+        withClientInput = builder.withClientInput;
     }
 
     public Location getLocation() {
@@ -58,6 +60,10 @@ public final class ConfigFieldResolver {
         return withOperationName && location == Location.OPERATION;
     }
 
+    public boolean isWithClientInput() {
+        return withClientInput && location == Location.OPERATION;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -72,8 +78,10 @@ public final class ConfigFieldResolver {
         }
         ConfigFieldResolver that = (ConfigFieldResolver) o;
         return location == that.location
-               && target == that.target
-               && resolver.equals(that.resolver);
+                && target == that.target
+                && resolver.equals(that.resolver)
+                && withOperationName == that.withOperationName
+                && withClientInput == that.withClientInput;
     }
 
     /**
@@ -120,6 +128,7 @@ public final class ConfigFieldResolver {
         private Target target;
         private Symbol resolver;
         private boolean withOperationName = false;
+        private boolean withClientInput = false;
 
         public Builder location(Location location) {
             this.location = location;
@@ -138,6 +147,11 @@ public final class ConfigFieldResolver {
 
         public Builder withOperationName(boolean withOperationName) {
             this.withOperationName = withOperationName;
+            return this;
+        }
+
+        public Builder withClientInput(boolean withClientInput) {
+            this.withClientInput = withClientInput;
             return this;
         }
 
