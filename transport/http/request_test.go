@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"net/http"
-	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,12 +29,7 @@ func TestRequestRewindable(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			req := &Request{
-				Request: &http.Request{
-					URL:    &url.URL{},
-					Header: http.Header{},
-				},
-			}
+			req := NewStackRequest().(*Request)
 
 			req, err := req.SetStream(c.Stream)
 			if err != nil {
@@ -104,6 +100,117 @@ func TestRequestBuild_contentLength(t *testing.T) {
 
 			if build.ContentLength != tt.Expected {
 				t.Errorf("expect %v, got %v", tt.Expected, build.ContentLength)
+			}
+		})
+	}
+}
+
+func TestRequestSetStream(t *testing.T) {
+	cases := map[string]struct {
+		reader                 io.Reader
+		expectSeekable         bool
+		expectStreamStartPos   int64
+		expectContentLength    int64
+		expectNilStream        bool
+		expectNilBody          bool
+		expectReqContentLength int64
+	}{
+		"nil stream": {
+			expectNilStream: true,
+			expectNilBody:   true,
+		},
+		"empty unseekable stream": {
+			reader:          bytes.NewBuffer([]byte{}),
+			expectNilStream: false,
+			expectNilBody:   true,
+		},
+		"empty seekable stream": {
+			reader:              bytes.NewReader([]byte{}),
+			expectContentLength: 0,
+			expectSeekable:      true,
+			expectNilStream:     false,
+			expectNilBody:       true,
+		},
+		"unseekable no len stream": {
+			reader:                 ioutil.NopCloser(bytes.NewBuffer([]byte("abc123"))),
+			expectContentLength:    -1,
+			expectNilStream:        false,
+			expectNilBody:          false,
+			expectReqContentLength: -1,
+		},
+		"unseekable stream": {
+			reader:                 bytes.NewBuffer([]byte("abc123")),
+			expectContentLength:    6,
+			expectNilStream:        false,
+			expectNilBody:          false,
+			expectReqContentLength: 6,
+		},
+		"seekable stream": {
+			reader:                 bytes.NewReader([]byte("abc123")),
+			expectContentLength:    6,
+			expectNilStream:        false,
+			expectSeekable:         true,
+			expectNilBody:          false,
+			expectReqContentLength: 6,
+		},
+		"offset seekable stream": {
+			reader: func() io.Reader {
+				r := bytes.NewReader([]byte("abc123"))
+				_, _ = r.Seek(1, os.SEEK_SET)
+				return r
+			}(),
+			expectStreamStartPos:   1,
+			expectContentLength:    5,
+			expectSeekable:         true,
+			expectNilStream:        false,
+			expectNilBody:          false,
+			expectReqContentLength: 5,
+		},
+		"NoBody stream": {
+			reader:          http.NoBody,
+			expectNilStream: true,
+			expectNilBody:   true,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			var err error
+			req := NewStackRequest().(*Request)
+			req, err = req.SetStream(c.reader)
+			if err != nil {
+				t.Fatalf("expect not error, got %v", err)
+			}
+
+			if e, a := c.expectSeekable, req.IsStreamSeekable(); e != a {
+				t.Errorf("expect %v seekable, got %v", e, a)
+			}
+			if e, a := c.expectStreamStartPos, req.streamStartPos; e != a {
+				t.Errorf("expect %v seek start position, got %v", e, a)
+			}
+			if e, a := c.expectNilStream, req.stream == nil; e != a {
+				t.Errorf("expect %v nil stream, got %v", e, a)
+			}
+
+			if l, ok, err := req.StreamLength(); err != nil {
+				t.Fatalf("expect no stream length error, got %v", err)
+			} else if ok {
+				req.ContentLength = l
+			}
+
+			if e, a := c.expectContentLength, req.ContentLength; e != a {
+				t.Errorf("expect %v content-length, got %v", e, a)
+			}
+			if e, a := c.expectStreamStartPos, req.streamStartPos; e != a {
+				t.Errorf("expect %v streamStartPos, got %v", e, a)
+			}
+
+			r := req.Build(context.Background())
+			if e, a := c.expectNilBody, r.Body == nil; e != a {
+				t.Errorf("expect %v request nil body, got %v", e, a)
+			}
+			if e, a := c.expectContentLength, req.ContentLength; e != a {
+				t.Errorf("expect %v request content-length, got %v", e, a)
 			}
 		})
 	}

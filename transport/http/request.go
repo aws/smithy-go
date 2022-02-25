@@ -108,6 +108,10 @@ func (r *Request) IsStreamSeekable() bool {
 func (r *Request) SetStream(reader io.Reader) (rc *Request, err error) {
 	rc = r.Clone()
 
+	if reader == http.NoBody {
+		reader = nil
+	}
+
 	switch v := reader.(type) {
 	case io.Seeker:
 		n, err := v.Seek(0, io.SeekCurrent)
@@ -139,7 +143,11 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 		req.Body = ioutil.NopCloser(stream)
 		req.ContentLength = -1
 	default:
-		if r.stream != nil {
+		// HTTP Client Request must only have a non-nil body if the
+		// ContentLength is explicitly unknown (-1) or non-zero. The HTTP
+		// Client will interpret a non-nil body and ContentLength 0 as
+		// "unknown". This is unwanted behavior.
+		if req.ContentLength != 0 && r.stream != nil {
 			req.Body = iointernal.NewSafeReadCloser(ioutil.NopCloser(stream))
 		}
 	}
