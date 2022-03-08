@@ -20,8 +20,12 @@ func TestRequestRewindable(t *testing.T) {
 		"rewindable": {
 			Stream: bytes.NewReader([]byte{}),
 		},
-		"not rewindable": {
-			Stream:    bytes.NewBuffer([]byte{}),
+		"empty not rewindable": {
+			Stream: bytes.NewBuffer([]byte{}),
+			// ExpectErr: "stream is not seekable",
+		},
+		"not empty not rewindable": {
+			Stream:    bytes.NewBuffer([]byte("abc123")),
 			ExpectErr: "stream is not seekable",
 		},
 		"nil stream": {},
@@ -121,7 +125,7 @@ func TestRequestSetStream(t *testing.T) {
 		},
 		"empty unseekable stream": {
 			reader:          bytes.NewBuffer([]byte{}),
-			expectNilStream: false,
+			expectNilStream: true,
 			expectNilBody:   true,
 		},
 		"empty seekable stream": {
