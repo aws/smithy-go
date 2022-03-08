@@ -1,8 +1,0 @@
-{
-    "id": "0271f0ea-2325-4cf6-8a4c-08e4c69fd6c8",
-    "type": "bugfix",
-    "description": "Updates the smithy-go HTTP Request to correctly handle building the request to an http.Request. Related to [aws/aws-sdk-go-v2#1583](https://github.com/aws/aws-sdk-go-v2/issues/1583)",
-    "modules": [
-        "."
-    ]
-}
