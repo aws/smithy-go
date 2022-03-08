@@ -35,7 +35,7 @@ func TestChecksumMiddleware(t *testing.T) {
 		"nil body": {},
 		"unseekable payload": {
 			payload:     bytes.NewBuffer([]byte(`xyz`)),
-			expectError: "error rewinding request stream",
+			expectError: "unseekable stream is not supported",
 		},
 	}
 
@@ -61,6 +61,7 @@ func TestChecksumMiddleware(t *testing.T) {
 				if e, a := c.expectError, err.Error(); !strings.Contains(a, e) {
 					t.Fatalf("expect error to contain %q, got %v", e, a)
 				}
+				return
 			} else if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
