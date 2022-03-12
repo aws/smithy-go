@@ -58,7 +58,7 @@ public class GoEventStreamIndex implements KnowledgeIndex {
                 eventStreamIndex.getOutputInfo(operationShape).ifPresent(eventStreamInfo -> {
                     ShapeId eventStreamTargetId = eventStreamInfo.getEventStreamTarget().getId();
                     if (serviceOutputStreams.containsKey(eventStreamTargetId)) {
-                        serviceInputStreams.get(eventStreamTargetId).add(eventStreamInfo);
+                        serviceOutputStreams.get(eventStreamTargetId).add(eventStreamInfo);
                     } else {
                         TreeSet<EventStreamInfo> infos = new TreeSet<>(
                                 Comparator.comparing(EventStreamInfo::getOperation));
