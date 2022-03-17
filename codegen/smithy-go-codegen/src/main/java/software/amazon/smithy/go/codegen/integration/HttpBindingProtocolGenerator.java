@@ -511,24 +511,24 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
         if (payloadShape.hasTrait(StreamingTrait.class)) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.write("payload := $L", s);
                         writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isBlobShape()) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.BYTES);
                         writer.write("payload := bytes.NewReader($L)", s);
                         writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isStringShape()) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.STRINGS);
                         if (payloadShape.hasTrait(EnumTrait.class)) {
                             writer.write("payload := strings.NewReader(string($L))", s);
