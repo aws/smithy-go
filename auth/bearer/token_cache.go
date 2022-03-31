@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	smithycontext "github.com/aws/smithy-go/context"
 	"github.com/aws/smithy-go/internal/sync/singleflight"
 )
 
@@ -99,6 +100,13 @@ func NewTokenCache(provider TokenProvider, optFns ...func(*TokenCacheOptions)) *
 // and not be canceled with the Context. Set RetrieveBearerTokenTimeout to
 // provide a timeout, preventing the underlying TokenProvider blocking forever.
 //
+// By default, if the passed in Context is canceled, all of its values will be
+// considered expired. The wrapped TokenProvider will not be able to lookup the
+// values from the Context once it is expired. This is done to protect against
+// expired values no longer being valid. To disable this behavior, use
+// smithy-go's context.WithPreserveExpiredValues to add a value to the Context
+// before calling RetrieveBearerToken to enable support for expired values.
+//
 // Without RetrieveBearerTokenTimeout there is the potential for a underlying
 // Provider's RetrieveBearerToken call to sit forever. Blocking in subsequent
 // attempts at refreshing the token.
@@ -157,7 +165,7 @@ func (p *TokenCache) tryAsyncRefresh(ctx context.Context) {
 
 func (p *TokenCache) refreshBearerToken(ctx context.Context) (Token, error) {
 	resCh := p.sfGroup.DoChan("refresh-token", func() (interface{}, error) {
-		var ctx context.Context = &suppressedContext{ctx}
+		ctx := smithycontext.WithSuppressCancel(ctx)
 		if v := p.options.RetrieveBearerTokenTimeout; v != 0 {
 			var cancel func()
 			ctx, cancel = context.WithTimeout(ctx, v)

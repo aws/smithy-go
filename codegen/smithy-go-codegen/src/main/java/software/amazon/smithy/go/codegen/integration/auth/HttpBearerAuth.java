@@ -47,7 +47,7 @@ public class HttpBearerAuth implements GoIntegration {
     private static final String SIGNER_OPTION_NAME = "BearerAuthSigner";
     private static final String NEW_DEFAULT_SIGNER_NAME = "newDefault" + SIGNER_OPTION_NAME;
     private static final String SIGNER_RESOLVER_NAME = "resolve" + SIGNER_OPTION_NAME;
-    private static final String REGISTER_MIDDLEWARE_NAME = "add";
+    private static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
 
     @Override
     public void writeAdditionalFiles(
@@ -63,7 +63,7 @@ public class HttpBearerAuth implements GoIntegration {
 
         goDelegator.useShapeWriter(service, (writer) -> {
             writeMiddlewareRegister(writer);
-            writeConfigFieldResolver(writer);
+            writeSignerConfigFieldResolver(writer);
             writeNewSignerFunc(writer);
         });
     }
@@ -88,13 +88,11 @@ public class HttpBearerAuth implements GoIntegration {
         writer.popState();
     }
 
-    private void writeConfigFieldResolver(GoWriter writer) {
+    private void writeSignerConfigFieldResolver(GoWriter writer) {
         writer.pushState();
 
         writer.putContext("funcName", SIGNER_RESOLVER_NAME);
-        writer.putContext("signer", SymbolUtils.createValueSymbolBuilder("TokenProvider",
-                SmithyGoDependency.SMITHY_AUTH_BEARER).build());
-
+        writer.putContext("signerOption", SIGNER_OPTION_NAME);
         writer.putContext("newDefaultSigner", NEW_DEFAULT_SIGNER_NAME);
 
         writer.write("""
@@ -102,7 +100,7 @@ public class HttpBearerAuth implements GoIntegration {
                     if o.$signerOption:L != nil {
                         return
                     }
-                    o.$signerOption:L = $newDefaultSigner(*o)
+                    o.$signerOption:L = $newDefaultSigner:L(*o)
                 }
                 """);
 
@@ -113,7 +111,7 @@ public class HttpBearerAuth implements GoIntegration {
         writer.pushState();
 
         writer.putContext("funcName", NEW_DEFAULT_SIGNER_NAME);
-        writer.putContext("signer", SymbolUtils.createValueSymbolBuilder("TokenProvider",
+        writer.putContext("signerInterface", SymbolUtils.createValueSymbolBuilder("Signer",
                 SmithyGoDependency.SMITHY_AUTH_BEARER).build());
 
         // TODO this is HTTP specific, should be based on protocol/transport of API.
@@ -121,7 +119,7 @@ public class HttpBearerAuth implements GoIntegration {
                 SmithyGoDependency.SMITHY_AUTH_BEARER).build());
 
         writer.write("""
-                func $funcName:L(o Options) *$signer:T {
+                func $funcName:L(o Options) $signerInterface:T {
                     return $newDefaultSigner:T()
                 }
                 """);
@@ -161,7 +159,7 @@ public class HttpBearerAuth implements GoIntegration {
                         .operationPredicate(HttpBearerAuth::hasBearerAuthScheme)
                         .registerMiddleware(MiddlewareRegistrar.builder()
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
-                                       REGISTER_MIDDLEWARE_NAME).build())
+                                        REGISTER_MIDDLEWARE_NAME).build())
                                 .useClientOptions()
                                 .build())
                         .build()

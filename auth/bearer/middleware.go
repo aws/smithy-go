@@ -85,8 +85,13 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 // not HTTPS.
 type SignHTTPSMessage struct{}
 
+// NewSignHTTPSMessage returns an initialized signer for HTTP messages.
+func NewSignHTTPSMessage() *SignHTTPSMessage {
+	return &SignHTTPSMessage{}
+}
+
 // SignWithBearerToken returns a copy of the HTTP request with the bearer token
-// added via the "Authorization" header, per [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750).
+// added via the "Authorization" header, per RFC 6750, https://datatracker.ietf.org/doc/html/rfc6750.
 //
 // Returns an error if the request's URL scheme is not HTTPS, or the request
 // message is not an smithy-go HTTP Request pointer type.
