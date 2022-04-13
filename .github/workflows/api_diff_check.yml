@@ -24,7 +24,7 @@ jobs:
 
     - name: Get dependencies
       run: |
-        (cd /tmp && go get golang.org/x/exp/cmd/gorelease@latest)
+        (cd /tmp && go install golang.org/x/exp/cmd/gorelease@latest)
 
     - name: Check APIs
       run: $(go env GOPATH)/bin/gorelease
