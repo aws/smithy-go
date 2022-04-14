@@ -184,12 +184,12 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
-            writeRequestHeaders(context, operation, writer);
-            writer.write("");
 
-            Optional<EventStreamInfo> inputInfo = EventStreamIndex.of(model).getInputInfo(operation);
+            Optional<EventStreamInfo> optionalEventStreamInfo = EventStreamIndex.of(model).getInputInfo(operation);
             // Skip and Handle Input Event Stream Setup Separately
-            if (inputInfo.isEmpty()) {
+            if (optionalEventStreamInfo.isEmpty()) {
+                writeRequestHeaders(context, operation, writer);
+                writer.write("");
                 // delegate the setup and usage of the document serializer function for the protocol
                 serializeInputDocument(context, operation);
                 // Skipping calling serializer method for the input shape is responsibility of the
@@ -198,7 +198,8 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                     serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
                 }
             } else {
-                writeOperationSerializerMiddlewareEventStreamSetup(context, inputInfo.get());
+                writeDefaultHeaders(context, operation, writer);
+                writeOperationSerializerMiddlewareEventStreamSetup(context, optionalEventStreamInfo.get());
             }
 
             writer.write("");
