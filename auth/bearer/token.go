@@ -13,7 +13,7 @@ type Token struct {
 	Expires   time.Time
 }
 
-// IsExpired returns if the token's Expires time is before or equal to the time
+// Expired returns if the token's Expires time is before or equal to the time
 // provided. If CanExpires is false, Expired will always return false.
 func (t Token) Expired(now time.Time) bool {
 	if !t.CanExpire {
