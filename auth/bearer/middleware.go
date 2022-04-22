@@ -18,14 +18,6 @@ type Signer interface {
 	SignWithBearerToken(context.Context, Token, Message) (Message, error)
 }
 
-// // SignerFunc provides a wrapper around a function to implement the Signer interface.
-// type SignerFunc func(context.Context, Token, Message) (Message, error)
-//
-// // SignWithBearerToken invokes the wrapped function to satisfy the Signer interface.
-// func (fn SignerFunc) SignWithBearerToken(ctx context.Context, token Token, message Message) (Message, error) {
-// 	return fn(ctx, token, message)
-// }
-
 // AuthenticationMiddleware provides the Finalize middleware step for signing
 // an request message with a bearer token.
 type AuthenticationMiddleware struct {

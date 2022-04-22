@@ -159,7 +159,7 @@ func TestTokenCache_cancelled(t *testing.T) {
 	}))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	cancel()
 
 	// Retrieve that will have its context canceled, should return error, but
 	// underlying provider retrieve will continue to block in the background.
@@ -181,7 +181,6 @@ func TestTokenCache_cancelled(t *testing.T) {
 	}()
 
 	<-providerRunning
-	cancel()
 
 	// Retrieve that will be added to existing single flight group, (or create
 	// a new group). Returning valid token.

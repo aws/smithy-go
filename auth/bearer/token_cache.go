@@ -25,7 +25,6 @@ type TokenCacheOptions struct {
 	// flight, the next call to RetrieveBearerToken will block on that refresh
 	// to return.
 	RefreshBeforeExpires time.Duration
-	// TODO probably need RefreshBeforeExpires jitter factor
 
 	// The timeout the underlying TokenProvider's RetrieveBearerToken call must
 	// return within, or will be canceled. Defaults to 0, no timeout.
@@ -207,15 +206,3 @@ func (p *TokenCache) getCachedToken() (Token, bool) {
 
 	return *t, true
 }
-
-type suppressedContext struct {
-	context.Context
-}
-
-func (s *suppressedContext) Deadline() (deadline time.Time, ok bool) {
-	return time.Time{}, false
-}
-
-func (s *suppressedContext) Done() <-chan struct{} { return nil }
-
-func (s *suppressedContext) Err() error { return nil }

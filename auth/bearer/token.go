@@ -19,7 +19,8 @@ func (t Token) Expired(now time.Time) bool {
 	if !t.CanExpire {
 		return false
 	}
-	return now.Round(0).Equal(t.Expires) || now.After(t.Expires)
+	now = now.Round(0)
+	return now.Equal(t.Expires) || now.After(t.Expires)
 }
 
 // TokenProvider provides interface for retrieving bearer tokens.
