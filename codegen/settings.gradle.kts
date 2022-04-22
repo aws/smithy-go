@@ -20,6 +20,7 @@ include(":smithy-go-codegen-test")
 pluginManagement {
     repositories {
         mavenLocal()
+        mavenCentral()
         gradlePluginPortal()
     }
 }
