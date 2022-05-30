@@ -28,7 +28,7 @@ import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SyntheticClone;
+import software.amazon.smithy.go.codegen.Synthetic;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -205,7 +205,7 @@ public interface ProtocolGenerator {
     static String getDocumentSerializerFunctionName(Shape shape, ServiceShape service, String protocol) {
         String name = shape.getId().getName(service);
         String extra = "";
-        if (shape.hasTrait(SyntheticClone.class)) {
+        if (shape.hasTrait(Synthetic.class)) {
             extra = "Op";
         }
         return protocol + "_serialize" + extra + "Document" + StringUtils.capitalize(name);
@@ -222,7 +222,7 @@ public interface ProtocolGenerator {
     static String getDocumentDeserializerFunctionName(Shape shape, ServiceShape service, String protocol) {
         String name = shape.getId().getName(service);
         String extra = "";
-        if (shape.hasTrait(SyntheticClone.class)) {
+        if (shape.hasTrait(Synthetic.class)) {
             extra = "Op";
         }
         return protocol + "_deserialize" + extra + "Document" + StringUtils.capitalize(name);

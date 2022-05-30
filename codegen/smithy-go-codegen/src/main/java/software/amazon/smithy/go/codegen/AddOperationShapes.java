@@ -82,7 +82,7 @@ public final class AddOperationShapes {
     private static StructureShape emptyOperationStructure(ServiceShape service, ShapeId opShapeId, String suffix) {
         return StructureShape.builder()
                 .id(ShapeId.fromParts(CodegenUtils.getSyntheticTypeNamespace(), opShapeId.getName(service) + suffix))
-                .addTrait(SyntheticClone.builder().build())
+                .addTrait(Synthetic.builder().build())
                 .build();
     }
 
@@ -100,7 +100,7 @@ public final class AddOperationShapes {
 
         AbstractShapeBuilder builder = Shape.shapeToBuilder(shape)
                 .id(cloneShapeId)
-                .addTrait(SyntheticClone.builder()
+                .addTrait(Synthetic.builder()
                         .archetype(shape.getId())
                         .build());
 

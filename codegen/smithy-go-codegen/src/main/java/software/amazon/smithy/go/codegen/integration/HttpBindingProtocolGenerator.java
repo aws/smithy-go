@@ -184,7 +184,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         Optional<EventStreamInfo> streamInfo = EventStreamIndex.of(context.getModel()).getInputInfo(operation);
 
-        if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))
+        if (!CodegenUtils.isStubSynthetic(ProtocolUtils.expectInput(context.getModel(), operation))
                 && streamInfo.isEmpty()) {
             generateOperationDocumentSerializer(context, operation);
             addOperationDocumentShapeBindersForSerializer(context, operation);
@@ -288,7 +288,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // Don't consider serializing the body if the input shape is a stubbed synthetic clone, without an
             // archetype.
-            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(model, operation))) {
+            if (!CodegenUtils.isStubSynthetic(ProtocolUtils.expectInput(model, operation))) {
                 Optional<EventStreamInfo> eventStreamInfo = EventStreamIndex.of(model).getInputInfo(operation);
 
                 // document bindings vs payload bindings vs event streams
@@ -405,7 +405,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             // Discard without deserializing the response if the input shape is a stubbed synthetic clone
             // without an archetype.
-            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))
+            if (CodegenUtils.isStubSynthetic(ProtocolUtils.expectOutput(model, operation))
                     && streamInfoOptional.isEmpty()) {
                 writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}", () -> {
@@ -1072,7 +1072,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             Optional<EventStreamInfo> streamInfo = streamIndex.getOutputInfo(operation);
 
-            if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(context.getModel(), operation))
+            if (!CodegenUtils.isStubSynthetic(ProtocolUtils.expectOutput(context.getModel(), operation))
                     && streamInfo.isEmpty()) {
                 generateOperationDocumentDeserializer(context, operation);
                 addOperationDocumentShapeBindersForDeserializer(context, operation);

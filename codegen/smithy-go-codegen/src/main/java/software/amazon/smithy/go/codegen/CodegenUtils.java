@@ -154,14 +154,14 @@ public final class CodegenUtils {
      * @param shape the shape to check if its a stubbed synthetic clone without an archetype.
      * @return if the shape is synthetic clone, but not based on a specific shape.
      */
-    public static boolean isStubSyntheticClone(Shape shape) {
-        Optional<SyntheticClone> optional = shape.getTrait(SyntheticClone.class);
+    public static boolean isStubSynthetic(Shape shape) {
+        Optional<Synthetic> optional = shape.getTrait(Synthetic.class);
         if (!optional.isPresent()) {
             return false;
         }
 
-        SyntheticClone synthClone = optional.get();
-        return !synthClone.getArchetype().isPresent();
+        Synthetic synth = optional.get();
+        return !synth.getArchetype().isPresent();
     }
 
     /**

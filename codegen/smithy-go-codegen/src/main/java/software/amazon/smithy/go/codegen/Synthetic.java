@@ -29,14 +29,14 @@ import software.amazon.smithy.utils.ToSmithyBuilder;
  * <p>
  * Must only be used as a runtime trait-only applied to shapes based on model processing
  */
-public final class SyntheticClone extends AbstractTrait implements ToSmithyBuilder<SyntheticClone> {
-    public static final ShapeId ID = ShapeId.from("smithy.go.traits#SyntheticClone");
+public final class Synthetic extends AbstractTrait implements ToSmithyBuilder<Synthetic> {
+    public static final ShapeId ID = ShapeId.from("smithy.go.traits#Synthetic");
 
     private static final String ARCHETYPE = "archetype";
 
     private final Optional<ShapeId> archetype;
 
-    private SyntheticClone(Builder builder) {
+    private Synthetic(Builder builder) {
         super(ID, builder.getSourceLocation());
         this.archetype = builder.archetype;
     }
@@ -56,7 +56,7 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
     }
 
     @Override
-    public SmithyBuilder<SyntheticClone> toBuilder() {
+    public SmithyBuilder<Synthetic> toBuilder() {
         Builder builder = builder();
         getArchetype().ifPresent(builder::archetype);
 
@@ -64,24 +64,24 @@ public final class SyntheticClone extends AbstractTrait implements ToSmithyBuild
     }
 
     /**
-     * @return Returns a builder used to create {@link SyntheticClone}.
+     * @return Returns a builder used to create {@link Synthetic}.
      */
     public static Builder builder() {
         return new Builder();
     }
 
     /**
-     * Builder for {@link SyntheticClone}.
+     * Builder for {@link Synthetic}.
      */
-    public static final class Builder extends AbstractTraitBuilder<SyntheticClone, Builder> {
+    public static final class Builder extends AbstractTraitBuilder<Synthetic, Builder> {
         private Optional<ShapeId> archetype = Optional.empty();
 
         private Builder() {
         }
 
         @Override
-        public SyntheticClone build() {
-            return new SyntheticClone(this);
+        public Synthetic build() {
+            return new Synthetic(this);
         }
 
         public Builder archetype(ShapeId archetype) {
