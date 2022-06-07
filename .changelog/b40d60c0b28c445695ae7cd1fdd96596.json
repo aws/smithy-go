@@ -1,8 +1,0 @@
-{
-    "id": "b40d60c0-b28c-4456-95ae-7cd1fdd96596",
-    "type": "dependency",
-    "description": "Updates smithy-go unit test dependency go-cmp to 0.5.8.",
-    "modules": [
-        "."
-    ]
-}
