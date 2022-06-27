@@ -476,11 +476,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param payloadShape the payload shape.
      */
     protected void writeSetPayloadShapeHeader(GoWriter writer, Shape payloadShape) {
+        writer.pushState();
+
+        writer.putContext("withIsDefaultContentType", SymbolUtils.createValueSymbolBuilder(
+                "SetIsContentTypeDefaultValue", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build());
+        writer.putContext("payloadMediaType", getPayloadShapeMediaType(payloadShape));
+
         writer.write("""
                 if !restEncoder.HasHeader("Content-Type") {
-                    restEncoder.SetHeader("Content-Type").String($S)
+                    ctx = $withIsDefaultContentType:T(ctx, true)
+                    restEncoder.SetHeader("Content-Type").String($payloadMediaType:S)
                 }
-                """, getPayloadShapeMediaType(payloadShape));
+                """);
+
+        writer.popState();
     }
 
     /**
