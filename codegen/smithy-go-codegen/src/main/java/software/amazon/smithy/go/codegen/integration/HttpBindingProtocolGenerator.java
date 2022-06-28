@@ -476,11 +476,20 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
      * @param payloadShape the payload shape.
      */
     protected void writeSetPayloadShapeHeader(GoWriter writer, Shape payloadShape) {
+        writer.pushState();
+
+        writer.putContext("withIsDefaultContentType", SymbolUtils.createValueSymbolBuilder(
+                "SetIsContentTypeDefaultValue", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build());
+        writer.putContext("payloadMediaType", getPayloadShapeMediaType(payloadShape));
+
         writer.write("""
                 if !restEncoder.HasHeader("Content-Type") {
-                    restEncoder.SetHeader("Content-Type").String($S)
+                    ctx = $withIsDefaultContentType:T(ctx, true)
+                    restEncoder.SetHeader("Content-Type").String($payloadMediaType:S)
                 }
-                """, getPayloadShapeMediaType(payloadShape));
+                """);
+
+        writer.popState();
     }
 
     /**
@@ -511,24 +520,24 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
         if (payloadShape.hasTrait(StreamingTrait.class)) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.write("payload := $L", s);
                         writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isBlobShape()) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.BYTES);
                         writer.write("payload := bytes.NewReader($L)", s);
                         writeSetStream(writer, "payload");
                     });
         } else if (payloadShape.isStringShape()) {
+            writeSetPayloadShapeHeader(writer, payloadShape);
             GoValueAccessUtils.writeIfNonZeroValueMember(context.getModel(), context.getSymbolProvider(), writer,
                     memberShape, "input", (s) -> {
-                        writeSetPayloadShapeHeader(writer, payloadShape);
                         writer.addUseImports(SmithyGoDependency.STRINGS);
                         if (payloadShape.hasTrait(EnumTrait.class)) {
                             writer.write("payload := strings.NewReader(string($L))", s);
