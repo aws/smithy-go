@@ -1,8 +1,0 @@
-{
-    "id": "c1435149-a35b-4c4e-9fd8-b919f90bca32",
-    "type": "feature",
-    "description": "`transport/http`: Add utility for setting context metadata when operation serializer automatically assigns content-type default value.",
-    "modules": [
-        "."
-    ]
-}
