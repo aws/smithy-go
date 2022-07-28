@@ -159,6 +159,7 @@ structure GetCityInput {
     // has to be marked as required.
     @required
     @httpLabel
+    @jsonName("city-id")
     cityId: CityId,
 }
 

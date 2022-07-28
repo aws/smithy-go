@@ -25,6 +25,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -113,7 +114,17 @@ final class StructureGenerator implements Runnable {
                                 .orElse(memberSymbol);
                     }
 
-                    writer.write("$L $P", memberName, memberSymbol);
+                    String jsonTag = "";
+                    if (member.hasTrait(JsonNameTrait.ID)) {
+                        jsonTag = member.getMemberTrait(model, JsonNameTrait.class).get().getValue();
+                    }
+
+                    if (!jsonTag.isEmpty()) {
+                        writer.write("$L $P `json:\"$L\"`", memberName, memberSymbol, jsonTag);
+                    } else {
+                        writer.write("$L $P", memberName, memberSymbol);
+                    }
+
                 });
 
         runnable.run();
