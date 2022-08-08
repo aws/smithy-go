@@ -6,16 +6,44 @@ import (
 )
 
 func TestEscapeStringBytes(t *testing.T) {
-	jsonEncoder := NewEncoder()
-	object := jsonEncoder.Object()
-
-	object.Key("foo\"").String("bar")
-	object.Key("faz").String("baz")
-	object.Close()
-
-	expected := []byte(`{"foo\"":"bar","faz":"baz"}`)
-	actual := object.w.Bytes()
-	if bytes.Compare(expected, actual) != 0 {
-		t.Errorf("expected %+q, but got %+q", expected, actual)
+	cases := map[string]struct {
+		expected string
+		input    []byte
+	}{
+		"safeSet only": {
+			expected: `"mountainPotato"`,
+			input:    []byte("mountainPotato"),
+		},
+		"parenthesis": {
+			expected: `"foo\""`,
+			input:    []byte(`foo"`),
+		},
+		"double escape": {
+			expected: `"hello\\\\world"`,
+			input:    []byte(`hello\\world`),
+		},
+		"new line": {
+			expected: `"foo\\nbar"`,
+			input:    []byte(`foo\nbar`),
+		},
+		"carriage return": {
+			expected: `"foo\\rbar"`,
+			input:    []byte(`foo\rbar`),
+		},
+		"tab": {
+			expected: `"foo\\tbar"`,
+			input:    []byte(`foo\tbar`),
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			escapeStringBytes(&buffer, c.input)
+			expected := c.expected
+			actual := buffer.String()
+			if expected != actual {
+				t.Errorf("\nexpected %v \nactual %v", expected, actual)
+			}
+		})
 	}
 }
