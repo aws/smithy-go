@@ -23,16 +23,16 @@ func TestEscapeStringBytes(t *testing.T) {
 			input:    []byte(`hello\\world`),
 		},
 		"new line": {
-			expected: `"foo\\nbar"`,
-			input:    []byte(`foo\nbar`),
+			expected: `"foo\nbar"`,
+			input:    []byte("foo\nbar"),
 		},
 		"carriage return": {
-			expected: `"foo\\rbar"`,
-			input:    []byte(`foo\rbar`),
+			expected: `"foo\rbar"`,
+			input:    []byte("foo\rbar"),
 		},
 		"tab": {
-			expected: `"foo\\tbar"`,
-			input:    []byte(`foo\tbar`),
+			expected: `"foo\tbar"`,
+			input:    []byte("foo\tbar"),
 		},
 	}
 	for name, c := range cases {
