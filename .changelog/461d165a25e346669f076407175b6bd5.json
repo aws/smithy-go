@@ -1,8 +1,0 @@
-{
-    "id": "461d165a-25e3-4666-9f07-6407175b6bd5",
-    "type": "bugfix",
-    "description": "Fixes a bug where JSON object keys were not escaped.",
-    "modules": [
-        "."
-    ]
-}
