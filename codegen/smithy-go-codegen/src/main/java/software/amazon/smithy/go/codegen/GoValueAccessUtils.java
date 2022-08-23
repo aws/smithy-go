@@ -72,6 +72,8 @@ public final class GoValueAccessUtils {
         } else if (container instanceof CollectionShape || container.getType() == ShapeType.MAP) {
             if (!ignoreEmptyString && targetShape.getType() == ShapeType.STRING) {
                 check = String.format("if len(%s) > 0 {", operand);
+            } else if (!ignoreEmptyString && targetShape.getType() == ShapeType.ENUM) {
+                check = String.format("if len(%s) > 0 {", operand);
             }
         } else if (targetShape.hasTrait(EnumTrait.class)) {
             check = String.format("if len(%s) > 0 {", operand);

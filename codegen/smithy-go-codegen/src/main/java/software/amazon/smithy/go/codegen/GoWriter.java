@@ -31,6 +31,7 @@ import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.go.codegen.knowledge.GoUsageIndex;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
@@ -348,20 +349,30 @@ public final class GoWriter extends CodeWriter {
         }
 
         Optional<DeprecatedTrait> deprecatedTrait = member.getMemberTrait(model, DeprecatedTrait.class);
-        if (deprecatedTrait.isPresent()) {
+        if (member.getTrait(DeprecatedTrait.class).isPresent() || isTargetDeprecated(model, member)) {
             if (hasDocs) {
                 writeDocs("");
             }
             final String defaultMessage = "This member has been deprecated.";
-            writeDocs("Deprecated: " + deprecatedTrait.get().getMessage().map(s -> {
-                if (s.length() == 0) {
-                    return defaultMessage;
-                }
-                return s;
-            }).orElse(defaultMessage));
+            String message = defaultMessage;
+            if (deprecatedTrait.isPresent()) {
+                message = deprecatedTrait.get().getMessage().map(s -> {
+                    if (s.length() == 0) {
+                        return defaultMessage;
+                    }
+                    return s;
+                }).orElse(defaultMessage);
+            }
+            writeDocs("Deprecated: " + message);
         }
 
         return hasDocs;
+    }
+
+    private boolean isTargetDeprecated(Model model, MemberShape member) {
+        return model.expectShape(member.getTarget()).getTrait(DeprecatedTrait.class).isPresent()
+                // don't consider deprecated prelude shapes (like PrimitiveBoolean)
+                && !Prelude.isPreludeShape(member.getTarget());
     }
 
     @Override

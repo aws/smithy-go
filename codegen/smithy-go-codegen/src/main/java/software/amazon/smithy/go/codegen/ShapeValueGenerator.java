@@ -289,6 +289,10 @@ public final class ShapeValueGenerator {
                 funcName = "String";
                 break;
 
+            case ENUM:
+                funcName = target.getId().getName();
+                break;
+
             case TIMESTAMP:
                 funcName = "Time";
                 break;
@@ -359,6 +363,12 @@ public final class ShapeValueGenerator {
                     writer.writeInline("$T(", enumSymbol);
                     closing = ")";
                 }
+                break;
+            case ENUM:
+                // Enum are not pointers, but string alias values
+                Symbol enumSymbol = symbolProvider.toSymbol(target);
+                writer.writeInline("$T(", enumSymbol);
+                closing = ")";
                 break;
 
             default:
@@ -691,6 +701,10 @@ public final class ShapeValueGenerator {
             switch (currentShape.getType()) {
                 case BLOB:
                 case STRING:
+                    writer.writeInline("$S", node.getValue());
+                    break;
+
+                case ENUM:
                     writer.writeInline("$S", node.getValue());
                     break;
 

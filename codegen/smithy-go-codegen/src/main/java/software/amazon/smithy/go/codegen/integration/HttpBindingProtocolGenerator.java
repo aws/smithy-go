@@ -753,6 +753,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 operand = targetShape.hasTrait(EnumTrait.class) ? "string(" + operand + ")" : operand;
                 locationEncoder.accept(writer, "String(" + operand + ")");
                 break;
+            case ENUM:
+                operand = "string(" + operand + ")";
+                locationEncoder.accept(writer, "String(" + operand + ")");
+                break;
             case TIMESTAMP:
                 generateHttpBindingTimestampSerializer(model, writer, memberShape, location, operand, locationEncoder);
                 break;
@@ -1161,6 +1165,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     return "string(b)";
                 }
                 return operand;
+            case ENUM:
+                value = String.format("types.%s(%s)", targetShape.getId().getName(), operand);
+                return value;
             case BOOLEAN:
                 writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseBool($L)", operand);
