@@ -3,7 +3,7 @@
     "plugins": {
         "go-codegen": {
             "service": "example.weather#Weather",
-            "module": "weather",
+            "module": "github.com/aws/smithy-go/internal/tests/service/weather",
             "moduleVersion": "0.0.1"
         }
     }
