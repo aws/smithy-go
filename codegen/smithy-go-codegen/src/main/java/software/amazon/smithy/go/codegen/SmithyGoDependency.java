@@ -60,6 +60,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
     public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");
+    public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");

@@ -6,6 +6,7 @@ use smithy.test#httpResponseTests
 use smithy.waiters#waitable
 
 /// Provides weather forecasts.
+@httpBearerAuth
 @fakeProtocol
 @paginated(inputToken: "nextToken", outputToken: "nextToken", pageSize: "pageSize")
 service Weather {
