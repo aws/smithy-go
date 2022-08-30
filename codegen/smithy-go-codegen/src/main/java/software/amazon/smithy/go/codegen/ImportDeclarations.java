@@ -27,16 +27,28 @@ final class ImportDeclarations {
 
     private final Map<String, String> imports = new TreeMap<>();
 
-    ImportDeclarations addImport(String packageName, String alias) {
-        String importedName = CodegenUtils.getDefaultPackageImportName(packageName);
+    ImportDeclarations addImport(String importPath, String alias) {
+        String importAlias = CodegenUtils.getDefaultPackageImportName(importPath);
         if (!StringUtils.isBlank(alias)) {
             if (alias.equals(".")) {
                 // Global imports are generally a bad practice.
-                throw new CodegenException("Globally importing packages is forbidden: " + packageName);
+                throw new CodegenException("Globally importing packages is forbidden: " + importPath);
             }
-            importedName = alias;
+            importAlias = alias;
         }
-        imports.putIfAbsent(importedName, packageName);
+        // Ensure that multiple packages cannot be imported with the same name.
+        if (imports.containsKey(importAlias) && !imports.get(importAlias).equals(importPath)) {
+            throw new CodegenException("Import name collision: " + importAlias
+                    + ". Previous: " + imports.get(importAlias) + "New: " + importPath);
+        }
+        imports.putIfAbsent(importAlias, importPath);
+        return this;
+    }
+
+    ImportDeclarations addImports(ImportDeclarations other) {
+        other.imports.forEach((importAlias, importPath) -> {
+            addImport(importPath, importAlias);
+        });
         return this;
     }
 
