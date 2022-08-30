@@ -15,14 +15,16 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.net.URL;
+import static software.amazon.smithy.go.codegen.testutils.ExecuteCommand.execute;
+
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.junit.jupiter.api.Test;
 
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
+import software.amazon.smithy.go.codegen.testutils.ExecuteCommand;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.node.ObjectNode;
@@ -108,4 +110,51 @@ public class TestUtils {
             .build();
     }
 
+    /**
+     * Returns the path for the repository's root relative to the smithy-go-codegen module.
+     * @return repo root.
+     */
+    public static Path getRepoRootDir() {
+        return Path.of(System.getProperty("user.dir"))
+                .resolve("..")
+                .resolve("..")
+                .toAbsolutePath();
+    }
+
+    /**
+     * Returns true if the go command can be executed.
+     * @return go command can be executed.
+     */
+    public static boolean hasGoInstalled() {
+        try{
+            ExecuteCommand.builder()
+                    .addCommand("go", "version")
+                    .build()
+                    .execute();
+        } catch (Exception e) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static void makeGoModule(Path path) throws Exception {
+        var repoRoot = getRepoRootDir();
+        execute(repoRoot.toFile(),
+                "go", "run",
+                "github.com/awslabs/aws-go-multi-module-repository-tools/cmd/gomodgen@latest",
+                "--build", path.resolve("..").toAbsolutePath().toString(),
+                "--plugin-dir", path.getFileName().toString(),
+                "--copy-artifact=false",
+                "--prepare-target-dir=false"
+        );
+
+        execute(path.toFile(), "go", "mod", "edit", "--replace", "github.com/aws/smithy-go="+repoRoot);
+        execute(path.toFile(), "go", "mod", "tidy");
+        execute(path.toFile(), "gofmt", "-w", "-s", ".");
+    }
+
+    public static void testGoModule(Path path) throws Exception {
+        execute(path.toFile(), "go", "test", "-v", "./...");
+    }
 }
