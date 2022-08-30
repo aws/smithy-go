@@ -1,4 +1,4 @@
-$version: "1.0"
+$version: "2.0"
 namespace example.weather
 
 use smithy.test#httpRequestTests
@@ -190,7 +190,7 @@ structure GetCityOutput {
 // This structure is nested within GetCityOutput.
 structure CityCoordinates {
     @required
-    latitude: PrimitiveFloat,
+    latitude: Float,
 
     @required
     longitude: Float,
@@ -310,15 +310,18 @@ structure ListCitiesInput {
     pageSize: Integer
 }
 
-structure ListCitiesOutput {
-    nextToken: String,
-
+@mixin
+structure ListCitiesMixin {
     someEnum: SimpleYesNo,
     aString: String,
     defaultBool: DefaultBool,
     boxedBool: Boolean,
     defaultNumber: DefaultInteger,
     boxedNumber: Integer,
+}
+
+structure ListCitiesOutput with [ListCitiesMixin] {
+    nextToken: String,
 
     @required
     items: CitySummaries,
@@ -381,8 +384,8 @@ structure GetForecastOutput {
 }
 
 union Precipitation {
-    rain: PrimitiveBoolean,
-    sleet: PrimitiveBoolean,
+    rain: Boolean,
+    sleet: Boolean,
     hail: StringMap,
     snow: SimpleYesNo,
     mixed: TypedYesNo,
@@ -394,11 +397,15 @@ union Precipitation {
 
 structure OtherStructure {}
 
-@enum([{value: "YES"}, {value: "NO"}])
-string SimpleYesNo
+enum SimpleYesNo {
+    YES
+    NO
+}
 
-@enum([{value: "YES", name: "YES"}, {value: "NO", name: "NO"}])
-string TypedYesNo
+enum TypedYesNo {
+    YES = "YES"
+    NO = "NO"
+}
 
 map StringMap {
     key: String,
@@ -436,7 +443,7 @@ structure PNGImage {
 
 structure GetCityImageOutput {
     @httpPayload
-    image: CityImageData,
+    image: CityImageData = "",
 }
 
 @streaming
