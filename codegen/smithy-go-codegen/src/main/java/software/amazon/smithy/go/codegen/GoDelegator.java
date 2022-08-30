@@ -15,56 +15,24 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.SymbolReference;
-import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
- * Manages writers for Go files.
+ * Manages writers for Go files.Based off of GoWriterDelegator adding support
+ * for getting shape specific GoWriters.
  */
-public final class GoDelegator {
-
-    private final GoSettings settings;
-    private final Model model;
-    private final FileManifest fileManifest;
+public final class GoDelegator extends GoWriterDelegator {
     private final SymbolProvider symbolProvider;
-    private final Map<String, GoWriter> writers = new HashMap<>();
 
-    GoDelegator(GoSettings settings, Model model, FileManifest fileManifest, SymbolProvider symbolProvider) {
-        this.settings = settings;
-        this.model = model;
-        this.fileManifest = fileManifest;
+    GoDelegator(FileManifest fileManifest, SymbolProvider symbolProvider) {
+        super(fileManifest);
+
         this.symbolProvider = symbolProvider;
-    }
-
-    /**
-     * Writes all pending writers to disk and then clears them out.
-     */
-    void flushWriters() {
-        writers.forEach((filename, writer) -> fileManifest.writeFile(filename, writer.toString()));
-        writers.clear();
-    }
-
-    /**
-     * Gets all of the dependencies that have been registered in writers owned by the
-     * delegator.
-     *
-     * @return Returns all the dependencies.
-     */
-    List<SymbolDependency> getDependencies() {
-        List<SymbolDependency> resolved = new ArrayList<>();
-        writers.values().forEach(s -> resolved.addAll(s.getDependencies()));
-        return resolved;
     }
 
     /**
@@ -138,29 +106,5 @@ public final class GoDelegator {
         writer.pushState();
         writerConsumer.accept(writer);
         writer.popState();
-    }
-
-    /**
-     * Gets a previously created writer or creates a new one if needed
-     * and adds a new line if the writer already exists.
-     *
-     * @param filename       Name of the file to create.
-     * @param writerConsumer Consumer that accepts and works with the file.
-     */
-    void useFileWriter(String filename, String namespace, Consumer<GoWriter> writerConsumer) {
-        writerConsumer.accept(checkoutWriter(filename, namespace));
-    }
-
-    private GoWriter checkoutWriter(String filename, String namespace) {
-        String formattedFilename = Paths.get(filename).normalize().toString();
-        boolean needsNewline = writers.containsKey(formattedFilename);
-
-        GoWriter writer = writers.computeIfAbsent(formattedFilename, f -> new GoWriter(namespace));
-
-        if (needsNewline) {
-            writer.write("\n");
-        }
-
-        return writer;
     }
 }

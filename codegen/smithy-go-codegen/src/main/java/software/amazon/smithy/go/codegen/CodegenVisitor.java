@@ -142,7 +142,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 ? ApplicationProtocol.createDefaultHttpApplicationProtocol()
                 : protocolGenerator.getApplicationProtocol();
 
-        writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
+        writers = new GoDelegator(fileManifest, symbolProvider);
 
         protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
 
@@ -155,7 +155,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             ServiceShape service,
             GoSettings settings
     ) {
-        // Collect all of the supported protocol generators.
+        // Collect all the supported protocol generators.
         Map<ShapeId, ProtocolGenerator> generators = new HashMap<>();
         for (GoIntegration integration : integrations) {
             for (ProtocolGenerator generator : integration.getProtocolGenerators()) {
@@ -163,7 +163,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         }
 
-        ServiceIndex serviceIndex = model.getKnowledge(ServiceIndex.class);
+        ServiceIndex serviceIndex = ServiceIndex.of(model);
 
         ShapeId protocolTrait;
         try {

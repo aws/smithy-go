@@ -18,11 +18,16 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolContainer;
@@ -40,7 +45,7 @@ import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
-import software.amazon.smithy.utils.CodeWriter;
+import software.amazon.smithy.utils.AbstractCodeWriter;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -50,7 +55,7 @@ import software.amazon.smithy.utils.StringUtils;
  *
  * <p>Use the {@code $P} formatter to refer to {@link Symbol}s using pointers where appropriate.
  */
-public final class GoWriter extends CodeWriter {
+public final class GoWriter extends AbstractCodeWriter<GoWriter> {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
     private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
@@ -58,23 +63,228 @@ public final class GoWriter extends CodeWriter {
     private final String fullPackageName;
     private final ImportDeclarations imports = new ImportDeclarations();
     private final List<SymbolDependency> dependencies = new ArrayList<>();
+    private final boolean innerWriter;
 
     private int docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
 
-    private CodeWriter packageDocs;
+    private AbstractCodeWriter<GoWriter> packageDocs;
 
+    /**
+     * Initializes the GoWriter for the package and filename to be written to.
+     *
+     * @param fullPackageName package and filename to be written to.
+     */
     public GoWriter(String fullPackageName) {
         this.fullPackageName = fullPackageName;
+        this.innerWriter = false;
+        init();
+    }
+
+    private GoWriter(String fullPackageName, boolean innerWriter) {
+        this.fullPackageName = fullPackageName;
+        this.innerWriter = innerWriter;
+        init();
+    }
+
+    private void init() {
         trimBlankLines();
         trimTrailingSpaces();
         setIndentText("\t");
         putFormatter('T', new GoSymbolFormatter());
         putFormatter('P', new PointableGoSymbolFormatter());
+        putFormatter('W', new GoWritableInjector());
 
-        packageDocs = new CodeWriter();
-        packageDocs.trimBlankLines();
-        packageDocs.trimTrailingSpaces();
-        packageDocs.setIndentText("\t");
+        if (!innerWriter) {
+            packageDocs = new GoWriter(this.fullPackageName, true);
+        }
+    }
+
+    // TODO figure out better way to annotate where the failure occurs, check templates and args
+    // TODO to try to find programming bugs.
+
+    /**
+     * Returns a Writable for the string and args to be composed inline to another writer's contents.
+     *
+     * @param contents string to write.
+     * @param args     Arguments to use when evaluating the contents string.
+     * @return Writable to be evaluated.
+     */
+    public static Writable goTemplate(String contents, Map<String, Object> args) {
+        validateTemplateArgsNotNull(args);
+        return (GoWriter w) -> {
+            w.writeGoTemplate(contents, args);
+        };
+    }
+
+    /**
+     * Returns a Writable from the string contents provided.
+     *
+     * @param contents string to write
+     * @return Writable to be evaluated.
+     */
+    public static Writable goTemplate(String contents) {
+        return (GoWriter w) -> {
+            w.writeGoTemplate(contents, null);
+        };
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args          template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args,
+            Consumer<GoWriter> fn
+    ) {
+        validateTemplateArgsNotNull(args);
+        return (GoWriter w) -> {
+            w.writeGoBlockTemplate(beforeNewLine, afterNewLine, args, fn);
+        };
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Consumer<GoWriter> fn
+    ) {
+        return (GoWriter w) -> {
+            w.writeGoBlockTemplate(beforeNewLine, afterNewLine, null, fn);
+        };
+    }
+
+    /**
+     * Returns a Writable that does nothing.
+     *
+     * @return Writable that does nothing
+     */
+    public static Writable emptyGoTemplate() {
+        return (GoWriter w) -> {
+        };
+    }
+
+    /**
+     * Writes the contents and arguments as a template to the writer.
+     *
+     * @param contents string to write
+     * @param args     Arguments to use when evaluating the contents string.
+     */
+    public void writeGoTemplate(String contents, Map<String, Object> args) {
+        withTemplate(contents, args, (template) -> {
+            try {
+                write(contents);
+            } catch (Exception e) {
+                throw new CodegenException("Failed to render template\n" + contents + "\nReason: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args          template arguments
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args,
+            Consumer<GoWriter> fn
+    ) {
+        withTemplate(beforeNewLine, args, (header) -> {
+            conditionalBlock(header, afterNewLine, true, null, fn);
+        });
+    }
+
+    private void withTemplate(
+            String template,
+            Map<String, Object> scope,
+            Consumer<String> fn
+    ) {
+        if (scope == null) {
+            scope = new HashMap<>();
+        }
+
+        pushState();
+        putContext(scope);
+        validateContext(template, scope);
+        fn.accept(template);
+        popState();
+    }
+
+    private GoWriter conditionalBlock(
+            String beforeNewLine,
+            String afterNewLine,
+            boolean conditional,
+            Object[] args,
+            Consumer<GoWriter> fn
+    ) {
+        if (args == null) {
+            args = new Object[]{};
+        }
+        if (conditional) {
+            openBlock(beforeNewLine.trim(), args);
+        }
+
+        fn.accept(this);
+
+        if (conditional) {
+            closeBlock(afterNewLine.trim());
+        }
+
+        return this;
+    }
+
+    private static void validateTemplateArgsNotNull(Map<String, Object> scope) {
+        if (scope == null) {
+            return;
+        }
+        scope.forEach((k, v) -> {
+            if (v == null) {
+                throw new CodegenException("Template argument " + k + " cannot be null");
+            }
+        });
+    }
+
+    private void validateContext(String template, Map<String, Object> scope) {
+        var pattern = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
+        var matcher = pattern.matcher(template);
+
+        var foundKeys = new HashSet<String>();
+        while (matcher.find()) {
+            var keyName = matcher.group(1);
+            foundKeys.add(keyName);
+
+            var value = getContext(keyName);
+            if (value == null) {
+                throw new CodegenException(
+                        "Go template expected " + keyName + " but was not present in context scope."
+                                + " Template: \n" + template);
+            }
+        }
+
+        scope.forEach((k, v) -> {
+            if (!foundKeys.contains(k)) {
+                throw new CodegenException("Go template key " + k + " specified, but not used."
+                        + " Template: \n" + template);
+            }
+        });
     }
 
     /**
@@ -169,6 +379,11 @@ public final class GoWriter extends CodeWriter {
         return this;
     }
 
+    private GoWriter addImports(GoWriter other) {
+        this.imports.addImports(other.imports);
+        return this;
+    }
+
     private boolean isExternalNamespace(String namespace) {
         return !StringUtils.isBlank(namespace) && !namespace.equals(fullPackageName);
     }
@@ -210,6 +425,11 @@ public final class GoWriter extends CodeWriter {
         return this;
     }
 
+    private GoWriter addDependencies(GoWriter other) {
+        this.dependencies.addAll(other.getDependencies());
+        return this;
+    }
+
     Collection<SymbolDependency> getDependencies() {
         return dependencies;
     }
@@ -220,7 +440,7 @@ public final class GoWriter extends CodeWriter {
      * @param runnable Runnable that handles actually writing docs with the writer.
      * @return Returns the writer.
      */
-    private void writeDocs(CodeWriter writer, Runnable runnable) {
+    private void writeDocs(AbstractCodeWriter<GoWriter> writer, Runnable runnable) {
         writer.pushState("docs");
         writer.setNewlinePrefix("// ");
         runnable.run();
@@ -228,7 +448,7 @@ public final class GoWriter extends CodeWriter {
         writer.popState();
     }
 
-    private void writeDocs(CodeWriter writer, int docWrapLength, String docs) {
+    private void writeDocs(AbstractCodeWriter<GoWriter> writer, int docWrapLength, String docs) {
         String wrappedDoc = StringUtils.wrap(DocumentationConverter.convert(docs), docWrapLength);
         writeDocs(writer, () -> writer.write(wrappedDoc.replace("$", "$$")));
     }
@@ -378,6 +598,12 @@ public final class GoWriter extends CodeWriter {
     @Override
     public String toString() {
         String contents = super.toString();
+
+        if (innerWriter) {
+            return contents;
+        }
+
+
         String[] packageParts = fullPackageName.split("/");
         String header = String.format("// Code generated by smithy-go-codegen DO NOT EDIT.%n%n");
 
@@ -484,5 +710,23 @@ public final class GoWriter extends CodeWriter {
                         "Invalid type provided to $P. Expected a Symbol, but found `" + type + "`");
             }
         }
+    }
+
+    class GoWritableInjector extends GoSymbolFormatter {
+        @Override
+        public String apply(Object type, String indent) {
+            if (!(type instanceof Writable)) {
+                throw new CodegenException(
+                        "expect Writable for GoWriter W injector, but got " + type);
+            }
+            var innerWriter = new GoWriter(fullPackageName, true);
+            ((Writable) type).accept(innerWriter);
+            addImports(innerWriter);
+            addDependencies(innerWriter);
+            return innerWriter.toString().trim();
+        }
+    }
+
+    public interface Writable extends Consumer<GoWriter> {
     }
 }
