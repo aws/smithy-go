@@ -60,6 +60,8 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
     private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
 
+    private static final Pattern ARGUMENT_NAME_PATTERN = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
+
     private final String fullPackageName;
     private final ImportDeclarations imports = new ImportDeclarations();
     private final List<SymbolDependency> dependencies = new ArrayList<>();
@@ -263,8 +265,7 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     }
 
     private void validateContext(String template, Map<String, Object> scope) {
-        var pattern = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
-        var matcher = pattern.matcher(template);
+        var matcher = ARGUMENT_NAME_PATTERN.matcher(template);
 
         var foundKeys = new HashSet<String>();
         while (matcher.find()) {

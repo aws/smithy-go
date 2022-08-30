@@ -37,6 +37,7 @@ import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.traits.UnstableTrait;
+import software.amazon.smithy.utils.BuilderRef;
 import software.amazon.smithy.utils.SmithyBuilder;
 
 /**
@@ -55,7 +56,7 @@ public final class ManifestWriter {
     private ManifestWriter(Builder builder) {
         moduleName = SmithyBuilder.requiredState("moduleName", builder.moduleName);
         fileManifest = SmithyBuilder.requiredState("fileManifest", builder.fileManifest);
-        dependencies = SmithyBuilder.requiredState("dependencies", builder.dependencies);
+        dependencies = builder.dependencies.copy();
         minimumGoVersion = builder.minimumGoVersion;
         isUnstable = builder.isUnstable;
     }
@@ -166,7 +167,7 @@ public final class ManifestWriter {
     public static class Builder implements SmithyBuilder<ManifestWriter> {
         private String moduleName;
         private FileManifest fileManifest;
-        private List<SymbolDependency> dependencies;
+        private final BuilderRef<List<SymbolDependency>> dependencies = BuilderRef.forList();
         private Optional<String> minimumGoVersion = Optional.empty();
         private boolean isUnstable;
 
@@ -181,7 +182,8 @@ public final class ManifestWriter {
         }
 
         public Builder dependencies(List<SymbolDependency> dependencies) {
-            this.dependencies = dependencies;
+            this.dependencies.clear();
+            this.dependencies.get().addAll(dependencies);
             return this;
         }
 

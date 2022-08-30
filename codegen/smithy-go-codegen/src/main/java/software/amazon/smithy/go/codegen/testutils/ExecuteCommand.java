@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -31,14 +30,11 @@ import software.amazon.smithy.utils.SmithyBuilder;
 public final class ExecuteCommand {
     private static final Logger LOGGER = Logger.getLogger(ExecuteCommand.class.getName());
 
-    private final String[] command;
+    private final List<String> command;
     private final File workingDir;
 
     private ExecuteCommand(Builder builder) {
-        var cmdList = SmithyBuilder.requiredState("command", builder.command);
-        command = new String[cmdList.size()];
-        cmdList.toArray(command);
-
+        command = SmithyBuilder.requiredState("command", builder.command);
         workingDir = builder.workingDir;
     }
 
@@ -61,10 +57,13 @@ public final class ExecuteCommand {
      * @throws Exception if the command fails.
      */
     public void execute() throws Exception {
-        int exitCode = -1;
+        int exitCode;
         Process child;
         try {
-            child = Runtime.getRuntime().exec(command, null, workingDir);
+            var cmdArray = new String[command.size()];
+            command.toArray(cmdArray);
+
+            child = Runtime.getRuntime().exec(cmdArray, null, workingDir);
             exitCode = child.waitFor();
 
             BufferedReader stdOut = new BufferedReader(new
@@ -83,11 +82,11 @@ public final class ExecuteCommand {
             }
             stdErr.close();
         } catch (Exception e) {
-            throw new Exception("Unable to execute command" + Arrays.toString(command), e);
+            throw new Exception("Unable to execute command, " + command, e);
         }
 
         if (exitCode != 0) {
-            throw new Exception("Command existed with non-zero code, " + Arrays.toString(command)
+            throw new Exception("Command existed with non-zero code, " + command
                     + ", status code: " + exitCode);
         }
     }
