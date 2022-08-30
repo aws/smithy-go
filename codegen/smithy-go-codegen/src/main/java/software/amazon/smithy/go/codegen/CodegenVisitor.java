@@ -90,6 +90,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         var modelTransformer = ModelTransformer.create();
 
+        /*
+         smithy 1.23.0 added support for mixins. This transform flattens and applies the mixins
+         and remove them from the model
+        */
+        resolvedModel = modelTransformer.flattenAndRemoveMixins(resolvedModel);
+
         // Add unique operation input/output shapes
         resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
 
