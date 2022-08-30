@@ -310,15 +310,18 @@ structure ListCitiesInput {
     pageSize: Integer
 }
 
-structure ListCitiesOutput {
-    nextToken: String,
-
+@mixin
+structure ListCitiesMixin {
     someEnum: SimpleYesNo,
     aString: String,
     defaultBool: DefaultBool,
     boxedBool: Boolean,
     defaultNumber: DefaultInteger,
     boxedNumber: Integer,
+}
+
+structure ListCitiesOutput with [ListCitiesMixin] {
+    nextToken: String,
 
     @required
     items: CitySummaries,
