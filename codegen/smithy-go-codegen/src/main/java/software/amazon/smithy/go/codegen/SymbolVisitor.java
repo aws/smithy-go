@@ -41,6 +41,7 @@ import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.DocumentShape;
 import software.amazon.smithy.model.shapes.DoubleShape;
 import software.amazon.smithy.model.shapes.FloatShape;
+import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.LongShape;
@@ -503,5 +504,13 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     @Override
     public Symbol timestampShape(TimestampShape shape) {
         return symbolBuilderFor(shape, "Time", SmithyGoDependency.TIME).build();
+    }
+
+    @Override
+    public Symbol intEnumShape(IntEnumShape shape) {
+        String name = getDefaultShapeName(shape);
+        return symbolBuilderFor(shape, name, typesPackageName)
+                .definitionFile("./types/enums.go")
+                .build();
     }
 }

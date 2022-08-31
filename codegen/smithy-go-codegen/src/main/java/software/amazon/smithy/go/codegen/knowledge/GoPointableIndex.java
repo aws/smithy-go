@@ -192,7 +192,8 @@ public class GoPointableIndex implements KnowledgeIndex {
 
     private boolean isShapeEnum(Shape shape) {
         return shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class)
-                || shape.getType() == ShapeType.ENUM;
+                || shape.getType() == ShapeType.ENUM
+                || shape.getType() == ShapeType.INT_ENUM;
     }
 
     private boolean isBlobStream(Shape shape) {

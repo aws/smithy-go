@@ -310,6 +310,11 @@ structure ListCitiesInput {
     pageSize: Integer
 }
 
+intEnum SimpleOneZero {
+    ONE  = 1
+    ZERO = 0
+}
+
 @mixin
 structure ListCitiesMixin {
     someEnum: SimpleYesNo,
@@ -318,6 +323,7 @@ structure ListCitiesMixin {
     boxedBool: Boolean,
     defaultNumber: DefaultInteger,
     boxedNumber: Integer,
+    someIntegerEnum: SimpleOneZero
 }
 
 structure ListCitiesOutput with [ListCitiesMixin] {
