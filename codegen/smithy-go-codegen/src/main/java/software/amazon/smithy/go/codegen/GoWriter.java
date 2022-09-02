@@ -18,14 +18,13 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -59,16 +58,13 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
     private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
-
     private static final Pattern ARGUMENT_NAME_PATTERN = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
-
     private final String fullPackageName;
     private final ImportDeclarations imports = new ImportDeclarations();
     private final List<SymbolDependency> dependencies = new ArrayList<>();
     private final boolean innerWriter;
 
     private int docWrapLength = DEFAULT_DOC_WRAP_LENGTH;
-
     private AbstractCodeWriter<GoWriter> packageDocs;
 
     /**
@@ -111,7 +107,8 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param args     Arguments to use when evaluating the contents string.
      * @return Writable to be evaluated.
      */
-    public static Writable goTemplate(String contents, Map<String, Object> args) {
+    @SafeVarargs
+    public static Writable goTemplate(String contents, Map<String, Object>... args) {
         validateTemplateArgsNotNull(args);
         return (GoWriter w) -> {
             w.writeGoTemplate(contents, args);
@@ -119,20 +116,134 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     }
 
     /**
-     * Returns a Writable from the string contents provided.
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
      *
-     * @param contents string to write
-     * @return Writable to be evaluated.
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param fn            closure to write
      */
-    public static Writable goTemplate(String contents) {
-        return (GoWriter w) -> {
-            w.writeGoTemplate(contents, null);
-        };
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[0], fn);
     }
 
     /**
      * Returns a Writable that can later be invoked to write the contents as template
-     * as a code block instead of single content fo text.
+     * as a code block instead of single content of text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args1         template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args1,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[]{args1}, fn);
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args1         template arguments
+     * @param args2         template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args1,
+            Map<String, Object> args2,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[]{args1, args2}, fn);
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args1         template arguments
+     * @param args2         template arguments
+     * @param args3         template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args1,
+            Map<String, Object> args2,
+            Map<String, Object> args3,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[]{args1, args2, args3}, fn);
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args1         template arguments
+     * @param args2         template arguments
+     * @param args3         template arguments
+     * @param args4         template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args1,
+            Map<String, Object> args2,
+            Map<String, Object> args3,
+            Map<String, Object> args4,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[]{args1, args2, args3, args4}, fn);
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param args1         template arguments
+     * @param args2         template arguments
+     * @param args3         template arguments
+     * @param args4         template arguments
+     * @param args5         template arguments
+     * @param fn            closure to write
+     */
+    public static Writable goBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> args1,
+            Map<String, Object> args2,
+            Map<String, Object> args3,
+            Map<String, Object> args4,
+            Map<String, Object> args5,
+            Consumer<GoWriter> fn
+    ) {
+        return goBlockTemplate(beforeNewLine, afterNewLine, new Map[]{args1, args2, args3, args4, args5}, fn);
+    }
+
+    /**
+     * Returns a Writable that can later be invoked to write the contents as template
+     * as a code block instead of single content of text.
      *
      * @param beforeNewLine text before new line
      * @param afterNewLine  text after new line
@@ -142,30 +253,12 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     public static Writable goBlockTemplate(
             String beforeNewLine,
             String afterNewLine,
-            Map<String, Object> args,
+            Map<String, Object>[] args,
             Consumer<GoWriter> fn
     ) {
         validateTemplateArgsNotNull(args);
         return (GoWriter w) -> {
             w.writeGoBlockTemplate(beforeNewLine, afterNewLine, args, fn);
-        };
-    }
-
-    /**
-     * Returns a Writable that can later be invoked to write the contents as template
-     * as a code block instead of single content fo text.
-     *
-     * @param beforeNewLine text before new line
-     * @param afterNewLine  text after new line
-     * @param fn            closure to write
-     */
-    public static Writable goBlockTemplate(
-            String beforeNewLine,
-            String afterNewLine,
-            Consumer<GoWriter> fn
-    ) {
-        return (GoWriter w) -> {
-            w.writeGoBlockTemplate(beforeNewLine, afterNewLine, null, fn);
         };
     }
 
@@ -185,7 +278,8 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param contents string to write
      * @param args     Arguments to use when evaluating the contents string.
      */
-    public void writeGoTemplate(String contents, Map<String, Object> args) {
+    @SafeVarargs
+    public final void writeGoTemplate(String contents, Map<String, Object>... args) {
         withTemplate(contents, args, (template) -> {
             try {
                 write(contents);
@@ -200,32 +294,142 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      *
      * @param beforeNewLine text before new line
      * @param afterNewLine  text after new line
-     * @param args          template arguments
      * @param fn            closure to write
      */
     public void writeGoBlockTemplate(
             String beforeNewLine,
             String afterNewLine,
-            Map<String, Object> args,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[0], fn);
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param arg1          first map argument
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> arg1,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[]{arg1}, fn);
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param arg1          first map argument
+     * @param arg2          second map argument
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> arg1,
+            Map<String, Object> arg2,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[]{arg1, arg2}, fn);
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param arg1          first map argument
+     * @param arg2          second map argument
+     * @param arg3          third map argument
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> arg1,
+            Map<String, Object> arg2,
+            Map<String, Object> arg3,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[]{arg1, arg2, arg3}, fn);
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param arg1          first map argument
+     * @param arg2          second map argument
+     * @param arg3          third map argument
+     * @param arg4          forth map argument
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> arg1,
+            Map<String, Object> arg2,
+            Map<String, Object> arg3,
+            Map<String, Object> arg4,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[]{arg1, arg2, arg3, arg4}, fn);
+    }
+
+    /**
+     * Writes the contents as template as a code block instead of single content fo text.
+     *
+     * @param beforeNewLine text before new line
+     * @param afterNewLine  text after new line
+     * @param arg1          first map argument
+     * @param arg2          second map argument
+     * @param arg3          third map argument
+     * @param arg4          forth map argument
+     * @param arg5          forth map argument
+     * @param fn            closure to write
+     */
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object> arg1,
+            Map<String, Object> arg2,
+            Map<String, Object> arg3,
+            Map<String, Object> arg4,
+            Map<String, Object> arg5,
+            Consumer<GoWriter> fn
+    ) {
+        writeGoBlockTemplate(beforeNewLine, afterNewLine, new Map[]{arg1, arg2, arg3, arg4, arg5}, fn);
+    }
+
+    public void writeGoBlockTemplate(
+            String beforeNewLine,
+            String afterNewLine,
+            Map<String, Object>[] args,
             Consumer<GoWriter> fn
     ) {
         withTemplate(beforeNewLine, args, (header) -> {
-            conditionalBlock(header, afterNewLine, true, null, fn);
+            conditionalBlock(header, afterNewLine, true, new Object[0], fn);
         });
     }
 
     private void withTemplate(
             String template,
-            Map<String, Object> scope,
+            Map<String, Object>[] argMaps,
             Consumer<String> fn
     ) {
-        if (scope == null) {
-            scope = new HashMap<>();
-        }
-
         pushState();
-        putContext(scope);
-        validateContext(template, scope);
+        for (var args : argMaps) {
+            putContext(args);
+        }
+        validateContext(template);
         fn.accept(template);
         popState();
     }
@@ -237,9 +441,6 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
             Object[] args,
             Consumer<GoWriter> fn
     ) {
-        if (args == null) {
-            args = new Object[]{};
-        }
         if (conditional) {
             openBlock(beforeNewLine.trim(), args);
         }
@@ -253,25 +454,21 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         return this;
     }
 
-    private static void validateTemplateArgsNotNull(Map<String, Object> scope) {
-        if (scope == null) {
-            return;
+    private static void validateTemplateArgsNotNull(Map<String, Object>[] argMaps) {
+        for (var args : argMaps) {
+            args.forEach((k, v) -> {
+                if (v == null) {
+                    throw new CodegenException("Template argument " + k + " cannot be null");
+                }
+            });
         }
-        scope.forEach((k, v) -> {
-            if (v == null) {
-                throw new CodegenException("Template argument " + k + " cannot be null");
-            }
-        });
     }
 
-    private void validateContext(String template, Map<String, Object> scope) {
+    private void validateContext(String template) {
         var matcher = ARGUMENT_NAME_PATTERN.matcher(template);
 
-        var foundKeys = new HashSet<String>();
         while (matcher.find()) {
             var keyName = matcher.group(1);
-            foundKeys.add(keyName);
-
             var value = getContext(keyName);
             if (value == null) {
                 throw new CodegenException(
@@ -279,13 +476,6 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
                                 + " Template: \n" + template);
             }
         }
-
-        scope.forEach((k, v) -> {
-            if (!foundKeys.contains(k)) {
-                throw new CodegenException("Go template key " + k + " specified, but not used."
-                        + " Template: \n" + template);
-            }
-        });
     }
 
     /**
@@ -465,6 +655,24 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     public GoWriter writeDocs(String docs) {
         writeDocs(this, docWrapLength, docs);
         return this;
+    }
+
+    /**
+     * Writes documentation from an arbitrary Writable.
+     *
+     * @param writable Contents to be written.
+     * @return Returns the writer.
+     */
+    public GoWriter writeRenderedDocs(Writable writable) {
+        writeRenderedDocs(this, docWrapLength, writable);
+        return this;
+    }
+
+    private void writeRenderedDocs(AbstractCodeWriter<GoWriter> writer, int docWrapLength, Writable writable) {
+        var innerWriter = new GoWriter(fullPackageName, true);
+        writable.accept(innerWriter);
+        var wrappedDocs = StringUtils.wrap(innerWriter.toString().trim(), docWrapLength);
+        writeDocs(writer, () -> writer.write(wrappedDocs.replace("$", "$$")));
     }
 
     /**
@@ -729,5 +937,46 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     }
 
     public interface Writable extends Consumer<GoWriter> {
+    }
+
+    /**
+     * Chains together multiple Writables that can be composed into one Writable.
+     */
+    public static final class ChainWritable {
+        private final List<GoWriter.Writable> writables;
+
+        public ChainWritable() {
+            writables = new ArrayList<>();
+        }
+
+        public ChainWritable add(GoWriter.Writable writable) {
+            writables.add(writable);
+            return this;
+        }
+
+        public <T> ChainWritable add(Optional<T> value, Function<T, Writable> fn) {
+            value.ifPresent(t -> writables.add(fn.apply(t)));
+            return this;
+        }
+
+        public ChainWritable add(boolean include, GoWriter.Writable writable) {
+            if (!include) {
+                writables.add(writable);
+            }
+            return this;
+        }
+
+        public GoWriter.Writable compose() {
+            return (GoWriter writer) -> {
+                var hasPrevious = false;
+                for (GoWriter.Writable writable : writables) {
+                    if (hasPrevious) {
+                        writer.write("");
+                    }
+                    hasPrevious = true;
+                    writer.write("$W", writable);
+                }
+            };
+        }
     }
 }
