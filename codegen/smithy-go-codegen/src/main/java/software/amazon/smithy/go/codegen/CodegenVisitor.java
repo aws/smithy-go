@@ -39,6 +39,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
+import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -325,6 +326,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                                 protocolGenerator, runtimePlugins).run());
             }
         });
+        return null;
+    }
+
+    @Override
+    public Void intEnumShape(IntEnumShape shape) {
+        writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
         return null;
     }
 }
