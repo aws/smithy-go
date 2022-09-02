@@ -1,11 +1,13 @@
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goBlockTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.TestUtils.hasGoInstalled;
 import static software.amazon.smithy.go.codegen.TestUtils.makeGoModule;
 import static software.amazon.smithy.go.codegen.TestUtils.testGoModule;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
 import software.amazon.smithy.build.FileManifest;
@@ -50,17 +52,26 @@ public class GenerateStandaloneGoModuleTest {
         writers.useFileWriter("test-directory/package-name/gofile_test.go",
                 "github.com/aws/smithy-go/internal/testmodule/packagename",
                 (w) -> {
+                    Map<String, Object> commonArgs = MapUtils.of(
+                            "testingT", SymbolUtils.createValueSymbolBuilder("T", SmithyGoDependency.TESTING).build()
+                    );
+
                     w.writeGoTemplate("""
                                     func Test$name:L(t *$testingT:T) {
                                         v := $name:L{}
                                         v.Baz = nil
                                     }
                                     """,
+                            commonArgs,
                             MapUtils.of(
-                                    "name", "Foo",
-                                    "testingT", SymbolUtils.createValueSymbolBuilder("T",
-                                            SmithyGoDependency.TESTING).build()
+                                    "name", "Foo"
                             ));
+                    w.writeGoBlockTemplate("func TestBar(t *$testingT:T) {", "}",
+                            commonArgs,
+                            (ww) -> {
+                                ww.write("t.Skip(\"not relevant\")");
+
+                            });
                 });
 
         var dependencies = writers.getDependencies();
@@ -78,14 +89,14 @@ public class GenerateStandaloneGoModuleTest {
     }
 
     private GoWriter.Writable generateSomethingElse() {
-        return goTemplate("""
-                        func (s *$name:L) SomeFunction(i int) string {
-                            return "hello there!"
-                        }
-                        """,
+        return goBlockTemplate("func (s *$name:L) $funcName:L(i int) string {", "}",
+                MapUtils.of("funcName", "SomethingElse"),
                 MapUtils.of(
                         "name", "Foo"
-                ));
+                ),
+                (w) -> {
+                    w.write("return \"hello!\"");
+                });
     }
 
     private static Path getTestOutputDir() {
