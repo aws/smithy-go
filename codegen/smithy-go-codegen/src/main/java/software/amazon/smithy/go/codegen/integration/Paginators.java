@@ -201,7 +201,7 @@ public class Paginators implements GoIntegration {
                                  """);
 
                     pageSizeMember.ifPresent(memberShape -> {
-                        if (pointableIndex.isPointable(model.expectShape(memberShape.getTarget()))) {
+                        if (pointableIndex.isPointable(memberShape)) {
                             writer.write("""
                                          var limit $P
                                          if p.options.Limit > 0 {
