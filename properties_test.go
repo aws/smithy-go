@@ -1,14 +1,14 @@
-package middleware
+package smithy
 
 import "testing"
 
-func TestMetadataClone(t *testing.T) {
+func TestPropertiesClone(t *testing.T) {
 	original := map[interface{}]interface{}{
 		"abc": 123,
 		"efg": "hij",
 	}
 
-	var m Metadata
+	var m Properties
 	for k, v := range original {
 		m.Set(k, v)
 	}
