@@ -2,26 +2,36 @@ package transport
 
 import "strings"
 
+const defaultFieldsPreAlloc = 5
+
 // Fields is a collection Field values.
-type Fields struct {
+type fields struct {
 	fields []Field
 }
 
+// NewFields returns an initialized Fields value to assign Field values to.
+func newFields() *fields {
+	return &fields{
+		fields: make([]Field, 0, defaultFieldsPreAlloc),
+	}
+}
+
 // Get retrieves a Field by name, by performing a case-insensitive lookup.
-func (f *Fields) Get(name string) Field {
+func (f *fields) Get(name string) Field {
 	if i, ok := f.findField(name); ok {
 		return f.fields[i]
 	}
 	return NewField(name)
 }
 
-// Has returns whether a matching Field exists for the given name using case-insensitive lookup.
-func (f *Fields) Has(name string) bool {
+// Has returns whether a matching Field exists for the given name using
+// case-insensitive lookup.
+func (f *fields) Has(name string) bool {
 	_, ok := f.findField(name)
 	return ok
 }
 
-func (f *Fields) findField(name string) (int, bool) {
+func (f *fields) findField(name string) (int, bool) {
 	for i := range f.fields {
 		if !strings.EqualFold(f.fields[i].name, name) {
 			continue
@@ -31,11 +41,12 @@ func (f *Fields) findField(name string) (int, bool) {
 	return 0, false
 }
 
-// Set adds field to set of Fields. If a field with the same name exists (case-insensitive matching), that field's
-// is replaced with the values from the provided field, with the casing of the name remaining the same.
-// If the field doesn't exist, then it will be added. Returns the old field and true if the field already existed,
-// otherwise returns false.
-func (f *Fields) Set(field Field) (old Field, ok bool) {
+// Set adds field to set of Fields. If a field with the same name exists
+// (case-insensitive matching), that field's is replaced with the values from
+// the provided field, with the casing of the name remaining the same. If the
+// field doesn't exist, then it will be added. Returns the old field and true
+// if the field already existed, otherwise returns false.
+func (f *fields) Set(field Field) (old Field, ok bool) {
 	if i, ok := f.findField(field.name); ok {
 		old := f.fields[i]
 		field.name = old.Name() // maintain the old name casing
@@ -47,9 +58,10 @@ func (f *Fields) Set(field Field) (old Field, ok bool) {
 	return NewField(field.name), false
 }
 
-// Remove searches the fields for a field matching the provided name (case-insensitive), and removes the field if
-// found. Returns the old field and true if the field was removed, otherwise returns false.
-func (f *Fields) Remove(name string) (old Field, ok bool) {
+// Remove searches the fields for a field matching the provided name
+// (case-insensitive), and removes the field if found. Returns the old field
+// and true if the field was removed, otherwise returns false.
+func (f *fields) Remove(name string) (old Field, ok bool) {
 	i, ok := f.findField(name)
 	if !ok {
 		return NewField(name), false
@@ -57,6 +69,12 @@ func (f *Fields) Remove(name string) (old Field, ok bool) {
 	old = f.fields[i]
 	f.fields = append(f.fields[:i], f.fields[i+1:]...)
 	return old, true
+}
+
+// GetFields returns a copy of the fields stored. Any mutations to the returned
+// slice of Fields will not be visible upstream in this Fields type.
+func (f *fields) GetFields() []Field {
+	return append(make([]Field, 0, len(f.fields)), f.fields...)
 }
 
 // Field is a type representing a field name, and its associated values.

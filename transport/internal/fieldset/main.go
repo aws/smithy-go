@@ -31,7 +31,7 @@ package transport
 // FieldSet is a collection of fields grouped by their usage.
 type FieldSet struct {
 {{- range $name, $_ := $.Locations -}}
-	{{ (privateSymbol $name) }} *Fields
+	{{ (privateSymbol $name) }} *fields
 {{ end -}}
 }
 
@@ -39,7 +39,7 @@ type FieldSet struct {
 func NewFieldSet() *FieldSet {
 	return &FieldSet{
 	{{- range $name, $_ := $.Locations }}
-		{{ (privateSymbol $name) }}: &Fields{},
+		{{ (privateSymbol $name) }}: newFields(),
 	{{ end -}}
 	}
 }
@@ -48,31 +48,44 @@ func NewFieldSet() *FieldSet {
 {{ $privateName := (privateSymbol $name) -}}
 {{ $publicName := (publicSymbol $name) -}}
 {{ $get := (join "Get" $publicName) -}}
-// {{ $get }} retrieves the {{ $name }} Field by name, by performing a case-insensitive lookup.
+// {{ $get }} retrieves the {{ $name }} Field by name, by performing a
+// case-insensitive lookup.
 func (fs *FieldSet) {{ $get }}(name string) Field {
 	return fs.{{ $privateName }}.Get(name)
 }
 
 {{ $has := (join "Has" $publicName) -}}
-// {{ $has }} returns whether a matching {{ $name }} Field exists for the given name using case-insensitive lookup.
+// {{ $has }} returns whether a matching {{ $name }} Field exists for the given
+// name using case-insensitive lookup.
 func (fs *FieldSet) {{ $has }}(name string) bool {
 	return fs.{{ $privateName }}.Has(name)
 }
 
 {{ $set := (join "Set" $publicName) -}}
-// {{ $set }} adds field to set of {{ $name }} Fields. If a {{ $name }} field with the same name exists (case-insensitive matching),
-// that field's is replaced with the values from the provided field, with the casing of the name remaining the same.
-// If the field doesn't exist, then it will be added. Returns the old field and true if the field already existed,
-// otherwise returns false.
+// {{ $set }} adds field to set of {{ $name }} Fields. If a {{ $name }} field
+// with the same name exists (case-insensitive matching), that field's is
+// replaced with the values from the provided field, with the casing of the
+// name remaining the same. If the field doesn't exist, then it will be added.
+// Returns the old field and true if the field already existed, otherwise
+// returns false.
 func (fs *FieldSet) {{ $set }}(field Field) (old Field, ok bool) {
 	return fs.{{ $privateName }}.Set(field)
 }
 
 {{ $remove := (join "Remove" $publicName) -}}
-// {{ $remove }} searches the {{ $name }} Fields for a Field matching the provided name (case-insensitive), and removes the field if
-// found. Returns the old field and true if the field was removed, otherwise returns false.
+// {{ $remove }} searches the {{ $name }} Fields for a Field matching the
+// provided name (case-insensitive), and removes the field if found. Returns
+// the old field and true if the field was removed, otherwise returns false.
 func (fs *FieldSet) {{ $remove }}(name string) (old Field, ok bool) {
 	return fs.{{ $privateName }}.Remove(name)
+}
+
+{{ $getFields := (join "Get" $publicName "Fields") -}}
+// {{ $getFields }} returns a copy of the {{ $publicName }} fields. Any
+// modifications to the returned slice of Fields will not be reflected upstream
+// in the FieldSet.
+func (fs *FieldSet) {{ $getFields }}() []Field {
+	return fs.{{ $privateName }}.GetFields()
 }
 {{- end -}}
 {{- end }}
