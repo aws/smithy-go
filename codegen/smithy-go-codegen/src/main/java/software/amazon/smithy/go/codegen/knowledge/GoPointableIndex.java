@@ -140,7 +140,7 @@ public class GoPointableIndex implements KnowledgeIndex {
     }
 
     private boolean isMemberDereferencable(MemberShape member, Shape targetShape) {
-        return isShapeDereferencable(targetShape) && isMemberPointable(member, targetShape);
+        return !INHERENTLY_NONDEREFERENCABLE.contains(targetShape.getType()) && isMemberPointable(member, targetShape);
     }
 
     private boolean isMemberNillable(MemberShape member, Shape targetShape) {
@@ -148,7 +148,17 @@ public class GoPointableIndex implements KnowledgeIndex {
     }
 
     private boolean isMemberPointable(MemberShape member, Shape targetShape) {
-        return isShapePointable(targetShape) && nullableIndex.isNullable(member);
+
+        // Streamed blob shapes are never pointers because they are interfaces
+        if (isBlobStream(targetShape)) {
+            return false;
+        }
+
+        if (INHERENTLY_VALUE.contains(targetShape.getType()) || isShapeEnum(targetShape)) {
+            return false;
+        }
+
+        return nullableIndex.isMemberNullable(member, NullableIndex.CheckMode.CLIENT_ZERO_VALUE_V1_NO_INPUT);
     }
 
     private boolean isShapeDereferencable(Shape shape) {

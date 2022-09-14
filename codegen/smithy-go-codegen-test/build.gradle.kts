@@ -23,6 +23,7 @@ tasks["jar"].enabled = false
 buildscript {
     val smithyVersion: String by project
     repositories {
+        mavenLocal()
         mavenCentral()
     }
     dependencies {
