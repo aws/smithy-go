@@ -1,21 +1,21 @@
-package transport_test
+package transport
 
 import (
-	"github.com/aws/smithy-go/transport"
-	"github.com/google/go-cmp/cmp"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestFields(t *testing.T) {
-	fields := &transport.Fields{}
+	fields := newFields()
 
 	const testName = "SomeThing"
 	if e, a := false, fields.Has(testName); e != a {
 		t.Errorf("expect %v, got %v", e, a)
 	}
 
-	field := transport.NewField(testName, "foo")
+	field := NewField(testName, "foo")
 
 	if old, ok := fields.Set(field); ok {
 		t.Error("expect field to not be present")
@@ -42,7 +42,7 @@ func TestFields(t *testing.T) {
 		t.Errorf("expect %v, got %v", e, a)
 	}
 
-	newField := transport.NewField(strings.ToLower(testName), "new")
+	newField := NewField(strings.ToLower(testName), "new")
 	_, ok = fields.Set(newField)
 	if !ok {
 		t.Errorf("expect field to be present")
@@ -71,8 +71,30 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestFields_GetFields(t *testing.T) {
+	fields := newFields()
+
+	fields.Set(NewField("First", "1.a", "1.b"))
+	fields.Set(NewField("Second", "2.a", "2.b"))
+	fields.Set(NewField("Third", "3.a", "3.b"))
+
+	fieldSlice := fields.GetFields()
+
+	fields.Set(NewField("Fourth", "4.a", "4.b"))
+
+	if e, a := 3, len(fieldSlice); e != a {
+		t.Fatalf("expect %v fields, got %v", e, a)
+	}
+
+	fieldSlice[0] = fieldSlice[0].Add("1.c")
+	compareValues(t, []string{"1.a", "1.b", "1.c"}, fieldSlice[0].Values())
+
+	first := fields.Get("First")
+	compareValues(t, []string{"1.a", "1.b"}, first.Values())
+}
+
 func TestField(t *testing.T) {
-	someThing := transport.NewField("someThing")
+	someThing := NewField("someThing")
 
 	if e, a := "someThing", someThing.Name(); e != a {
 		t.Errorf("expect %v, got %v", e, a)
