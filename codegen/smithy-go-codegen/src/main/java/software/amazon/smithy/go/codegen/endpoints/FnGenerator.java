@@ -90,6 +90,7 @@ public class FnGenerator {
                 case "aws.partition" -> true;
                 case "aws.parseArn" -> true;
                 case "isValidHostLabel" -> true;
+                case "aws.isVirtualHostableS3Bucket" -> true;
                 case "parseURL" -> true;
                 case "substring" -> true;
                 case "uriEncode" -> false;

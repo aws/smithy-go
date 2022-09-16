@@ -39,11 +39,12 @@ import software.amazon.smithy.utils.StringUtils;
 public final class EndpointParametersGenerator {
     public static final String VALIDATE_REQUIRED_FUNC_NAME = "ValidateRequired";
     public static final String DEFAULT_VALUE_FUNC_NAME = "WithDefaults";
-    private final Symbol parametersType;
+    public static final String LOGGER_MEMBER_NAME = "SDKClientLogger";
+    public static final String ENABLE_LOGGING_MEMBER_NAME = "LogRuleFuncErrors";
     private final Map<String, Object> commonCodegenArgs;
 
     private EndpointParametersGenerator(Builder builder) {
-        parametersType = SmithyBuilder.requiredState("parametersType", builder.parametersType);
+        var parametersType = SmithyBuilder.requiredState("parametersType", builder.parametersType);
 
         commonCodegenArgs = MapUtils.of(
                 "parametersType", parametersType,
@@ -92,7 +93,7 @@ public final class EndpointParametersGenerator {
     }
 
     private GoWriter.Writable generateParametersMembers(Parameters parameters) {
-        return (GoWriter writer) -> {
+        return (GoWriter w) -> {
             sortParameters(parameters).forEach((parameter) -> {
                 // TODO this is not working correctly. Required is not always being added to the docs.
                 var writeChain = new GoWriter.ChainWritable()
@@ -105,12 +106,39 @@ public final class EndpointParametersGenerator {
                         .add(parameter.getDeprecated(), (deprecated) -> {
                             return goTemplate("Deprecated: " + deprecated.getMessage());
                         });
-                writer.writeRenderedDocs(writeChain.compose());
-
-                writer.write("$L $P", getExportedParameterName(parameter), parameterAsSymbol(parameter));
-                writer.write("");
+                w.writeRenderedDocs(writeChain.compose());
+                w.write("$L $P", getExportedParameterName(parameter), parameterAsSymbol(parameter));
+                w.write("");
             });
+
+            w.write("$W", generateLoggerMember());
         };
+    }
+
+    private GoWriter.Writable generateLoggerMember() {
+        Map<String, Object> loggerArgs = MapUtils.of(
+                "loggerMemberName", LOGGER_MEMBER_NAME,
+                "loggerType", SymbolUtils.createValueSymbolBuilder("Logger",
+                        SmithyGoDependency.SMITHY_LOGGING).build(),
+                "enableLoggingMemberName", ENABLE_LOGGING_MEMBER_NAME
+        );
+        return goTemplate("""
+                            $loggerMemberDocs:W
+                            $loggerMemberName:L $loggerType:T
+
+                            $enableLoggingMemberDocs:W
+                            $enableLoggingMemberName:L bool
+                            """,
+                loggerArgs,
+                MapUtils.of(
+                        "loggerMemberDocs", goDocTemplate(
+                                "$loggerMemberName:L provides logging of errors occurring when resolving an endpoint.",
+                                loggerArgs),
+                        "enableLoggingMemberDocs", goDocTemplate(
+                                "$loggerMemberName:L provides logging of errors occurring when resolving an endpoint.",
+                                loggerArgs)
+                ));
+
     }
 
     private GoWriter.Writable generateDefaultsMethod(Parameters parameters) {

@@ -81,14 +81,6 @@ public final class EndpointRulesGenerator {
         );
     }
 
-    private static String getLocalVarParameterName(Parameter p) {
-        return "_" + p.getName().toString();
-    }
-
-    private static String getMemberParameterName(Parameter p) {
-        return PARAMS_ARG_NAME + "." + getExportedParameterName(p);
-    }
-
     public GoWriter.Writable generate(EndpointRuleset ruleset) {
         return generateRulesType(generateResolveMethodBody(ruleset));
     }
@@ -125,6 +117,14 @@ public final class EndpointRulesGenerator {
         );
     }
 
+    private static String getLocalVarParameterName(Parameter p) {
+        return "_" + p.getName().toString();
+    }
+
+    private static String getMemberParameterName(Parameter p) {
+        return PARAMS_ARG_NAME + "." + getExportedParameterName(p);
+    }
+
     private GoWriter.Writable generateResolveMethodBody(EndpointRuleset ruleset) {
         var scope = Scope.empty();
         for (Parameter p : ruleset.getParameters().toList()) {
@@ -146,11 +146,7 @@ public final class EndpointRulesGenerator {
                             $paramVars:W
 
                             ec := $newErrorCollector:T()
-                            defer func () {
-                               if !ec.IsEmpty() {
-                                    $logPrintln:T("Endpoint resolution had errors,", ec)
-                               }
-                            }()
+                            $resolveErrorLogging:W
 
                             $rules:W
                         """,
@@ -166,7 +162,28 @@ public final class EndpointRulesGenerator {
                                 w.write("$L := *$L", getLocalVarParameterName(p), getMemberParameterName(p));
                             });
                         },
-                        "rules", generateRulesList(ruleset.getRules(), scope)
+                        "rules", generateRulesList(ruleset.getRules(), scope),
+                        "resolveErrorLogging", generateResolveErrorLogging()
+                        ));
+    }
+
+    GoWriter.Writable generateResolveErrorLogging() {
+        return goTemplate("""
+                            defer func () {
+                               if $paramArgName:L.$enableLoggingMember:L &&
+                                    $paramArgName:L.$loggerMember:L != nil &&
+                                    ec.IsEmpty() {
+                                    $paramArgName:L.$loggerMember:L.Logf($logClassification:T,
+                                        "Endpoint resolution had errors, %v", ec)
+                               }
+                            }()
+                        """,
+                commonCodegenArgs,
+                MapUtils.of(
+                        "loggerMember", EndpointParametersGenerator.LOGGER_MEMBER_NAME,
+                        "enableLoggingMember", EndpointParametersGenerator.ENABLE_LOGGING_MEMBER_NAME,
+                        "logClassification", SymbolUtils.createValueSymbolBuilder("Warn",
+                                SmithyGoDependency.SMITHY_LOGGING).build()
                 ));
     }
 
