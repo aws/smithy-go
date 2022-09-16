@@ -3,8 +3,9 @@ package http
 import (
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
+
+	smithyuri "github.com/aws/smithy-go/internal/uri"
 )
 
 // ValidateEndpointHost validates that the host string passed in is a valid RFC
@@ -58,32 +59,10 @@ func ValidateEndpointHost(host string) error {
 
 // ValidPortNumber returns whether the port is valid RFC 3986 port.
 func ValidPortNumber(port string) bool {
-	i, err := strconv.Atoi(port)
-	if err != nil {
-		return false
-	}
-
-	if i < 0 || i > 65535 {
-		return false
-	}
-	return true
+	return smithyuri.ValidPortNumber(port)
 }
 
-// ValidHostLabel returns whether the label is a valid RFC 3986 host abel.
+// ValidHostLabel returns whether the label is a valid RFC 3986 host label.
 func ValidHostLabel(label string) bool {
-	if l := len(label); l == 0 || l > 63 {
-		return false
-	}
-	for _, r := range label {
-		switch {
-		case r >= '0' && r <= '9':
-		case r >= 'A' && r <= 'Z':
-		case r >= 'a' && r <= 'z':
-		case r == '-':
-		default:
-			return false
-		}
-	}
-
-	return true
+	return smithyuri.ValidHostLabel(label)
 }
