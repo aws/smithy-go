@@ -1,0 +1,8 @@
+{
+    "id": "52ea7af0-68da-449f-9186-98755a7d0f01",
+    "type": "bugfix",
+    "description": "fixed document type checking for encoding nested types",
+    "modules": [
+        "."
+    ]
+}
