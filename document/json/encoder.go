@@ -20,10 +20,6 @@ type Encoder struct {
 
 // Encode returns the JSON encoding of v.
 func (e *Encoder) Encode(v interface{}) ([]byte, error) {
-	if document.IsNoSerde(v) {
-		return nil, fmt.Errorf("unsupported type: %v", v)
-	}
-
 	encoder := smithyjson.NewEncoder()
 
 	if err := e.encode(jsonValueProvider(encoder.Value), reflect.ValueOf(v), serde.Tag{}); err != nil {
@@ -82,6 +78,10 @@ func (e *Encoder) encode(vp valueProvider, rv reflect.Value, tag serde.Tag) erro
 
 	// Handle both pointers and interface conversion into types
 	rv = serde.ValueElem(rv)
+
+	if err := e.unsupportedType(rv.Interface()); err != nil {
+		return err
+	}
 
 	switch rv.Kind() {
 	case reflect.Invalid:
@@ -323,4 +323,11 @@ func isValidJSONNumber(s string) bool {
 
 	// Make sure we are at the end.
 	return s == ""
+}
+
+func (e *Encoder) unsupportedType(v interface{}) error {
+	if document.IsNoSerde(v) {
+		return &document.InvalidUnmarshalError{Type: reflect.TypeOf(v)}
+	}
+	return nil
 }
