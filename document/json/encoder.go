@@ -79,10 +79,6 @@ func (e *Encoder) encode(vp valueProvider, rv reflect.Value, tag serde.Tag) erro
 	// Handle both pointers and interface conversion into types
 	rv = serde.ValueElem(rv)
 
-	if err := e.unsupportedType(rv.Interface()); err != nil {
-		return err
-	}
-
 	switch rv.Kind() {
 	case reflect.Invalid:
 		if tag.OmitEmpty {
@@ -137,6 +133,13 @@ func (e *Encoder) encodeZeroValue(vp valueProvider, rv reflect.Value) error {
 }
 
 func (e *Encoder) encodeStruct(vp valueProvider, rv reflect.Value) error {
+	if rv.CanInterface() && document.IsNoSerde(rv.Interface()) {
+		return &document.UnmarshalTypeError{
+			Value: fmt.Sprintf("unsupported type"),
+			Type:  rv.Type(),
+		}
+	}
+
 	switch {
 	case rv.Type().ConvertibleTo(serde.ReflectTypeOf.Time):
 		return &document.InvalidMarshalError{
@@ -323,11 +326,4 @@ func isValidJSONNumber(s string) bool {
 
 	// Make sure we are at the end.
 	return s == ""
-}
-
-func (e *Encoder) unsupportedType(v interface{}) error {
-	if document.IsNoSerde(v) {
-		return &document.InvalidUnmarshalError{Type: reflect.TypeOf(v)}
-	}
-	return nil
 }
