@@ -1,6 +1,7 @@
 package json_test
 
 import (
+	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/document/internal/serde"
 	"github.com/aws/smithy-go/document/json"
 	"github.com/google/go-cmp/cmp"
@@ -41,10 +42,20 @@ func TestEncoder_Encode(t *testing.T) {
 
 func TestNewEncoderUnsupportedTypes(t *testing.T) {
 	type customTime time.Time
+	type noSerde = document.NoSerde
+	type NestedThing struct {
+		SomeThing string
+		noSerde
+	}
+	type Thing struct {
+		OtherThing  string
+		NestedThing NestedThing
+	}
 
 	cases := []interface{}{
 		time.Now().UTC(),
 		customTime(time.Now().UTC()),
+		Thing{OtherThing: "foo", NestedThing: NestedThing{SomeThing: "bar"}},
 	}
 
 	encoder := json.NewEncoder()
