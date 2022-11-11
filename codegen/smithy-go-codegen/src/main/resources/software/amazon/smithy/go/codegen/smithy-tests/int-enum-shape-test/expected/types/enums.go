@@ -3,7 +3,7 @@
 
 package types
 
-type Number int32
+type Number = int32
 
 // Enum values for Number
 const (
@@ -21,27 +21,6 @@ const (
 	NumberQueen Number = 12
 	NumberKing Number = 13
 )
-
-// Values returns all known values for Number. Note that this can be expanded in
-// the future, and so it is only as up to date as the client. The ordering of this
-// slice is not guaranteed to be stable across updates.
-func (Number) Values() []Number {
-	return []Number{
-		1,
-		2,
-		3,
-		4,
-		5,
-		6,
-		7,
-		8,
-		9,
-		10,
-		11,
-		12,
-		13,
-	}
-}
 
 type Suit string
 
