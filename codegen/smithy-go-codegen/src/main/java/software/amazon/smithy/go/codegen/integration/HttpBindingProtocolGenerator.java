@@ -767,6 +767,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 locationEncoder.accept(writer, "Short(" + operand + ")");
                 break;
             case INTEGER:
+            case INT_ENUM:
                 locationEncoder.accept(writer, "Integer(" + operand + ")");
                 break;
             case LONG:
@@ -1211,6 +1212,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 writer.write("if err != nil { return err }");
                 return "int16(vv)";
             case INTEGER:
+            case INT_ENUM:
                 writer.addUseImports(SmithyGoDependency.STRCONV);
                 writer.write("vv, err := strconv.ParseInt($L, 0, 32)", operand);
                 writer.write("if err != nil { return err }");

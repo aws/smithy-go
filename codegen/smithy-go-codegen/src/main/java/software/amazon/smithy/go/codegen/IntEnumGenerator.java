@@ -48,7 +48,9 @@ final class IntEnumGenerator implements Runnable {
     public void run() {
         Symbol symbol = symbolProvider.toSymbol(shape);
 
-        writer.write("type $L int32", symbol.getName()).write("");
+        // TODO(smithy): Use type alias instead of type definition until refactoring
+        // protocol generators is prioritized.
+        writer.write("type $L = int32", symbol.getName()).write("");
 
         writer.writeDocs(String.format("Enum values for %s", symbol.getName()));
         Set<String> constants = new LinkedHashSet<>();
@@ -84,6 +86,9 @@ final class IntEnumGenerator implements Runnable {
             }
         }).write("");
 
+        // TODO(smithy): type aliases don't allow defining methods on base types (e.g. int32).
+        // Uncomment generating the Value() method when the type alias is migrated to type definition.
+        /*
         writer.writeDocs(String.format("Values returns all known values for %s. Note that this can be expanded in the "
                 + "future, and so it is only as up to date as the client.%n%nThe ordering of this slice is not "
                 + "guaranteed to be stable across updates.", symbol.getName()));
@@ -94,5 +99,6 @@ final class IntEnumGenerator implements Runnable {
                 }
             });
         });
+        */
     }
 }

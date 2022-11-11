@@ -304,6 +304,7 @@ public final class ShapeValueGenerator {
                 funcName = "Int16";
                 break;
             case INTEGER:
+            case INT_ENUM:
                 funcName = "Int32";
                 break;
             case LONG:
@@ -669,6 +670,7 @@ public final class ShapeValueGenerator {
                 case BYTE:
                 case SHORT:
                 case INTEGER:
+                case INT_ENUM:
                 case LONG:
                 case FLOAT:
                 case DOUBLE:

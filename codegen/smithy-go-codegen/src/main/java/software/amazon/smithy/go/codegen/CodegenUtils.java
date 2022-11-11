@@ -419,6 +419,7 @@ public final class CodegenUtils {
             case BYTE:
             case SHORT:
             case INTEGER:
+            case INT_ENUM:
             case LONG:
             case FLOAT:
             case DOUBLE:
