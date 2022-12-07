@@ -122,6 +122,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .put("ErrorFault", "ErrorFault_")
                 .put("Unwrap", "Unwrap_")
                 .put("Error", "Error_")
+                .put("ErrorCodeOverride", "ErrorCodeOverride_")
                 .build();
 
         errorMemberEscaper = ReservedWordSymbolProvider.builder()
