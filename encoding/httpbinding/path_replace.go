@@ -26,7 +26,19 @@ func replacePathElement(path, fieldBuf []byte, key, val string, escape bool) ([]
 	fieldBuf = append(fieldBuf, uriTokenStart)
 	fieldBuf = append(fieldBuf, key...)
 
-	start := bytes.Index(path, fieldBuf)
+	completeFieldBuf := make([]byte, len(fieldBuf))
+	copy(completeFieldBuf, fieldBuf)
+	completeFieldBuf = append(completeFieldBuf, uriTokenStop)
+
+	skipFieldBuf := make([]byte, len(fieldBuf))
+	copy(skipFieldBuf, fieldBuf)
+	skipFieldBuf = append(skipFieldBuf, uriTokenSkip)
+	skipFieldBuf = append(skipFieldBuf, uriTokenStop)
+
+	start := bytes.Index(path, completeFieldBuf)
+	if start == -1 {
+		start = bytes.Index(path, skipFieldBuf)
+	}
 	end := start + len(fieldBuf)
 	if start < 0 || len(path[end:]) == 0 {
 		// TODO what to do about error?

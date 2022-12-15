@@ -40,6 +40,12 @@ func TestPathReplace(t *testing.T) {
 			ExpRawPath: []byte("/reallylongvaluegoesheregrowingarray/{key+}"),
 			Key:        "bucket", Val: "reallylongvaluegoesheregrowingarray",
 		},
+		{
+			Orig:       []byte("/{bucketkey}/{bucket}"),
+			ExpPath:    []byte("/{bucketkey}/value"),
+			ExpRawPath: []byte("/{bucketkey}/value"),
+			Key:        "bucket", Val: "value",
+		},
 	}
 
 	var buffer [64]byte
