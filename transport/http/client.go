@@ -75,9 +75,9 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 	// HTTP RoundTripper *should* close the request body. But this may not happen in a timely manner.
 	// So instead Smithy *Request Build wraps the body to be sent in a safe closer that will clear the
 	// stream reference so that it can be safely reused.
-	if builtRequest.Body != nil {
+	/*if builtRequest.Body != nil {
 		_ = builtRequest.Body.Close()
-	}
+	}*/
 
 	return &Response{Response: resp}, metadata, err
 }
