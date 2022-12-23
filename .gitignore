@@ -21,6 +21,9 @@ build/
 */out/
 */*/out/
 
+# Smithy language server protocol
+.smithy.lsp.log
+
 # VS Code
 bin/
 .vscode/
