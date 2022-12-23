@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/smithy-go/auth"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
-
-// Message is the middleware stack's request transport message value.
-type Message interface{}
 
 // Signer provides an interface for implementations to decorate a request
 // message with a bearer token. The signer is responsible for validating the
 // message type is compatible with the signer.
 type Signer interface {
-	SignWithBearerToken(context.Context, Token, Message) (Message, error)
+	SignWithBearerToken(context.Context, Token, auth.Message) (auth.Message, error)
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
@@ -56,18 +54,28 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 ) (
 	out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
 ) {
+	if m.tokenProvider == nil || ctx.Value(auth.CURRENT_AUTH_CONFIG) != nil {
+		return next.HandleFinalize(ctx, in)
+	}
+
 	token, err := m.tokenProvider.RetrieveBearerToken(ctx)
-	if err != nil {
-		return out, metadata, fmt.Errorf("failed AuthenticationMiddleware wrap message, %w", err)
+	if err != nil || len(token.Value) == 0 {
+		fmt.Println("failed AuthenticationMiddleware wrap message, %w", err)
+		return next.HandleFinalize(ctx, in)
 	}
 
 	signedMessage, err := m.signer.SignWithBearerToken(ctx, token, in.Request)
 	if err != nil {
-		return out, metadata, fmt.Errorf("failed AuthenticationMiddleware sign message, %w", err)
+		fmt.Println("failed AuthenticationMiddleware sign message, %w", err)
+		return next.HandleFinalize(ctx, in)
 	}
 
 	in.Request = signedMessage
-	return next.HandleFinalize(ctx, in)
+	return next.HandleFinalize(context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, auth.HttpAuthDefinition{
+		In:     "header",
+		Name:   "Authorization",
+		Scheme: "Bearer",
+	}), in)
 }
 
 // SignHTTPSMessage provides a bearer token authentication implementation that
@@ -87,7 +95,7 @@ func NewSignHTTPSMessage() *SignHTTPSMessage {
 //
 // Returns an error if the request's URL scheme is not HTTPS, or the request
 // message is not an smithy-go HTTP Request pointer type.
-func (SignHTTPSMessage) SignWithBearerToken(ctx context.Context, token Token, message Message) (Message, error) {
+func (SignHTTPSMessage) SignWithBearerToken(ctx context.Context, token Token, message auth.Message) (auth.Message, error) {
 	req, ok := message.(*smithyhttp.Request)
 	if !ok {
 		return nil, fmt.Errorf("expect smithy-go HTTP Request, got %T", message)
