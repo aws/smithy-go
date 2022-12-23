@@ -15,35 +15,62 @@ import (
 
 func TestApiKeyMiddleware(t *testing.T) {
 	cases := map[string]struct {
-		message       auth.Message
-		apiKey        string
-		expectMessage auth.Message
-		expectErr     string
+		message        auth.Message
+		apiKey         string
+		authDefinition *auth.HttpAuthDefinition
+		expectMessage  auth.Message
+		expectErr      string
 	}{
 		// Cases
 		"not smithyhttp.Request": {
 			message:   struct{}{},
 			expectErr: "expect smithy-go HTTP Request",
 		},
-		"not https": {
+		"invalid http auth": {
 			message: func() auth.Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("http://example.aws")
 				return r
 			}(),
-			expectErr: "requires HTTPS",
+			authDefinition: &auth.HttpAuthDefinition{
+				In:   "invalid",
+				Name: "invalid",
+			},
+			expectErr: "invalid HTTP auth",
 		},
-		"success": {
+		"success on header": {
 			message: func() auth.Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				return r
 			}(),
 			apiKey: "abc123",
+			authDefinition: &auth.HttpAuthDefinition{
+				In:     "header",
+				Name:   "Authorization",
+				Scheme: "Apikey",
+			},
 			expectMessage: func() auth.Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				r.Header.Set("Authorization", "Apikey abc123")
+				return r
+			}(),
+		},
+		"success on query": {
+			message: func() auth.Message {
+				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
+				r.URL, _ = url.Parse("https://example.aws")
+				return r
+			}(),
+			apiKey: "abc123",
+			authDefinition: &auth.HttpAuthDefinition{
+				In:   "query",
+				Name: "api_key",
+			},
+			expectMessage: func() auth.Message {
+				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
+				r.URL, _ = url.Parse("https://example.aws?api_key=abc123")
 				return r
 			}(),
 		},
@@ -52,13 +79,8 @@ func TestApiKeyMiddleware(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
-			signer := SignHTTPSMessage{}
-			ctx = context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, auth.HttpAuthDefinition{
-				In:     "header",
-				Name:   "Authorization",
-				Scheme: "Apikey",
-			})
-			message, err := signer.SignWithApiKey(ctx, c.apiKey, c.message)
+			signer := SignMessage{}
+			message, err := signer.SignWithApiKey(ctx, c.apiKey, c.authDefinition, c.message)
 			if c.expectErr != "" {
 				if err == nil {
 					t.Fatalf("expect error, got none")

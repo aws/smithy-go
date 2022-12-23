@@ -13,7 +13,7 @@ import (
 // message with an api key. The signer is responsible for validating the
 // message type is compatible with the signer.
 type Signer interface {
-	SignWithApiKey(context.Context, string, auth.Message) (auth.Message, error)
+	SignWithApiKey(context.Context, string, auth.HttpAuthDefinition, auth.Message) (auth.Message, error)
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
@@ -59,51 +59,47 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 	if m.apiKeyProvider == nil || ctx.Value(auth.CURRENT_AUTH_CONFIG) != nil {
 		return next.HandleFinalize(ctx, in)
 	}
+
 	apiKey, err := m.apiKeyProvider.RetrieveApiKey(ctx)
 	if err != nil || len(apiKey) == 0 {
+		fmt.Println("failed AuthenticationMiddleware wrap message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
-	ctx = context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, m.authDefinition)
-	signedMessage, err := m.signer.SignWithApiKey(ctx, apiKey, in.Request)
+	signedMessage, err := m.signer.SignWithApiKey(ctx, apiKey, m.authDefinition, in.Request)
 	if err != nil {
-		ctx = context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, nil)
+		fmt.Println("failed AuthenticationMiddleware sign message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
 	in.Request = signedMessage
-	return next.HandleFinalize(ctx, in)
+	return next.HandleFinalize(context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, m.authDefinition), in)
 }
 
-// SignHTTPSMessage provides an api key authentication implementation that
+// SignMessage provides an api key authentication implementation that
 // will sign the message with the provided api key.
-//
-// Will fail if the message is not a smithy-go HTTP request or the request is
-// not HTTPS.
-type SignHTTPSMessage struct{}
+type SignMessage struct{}
 
-// NewSignHTTPSMessage returns an initialized signer for HTTP messages.
-func NewSignHTTPSMessage() *SignHTTPSMessage {
-	return &SignHTTPSMessage{}
+// NewSignMessage returns an initialized signer for HTTP messages.
+func NewSignMessage() *SignMessage {
+	return &SignMessage{}
 }
 
 // SignWithApiKey returns a copy of the HTTP request with the api key
 // added via either Header or Query parameter as defined in the Smithy model.
 //
-// Returns an error if the request's URL scheme is not HTTPS, or the request
-// message is not an smithy-go HTTP Request pointer type.
-func (SignHTTPSMessage) SignWithApiKey(ctx context.Context, apiKey string, message auth.Message) (auth.Message, error) {
+// Returns an error if the request message is not an smithy-go HTTP Request pointer type.
+func (SignMessage) SignWithApiKey(ctx context.Context, apiKey string, authDefinition *auth.HttpAuthDefinition, message auth.Message) (auth.Message, error) {
 	req, ok := message.(*smithyhttp.Request)
 	if !ok {
 		return nil, fmt.Errorf("expect smithy-go HTTP Request, got %T", message)
 	}
 
-	if !req.IsHTTPS() {
-		return nil, fmt.Errorf("api key with HTTP request requires HTTPS")
+	if authDefinition == nil || (authDefinition.In != "header" && authDefinition.In != "query") {
+		return nil, fmt.Errorf("invalid HTTP auth definition")
 	}
 
 	reqClone := req.Clone()
-	authDefinition := ctx.Value(auth.CURRENT_AUTH_CONFIG).(auth.HttpAuthDefinition)
 	if authDefinition.In == "header" {
 		reqClone.Header.Set(authDefinition.Name, authDefinition.Scheme+" "+apiKey)
 	} else if authDefinition.In == "query" {
