@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
@@ -33,10 +34,12 @@ public final class GoSettings {
     private static final String SERVICE = "service";
     private static final String MODULE_NAME = "module";
     private static final String MODULE_DESCRIPTION = "moduleDescription";
+    private static final String MODULE_VERSION = "moduleVersion";
 
     private ShapeId service;
     private String moduleName;
     private String moduleDescription = "";
+    private String moduleVersion;
     private ShapeId protocol;
 
     /**
@@ -47,13 +50,13 @@ public final class GoSettings {
      */
     public static GoSettings from(ObjectNode config) {
         GoSettings settings = new GoSettings();
-        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION));
+        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION));
 
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
         settings.setModuleDescription(config.getStringMemberOrDefault(
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
-
+        settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
         return settings;
     }
 
@@ -127,6 +130,26 @@ public final class GoSettings {
      */
     public void setModuleDescription(String moduleDescription) {
         this.moduleDescription = Objects.requireNonNull(moduleDescription);
+    }
+
+    /**
+     * Gets the optional module version for the module that will be generated.
+     *
+     * @return Returns the module version.
+     */
+    public Optional<String> getModuleVersion() {
+        return Optional.ofNullable(moduleVersion);
+    }
+
+    /**
+     * Sets the version of the module to generate.
+     *
+     * @param moduleVersion The version of the module to generate.
+     */
+    public void setModuleVersion(String moduleVersion) {
+        if (moduleVersion != null) {
+            this.moduleVersion = moduleVersion;
+        }
     }
 
     /**
