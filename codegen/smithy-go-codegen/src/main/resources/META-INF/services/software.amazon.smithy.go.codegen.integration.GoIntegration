@@ -1,4 +1,6 @@
 software.amazon.smithy.go.codegen.integration.auth.HttpBearerAuth
+software.amazon.smithy.go.codegen.integration.auth.HttpApiKeyAuth
+software.amazon.smithy.go.codegen.integration.auth.AddAuthPlugin
 software.amazon.smithy.go.codegen.integration.ValidationGenerator
 software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerator
 software.amazon.smithy.go.codegen.integration.AddChecksumRequiredMiddleware

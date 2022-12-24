@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.integration.auth;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -26,25 +27,25 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.traits.HttpBearerAuthTrait;
+import software.amazon.smithy.model.traits.HttpApiKeyAuthTrait;
 import software.amazon.smithy.model.traits.OptionalAuthTrait;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.ListUtils;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
- * Integration to add support for httpBearerAuth authentication scheme to an API client.
+ * Integration to add support for httpApiKeyAuth authentication scheme to an API client.
  */
-public class HttpBearerAuth implements GoIntegration {
+public class HttpApiKeyAuth implements GoIntegration {
 
-    public static final String TOKEN_PROVIDER_OPTION_NAME = "BearerAuthTokenProvider";
-    private static final String SIGNER_OPTION_NAME = "BearerAuthSigner";
+    public static final String API_KEY_PROVIDER_OPTION_NAME = "ApiKeyAuthProvider";
+    private static final String SIGNER_OPTION_NAME = "ApiKeyAuthSigner";
     private static final String NEW_DEFAULT_SIGNER_NAME = "newDefault" + SIGNER_OPTION_NAME;
     private static final String SIGNER_RESOLVER_NAME = "resolve" + SIGNER_OPTION_NAME;
     public static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
@@ -61,29 +62,45 @@ public class HttpBearerAuth implements GoIntegration {
             return;
         }
 
+        Map<String, Object> authDefinition = new HashMap<String, Object>();
+        authDefinition.put("in", service.expectTrait(HttpApiKeyAuthTrait.class).getIn().toString());
+        authDefinition.put("name", service.expectTrait(HttpApiKeyAuthTrait.class).getName());
+        service.expectTrait(HttpApiKeyAuthTrait.class).getScheme().ifPresent(scheme ->
+            authDefinition.put("scheme", scheme));
+
         goDelegator.useShapeWriter(service, (writer) -> {
-            writeMiddlewareRegister(writer);
+            writeMiddlewareRegister(writer, authDefinition);
             writeSignerConfigFieldResolver(writer);
             writeNewSignerFunc(writer);
         });
     }
 
-    private void writeMiddlewareRegister(GoWriter writer) {
+    private void writeMiddlewareRegister(GoWriter writer, Map<String, Object> authDefinition) {
         writer.pushState();
 
-        writer.putContext("funcName", REGISTER_MIDDLEWARE_NAME);
-        writer.putContext("stack", SymbolUtils.createValueSymbolBuilder("Stack",
-                SmithyGoDependency.SMITHY_MIDDLEWARE).build());
-        writer.putContext("addMiddleware", SymbolUtils.createValueSymbolBuilder("AddAuthenticationMiddleware",
-                SmithyGoDependency.SMITHY_AUTH_BEARER).build());
-        writer.putContext("signerOption", SIGNER_OPTION_NAME);
-        writer.putContext("providerOption", TOKEN_PROVIDER_OPTION_NAME);
+        Map<String, Object> commonArgs = MapUtils.of(
+                "funcName", REGISTER_MIDDLEWARE_NAME,
+                "stack", SymbolUtils.createValueSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
+                "addMiddleware", SymbolUtils.createValueSymbolBuilder("AddAuthenticationMiddleware", SmithyGoDependency.SMITHY_AUTH_APIKEY).build(),
+                "signerOption", SIGNER_OPTION_NAME,
+                "providerOption", API_KEY_PROVIDER_OPTION_NAME,
+                "authDefinition", SymbolUtils.createValueSymbolBuilder("HttpAuthDefinition", SmithyGoDependency.SMITHY_AUTH).build()
+        );
 
-        writer.write("""
-                func $funcName:L(stack *$stack:T, o Options) error {
-                    return $addMiddleware:T(stack, o.$signerOption:L, o.$providerOption:L)
-                }
-                """);
+        writer.writeGoBlockTemplate("func $funcName:L(stack *$stack:T, o Options) error {", "}",
+            commonArgs,
+            (ww) -> {
+                ww.writeGoBlockTemplate("return $addMiddleware:T(stack, o.$signerOption:L, o.$providerOption:L, $authDefinition:T{", "})",
+                        authDefinition,
+                        (w) -> {
+                            w.write("In: $in:S,");
+                            w.write("Name: $name:S,");
+                            if (authDefinition.containsKey("scheme")) {
+                                w.write("Scheme: $scheme:S,");
+                            }
+                        });
+            });
+
 
         writer.popState();
     }
@@ -112,11 +129,11 @@ public class HttpBearerAuth implements GoIntegration {
 
         writer.putContext("funcName", NEW_DEFAULT_SIGNER_NAME);
         writer.putContext("signerInterface", SymbolUtils.createValueSymbolBuilder("Signer",
-                SmithyGoDependency.SMITHY_AUTH_BEARER).build());
+                SmithyGoDependency.SMITHY_AUTH_APIKEY).build());
 
         // TODO this is HTTP specific, should be based on protocol/transport of API.
-        writer.putContext("newDefaultSigner", SymbolUtils.createValueSymbolBuilder("NewSignHTTPSMessage",
-                SmithyGoDependency.SMITHY_AUTH_BEARER).build());
+        writer.putContext("newDefaultSigner", SymbolUtils.createValueSymbolBuilder("NewSignMessage",
+                SmithyGoDependency.SMITHY_AUTH_APIKEY).build());
 
         writer.write("""
                 func $funcName:L(o Options) $signerInterface:T {
@@ -131,21 +148,21 @@ public class HttpBearerAuth implements GoIntegration {
     public List<RuntimeClientPlugin> getClientPlugins() {
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
-                        .servicePredicate(HttpBearerAuth::isSupportedAuthentication)
+                        .servicePredicate(HttpApiKeyAuth::isSupportedAuthentication)
                         .addConfigField(ConfigField.builder()
-                                .name(TOKEN_PROVIDER_OPTION_NAME)
-                                .type(SymbolUtils.createValueSymbolBuilder("TokenProvider",
-                                        SmithyGoDependency.SMITHY_AUTH_BEARER).build())
-                                .documentation("Bearer token value provider")
+                                .name(API_KEY_PROVIDER_OPTION_NAME)
+                                .type(SymbolUtils.createValueSymbolBuilder("ApiKeyProvider",
+                                        SmithyGoDependency.SMITHY_AUTH_APIKEY).build())
+                                .documentation("API key provider")
                                 .build())
                         .build(),
                 RuntimeClientPlugin.builder()
-                        .servicePredicate(HttpBearerAuth::isSupportedAuthentication)
+                        .servicePredicate(HttpApiKeyAuth::isSupportedAuthentication)
                         .addConfigField(ConfigField.builder()
                                 .name(SIGNER_OPTION_NAME)
                                 .type(SymbolUtils.createValueSymbolBuilder("Signer",
-                                        SmithyGoDependency.SMITHY_AUTH_BEARER).build())
-                                .documentation("Signer for authenticating requests with bearer auth")
+                                        SmithyGoDependency.SMITHY_AUTH_APIKEY).build())
+                                .documentation("Signer for authenticating requests with api key auth")
                                 .build())
                         .addConfigFieldResolver(ConfigFieldResolver.builder()
                                 .location(ConfigFieldResolver.Location.CLIENT)
@@ -157,28 +174,28 @@ public class HttpBearerAuth implements GoIntegration {
     }
 
     /**
-     * Returns if the service has the httpBearerAuth trait.
+     * Returns if the service has the httpApiKeyAuth trait.
      *
      * @param model   model definition
      * @param service service shape for the API
-     * @return if the httpBearerAuth trait is used by the service
+     * @return if the httpApiKeyAuth trait is used by the service
      */
     public static boolean isSupportedAuthentication(Model model, ServiceShape service) {
         return ServiceIndex.of(model).getAuthSchemes(service).values().stream().anyMatch(trait -> trait.getClass()
-                .equals(HttpBearerAuthTrait.class));
+                .equals(HttpApiKeyAuthTrait.class));
 
     }
 
     /**
-     * Returns if the service and operation support the httpBearerAuthTrait.
+     * Returns if the service and operation support the httpApiKeyAuthTrait.
      *
      * @param model     model definition
      * @param service   service shape for the API
      * @param operation operation shape
-     * @return if the service and operation support the httpBearerAuthTrait
+     * @return if the service and operation support the httpApiKeyAuthTrait
      */
-    public static boolean hasBearerAuthScheme(Model model, ServiceShape service, OperationShape operation) {
+    public static boolean hasApiKeyAuthScheme(Model model, ServiceShape service, OperationShape operation) {
         Map<ShapeId, Trait> auth = ServiceIndex.of(model).getEffectiveAuthSchemes(service.getId(), operation.getId());
-        return auth.containsKey(HttpBearerAuthTrait.ID) && !operation.hasTrait(OptionalAuthTrait.class);
+        return auth.containsKey(HttpApiKeyAuthTrait.ID) && !operation.hasTrait(OptionalAuthTrait.class);
     }
 }
