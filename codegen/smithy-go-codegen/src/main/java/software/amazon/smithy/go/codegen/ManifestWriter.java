@@ -189,7 +189,7 @@ public final class ManifestWriter {
         return template
             .replace("${moduleName}", moduleName)
             .replace("${minimumGoVersion}", minimumGoVersion)
-            .replace("${dependencies}", String.join("\n", dependencies));
+            .replace("${dependencies}", String.join("\n\t", dependencies));
     }
 
     private static Map<String, String> gatherMinimumDependencies(
