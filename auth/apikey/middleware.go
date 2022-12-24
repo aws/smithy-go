@@ -13,7 +13,7 @@ import (
 // message with an api key. The signer is responsible for validating the
 // message type is compatible with the signer.
 type Signer interface {
-	SignWithApiKey(context.Context, string, auth.HttpAuthDefinition, auth.Message) (auth.Message, error)
+	SignWithApiKey(context.Context, string, *auth.HttpAuthDefinition, auth.Message) (auth.Message, error)
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
@@ -66,7 +66,7 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 		return next.HandleFinalize(ctx, in)
 	}
 
-	signedMessage, err := m.signer.SignWithApiKey(ctx, apiKey, m.authDefinition, in.Request)
+	signedMessage, err := m.signer.SignWithApiKey(ctx, apiKey, &m.authDefinition, in.Request)
 	if err != nil {
 		fmt.Println("failed AuthenticationMiddleware sign message, %w", err)
 		return next.HandleFinalize(ctx, in)
