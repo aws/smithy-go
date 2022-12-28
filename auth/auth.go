@@ -22,6 +22,3 @@ type HttpAuthDefinition struct {
 	// This can only be set if the "in" property is set to {@link HttpAuthLocation.HEADER}.
 	Scheme string
 }
-
-// Message is the middleware stack's request transport message value.
-type Message interface{}

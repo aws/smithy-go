@@ -15,10 +15,10 @@ import (
 
 func TestApiKeyMiddleware(t *testing.T) {
 	cases := map[string]struct {
-		message        auth.Message
+		message        Message
 		apiKey         string
 		authDefinition *auth.HttpAuthDefinition
-		expectMessage  auth.Message
+		expectMessage  Message
 		expectErr      string
 	}{
 		// Cases
@@ -27,7 +27,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 			expectErr: "expect smithy-go HTTP Request",
 		},
 		"invalid http auth": {
-			message: func() auth.Message {
+			message: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("http://example.aws")
 				return r
@@ -39,7 +39,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 			expectErr: "invalid HTTP auth",
 		},
 		"success on header": {
-			message: func() auth.Message {
+			message: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				return r
@@ -50,7 +50,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 				Name:   "Authorization",
 				Scheme: "Apikey",
 			},
-			expectMessage: func() auth.Message {
+			expectMessage: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				r.Header.Set("Authorization", "Apikey abc123")
@@ -58,7 +58,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 			}(),
 		},
 		"success on query": {
-			message: func() auth.Message {
+			message: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				return r
@@ -68,7 +68,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 				In:   "query",
 				Name: "api_key",
 			},
-			expectMessage: func() auth.Message {
+			expectMessage: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws?api_key=abc123")
 				return r

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/smithy-go/auth"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -15,9 +14,9 @@ import (
 
 func TestSignHTTPSMessage(t *testing.T) {
 	cases := map[string]struct {
-		message       auth.Message
+		message       Message
 		token         Token
-		expectMessage auth.Message
+		expectMessage Message
 		expectErr     string
 	}{
 		// Cases
@@ -26,7 +25,7 @@ func TestSignHTTPSMessage(t *testing.T) {
 			expectErr: "expect smithy-go HTTP Request",
 		},
 		"not https": {
-			message: func() auth.Message {
+			message: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("http://example.aws")
 				return r
@@ -34,13 +33,13 @@ func TestSignHTTPSMessage(t *testing.T) {
 			expectErr: "requires HTTPS",
 		},
 		"success": {
-			message: func() auth.Message {
+			message: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				return r
 			}(),
 			token: Token{Value: "abc123"},
-			expectMessage: func() auth.Message {
+			expectMessage: func() Message {
 				r := smithyhttp.NewStackRequest().(*smithyhttp.Request)
 				r.URL, _ = url.Parse("https://example.aws")
 				r.Header.Set("Authorization", "Bearer abc123")

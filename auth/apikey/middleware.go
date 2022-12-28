@@ -9,11 +9,14 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
+// Message is the middleware stack's request transport message value.
+type Message interface{}
+
 // Signer provides an interface for implementations to decorate a request
 // message with an api key. The signer is responsible for validating the
 // message type is compatible with the signer.
 type Signer interface {
-	SignWithApiKey(context.Context, string, *auth.HttpAuthDefinition, auth.Message) (auth.Message, error)
+	SignWithApiKey(context.Context, string, *auth.HttpAuthDefinition, Message) (Message, error)
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
@@ -89,7 +92,7 @@ func NewSignMessage() *SignMessage {
 // added via either Header or Query parameter as defined in the Smithy model.
 //
 // Returns an error if the request message is not an smithy-go HTTP Request pointer type.
-func (SignMessage) SignWithApiKey(ctx context.Context, apiKey string, authDefinition *auth.HttpAuthDefinition, message auth.Message) (auth.Message, error) {
+func (SignMessage) SignWithApiKey(ctx context.Context, apiKey string, authDefinition *auth.HttpAuthDefinition, message Message) (Message, error) {
 	req, ok := message.(*smithyhttp.Request)
 	if !ok {
 		return nil, fmt.Errorf("expect smithy-go HTTP Request, got %T", message)
