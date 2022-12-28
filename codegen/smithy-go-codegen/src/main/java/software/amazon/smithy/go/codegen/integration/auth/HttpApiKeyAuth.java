@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved
+ * Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -81,17 +81,21 @@ public class HttpApiKeyAuth implements GoIntegration {
         Map<String, Object> commonArgs = MapUtils.of(
                 "funcName", REGISTER_MIDDLEWARE_NAME,
                 "stack", SymbolUtils.createValueSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
-                "addMiddleware", SymbolUtils.createValueSymbolBuilder("AddAuthenticationMiddleware", SmithyGoDependency.SMITHY_AUTH_APIKEY).build(),
+                "addMiddleware", SymbolUtils.createValueSymbolBuilder(
+                    "AddAuthenticationMiddleware", SmithyGoDependency.SMITHY_AUTH_APIKEY).build(),
                 "signerOption", SIGNER_OPTION_NAME,
                 "providerOption", API_KEY_PROVIDER_OPTION_NAME,
-                "authDefinition", SymbolUtils.createValueSymbolBuilder("HttpAuthDefinition", SmithyGoDependency.SMITHY_AUTH).build()
+                "authDefinition", SymbolUtils.createValueSymbolBuilder(
+                    "HttpAuthDefinition", SmithyGoDependency.SMITHY_AUTH).build()
         );
 
         writer.writeGoBlockTemplate("func $funcName:L(stack *$stack:T, o Options) error {", "}",
             commonArgs,
             (ww) -> {
-                ww.writeGoBlockTemplate("return $addMiddleware:T(stack, o.$signerOption:L, o.$providerOption:L, $authDefinition:T{", "})",
-                        authDefinition,
+                ww.writeGoBlockTemplate(
+                    "return $addMiddleware:T(stack, o.$signerOption:L, o.$providerOption:L, $authDefinition:T{",
+                    "})",
+                    authDefinition,
                         (w) -> {
                             w.write("In: $in:S,");
                             w.write("Name: $name:S,");
