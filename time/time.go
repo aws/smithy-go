@@ -14,12 +14,15 @@ const (
 	dateTimeFormatInputNoZ = "2006-01-02T15:04:05.999999999"
 	dateTimeFormatOutput   = "2006-01-02T15:04:05.999Z"
 
-	// httpDateFormat is a date time defined by RFC 7231#section-7.1.1.1
-	// IMF-fixdate with no UTC offset.
-	httpDateFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
+	// httpDateFormatOutputGMT is a date time defined by
+	// RFC 7231#section-7.1.1.1 IMF-fixdate with no UTC offset.
+	// This format is always applied to UTC location, but must set GMT
+	// as timezone for RFC compatibility.
+	httpDateFormatOutputGMT = "Mon, 02 Jan 2006 15:04:05 GMT"
+
 	// Additional formats needed for compatibility.
-	httpDateFormatSingleDigitDay             = "Mon, _2 Jan 2006 15:04:05 GMT"
-	httpDateFormatSingleDigitDayTwoDigitYear = "Mon, _2 Jan 06 15:04:05 GMT"
+	httpDateFormatSingleDigitDay             = "Mon, _2 Jan 2006 15:04:05 MST"
+	httpDateFormatSingleDigitDayTwoDigitYear = "Mon, _2 Jan 06 15:04:05 MST"
 )
 
 var millisecondFloat = big.NewFloat(1e3)
@@ -47,7 +50,7 @@ func ParseDateTime(value string) (time.Time, error) {
 //
 // Example: Tue, 29 Apr 2014 18:30:38 GMT
 func FormatHTTPDate(value time.Time) string {
-	return value.UTC().Format(httpDateFormat)
+	return value.UTC().Format(httpDateFormatOutputGMT)
 }
 
 // ParseHTTPDate parses a string as a http-date, (RFC 7231#section-7.1.1.1 IMF-fixdate)
@@ -55,7 +58,7 @@ func FormatHTTPDate(value time.Time) string {
 // Example: Tue, 29 Apr 2014 18:30:38 GMT
 func ParseHTTPDate(value string) (time.Time, error) {
 	return tryParse(value,
-		httpDateFormat,
+		time.RFC1123,
 		httpDateFormatSingleDigitDay,
 		httpDateFormatSingleDigitDayTwoDigitYear,
 		time.RFC850,
