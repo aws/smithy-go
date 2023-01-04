@@ -368,11 +368,16 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         });
         writer.write("");
 
-        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
-                context, operation, responseType, this::writeErrorMessageCodeDeserializer,
-                this::getOperationErrors);
+        Set<StructureShape> errorShapes = generateErrorShapes(context, operation, responseType);
         deserializingErrorShapes.addAll(errorShapes);
         deserializingDocumentShapes.addAll(errorShapes);
+    }
+
+    protected Set<StructureShape> generateErrorShapes(
+        GenerationContext context, OperationShape operation, Symbol responseType) {
+        return HttpProtocolGeneratorUtils.generateErrorDispatcher(
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer,
+                this::getOperationErrors);
     }
 
     /**
