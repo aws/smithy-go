@@ -6,6 +6,7 @@ import static software.amazon.smithy.go.codegen.TestUtils.hasGoInstalled;
 import static software.amazon.smithy.go.codegen.TestUtils.makeGoModule;
 import static software.amazon.smithy.go.codegen.TestUtils.testGoModule;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -23,7 +24,7 @@ public class GenerateStandaloneGoModuleTest {
             return;
         }
 
-        var testPath = getTestOutputDir();
+        var testPath = Files.createTempDirectory(getClass().getName());
         LOGGER.warning("generating test suites into " + testPath);
 
         var fileManifest = FileManifest.create(testPath);
