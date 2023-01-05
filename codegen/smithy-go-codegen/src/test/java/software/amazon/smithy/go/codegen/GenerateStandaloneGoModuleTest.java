@@ -99,19 +99,4 @@ public class GenerateStandaloneGoModuleTest {
                     w.write("return \"hello!\"");
                 });
     }
-
-    private static Path getTestOutputDir() {
-        var testWorkspace = System.getenv("SMITHY_GO_TEST_WORKSPACE");
-        if (testWorkspace != null) {
-            return Path.of(testWorkspace).toAbsolutePath();
-        }
-
-        return Path.of(System.getProperty("user.dir"))
-                .resolve("build")
-                .resolve("test-generated")
-                .resolve("go")
-                .resolve("internal")
-                .resolve("testmodule")
-                .toAbsolutePath();
-    }
 }
