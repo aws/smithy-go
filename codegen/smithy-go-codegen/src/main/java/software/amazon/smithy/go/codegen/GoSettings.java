@@ -35,11 +35,13 @@ public final class GoSettings {
     private static final String MODULE_NAME = "module";
     private static final String MODULE_DESCRIPTION = "moduleDescription";
     private static final String MODULE_VERSION = "moduleVersion";
+    private static final String GENERATE_GO_MOD = "generateGoMod";
 
     private ShapeId service;
     private String moduleName;
     private String moduleDescription = "";
     private String moduleVersion;
+    private Boolean generateGoMod = false;
     private ShapeId protocol;
 
     /**
@@ -50,13 +52,15 @@ public final class GoSettings {
      */
     public static GoSettings from(ObjectNode config) {
         GoSettings settings = new GoSettings();
-        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION));
+        config.warnIfAdditionalProperties(
+            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD));
 
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
         settings.setModuleDescription(config.getStringMemberOrDefault(
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
         settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
+        settings.setGenerateGoMod(config.getBooleanMemberOrDefault(MODULE_VERSION, false));
         return settings;
     }
 
@@ -150,6 +154,24 @@ public final class GoSettings {
         if (moduleVersion != null) {
             this.moduleVersion = moduleVersion;
         }
+    }
+
+     /**
+     * Gets the flag for generating go.mod file.
+     *
+     * @return Returns if go.mod will be generated (true) or not (false)
+     */
+    public Boolean getGenerateGoMod() {
+        return generateGoMod;
+    }
+
+    /**
+     * Sets the flag for generating go.mod file.
+     *
+     * @param generateGoMod If go.mod will be generated (true) or not (false)
+     */
+    public void setGenerateGoMod(Boolean generateGoMod) {
+        this.generateGoMod = Objects.requireNonNull(generateGoMod);
     }
 
     /**
