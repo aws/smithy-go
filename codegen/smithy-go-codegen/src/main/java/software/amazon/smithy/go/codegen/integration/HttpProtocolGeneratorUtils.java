@@ -59,12 +59,45 @@ public final class HttpProtocolGeneratorUtils {
      *                                  and {@code errorMessage} variables from the http response.
      * @return A set of all error structure shapes for the operation that were dispatched to.
      */
-    static Set<StructureShape> generateErrorDispatcher(
+    public static Set<StructureShape> generateErrorDispatcher(
             GenerationContext context,
             OperationShape operation,
             Symbol responseType,
             Consumer<GenerationContext> errorMessageCodeGenerator,
             BiFunction<GenerationContext, OperationShape, Map<String, ShapeId>> operationErrorsToShapes
+    ) {
+        return generateErrorDispatcher(
+            context, operation, responseType,
+            errorMessageCodeGenerator, operationErrorsToShapes, writer -> defaultBlock(writer));
+    }
+
+    private static void defaultBlock(GoWriter writer) {
+        writer.openBlock("default:", "", () -> {
+            writer.openBlock("genericError := &smithy.GenericAPIError{", "}", () -> {
+                writer.write("Code: errorCode,");
+                writer.write("Message: errorMessage,");
+            });
+            writer.write("return genericError");
+        });
+    }
+
+    @FunctionalInterface
+    public interface DefaultBlockWriter {
+        void write(GoWriter writer);
+    }
+
+    /**
+     * Generates a function that handles error deserialization by getting the error code then
+     * dispatching to the error-specific deserializer. Provies an option to write custom default
+     * error block.
+     */
+    public static Set<StructureShape> generateErrorDispatcher(
+            GenerationContext context,
+            OperationShape operation,
+            Symbol responseType,
+            Consumer<GenerationContext> errorMessageCodeGenerator,
+            BiFunction<GenerationContext, OperationShape, Map<String, ShapeId>> operationErrorsToShapes,
+            DefaultBlockWriter defaultBlockWriter
     ) {
         GoWriter writer = context.getWriter().get();
         ServiceShape service = context.getService();
@@ -111,13 +144,7 @@ public final class HttpProtocolGeneratorUtils {
 
                         // Create a generic error
                         writer.addUseImports(SmithyGoDependency.SMITHY);
-                        writer.openBlock("default:", "", () -> {
-                            writer.openBlock("genericError := &smithy.GenericAPIError{", "}", () -> {
-                                writer.write("Code: errorCode,");
-                                writer.write("Message: errorMessage,");
-                            });
-                            writer.write("return genericError");
-                        });
+                        defaultBlockWriter.write(writer);
                     });
                 }).write("");
 

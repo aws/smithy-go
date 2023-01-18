@@ -68,11 +68,11 @@ public class AddOperationShapesTest {
             MatcherAssert.assertThat(shapeId + " shape must have no members",
                     shape.get().members().size(), Matchers.equalTo(0));
 
-            Optional<SyntheticClone> opSynthClone = shape.get().getTrait(SyntheticClone.class);
-            if (opSynthClone.isPresent()) {
-                SyntheticClone synthClone = opSynthClone.get();
+            Optional<Synthetic> opSynth = shape.get().getTrait(Synthetic.class);
+            if (opSynth.isPresent()) {
+                Synthetic synth = opSynth.get();
                 MatcherAssert.assertThat(shapeId + " shape must not have archetype",
-                        synthClone.getArchetype().isPresent(), Matchers.equalTo(false));
+                        synth.getArchetype().isPresent(), Matchers.equalTo(false));
             } else {
                 MatcherAssert.assertThat(shapeId + " shape must be synthetic clone", false);
             }
@@ -129,11 +129,11 @@ public class AddOperationShapesTest {
             MatcherAssert.assertThat("foo is correct parent", id.getName(service),
                     Matchers.equalTo(shapeId.getName(service)));
 
-            Optional<SyntheticClone> syntheticClone = shape.get().getTrait(SyntheticClone.class);
-            if (!syntheticClone.isPresent()) {
+            Optional<Synthetic> synthetic = shape.get().getTrait(Synthetic.class);
+            if (!synthetic.isPresent()) {
                 MatcherAssert.assertThat(shapeId + " shape must be marked as synthetic clone", false);
             } else {
-                MatcherAssert.assertThat(syntheticClone.get().getArchetype().get().toString(),
+                MatcherAssert.assertThat(synthetic.get().getArchetype().get().toString(),
                         Matchers.is(Matchers.oneOf(NAMESPACE + "#TestOperationRequest",
                                 NAMESPACE + "#TestOperationResponse")));
             }
@@ -175,7 +175,7 @@ public class AddOperationShapesTest {
                     MatcherAssert.assertThat(shapeId + " shape must be present in model",
                             shape.isPresent(), Matchers.is(true));
 
-                    if (shape.get().getTrait(SyntheticClone.class).isPresent()) {
+                    if (shape.get().getTrait(Synthetic.class).isPresent()) {
                         MatcherAssert.assertThat("shape must not be marked as synthetic clone", false);
                     }
                 });
@@ -186,11 +186,11 @@ public class AddOperationShapesTest {
                     MatcherAssert.assertThat(shapeId + " shape must be present in model",
                             shape.isPresent(), Matchers.is(true));
 
-                    Optional<SyntheticClone> opSynthClone = shape.get().getTrait(SyntheticClone.class);
-                    if (opSynthClone.isPresent()) {
-                        SyntheticClone synthClone = opSynthClone.get();
+                    Optional<Synthetic> opSynth = shape.get().getTrait(Synthetic.class);
+                    if (opSynth.isPresent()) {
+                        Synthetic synth = opSynth.get();
                         MatcherAssert.assertThat(shapeId + " shape must not have archetype",
-                                synthClone.getArchetype().isPresent(), Matchers.equalTo(false));
+                                synth.getArchetype().isPresent(), Matchers.equalTo(false));
                     } else {
                         MatcherAssert.assertThat(shapeId + " shape must be synthetic clone", false);
                     }

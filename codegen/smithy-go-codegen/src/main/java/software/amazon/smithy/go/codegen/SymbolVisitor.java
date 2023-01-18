@@ -122,6 +122,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
                 .put("ErrorFault", "ErrorFault_")
                 .put("Unwrap", "Unwrap_")
                 .put("Error", "Error_")
+                .put("ErrorCodeOverride", "ErrorCodeOverride_")
                 .build();
 
         errorMemberEscaper = ReservedWordSymbolProvider.builder()
@@ -192,9 +193,9 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
      * @return the symbol with archetype set if shape is a synthetic clone otherwise the original symbol
      */
     private Symbol linkArchetypeShape(Shape shape, Symbol symbol) {
-        return shape.getTrait(SyntheticClone.class)
-                .map(syntheticClone -> symbol.toBuilder()
-                        .putProperty("archetype", syntheticClone.getArchetype())
+        return shape.getTrait(Synthetic.class)
+                .map(synthetic -> symbol.toBuilder()
+                        .putProperty("archetype", synthetic.getArchetype())
                         .build())
                 .orElse(symbol);
     }

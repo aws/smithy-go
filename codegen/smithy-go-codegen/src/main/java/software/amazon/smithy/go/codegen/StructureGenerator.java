@@ -38,7 +38,7 @@ final class StructureGenerator implements Runnable {
             "ErrorMessage", "string",
             "ErrorFault", "string"
     );
-    private static final Set<String> ERROR_MESSAGE_MEMBER_NAMES = SetUtils.of("ErrorMessage", "Message");
+    private static final Set<String> ERROR_MEMBER_NAMES = SetUtils.of("ErrorMessage", "Message", "ErrorCodeOverride");
 
     private final Model model;
     private final SymbolProvider symbolProvider;
@@ -144,12 +144,12 @@ final class StructureGenerator implements Runnable {
             // The message is the only part of the standard APIError interface that isn't known ahead of time.
             // Message is a pointer mostly for the sake of consistency.
             writer.write("Message *string").write("");
-
+            writer.write("ErrorCodeOverride *string").write("");
 
             for (MemberShape member : shape.getAllMembers().values()) {
                 String memberName = symbolProvider.toMemberName(member);
                 // error messages are represented under Message for consistency
-                if (!ERROR_MESSAGE_MEMBER_NAMES.contains(memberName)) {
+                if (!ERROR_MEMBER_NAMES.contains(memberName)) {
                     writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
                 }
             }
@@ -174,7 +174,12 @@ final class StructureGenerator implements Runnable {
 
         String errorCode = protocolGenerator == null ? shape.getId().getName(service)
                 : protocolGenerator.getErrorCode(service, shape);
-        writer.write("func (e *$L) ErrorCode() string { return $S }", structureSymbol.getName(), errorCode);
+        writer.openBlock("func (e *$L) ErrorCode() string {", "}", structureSymbol.getName(), () -> {
+            writer.openBlock("if e.ErrorCodeOverride == nil {", "}", () -> {
+                writer.write("return $S", errorCode);
+            });
+            writer.write("return *e.ErrorCodeOverride");
+        });
 
         String fault = "smithy.FaultUnknown";
         if (errorTrait.isClientError()) {

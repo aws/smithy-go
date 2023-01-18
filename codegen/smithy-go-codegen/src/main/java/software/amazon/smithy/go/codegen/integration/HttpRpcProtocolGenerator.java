@@ -194,7 +194,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 serializeInputDocument(context, operation);
                 // Skipping calling serializer method for the input shape is responsibility of the
                 // serializeInputDocument implementation.
-                if (!CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectInput(context.getModel(), operation))) {
+                if (!CodegenUtils.isStubSynthetic(ProtocolUtils.expectInput(context.getModel(), operation))) {
                     serializingDocumentShapes.add(ProtocolUtils.expectInput(model, operation));
                 }
             } else {
@@ -349,7 +349,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
 
             // Discard without deserializing the response if the input shape is a stubbed synthetic clone
             // without an archetype.
-            if (CodegenUtils.isStubSyntheticClone(ProtocolUtils.expectOutput(model, operation))
+            if (CodegenUtils.isStubSynthetic(ProtocolUtils.expectOutput(model, operation))
                 && streamInfoOptional.isEmpty()) {
                 writer.addUseImports(SmithyGoDependency.IOUTIL);
                 writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}",
@@ -368,11 +368,16 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         });
         writer.write("");
 
-        Set<StructureShape> errorShapes = HttpProtocolGeneratorUtils.generateErrorDispatcher(
-                context, operation, responseType, this::writeErrorMessageCodeDeserializer,
-                this::getOperationErrors);
+        Set<StructureShape> errorShapes = generateErrorShapes(context, operation, responseType);
         deserializingErrorShapes.addAll(errorShapes);
         deserializingDocumentShapes.addAll(errorShapes);
+    }
+
+    protected Set<StructureShape> generateErrorShapes(
+        GenerationContext context, OperationShape operation, Symbol responseType) {
+        return HttpProtocolGeneratorUtils.generateErrorDispatcher(
+                context, operation, responseType, this::writeErrorMessageCodeDeserializer,
+                this::getOperationErrors);
     }
 
     /**
