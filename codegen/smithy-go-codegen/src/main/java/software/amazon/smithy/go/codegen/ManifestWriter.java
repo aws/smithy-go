@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.build.FileManifest;
@@ -45,6 +46,9 @@ import software.amazon.smithy.utils.SmithyBuilder;
  * and minimum dependencies required.
  */
 public final class ManifestWriter {
+
+    private static final Logger LOGGER = Logger.getLogger(ManifestWriter.class.getName());
+
     private static final String GENERATED_JSON = "generated.json";
 
     private final String moduleName;
@@ -99,6 +103,8 @@ public final class ManifestWriter {
             }
         }
         fileManifest.addFile(manifestFile);
+
+        LOGGER.fine("Creating manifest at path " + manifestFile.toString());
 
         Node generatedJson = buildManifestFile();
         fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson) + "\n");

@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.logging.Logger;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -32,6 +33,8 @@ import software.amazon.smithy.codegen.core.SymbolDependency;
  */
 final class GoModGenerator {
 
+    private static final Logger LOGGER = Logger.getLogger(GoModGenerator.class.getName());
+
     private GoModGenerator() {}
 
     static void writeGoMod(
@@ -45,6 +48,7 @@ final class GoModGenerator {
         }
 
         Path goModFile = manifest.getBaseDir().resolve("go.mod");
+        LOGGER.fine("Creating go.mod at path " + goModFile.toString());
 
         // `go mod init` will fail if the `go.mod` already exists, so this deletes
         //  it if it's present in the output. While it's technically possible
@@ -56,6 +60,7 @@ final class GoModGenerator {
                 throw new CodegenException("Failed to delete existing go.mod file", e);
             }
         }
+        manifest.addFile(goModFile);
         CodegenUtils.runCommand("go mod init " + settings.getModuleName(), manifest.getBaseDir());
 
         Map<String, String> externalDependencies = getExternalDependencies(dependencies);

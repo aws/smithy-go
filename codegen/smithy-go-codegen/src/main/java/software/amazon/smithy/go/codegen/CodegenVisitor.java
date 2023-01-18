@@ -255,6 +255,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         List<SymbolDependency> dependencies = writers.getDependencies();
         writers.flushWriters();
 
+        LOGGER.fine("Generating go.mod file");
+        GoModGenerator.writeGoMod(settings, fileManifest, SymbolDependency.gatherDependencies(dependencies.stream()));
+
         LOGGER.fine("Generating build manifest file");
         ManifestWriter.writeManifest(settings, model, fileManifest, dependencies);
     }

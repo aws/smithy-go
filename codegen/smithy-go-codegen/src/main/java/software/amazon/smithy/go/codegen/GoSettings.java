@@ -60,7 +60,7 @@ public final class GoSettings {
         settings.setModuleDescription(config.getStringMemberOrDefault(
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
         settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
-        settings.setGenerateGoMod(config.getBooleanMemberOrDefault(MODULE_VERSION, false));
+        settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
         return settings;
     }
 
