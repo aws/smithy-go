@@ -72,7 +72,7 @@ public class TestUtils {
             serviceShapeId,
             "example",
             "0.0.1",
-            true);
+            false);
     }
 
     public static PluginContext buildPluginContext(
