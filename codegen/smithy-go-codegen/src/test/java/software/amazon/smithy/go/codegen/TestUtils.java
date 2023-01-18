@@ -71,7 +71,8 @@ public class TestUtils {
             manifest,
             serviceShapeId,
             "example",
-            "0.0.1");
+            "0.0.1",
+            true);
     }
 
     public static PluginContext buildPluginContext(
@@ -79,7 +80,8 @@ public class TestUtils {
         FileManifest manifest,
         String serviceShapeId,
         String moduleName,
-        String moduleVersion
+        String moduleVersion,
+        Boolean generateGoMod
     ) {
         return PluginContext.builder()
             .model(model)
@@ -88,6 +90,7 @@ public class TestUtils {
                 serviceShapeId,
                 moduleName,
                 moduleVersion,
+                generateGoMod,
                 "Example"))
             .build();
     }
@@ -96,12 +99,14 @@ public class TestUtils {
         String serviceShapeId,
         String moduleName,
         String moduleVersion,
+        Boolean generateGoMod,
         String sdkId
     ) {
         return Node.objectNodeBuilder()
             .withMember("service", Node.from(serviceShapeId))
             .withMember("module", Node.from(moduleName))
             .withMember("moduleVersion", Node.from(moduleVersion))
+            .withMember("generateGoMod", Node.from(generateGoMod))
             .withMember("homepage", Node.from("https://docs.amplify.aws/"))
             .withMember("sdkId", Node.from(sdkId))
             .withMember("author", Node.from("Amazon Web Services"))
