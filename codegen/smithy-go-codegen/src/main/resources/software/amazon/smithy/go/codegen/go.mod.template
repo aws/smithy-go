@@ -3,5 +3,5 @@ module ${moduleName}
 go ${minimumGoVersion}
 
 require (
-	${dependencies}
+${dependencies}
 )
