@@ -38,7 +38,6 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.traits.UnstableTrait;
 import software.amazon.smithy.utils.BuilderRef;
-import software.amazon.smithy.utils.IoUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 
 /**
@@ -47,17 +46,12 @@ import software.amazon.smithy.utils.SmithyBuilder;
  */
 public final class ManifestWriter {
     private static final String GENERATED_JSON = "generated.json";
-    private static final String GENERATED_GO_MOD = "go.mod";
-    private static final String DEFAULT_MINIMUM_GO_VERSION = "1.15";
 
     private final String moduleName;
     private final FileManifest fileManifest;
     private final List<SymbolDependency> dependencies;
     private final Optional<String> minimumGoVersion;
     private final boolean isUnstable;
-    private final boolean isGoModule;
-
-    private Map<String, String> minimumDependencies;
 
     private ManifestWriter(Builder builder) {
         moduleName = SmithyBuilder.requiredState("moduleName", builder.moduleName);
@@ -65,7 +59,6 @@ public final class ManifestWriter {
         dependencies = builder.dependencies.copy();
         minimumGoVersion = builder.minimumGoVersion;
         isUnstable = builder.isUnstable;
-        isGoModule = builder.isGoModule;
     }
 
     /**
@@ -87,7 +80,6 @@ public final class ManifestWriter {
                 .fileManifest(fileManifest)
                 .dependencies(dependencies)
                 .isUnstable(settings.getService(model).getTrait(UnstableTrait.class).isPresent())
-                .isGoModule(settings.getModuleVersion().isPresent())
                 .build()
                 .writeManifest();
     }
@@ -108,30 +100,12 @@ public final class ManifestWriter {
         }
         fileManifest.addFile(manifestFile);
 
-        String minimumGoVersion = prepareDependencies();
-
-        Node generatedJson = buildManifestFile(minimumGoVersion);
+        Node generatedJson = buildManifestFile();
         fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson) + "\n");
-
-        if (isGoModule) {
-            Path moduleFile = fileManifest.getBaseDir().resolve(GENERATED_GO_MOD);
-
-            if (Files.exists(moduleFile)) {
-                try {
-                    Files.delete(moduleFile);
-                } catch (IOException e) {
-                    throw new CodegenException("Failed to delete existing " + GENERATED_GO_MOD + " file", e);
-                }
-            }
-            fileManifest.addFile(moduleFile);
-
-            String moduleContent = buildModuleFile(minimumGoVersion);
-            fileManifest.writeFile(moduleFile.toString(), moduleContent);
-        }
 
     }
 
-    private String prepareDependencies() {
+    private Node buildManifestFile() {
         List<SymbolDependency> nonStdLib = new ArrayList<>();
         Optional<String> minimumGoVersion = this.minimumGoVersion;
 
@@ -150,12 +124,10 @@ public final class ManifestWriter {
                 minimumGoVersion = Optional.of(otherVersion);
             }
         }
-        minimumDependencies = gatherMinimumDependencies(nonStdLib.stream());
-        return minimumGoVersion.orElse(DEFAULT_MINIMUM_GO_VERSION);
-    }
 
-    private Node buildManifestFile(String minimumGoVersion) {
         Map<StringNode, Node> manifestNodes = new HashMap<>();
+
+        Map<String, String> minimumDependencies = gatherMinimumDependencies(nonStdLib.stream());
 
         Map<StringNode, Node> dependencyNodes = new HashMap<>();
         for (Map.Entry<String, String> entry : minimumDependencies.entrySet()) {
@@ -170,26 +142,13 @@ public final class ManifestWriter {
         generatedFiles = generatedFiles.stream().sorted().collect(Collectors.toList());
 
         manifestNodes.put(StringNode.from("module"), StringNode.from(moduleName));
-        manifestNodes.put(StringNode.from("go"), StringNode.from(minimumGoVersion));
+        minimumGoVersion.ifPresent(version -> manifestNodes.put(StringNode.from("go"),
+                StringNode.from(version)));
         manifestNodes.put(StringNode.from("dependencies"), ObjectNode.objectNode(dependencyNodes));
         manifestNodes.put(StringNode.from("files"), ArrayNode.fromStrings(generatedFiles));
         manifestNodes.put(StringNode.from("unstable"), BooleanNode.from(isUnstable));
 
         return ObjectNode.objectNode(manifestNodes).withDeepSortedKeys();
-    }
-
-    private String buildModuleFile(String minimumGoVersion) {
-        String template = IoUtils.readUtf8Resource(getClass(), "go.mod.template");
-        List<String> dependencies = new ArrayList<>();
-
-        for (Map.Entry<String, String> entry : minimumDependencies.entrySet()) {
-            dependencies.add(String.format("%s %s", entry.getKey(), entry.getValue()));
-        }
-
-        return template
-            .replace("${moduleName}", moduleName)
-            .replace("${minimumGoVersion}", minimumGoVersion)
-            .replace("${dependencies}", String.join("\n", dependencies));
     }
 
     private static Map<String, String> gatherMinimumDependencies(
@@ -211,7 +170,6 @@ public final class ManifestWriter {
         private final BuilderRef<List<SymbolDependency>> dependencies = BuilderRef.forList();
         private Optional<String> minimumGoVersion = Optional.empty();
         private boolean isUnstable;
-        private boolean isGoModule;
 
         public Builder moduleName(String moduleName) {
             this.moduleName = moduleName;
@@ -236,11 +194,6 @@ public final class ManifestWriter {
 
         public Builder isUnstable(boolean isUnstable) {
             this.isUnstable = isUnstable;
-            return this;
-        }
-
-        public Builder isGoModule(boolean isGoModule) {
-            this.isGoModule = isGoModule;
             return this;
         }
 
