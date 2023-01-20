@@ -69,6 +69,10 @@ final class GoModGenerator {
                     String.format("go mod edit -require=%s@%s", dependency.getKey(), dependency.getValue()),
                     manifest.getBaseDir());
         }
+
+        CodegenUtils.runCommand(
+            String.format("go mod edit -go=%s", settings.getGoDirective()),
+            manifest.getBaseDir());
     }
 
     private static Map<String, String> getExternalDependencies(
