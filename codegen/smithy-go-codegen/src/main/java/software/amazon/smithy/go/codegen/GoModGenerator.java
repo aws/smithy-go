@@ -48,7 +48,7 @@ final class GoModGenerator {
         }
 
         Path goModFile = manifest.getBaseDir().resolve("go.mod");
-        LOGGER.fine("Creating go.mod at path " + goModFile.toString());
+        LOGGER.fine("Generating go.mod file at path " + goModFile.toString());
 
         // `go mod init` will fail if the `go.mod` already exists, so this deletes
         //  it if it's present in the output. While it's technically possible
