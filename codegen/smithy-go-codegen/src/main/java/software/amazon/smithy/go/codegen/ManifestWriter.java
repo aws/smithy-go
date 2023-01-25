@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.build.FileManifest;
@@ -45,19 +46,22 @@ import software.amazon.smithy.utils.SmithyBuilder;
  * and minimum dependencies required.
  */
 public final class ManifestWriter {
+
+    private static final Logger LOGGER = Logger.getLogger(ManifestWriter.class.getName());
+
     private static final String GENERATED_JSON = "generated.json";
 
     private final String moduleName;
     private final FileManifest fileManifest;
     private final List<SymbolDependency> dependencies;
-    private final Optional<String> minimumGoVersion;
+    private final String goDirective;
     private final boolean isUnstable;
 
     private ManifestWriter(Builder builder) {
         moduleName = SmithyBuilder.requiredState("moduleName", builder.moduleName);
         fileManifest = SmithyBuilder.requiredState("fileManifest", builder.fileManifest);
         dependencies = builder.dependencies.copy();
-        minimumGoVersion = builder.minimumGoVersion;
+        goDirective = builder.goDirective;
         isUnstable = builder.isUnstable;
     }
 
@@ -79,6 +83,7 @@ public final class ManifestWriter {
                 .moduleName(settings.getModuleName())
                 .fileManifest(fileManifest)
                 .dependencies(dependencies)
+                .goDirective(settings.getGoDirective())
                 .isUnstable(settings.getService(model).getTrait(UnstableTrait.class).isPresent())
                 .build()
                 .writeManifest();
@@ -100,6 +105,8 @@ public final class ManifestWriter {
         }
         fileManifest.addFile(manifestFile);
 
+        LOGGER.fine("Creating manifest at path " + manifestFile.toString());
+
         Node generatedJson = buildManifestFile();
         fileManifest.writeFile(manifestFile.toString(), Node.prettyPrintJson(generatedJson) + "\n");
 
@@ -107,7 +114,7 @@ public final class ManifestWriter {
 
     private Node buildManifestFile() {
         List<SymbolDependency> nonStdLib = new ArrayList<>();
-        Optional<String> minimumGoVersion = this.minimumGoVersion;
+        Optional<String> minimumGoVersion = Optional.empty();
 
         for (SymbolDependency dependency : dependencies) {
             if (!dependency.getDependencyType().equals(GoDependency.Type.STANDARD_LIBRARY.toString())) {
@@ -142,8 +149,7 @@ public final class ManifestWriter {
         generatedFiles = generatedFiles.stream().sorted().collect(Collectors.toList());
 
         manifestNodes.put(StringNode.from("module"), StringNode.from(moduleName));
-        minimumGoVersion.ifPresent(version -> manifestNodes.put(StringNode.from("go"),
-                StringNode.from(version)));
+        manifestNodes.put(StringNode.from("go"), StringNode.from(minimumGoVersion.orElse(this.goDirective)));
         manifestNodes.put(StringNode.from("dependencies"), ObjectNode.objectNode(dependencyNodes));
         manifestNodes.put(StringNode.from("files"), ArrayNode.fromStrings(generatedFiles));
         manifestNodes.put(StringNode.from("unstable"), BooleanNode.from(isUnstable));
@@ -168,7 +174,7 @@ public final class ManifestWriter {
         private String moduleName;
         private FileManifest fileManifest;
         private final BuilderRef<List<SymbolDependency>> dependencies = BuilderRef.forList();
-        private Optional<String> minimumGoVersion = Optional.empty();
+        private String goDirective;
         private boolean isUnstable;
 
         public Builder moduleName(String moduleName) {
@@ -187,8 +193,8 @@ public final class ManifestWriter {
             return this;
         }
 
-        public Builder minimumGoVersion(String minimumGoVersion) {
-            this.minimumGoVersion = Optional.of(minimumGoVersion);
+        public Builder goDirective(String minimumGoVersion) {
+            this.goDirective = minimumGoVersion;
             return this;
         }
 

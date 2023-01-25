@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
@@ -30,13 +31,21 @@ import software.amazon.smithy.model.shapes.ShapeId;
  */
 public final class GoSettings {
 
+    private static final String DEFAULT_GO_DIRECTIVE = "1.15";
+
     private static final String SERVICE = "service";
     private static final String MODULE_NAME = "module";
     private static final String MODULE_DESCRIPTION = "moduleDescription";
+    private static final String MODULE_VERSION = "moduleVersion";
+    private static final String GENERATE_GO_MOD = "generateGoMod";
+    private static final String GO_DIRECTIVE = "goDirective";
 
     private ShapeId service;
     private String moduleName;
     private String moduleDescription = "";
+    private String moduleVersion;
+    private Boolean generateGoMod = false;
+    private String goDirective = DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
 
     /**
@@ -47,13 +56,16 @@ public final class GoSettings {
      */
     public static GoSettings from(ObjectNode config) {
         GoSettings settings = new GoSettings();
-        config.warnIfAdditionalProperties(Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION));
+        config.warnIfAdditionalProperties(
+            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, GO_DIRECTIVE));
 
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
         settings.setModuleDescription(config.getStringMemberOrDefault(
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
-
+        settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
+        settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
+        settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, DEFAULT_GO_DIRECTIVE));
         return settings;
     }
 
@@ -127,6 +139,62 @@ public final class GoSettings {
      */
     public void setModuleDescription(String moduleDescription) {
         this.moduleDescription = Objects.requireNonNull(moduleDescription);
+    }
+
+    /**
+     * Gets the optional module version for the module that will be generated.
+     *
+     * @return Returns the module version.
+     */
+    public Optional<String> getModuleVersion() {
+        return Optional.ofNullable(moduleVersion);
+    }
+
+    /**
+     * Sets the version of the module to generate.
+     *
+     * @param moduleVersion The version of the module to generate.
+     */
+    public void setModuleVersion(String moduleVersion) {
+        if (moduleVersion != null) {
+            this.moduleVersion = moduleVersion;
+        }
+    }
+
+     /**
+     * Gets the flag for generating go.mod file.
+     *
+     * @return Returns if go.mod will be generated (true) or not (false)
+     */
+    public Boolean getGenerateGoMod() {
+        return generateGoMod;
+    }
+
+    /**
+     * Sets the flag for generating go.mod file.
+     *
+     * @param generateGoMod If go.mod will be generated (true) or not (false)
+     */
+    public void setGenerateGoMod(Boolean generateGoMod) {
+        this.generateGoMod = Objects.requireNonNull(generateGoMod);
+    }
+
+    /**
+     * Gets the optional Go directive for the module that will be generated.
+     *
+     * @return Returns the Go directive.
+     */
+    public String getGoDirective() {
+        return goDirective;
+    }
+
+    /**
+     * Sets the Go directive of the module to generate.
+     *
+     * @param goDirective The Go directive of the module to generate.
+     */
+    public void setGoDirective(String goDirective) {
+        this.goDirective = Objects.requireNonNull(goDirective);
     }
 
     /**
