@@ -1,13 +1,11 @@
 package software.amazon.smithy.go.codegen;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goBlockTemplate;
-import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.TestUtils.hasGoInstalled;
 import static software.amazon.smithy.go.codegen.TestUtils.makeGoModule;
 import static software.amazon.smithy.go.codegen.TestUtils.testGoModule;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
@@ -78,10 +76,15 @@ public class GenerateStandaloneGoModuleTest {
         var dependencies = writers.getDependencies();
         writers.flushWriters();
 
+        var goModuleInfo = new GoModuleInfo.Builder()
+                .goDirective(GoModuleInfo.DEFAULT_GO_DIRECTIVE)
+                .dependencies(dependencies)
+                .build();
+
         ManifestWriter.builder()
                 .moduleName("github.com/aws/smithy-go/internal/testmodule")
                 .fileManifest(fileManifest)
-                .dependencies(dependencies)
+                .goModuleInfo(goModuleInfo)
                 .build()
                 .writeManifest();
 

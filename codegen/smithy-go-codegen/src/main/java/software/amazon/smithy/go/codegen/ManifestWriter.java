@@ -21,16 +21,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.BooleanNode;
@@ -38,7 +33,6 @@ import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.traits.UnstableTrait;
-import software.amazon.smithy.utils.BuilderRef;
 import software.amazon.smithy.utils.SmithyBuilder;
 
 /**
@@ -53,15 +47,13 @@ public final class ManifestWriter {
 
     private final String moduleName;
     private final FileManifest fileManifest;
-    private final List<SymbolDependency> dependencies;
-    private final String goDirective;
+    private final GoModuleInfo goModuleInfo;
     private final boolean isUnstable;
 
     private ManifestWriter(Builder builder) {
         moduleName = SmithyBuilder.requiredState("moduleName", builder.moduleName);
         fileManifest = SmithyBuilder.requiredState("fileManifest", builder.fileManifest);
-        dependencies = builder.dependencies.copy();
-        goDirective = builder.goDirective;
+        goModuleInfo = SmithyBuilder.requiredState("goModuleInfo", builder.goModuleInfo);
         isUnstable = builder.isUnstable;
     }
 
@@ -71,19 +63,18 @@ public final class ManifestWriter {
      * @param settings     the go settings
      * @param model        the smithy model
      * @param fileManifest the file manifest
-     * @param dependencies the list of symbol dependencies
+     * @param goModuleInfo the go module info
      */
     public static void writeManifest(
             GoSettings settings,
             Model model,
             FileManifest fileManifest,
-            List<SymbolDependency> dependencies
+            GoModuleInfo goModuleInfo
     ) {
         builder()
                 .moduleName(settings.getModuleName())
                 .fileManifest(fileManifest)
-                .dependencies(dependencies)
-                .goDirective(settings.getGoDirective())
+                .goModuleInfo(goModuleInfo)
                 .isUnstable(settings.getService(model).getTrait(UnstableTrait.class).isPresent())
                 .build()
                 .writeManifest();
@@ -113,57 +104,33 @@ public final class ManifestWriter {
     }
 
     private Node buildManifestFile() {
-        List<SymbolDependency> nonStdLib = new ArrayList<>();
-        Optional<String> minimumGoVersion = Optional.empty();
+        Map<StringNode, Node> dependencyNodes = gatherDependencyNodes(goModuleInfo.getMinimumNonStdLibDependencies());
+        Collection<String> generatedFiles = gatherGeneratedFiles(fileManifest);
+        return ObjectNode.objectNode(Map.of(
+            StringNode.from("module"), StringNode.from(moduleName),
+            StringNode.from("go"), StringNode.from(goModuleInfo.getGoDirective()),
+            StringNode.from("dependencies"), ObjectNode.objectNode(dependencyNodes),
+            StringNode.from("files"), ArrayNode.fromStrings(generatedFiles),
+            StringNode.from("unstable"), BooleanNode.from(isUnstable)
+        )).withDeepSortedKeys();
+    }
 
-        for (SymbolDependency dependency : dependencies) {
-            if (!dependency.getDependencyType().equals(GoDependency.Type.STANDARD_LIBRARY.toString())) {
-                nonStdLib.add(dependency);
-                continue;
-            }
-
-            var otherVersion = dependency.getVersion();
-            if (minimumGoVersion.isPresent()) {
-                if (minimumGoVersion.get().compareTo(otherVersion) < 0) {
-                    minimumGoVersion = Optional.of(otherVersion);
-                }
-            } else {
-                minimumGoVersion = Optional.of(otherVersion);
-            }
-        }
-
-        Map<StringNode, Node> manifestNodes = new HashMap<>();
-
-        Map<String, String> minimumDependencies = gatherMinimumDependencies(nonStdLib.stream());
-
+    private Map<StringNode, Node> gatherDependencyNodes(Map<String, String> dependencies) {
         Map<StringNode, Node> dependencyNodes = new HashMap<>();
-        for (Map.Entry<String, String> entry : minimumDependencies.entrySet()) {
+        for (Map.Entry<String, String> entry : dependencies.entrySet()) {
             dependencyNodes.put(StringNode.from(entry.getKey()), StringNode.from(entry.getValue()));
         }
+        return dependencyNodes;
+    }
 
+    private static Collection<String> gatherGeneratedFiles(FileManifest fileManifest) {
         Collection<String> generatedFiles = new ArrayList<>();
         Path baseDir = fileManifest.getBaseDir();
         for (Path filePath : fileManifest.getFiles()) {
             generatedFiles.add(baseDir.relativize(filePath).toString());
         }
         generatedFiles = generatedFiles.stream().sorted().collect(Collectors.toList());
-
-        manifestNodes.put(StringNode.from("module"), StringNode.from(moduleName));
-        manifestNodes.put(StringNode.from("go"), StringNode.from(minimumGoVersion.orElse(this.goDirective)));
-        manifestNodes.put(StringNode.from("dependencies"), ObjectNode.objectNode(dependencyNodes));
-        manifestNodes.put(StringNode.from("files"), ArrayNode.fromStrings(generatedFiles));
-        manifestNodes.put(StringNode.from("unstable"), BooleanNode.from(isUnstable));
-
-        return ObjectNode.objectNode(manifestNodes).withDeepSortedKeys();
-    }
-
-    private static Map<String, String> gatherMinimumDependencies(
-            Stream<SymbolDependency> symbolStream
-    ) {
-        return SymbolDependency.gatherDependencies(symbolStream,
-                GoDependency::mergeByMinimumVersionSelection).entrySet().stream().flatMap(
-                entry -> entry.getValue().entrySet().stream()).collect(
-                Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getVersion(), (a, b) -> b, TreeMap::new));
+        return generatedFiles;
     }
 
     public static Builder builder() {
@@ -173,8 +140,7 @@ public final class ManifestWriter {
     public static class Builder implements SmithyBuilder<ManifestWriter> {
         private String moduleName;
         private FileManifest fileManifest;
-        private final BuilderRef<List<SymbolDependency>> dependencies = BuilderRef.forList();
-        private String goDirective;
+        private GoModuleInfo goModuleInfo;
         private boolean isUnstable;
 
         public Builder moduleName(String moduleName) {
@@ -187,14 +153,8 @@ public final class ManifestWriter {
             return this;
         }
 
-        public Builder dependencies(List<SymbolDependency> dependencies) {
-            this.dependencies.clear();
-            this.dependencies.get().addAll(dependencies);
-            return this;
-        }
-
-        public Builder goDirective(String minimumGoVersion) {
-            this.goDirective = minimumGoVersion;
+        public Builder goModuleInfo(GoModuleInfo goModuleInfo) {
+            this.goModuleInfo = goModuleInfo;
             return this;
         }
 
