@@ -31,8 +31,6 @@ import software.amazon.smithy.model.shapes.ShapeId;
  */
 public final class GoSettings {
 
-    private static final String DEFAULT_GO_DIRECTIVE = "1.15";
-
     private static final String SERVICE = "service";
     private static final String MODULE_NAME = "module";
     private static final String MODULE_DESCRIPTION = "moduleDescription";
@@ -45,7 +43,7 @@ public final class GoSettings {
     private String moduleDescription = "";
     private String moduleVersion;
     private Boolean generateGoMod = false;
-    private String goDirective = DEFAULT_GO_DIRECTIVE;
+    private String goDirective = GoModuleInfo.DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
 
     /**
@@ -65,7 +63,7 @@ public final class GoSettings {
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
         settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
         settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
-        settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, DEFAULT_GO_DIRECTIVE));
+        settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, GoModuleInfo.DEFAULT_GO_DIRECTIVE));
         return settings;
     }
 

@@ -19,12 +19,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.SymbolDependency;
 
 /**
  * Generates a go.mod file for the project.
@@ -40,7 +37,7 @@ final class GoModGenerator {
     static void writeGoMod(
             GoSettings settings,
             FileManifest manifest,
-            Map<String, Map<String, SymbolDependency>> dependencies
+            GoModuleInfo goModuleInfo
     ) {
         Boolean generateGoMod = settings.getGenerateGoMod();
         if (!generateGoMod) {
@@ -63,25 +60,14 @@ final class GoModGenerator {
         manifest.addFile(goModFile);
         CodegenUtils.runCommand("go mod init " + settings.getModuleName(), manifest.getBaseDir());
 
-        Map<String, String> externalDependencies = getExternalDependencies(dependencies);
-        for (Map.Entry<String, String> dependency : externalDependencies.entrySet()) {
+        for (Map.Entry<String, String> dependency : goModuleInfo.getMinimumNonStdLibDependencies().entrySet()) {
             CodegenUtils.runCommand(
                     String.format("go mod edit -require=%s@%s", dependency.getKey(), dependency.getValue()),
                     manifest.getBaseDir());
         }
 
         CodegenUtils.runCommand(
-            String.format("go mod edit -go=%s", settings.getGoDirective()),
+            String.format("go mod edit -go=%s", goModuleInfo.getGoDirective()),
             manifest.getBaseDir());
-    }
-
-    private static Map<String, String> getExternalDependencies(
-            Map<String, Map<String, SymbolDependency>> dependencies
-    ) {
-        return dependencies.entrySet().stream()
-                .filter(entry -> !entry.getKey().equals("stdlib"))
-                .flatMap(entry -> entry.getValue().entrySet().stream())
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey, entry -> entry.getValue().getVersion(), (a, b) -> b, TreeMap::new));
     }
 }
