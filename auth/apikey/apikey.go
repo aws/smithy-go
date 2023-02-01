@@ -20,7 +20,7 @@ func (fn ApiKeyProviderFunc) RetrieveApiKey(ctx context.Context) (string, error)
 }
 
 // StaticApiKeyProvider provides a utility for wrapping a static api key
-// value within an implementation of a a0i key provider.
+// value within an implementation of an api key provider.
 type StaticApiKeyProvider struct {
 	ApiKey string
 }
