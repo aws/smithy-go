@@ -20,7 +20,7 @@ type Signer interface {
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
-// an request message with a api key.
+// a request message with an api key.
 type AuthenticationMiddleware struct {
 	signer         Signer
 	apiKeyProvider ApiKeyProvider
