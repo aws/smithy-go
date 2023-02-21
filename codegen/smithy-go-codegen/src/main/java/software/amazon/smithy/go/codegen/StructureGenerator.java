@@ -175,7 +175,7 @@ final class StructureGenerator implements Runnable {
         String errorCode = protocolGenerator == null ? shape.getId().getName(service)
                 : protocolGenerator.getErrorCode(service, shape);
         writer.openBlock("func (e *$L) ErrorCode() string {", "}", structureSymbol.getName(), () -> {
-            writer.openBlock("if e.ErrorCodeOverride == nil {", "}", () -> {
+            writer.openBlock("if e == nil || e.ErrorCodeOverride == nil {", "}", () -> {
                 writer.write("return $S", errorCode);
             });
             writer.write("return *e.ErrorCodeOverride");
