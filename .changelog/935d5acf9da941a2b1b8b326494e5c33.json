@@ -1,0 +1,8 @@
+{
+    "id": "935d5acf-9da9-41a2-b1b8-b326494e5c33",
+    "type": "bugfix",
+    "description": "Prevent nil pointer dereference when accessing code in generated error structs.",
+    "modules": [
+        "."
+    ]
+}
