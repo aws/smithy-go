@@ -22,8 +22,9 @@ extra["moduleName"] = "software.amazon.smithy.go.codegen"
 dependencies {
     api("software.amazon.smithy:smithy-codegen-core:$smithyVersion")
     implementation("software.amazon.smithy:smithy-waiters:$smithyVersion")
-    api("com.atlassian.commonmark:commonmark:0.15.2")
-    api("org.jsoup:jsoup:1.14.1")
+    implementation("software.amazon.smithy:smithy-rules-engine:$smithyVersion")
+    api("com.atlassian.commonmark:commonmark:0.17.0")
+    api("org.jsoup:jsoup:1.15.3")
     api("software.amazon.smithy:smithy-rules-engine:$smithyVersion")
     implementation("software.amazon.smithy:smithy-protocol-test-traits:$smithyVersion")
 }

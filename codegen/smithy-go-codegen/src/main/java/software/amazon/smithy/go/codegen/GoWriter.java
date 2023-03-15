@@ -101,6 +101,26 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     // TODO to try to find programming bugs.
 
     /**
+     * Joins multiple writables together within a single writable without newlines between writables in the list.
+     *
+     * @param writables list of writables to join
+     * @param separator separator between writables
+     * @return new writable
+     */
+    public static Writable joinWritables(List<Writable> writables, String separator) {
+        return (GoWriter w) -> {
+            for (int i = 0; i < writables.size(); i++) {
+                var writable = writables.get(i);
+                var sep = separator;
+                if (i == writables.size() - 1) {
+                    sep = "";
+                }
+                w.writeInline("$W" + sep, writable);
+            }
+        };
+    }
+
+    /**
      * Returns a Writable for the string and args to be composed inline to another writer's contents.
      *
      * @param contents string to write.
