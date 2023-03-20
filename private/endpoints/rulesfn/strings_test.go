@@ -3,11 +3,10 @@ package rulesfn
 import (
 	"strings"
 	"testing"
-	smithyerrep "github.com/aws/smithy-go/error/endpoints"
 	"github.com/aws/smithy-go/ptr"
 )
 
-func TestSubStrin(t *testing.T) {
+func TestSubString(t *testing.T) {
 	cases := map[string]struct {
 		input       string
 		start, stop int
@@ -47,7 +46,7 @@ func TestSubStrin(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := smithyerrep.NewErrorCollector()
+			ec := NewErrorCollector()
 			actual := SubString(c.input, c.start, c.stop, c.reverse, ec)
 			if c.expect == nil {
 				if actual != nil {

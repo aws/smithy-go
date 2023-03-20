@@ -3,7 +3,6 @@ package rulesfn
 import (
 	"strings"
 	"testing"
-	smithyerrep "github.com/aws/smithy-go/error/endpoints"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -24,7 +23,7 @@ func TestURIEncode(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := smithyerrep.NewErrorCollector()
+			ec := NewErrorCollector()
 			actual := URIEncode(c.input, ec)
 			if e, a := c.expect, actual; e != a {
 				t.Errorf("expect `%v` encoding, got `%v`", e, a)
@@ -141,7 +140,7 @@ func TestParseURL(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := smithyerrep.NewErrorCollector()
+			ec := NewErrorCollector()
 			actual := ParseURL(c.input, ec)
 			if c.expect == nil {
 				if actual != nil {
@@ -210,7 +209,7 @@ func TestIsValidHostLabel(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := smithyerrep.NewErrorCollector()
+			ec := NewErrorCollector()
 			actual := IsValidHostLabel(c.input, c.allowSubDomains, ec)
 			if !c.expect {
 				if e, a := c.expectErr, ec.Error(); !strings.Contains(a, e) {

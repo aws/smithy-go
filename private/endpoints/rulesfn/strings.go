@@ -2,15 +2,14 @@ package rulesfn
 
 import (
 	"fmt"
-	smithyerrep "github.com/aws/smithy-go/error/endpoints"
 )
 
 // Substring returns the substring of the input provided. If the start or stop
 // indexes are not valid for the input nil will be returned. If errors occur
 // they will be added to the provided [ErrorCollector].
-func SubString(input string, start, stop int, reverse bool, ec *smithyerrep.ErrorCollector) *string {
+func SubString(input string, start, stop int, reverse bool, ec *ErrorCollector) *string {
 	if start < 0 || stop < 1 || start >= stop || len(input) < stop {
-		ec.AddError(smithyerrep.FnError{
+		ec.AddError(FnError{
 			Name: "SubString",
 			Err: fmt.Errorf("indexes overlap, or invalid index, %q[%v:%v](reversed:%t)",
 				input, start, stop, reverse),
@@ -20,7 +19,7 @@ func SubString(input string, start, stop int, reverse bool, ec *smithyerrep.Erro
 
 	for _, r := range input {
 		if r > 127 {
-			ec.AddError(smithyerrep.FnError{
+			ec.AddError(FnError{
 				Name: "SubString",
 				Err:  fmt.Errorf("input contains non-ASCII characters, %q", input),
 			})

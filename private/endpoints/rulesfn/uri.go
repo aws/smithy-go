@@ -5,7 +5,6 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
-	smithyerrep "github.com/aws/smithy-go/error/endpoints"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -15,7 +14,7 @@ import (
 // occur they will be added to the provided [ErrorCollector].
 //
 // [RFC 1123]: https://www.ietf.org/rfc/rfc1123.txt
-func IsValidHostLabel(input string, allowSubDomains bool, ec *smithyerrep.ErrorCollector) bool {
+func IsValidHostLabel(input string, allowSubDomains bool, ec *ErrorCollector) bool {
 	var labels []string
 	if allowSubDomains {
 		labels = strings.Split(input, ".")
@@ -25,7 +24,7 @@ func IsValidHostLabel(input string, allowSubDomains bool, ec *smithyerrep.ErrorC
 
 	for i, label := range labels {
 		if !smithyhttp.ValidHostLabel(label) {
-			ec.AddError(smithyerrep.FnError{
+			ec.AddError(FnError{
 				Name: "IsValidHostLabel",
 				Err:  fmt.Errorf("host label %d is invalid, %q", i, label),
 			})
@@ -43,10 +42,10 @@ func IsValidHostLabel(input string, allowSubDomains bool, ec *smithyerrep.ErrorC
 // If the input URL string contains an IP6 address with a zone index. The
 // returned [builtin.URL.Authority] value will contain the percent escaped (%)
 // zone index separator.
-func ParseURL(input string, ec *smithyerrep.ErrorCollector) *URL {
+func ParseURL(input string, ec *ErrorCollector) *URL {
 	u, err := url.Parse(input)
 	if err != nil {
-		ec.AddError(smithyerrep.FnError{
+		ec.AddError(FnError{
 			Name: "ParseURL",
 			Err:  fmt.Errorf("failed to parse URL, %q, %w", input, err),
 		})
@@ -54,7 +53,7 @@ func ParseURL(input string, ec *smithyerrep.ErrorCollector) *URL {
 	}
 
 	if u.RawQuery != "" {
-		ec.AddError(smithyerrep.FnError{
+		ec.AddError(FnError{
 			Name: "ParseURL",
 			Err:  fmt.Errorf("URL must not include query string, %q", input),
 		})
@@ -62,7 +61,7 @@ func ParseURL(input string, ec *smithyerrep.ErrorCollector) *URL {
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		ec.AddError(smithyerrep.FnError{
+		ec.AddError(FnError{
 			Name: "ParseURL",
 			Err:  fmt.Errorf("URL contains invalid scheme, %q", u.Scheme),
 		})
@@ -110,7 +109,7 @@ type URL struct {
 // input string.
 //
 // [RFC3986 section 2.1]: https://www.rfc-editor.org/rfc/rfc3986#section-2.1
-func URIEncode(input string, ec *smithyerrep.ErrorCollector) string {
+func URIEncode(input string, ec *ErrorCollector) string {
 	var output strings.Builder
 	for _, c := range []byte(input) {
 		if validPercentEncodedChar(c) {
