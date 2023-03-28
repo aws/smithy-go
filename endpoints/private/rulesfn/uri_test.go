@@ -1,7 +1,6 @@
 package rulesfn
 
 import (
-	"strings"
 	"testing"
 	"github.com/google/go-cmp/cmp"
 )
@@ -23,13 +22,9 @@ func TestURIEncode(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := NewErrorCollector()
-			actual := URIEncode(c.input, ec)
+			actual := URIEncode(c.input)
 			if e, a := c.expect, actual; e != a {
 				t.Errorf("expect `%v` encoding, got `%v`", e, a)
-			}
-			if !ec.IsEmpty() {
-				t.Errorf("expect error collector empty, got %v", ec)
 			}
 		})
 	}
@@ -39,7 +34,6 @@ func TestParseURL(t *testing.T) {
 	cases := map[string]struct {
 		input     string
 		expect    *URL
-		expectErr string
 	}{
 		"https hostname with no path": {
 			input: "https://example.com",
@@ -70,11 +64,11 @@ func TestParseURL(t *testing.T) {
 		},
 		"invalid port": {
 			input:     "https://example.com:abc",
-			expectErr: "invalid port \":abc\"",
+			expect: nil,
 		},
 		"with query": {
 			input:     "https://example.com:8443?foo=bar&faz=baz",
-			expectErr: "URL must not include query string",
+			expect: nil,
 		},
 		"ip4 URL": {
 			input: "https://127.0.0.1",
@@ -83,7 +77,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "127.0.0.1",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 		"ip4 URL with port": {
@@ -93,7 +87,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "127.0.0.1:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 		"ip6 short": {
@@ -103,7 +97,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1]",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 		"ip6 short with interface": {
@@ -113,7 +107,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1%25en0]",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 		"ip6 short with port": {
@@ -123,7 +117,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1]:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 		"ip6 short with port with interface": {
@@ -133,21 +127,17 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1%25en0]:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIp:           true,
+				IsIP:           true,
 			},
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := NewErrorCollector()
-			actual := ParseURL(c.input, ec)
+			actual := ParseURL(c.input)
 			if c.expect == nil {
 				if actual != nil {
 					t.Fatalf("expect no result, got %v", *actual)
-				}
-				if e, a := c.expectErr, ec.Error(); !strings.Contains(a, e) {
-					t.Errorf("expect %q error in %q", e, a)
 				}
 				return
 			}
@@ -168,7 +158,6 @@ func TestIsValidHostLabel(t *testing.T) {
 		input           string
 		allowSubDomains bool
 		expect          bool
-		expectErr       string
 	}{
 		"single label no split": {
 			input:  "abc123-",
@@ -181,7 +170,7 @@ func TestIsValidHostLabel(t *testing.T) {
 		},
 		"multiple labels no split": {
 			input:     "abc.123-",
-			expectErr: `host label 0 is invalid, "abc.123-"`,
+			expect: false,
 		},
 		"multiple labels with split": {
 			input:           "abc.123-",
@@ -191,7 +180,7 @@ func TestIsValidHostLabel(t *testing.T) {
 		"multiple labels with split invalid label": {
 			input:           "abc.123-...",
 			allowSubDomains: true,
-			expectErr:       `host label 2 is invalid, ""`,
+			expect: false,
 		},
 		"max length host label": {
 			input:  "012345678901234567890123456789012345678901234567890123456789123",
@@ -199,24 +188,17 @@ func TestIsValidHostLabel(t *testing.T) {
 		},
 		"too large host label": {
 			input:     "0123456789012345678901234567890123456789012345678901234567891234",
-			expectErr: `host label 0 is invalid, "0123456789012345678901234567890123456789012345678901234567891234"`,
+			expect: false,
 		},
 		"too small host label": {
 			input:     "",
-			expectErr: `host label 0 is invalid, ""`,
+			expect: false,
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ec := NewErrorCollector()
-			actual := IsValidHostLabel(c.input, c.allowSubDomains, ec)
-			if !c.expect {
-				if e, a := c.expectErr, ec.Error(); !strings.Contains(a, e) {
-					t.Errorf("expect %q error in %q", e, a)
-				}
-			}
-
+			actual := IsValidHostLabel(c.input, c.allowSubDomains)
 			if e, a := c.expect, actual; e != a {
 				t.Fatalf("expect %v valid host label, got %v", e, a)
 			}
