@@ -190,7 +190,6 @@ public final class DocumentationConverter {
                 } else {
                     text = StringUtils.stripStart(text, " \t");
                 }
-                writer.writeInline(text);
             } else {
                 // check the last line's remaining space
                 int lastLineRemaining = docWrapLength - (curString.length() - curString.lastIndexOf("\n"));
@@ -218,8 +217,9 @@ public final class DocumentationConverter {
                     text = StringUtils.wrap(text, docWrapLength);
                 }
                 writeNewline();
-                writer.writeInline(text);
             }
+
+            writer.writeInline(text);
         }
 
         void writeIndent() {
