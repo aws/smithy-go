@@ -640,8 +640,8 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     }
 
     private void writeDocs(AbstractCodeWriter<GoWriter> writer, int docWrapLength, String docs) {
-        String wrappedDoc = StringUtils.wrap(DocumentationConverter.convert(docs), docWrapLength);
-        writeDocs(writer, () -> writer.write(wrappedDoc.replace("$", "$$")));
+        String convertedDoc = DocumentationConverter.convert(docs, docWrapLength);
+        writeDocs(writer, () -> writer.write(convertedDoc.replace("$", "$$")));
     }
 
     /**

@@ -28,7 +28,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.safety.Safelist;
-import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 import software.amazon.smithy.utils.CodeWriter;
 import software.amazon.smithy.utils.SetUtils;
@@ -63,7 +62,7 @@ public final class DocumentationConverter {
      * @param docs commonmark formatted documentation
      * @return godoc formatted documentation
      */
-    public static String convert(String docs) {
+    public static String convert(String docs, int docWrapLength) {
         // Smithy's documentation format is commonmark, which can inline html. So here we convert
         // to html so we have a single known format to work with.
         String htmlDocs = HtmlRenderer.builder().escapeHtml(false).build().render(MARKDOWN_PARSER.parse(docs));
@@ -72,15 +71,49 @@ public final class DocumentationConverter {
         htmlDocs = Jsoup.clean(htmlDocs, GODOC_ALLOWLIST);
 
         // Now we parse the html and visit the resultant nodes to render the godoc.
-        FormattingVisitor formatter = new FormattingVisitor();
+        FormattingVisitor formatter = new FormattingVisitor(docWrapLength);
         Node body = Jsoup.parse(htmlDocs).body();
-        NodeTraversor.traverse(formatter, body);
+        traverse(formatter, body);
         return formatter.toString();
+    }
+
+    private static void traverse(NodeVisitor visitor, Node root) {
+        Node node = root;
+        Node parent; // remember parent to find nodes that get replaced in .head
+        int depth = 0;
+
+        while (node != null) {
+            parent = node.parentNode();
+            visitor.head(node, depth); // visit current node
+            if (parent != null && !node.hasParent()) { // must have been replaced; find replacement
+                node = parent.childNode(node.siblingIndex()); // replace ditches parent but keeps sibling index
+            }
+
+            if (node.childNodeSize() > 0) { // descend
+                node = node.childNode(0);
+                depth++;
+            } else {
+                while (true) {
+                    assert node != null; // as depth > 0, will have parent
+                    if (!(node.nextSibling() == null && depth > 0)) {
+                        break;
+                    }
+                    visitor.tail(node, depth); // when no more siblings, ascend
+                    node = node.parentNode();
+                    depth--;
+                }
+                visitor.tail(node, depth);
+                if (node == root) {
+                    break;
+                }
+                node = node.nextSibling();
+            }
+        }
     }
 
     private static class FormattingVisitor implements NodeVisitor {
         private static final Set<String> TEXT_BLOCK_NODES = SetUtils.of(
-                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6"
+                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6", "note"
         );
         private static final Set<String> LIST_BLOCK_NODES = SetUtils.of("ul", "ol");
         private static final Set<String> CODE_BLOCK_NODES = SetUtils.of("pre", "code");
@@ -88,12 +121,15 @@ public final class DocumentationConverter {
 
         private boolean needsListPrefix = false;
         private boolean shouldStripPrefixWhitespace = false;
+        private int docWrapLength;
+        private int listDepth;
 
-        FormattingVisitor() {
+        FormattingVisitor(int docWrapLength) {
             writer = new CodeWriter();
             writer.trimTrailingSpaces(false);
             writer.trimBlankLines();
             writer.insertTrailingNewline(false);
+            this.docWrapLength = docWrapLength;
         }
 
         @Override
@@ -109,7 +145,7 @@ public final class DocumentationConverter {
                 writeNewline();
                 writeIndent();
             } else if (LIST_BLOCK_NODES.contains(name)) {
-                writeNewline();
+                listDepth++;
             } else if (name.equals("li")) {
                 // We don't actually write out the list prefix here in case the list element
                 // starts with one or more text blocks. By deferring writing those out until
@@ -133,19 +169,57 @@ public final class DocumentationConverter {
 
             // Docs can have valid $ characters that shouldn't run through formatters.
             String text = node.text().replace("$", "$$");
-
             if (shouldStripPrefixWhitespace) {
                 shouldStripPrefixWhitespace = false;
                 text = StringUtils.stripStart(text, " \t");
             }
 
-            if (needsListPrefix) {
-                needsListPrefix = false;
-                writer.write("");
-                writeIndent();
-                text = "* " + StringUtils.stripStart(text, " \t");
+            String curString = writer.toString();
+            if (listDepth > 0) {
+                if (needsListPrefix) {
+                    needsListPrefix = false;
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < listDepth; i++) {
+                        sb.append("    ");
+                    }
+                    text = "- " + StringUtils.stripStart(text, " \t");
+                    text = sb.append(text).toString();
+                    writeNewline();
+                } else if (curString.charAt(curString.length() - 1) != ' ') {
+                    text = " " + StringUtils.stripStart(text, " \t");
+                } else {
+                    text = StringUtils.stripStart(text, " \t");
+                }
+                writer.writeInline(text);
+            } else {
+                // check the last line's remaining space
+                int lastLineRemaining = docWrapLength - (curString.length() - curString.lastIndexOf("\n"));
+                if (lastLineRemaining <= 0) {
+                    writeNewline();
+                    text = StringUtils.wrap(text, docWrapLength);
+                    writer.writeInline(text);
+                    return;
+                }
+
+                if (lastLineRemaining >= text.length()) {
+                    if (curString.length() > 0 && curString.charAt(curString.length() - 1) != ' ') {
+                        writer.writeInline(" ");
+                    }
+                    writer.writeInline(text);
+                    return;
+                }
+
+                int lastSpace = text.substring(0, lastLineRemaining).lastIndexOf(" ");
+                if (lastSpace != -1) {
+                    String appendString = text.substring(0, lastSpace + 1);
+                    writer.writeInline(appendString);
+                    text = StringUtils.wrap(text.substring(appendString.length()), docWrapLength);
+                } else {
+                    text = StringUtils.wrap(text, docWrapLength);
+                }
+                writeNewline();
+                writer.writeInline(text);
             }
-            writer.writeInline(text);
         }
 
         void writeIndent() {
@@ -223,10 +297,13 @@ public final class DocumentationConverter {
                 writer.dedent();
             }
 
-            if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)
-                    || LIST_BLOCK_NODES.contains(name)) {
+            if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)) {
                 writeNewline();
-                writeNewline();
+            } else if (LIST_BLOCK_NODES.contains(name)) {
+                listDepth--;
+                if (listDepth == 0) {
+                    writeNewline();
+                }
             } else if (name.equals("a")) {
                 String url = node.absUrl("href");
                 if (!url.isEmpty()) {
@@ -237,7 +314,6 @@ public final class DocumentationConverter {
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.
                 needsListPrefix = false;
-                writer.write("");
             }
         }
 

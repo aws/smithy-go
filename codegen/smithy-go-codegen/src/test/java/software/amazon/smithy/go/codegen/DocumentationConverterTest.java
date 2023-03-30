@@ -9,11 +9,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class DocumentationConverterTest {
+    private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
 
     @ParameterizedTest
     @MethodSource("cases")
     void convertsDocs(String given, String expected) {
-        assertThat(DocumentationConverter.convert(given), equalTo(expected));
+        assertThat(DocumentationConverter.convert(given, DEFAULT_DOC_WRAP_LENGTH), equalTo(expected));
     }
 
     private static Stream<Arguments> cases() {
@@ -36,35 +37,35 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<ul><li>Testing 1 2 3</li> <li>FooBar</li></ul>",
-                        "* Testing 1 2 3\n\n* FooBar"
+                        "    - Testing 1 2 3\n    - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "* Testing 1 2 3\n\n* FooBar"
+                        "    - Testing 1 2 3\n    - FooBar"
                 ),
                 Arguments.of(
                         " <ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "* Testing 1 2 3\n\n* FooBar"
+                        "    - Testing 1 2 3\n    - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li> <p>Testing 1 2 3</p> </li><li> <p>FooBar</p></li></ul>",
-                        "* Testing 1 2 3\n\n* FooBar"
+                        "    - Testing 1 2 3\n    - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><code>Testing</code>: 1 2 3</li> <li>FooBar</li> </ul>",
-                        "* Testing: 1 2 3\n\n* FooBar"
+                        "    - Testing : 1 2 3\n    - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><p><code>FOO</code> Bar</p></li><li><p><code>Xyz</code> ABC</p></li></ul>",
-                        "* FOO Bar\n\n* Xyz ABC"
+                        "    - FOO Bar\n    - Xyz ABC"
                 ),
                 Arguments.of(
                         "<ul><li>        foo</li><li>\tbar</li><li>\nbaz</li></ul>",
-                        "* foo\n\n* bar\n\n* baz"
+                        "    - foo\n    - bar\n    - baz"
                 ),
                 Arguments.of(
                         "<p><code>Testing</code>: 1 2 3</p>",
-                        "Testing: 1 2 3"
+                        "Testing : 1 2 3"
                 ),
                 Arguments.of(
                         "<pre><code>Testing</code></pre>",
@@ -89,14 +90,13 @@ public class DocumentationConverterTest {
                                 + " configuration, see "
                                 + "<a href=\" https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html\">"
                                 + "Cross-Region Replication (CRR)</a> in the <i>Amazon S3 Developer Guide</i>. </p>",
-                        "Deletes the replication configuration from the bucket. For information about replication "
-                                + "configuration, see Cross-Region Replication (CRR) "
-                                + "(https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html) in the Amazon S3 "
-                                + "Developer Guide."
+                        "Deletes the replication configuration from the bucket. For information about\n" +
+                                "replication configuration, see Cross-Region Replication (CRR) (https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html)\n" +
+                                "in the Amazon S3 Developer Guide."
                 ),
                 Arguments.of(
                         "* foo\n* bar",
-                        "* foo\n\n* bar"
+                        "    - foo\n    - bar"
                 ),
                 Arguments.of(
                         "[a link](https://example.com)",
@@ -104,21 +104,21 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of("", ""),
                 Arguments.of("<!-- foo bar -->", ""),
-                Arguments.of("# Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h1>Foo</h1>bar", "Foo\n\nbar"),
-                Arguments.of("## Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h2>Foo</h2>bar", "Foo\n\nbar"),
-                Arguments.of("### Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h3>Foo</h3>bar", "Foo\n\nbar"),
-                Arguments.of("#### Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h4>Foo</h4>bar", "Foo\n\nbar"),
-                Arguments.of("##### Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h5>Foo</h5>bar", "Foo\n\nbar"),
-                Arguments.of("###### Foo\nbar", "Foo\n\nbar"),
-                Arguments.of("<h6>Foo</h6>bar", "Foo\n\nbar"),
+                Arguments.of("# Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h1>Foo</h1>bar", "Foo\n bar"),
+                Arguments.of("## Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h2>Foo</h2>bar", "Foo\n bar"),
+                Arguments.of("### Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h3>Foo</h3>bar", "Foo\n bar"),
+                Arguments.of("#### Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h4>Foo</h4>bar", "Foo\n bar"),
+                Arguments.of("##### Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h5>Foo</h5>bar", "Foo\n bar"),
+                Arguments.of("###### Foo\nbar", "Foo\n bar"),
+                Arguments.of("<h6>Foo</h6>bar", "Foo\n bar"),
                 Arguments.of("Inline `code`", "Inline code"),
-                Arguments.of("```\ncode block\n```", "    code block"),
-                Arguments.of("```java\ncode block\n```", "    code block"),
+                Arguments.of("```\ncode block\n ```", "    code block"),
+                Arguments.of("```java\ncode block\n ```", "    code block"),
                 Arguments.of("foo<br/>bar", "foo\n\nbar"),
                 Arguments.of("         <p>foo</p>", "foo")
         );
