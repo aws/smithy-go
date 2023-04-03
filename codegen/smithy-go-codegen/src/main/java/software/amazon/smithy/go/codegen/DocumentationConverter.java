@@ -28,6 +28,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.safety.Safelist;
+import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 import software.amazon.smithy.utils.CodeWriter;
 import software.amazon.smithy.utils.SetUtils;
@@ -73,42 +74,9 @@ public final class DocumentationConverter {
         // Now we parse the html and visit the resultant nodes to render the godoc.
         FormattingVisitor formatter = new FormattingVisitor(docWrapLength);
         Node body = Jsoup.parse(htmlDocs).body();
-        traverse(formatter, body);
+        NodeTraversor.traverse(formatter, body);
+        //        traverse(formatter, body);
         return formatter.toString();
-    }
-
-    private static void traverse(NodeVisitor visitor, Node root) {
-        Node node = root;
-        Node parent; // remember parent to find nodes that get replaced in .head
-        int depth = 0;
-
-        while (node != null) {
-            parent = node.parentNode();
-            visitor.head(node, depth); // visit current node
-            if (parent != null && !node.hasParent()) { // must have been replaced; find replacement
-                node = parent.childNode(node.siblingIndex()); // replace ditches parent but keeps sibling index
-            }
-
-            if (node.childNodeSize() > 0) { // descend
-                node = node.childNode(0);
-                depth++;
-            } else {
-                while (true) {
-                    assert node != null; // as depth > 0, will have parent
-                    if (!(node.nextSibling() == null && depth > 0)) {
-                        break;
-                    }
-                    visitor.tail(node, depth); // when no more siblings, ascend
-                    node = node.parentNode();
-                    depth--;
-                }
-                visitor.tail(node, depth);
-                if (node == root) {
-                    break;
-                }
-                node = node.nextSibling();
-            }
-        }
     }
 
     private static class FormattingVisitor implements NodeVisitor {
@@ -123,6 +91,11 @@ public final class DocumentationConverter {
         private boolean shouldStripPrefixWhitespace = false;
         private int docWrapLength;
         private int listDepth;
+//        previously written string, used to determine if
+//        a split char is needed between it and next string
+        private String lastString;
+//        current line's remaining spaces to reach docWrapLength
+        private int lastLineRemaining;
 
         FormattingVisitor(int docWrapLength) {
             writer = new CodeWriter();
@@ -130,6 +103,7 @@ public final class DocumentationConverter {
             writer.trimBlankLines();
             writer.insertTrailingNewline(false);
             this.docWrapLength = docWrapLength;
+            lastLineRemaining = docWrapLength;
         }
 
         @Override
@@ -155,13 +129,6 @@ public final class DocumentationConverter {
             }
         }
 
-        private void writeNewline() {
-            // While jsoup will strip out redundant whitespace, it will still leave some. If we
-            // start a new line then we want to make sure we don't keep any prefixing whitespace.
-            shouldStripPrefixWhitespace = true;
-            writer.write("");
-        }
-
         private void writeText(TextNode node) {
             if (node.isBlank()) {
                 return;
@@ -174,52 +141,83 @@ public final class DocumentationConverter {
                 text = StringUtils.stripStart(text, " \t");
             }
 
-            String curString = writer.toString();
             if (listDepth > 0) {
                 if (needsListPrefix) {
                     needsListPrefix = false;
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < listDepth; i++) {
-                        sb.append("    ");
-                    }
-                    text = "- " + StringUtils.stripStart(text, " \t");
-                    text = sb.append(text).toString();
+                    text = "    - " + StringUtils.stripStart(text, " \t");
                     writeNewline();
-                } else if (curString.charAt(curString.length() - 1) != ' ') {
-                    text = " " + StringUtils.stripStart(text, " \t");
                 } else {
                     text = StringUtils.stripStart(text, " \t");
                 }
+
+                writeText(text, "\n    ");
             } else {
-                // check the last line's remaining space
-                int lastLineRemaining = docWrapLength - (curString.length() - curString.lastIndexOf("\n"));
-                if (lastLineRemaining <= 0) {
-                    writeNewline();
-                    text = StringUtils.wrap(text, docWrapLength);
-                    writer.writeInline(text);
-                    return;
-                }
+                writeText(text, "\n");
+            }
+        }
 
-                if (lastLineRemaining >= text.length()) {
-                    if (curString.length() > 0 && curString.charAt(curString.length() - 1) != ' ') {
-                        writer.writeInline(" ");
-                    }
-                    writer.writeInline(text);
-                    return;
-                }
+        private void writeText(String text, String newLineIndent) {
+            // check the last line's remaining space to see if test should be
+            // written to current line or new line
+            // note that wrapped text will not contain desired indent at the beginning,
+            // so indent will be added to the wrapped text if it is written to a new line
 
-                int lastSpace = text.substring(0, lastLineRemaining).lastIndexOf(" ");
-                if (lastSpace != -1) {
-                    String appendString = text.substring(0, lastSpace + 1);
-                    writer.writeInline(appendString);
-                    text = StringUtils.wrap(text.substring(appendString.length()), docWrapLength);
-                } else {
-                    text = StringUtils.wrap(text, docWrapLength);
-                }
+            // if the last line text has reached docWrapLength, directly write at new line
+            if (lastLineRemaining <= 0) {
                 writeNewline();
+                text = StringUtils.wrap(text, docWrapLength, newLineIndent, false);
+                writeInLine(StringUtils.stripStart(newLineIndent, "\n") + text,
+                        docWrapLength - (text.length() - 1 - text.lastIndexOf(newLineIndent)));
+                return;
             }
 
+            // if the last line remaining space is enough for text, just write it to the current line
+            if (lastLineRemaining >= text.length()) {
+                ensureSplit(' ', text);
+                writeInLine(text, lastLineRemaining - text.length());
+                return;
+            }
+
+            // if the last line remaining space is not enough for the whole text, try to cut prefix text up to remaining
+            // spaces length and append to the current line, then write remaining suffix text to new line
+            int lastSpace = text.substring(0, lastLineRemaining).lastIndexOf(" ");
+            if (lastSpace != -1) {
+                String appendString = text.substring(0, lastSpace + 1);
+                ensureSplit(' ', appendString);
+                writer.writeInline(appendString);
+                text = StringUtils.wrap(text.substring(appendString.length()), docWrapLength, newLineIndent, false);
+            } else {
+                text = StringUtils.wrap(text, docWrapLength, newLineIndent, false);
+            }
+
+            writeNewline();
+            writeInLine(StringUtils.stripStart(newLineIndent, "\n") + text,
+                    docWrapLength - (text.length() - 1 - text.lastIndexOf(newLineIndent)));
+        }
+
+        private void ensureSplit(char split, String text) {
+            if (text.charAt(0) != split && lastString != null && !lastString.isEmpty()
+                    && lastString.charAt(lastString.length() - 1) != split) {
+                writeInLine(split + "", lastLineRemaining - 1);
+            }
+        }
+
+        private void writeNewline() {
+            // While jsoup will strip out redundant whitespace, it will still leave some. If we
+            // start a new line then we want to make sure we don't keep any prefixing whitespace.
+            // need to refresh last string written and last line remaining white space to reach docWrapLength
+            shouldStripPrefixWhitespace = true;
+            writer.write("");
+            lastString = null;
+            lastLineRemaining = docWrapLength;
+        }
+
+        private void writeInLine(String text, int lastLineRemaining) {
+//            write text at the current line, update last string written and last line remaining
+//            spaces to reach the docWrapLength
             writer.writeInline(text);
+            lastString = text;
+            this.lastLineRemaining = lastLineRemaining;
         }
 
         void writeIndent() {
@@ -310,6 +308,8 @@ public final class DocumentationConverter {
                     // godoc can't render links with text bodies, so we simply append the link.
                     // Full links do get rendered.
                     writer.writeInline(" ($L)", url);
+                    lastString = ")";
+                    lastLineRemaining -= url.length() + 3; // url and outer bracket length
                 }
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.
