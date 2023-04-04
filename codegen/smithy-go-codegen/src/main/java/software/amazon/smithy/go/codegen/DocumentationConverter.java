@@ -75,7 +75,6 @@ public final class DocumentationConverter {
         FormattingVisitor formatter = new FormattingVisitor(docWrapLength);
         Node body = Jsoup.parse(htmlDocs).body();
         NodeTraversor.traverse(formatter, body);
-        //        traverse(formatter, body);
         return formatter.toString();
     }
 
