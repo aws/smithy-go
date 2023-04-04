@@ -38,24 +38,30 @@ import software.amazon.smithy.utils.StringUtils;
  * Converts commonmark-formatted documentation into godoc format.
  */
 public final class DocumentationConverter {
-    // godoc only supports text blocks, root-level non-inline code blocks, headers, and links.
-    // This allowlist strips out anything we can't reasonably convert, vastly simplifying the
+    // godoc only supports text blocks, root-level non-inline code blocks, headers,
+    // and links.
+    // This allowlist strips out anything we can't reasonably convert, vastly
+    // simplifying the
     // node tree we end up having to crawl through.
     private static final Safelist GODOC_ALLOWLIST = new Safelist()
             .addTags("code", "pre", "ul", "ol", "li", "a", "br", "h1", "h2", "h3", "h4", "h5", "h6")
             .addAttributes("a", "href")
             .addProtocols("a", "href", "http", "https", "mailto");
 
-    // Construct a markdown parser that specifically ignores parsing indented code blocks. This
-    // is because HTML blocks can have really wonky formatting that can be mis-attributed to an
-    // indented code blocks. We may need to add a configuration option to re-enable this.
+    // Construct a markdown parser that specifically ignores parsing indented code
+    // blocks. This
+    // is because HTML blocks can have really wonky formatting that can be
+    // mis-attributed to an
+    // indented code blocks. We may need to add a configuration option to re-enable
+    // this.
     private static final Parser MARKDOWN_PARSER = Parser.builder()
             .enabledBlockTypes(SetUtils.of(
                     Heading.class, HtmlBlock.class, ThematicBreak.class, FencedCodeBlock.class,
                     BlockQuote.class, ListBlock.class))
             .build();
 
-    private DocumentationConverter() {}
+    private DocumentationConverter() {
+    }
 
     /**
      * Converts a commonmark formatted string into a godoc formatted string.
@@ -64,7 +70,8 @@ public final class DocumentationConverter {
      * @return godoc formatted documentation
      */
     public static String convert(String docs, int docWrapLength) {
-        // Smithy's documentation format is commonmark, which can inline html. So here we convert
+        // Smithy's documentation format is commonmark, which can inline html. So here
+        // we convert
         // to html so we have a single known format to work with.
         String htmlDocs = HtmlRenderer.builder().escapeHtml(false).build().render(MARKDOWN_PARSER.parse(docs));
 
@@ -75,14 +82,12 @@ public final class DocumentationConverter {
         FormattingVisitor formatter = new FormattingVisitor(docWrapLength);
         Node body = Jsoup.parse(htmlDocs).body();
         NodeTraversor.traverse(formatter, body);
-        //        traverse(formatter, body);
         return formatter.toString();
     }
 
     private static class FormattingVisitor implements NodeVisitor {
         private static final Set<String> TEXT_BLOCK_NODES = SetUtils.of(
-                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6", "note"
-        );
+                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6", "note");
         private static final Set<String> LIST_BLOCK_NODES = SetUtils.of("ul", "ol");
         private static final Set<String> CODE_BLOCK_NODES = SetUtils.of("pre", "code");
         private final CodeWriter writer;
@@ -91,10 +96,10 @@ public final class DocumentationConverter {
         private boolean shouldStripPrefixWhitespace = false;
         private int docWrapLength;
         private int listDepth;
-//        previously written string, used to determine if
-//        a split char is needed between it and next string
+        // previously written string, used to determine if
+        // a split char is needed between it and next string
         private String lastString;
-//        current line's remaining spaces to reach docWrapLength
+        // current line's remaining spaces to reach docWrapLength
         private int lastLineRemaining;
 
         FormattingVisitor(int docWrapLength) {
@@ -171,15 +176,18 @@ public final class DocumentationConverter {
                 return;
             }
 
-            // if the last line remaining space is enough for text, just write it to the current line
+            // if the last line remaining space is enough for text, just write it to the
+            // current line
             if (lastLineRemaining >= text.length()) {
                 ensureSplit(' ', text);
                 writeInLine(text, lastLineRemaining - text.length());
                 return;
             }
 
-            // if the last line remaining space is not enough for the whole text, try to cut prefix text up to remaining
-            // spaces length and append to the current line, then write remaining suffix text to new line
+            // if the last line remaining space is not enough for the whole text, try to cut
+            // prefix text up to remaining
+            // spaces length and append to the current line, then write remaining suffix
+            // text to new line
             int lastSpace = text.substring(0, lastLineRemaining).lastIndexOf(" ");
             if (lastSpace != -1) {
                 String appendString = text.substring(0, lastSpace + 1);
@@ -203,9 +211,12 @@ public final class DocumentationConverter {
         }
 
         private void writeNewline() {
-            // While jsoup will strip out redundant whitespace, it will still leave some. If we
-            // start a new line then we want to make sure we don't keep any prefixing whitespace.
-            // need to refresh last string written and last line remaining white space to reach docWrapLength
+            // While jsoup will strip out redundant whitespace, it will still leave some. If
+            // we
+            // start a new line then we want to make sure we don't keep any prefixing
+            // whitespace.
+            // need to refresh last string written and last line remaining white space to
+            // reach docWrapLength
             shouldStripPrefixWhitespace = true;
             writer.write("");
             lastString = null;
@@ -213,8 +224,9 @@ public final class DocumentationConverter {
         }
 
         private void writeInLine(String text, int lastLineRemaining) {
-//            write text at the current line, update last string written and last line remaining
-//            spaces to reach the docWrapLength
+            // write text at the current line, update last string written and last line
+            // remaining
+            // spaces to reach the docWrapLength
             writer.writeInline(text);
             lastString = text;
             this.lastLineRemaining = lastLineRemaining;
@@ -240,16 +252,19 @@ public final class DocumentationConverter {
                 return true;
             }
 
-            // If its depth is 2, it could still be effectively top level if its parent is a p
+            // If its depth is 2, it could still be effectively top level if its parent is a
+            // p
             // node whose siblings are all blocks.
             Node parent = node.parent();
             return depth == 2 && parent.nodeName().equals("p") && allSiblingsAreBlocks(parent);
         }
 
         /**
-         * Determines whether a given node's siblings are all text blocks, code blocks, or lists.
+         * Determines whether a given node's siblings are all text blocks, code blocks,
+         * or lists.
          *
-         * <p>Siblings that are blank text nodes are skipped.
+         * <p>
+         * Siblings that are blank text nodes are skipped.
          *
          * @param node The node whose siblings should be checked.
          * @return true if the node's siblings are blocks, otherwise false.
@@ -324,8 +339,10 @@ public final class DocumentationConverter {
                 return "";
             }
 
-            // Strip trailing whitespace from every line. We can't use the codewriter for this due to
-            // not knowing when a line will end, as we typically build them up over many elements.
+            // Strip trailing whitespace from every line. We can't use the codewriter for
+            // this due to
+            // not knowing when a line will end, as we typically build them up over many
+            // elements.
             String[] lines = result.split("\n", -1);
             for (int i = 0; i < lines.length; i++) {
                 lines[i] = StringUtils.stripEnd(lines[i], " \t");
