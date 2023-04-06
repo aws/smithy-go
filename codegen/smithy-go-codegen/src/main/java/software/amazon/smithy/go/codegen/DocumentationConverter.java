@@ -199,7 +199,7 @@ public final class DocumentationConverter {
 //            write text at the current line, update last line string
             writer.writeInline(contents, args);
             String appendedString = lastLineString + writer.format(contents, args);
-            lastLineString = appendedString.substring(appendedString.lastIndexOf("\n") + 1, appendedString.length());
+            lastLineString = appendedString.substring(appendedString.lastIndexOf("\n") + 1);
         }
 
         void writeIndent() {
