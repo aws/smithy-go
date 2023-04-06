@@ -90,11 +90,9 @@ public final class DocumentationConverter {
         private boolean shouldStripPrefixWhitespace = false;
         private int docWrapLength;
         private int listDepth;
-//        previously written string, used to determine if
-//        a split char is needed between it and next string
-        private String lastString;
-//        current line's remaining spaces to reach docWrapLength
-        private int lastLineRemaining;
+//        the last line string written, used to calculate the remaining spaces to reach docWrapLength
+//        and determine if a split char is needed between it and next string
+        private String lastLineString;
 
         FormattingVisitor(int docWrapLength) {
             writer = new CodeWriter();
@@ -102,7 +100,8 @@ public final class DocumentationConverter {
             writer.trimBlankLines();
             writer.insertTrailingNewline(false);
             this.docWrapLength = docWrapLength;
-            lastLineRemaining = docWrapLength;
+            this.lastLineString = "";
+//            lastLineRemaining = docWrapLength;
         }
 
         @Override
@@ -141,82 +140,66 @@ public final class DocumentationConverter {
             }
 
             if (listDepth > 0) {
+                text = StringUtils.stripStart(text, " \t");
                 if (needsListPrefix) {
                     needsListPrefix = false;
-                    text = "    - " + StringUtils.stripStart(text, " \t");
+                    text = "  - " + text;
                     writeNewline();
-                } else {
-                    text = StringUtils.stripStart(text, " \t");
                 }
 
-                writeText(text, "\n    ");
+                writeWrappedText(text, "\n  ");
             } else {
-                writeText(text, "\n");
+                writeWrappedText(text, "\n");
             }
         }
 
-        private void writeText(String text, String newLineIndent) {
-            // check the last line's remaining space to see if test should be
-            // written to current line or new line
-            // note that wrapped text will not contain desired indent at the beginning,
-            // so indent will be added to the wrapped text if it is written to a new line
+        private void writeWrappedText(String text, String newLineIndent) {
+//             check the last line's remaining space to see if test should be
+//             split to 2 parts to write to current and next line
+//             note that wrapped text will not contain desired indent at the beginning,
+//             so indent will be added to the wrapped text when it is written to a new line
 
-            // if the last line text has reached docWrapLength, directly write at new line
-            if (lastLineRemaining <= 0) {
+//          right boundary index of text to be written to the same line exceeding neither docWrapLength nor text length
+            int sameLineRemain = Math.min(Math.max(docWrapLength - lastLineString.length(), 0), text.length());
+//          the index of last space on the left of boundary if exist
+            int lastSpace = text.substring(0, sameLineRemain).lastIndexOf(" ");
+//          if current line is large enough to put the text, just append complete text to current line
+//          otherwise, cut out next line string starting from lastSpace index
+            String appendString = sameLineRemain < text.length() ? text.substring(0, lastSpace + 1) : text;
+            String nextLineString = sameLineRemain < text.length() ? text.substring(lastSpace + 1) : "";
+
+            if (!appendString.isEmpty()) {
+                ensureSplit(" ", appendString);
+                writeInline(appendString);
+            }
+            if (!nextLineString.isEmpty()) {
+                nextLineString = StringUtils.stripStart(newLineIndent, "\n")
+                    + StringUtils.wrap(nextLineString, docWrapLength, newLineIndent, false);
                 writeNewline();
-                text = StringUtils.wrap(text, docWrapLength, newLineIndent, false);
-                writeInLine(StringUtils.stripStart(newLineIndent, "\n") + text,
-                        docWrapLength - (text.length() - 1 - text.lastIndexOf(newLineIndent)));
-                return;
+                writeInline(nextLineString);
             }
-
-            // if the last line remaining space is enough for text, just write it to the current line
-            if (lastLineRemaining >= text.length()) {
-                ensureSplit(' ', text);
-                writeInLine(text, lastLineRemaining - text.length());
-                return;
-            }
-
-            // if the last line remaining space is not enough for the whole text, try to cut prefix text up to remaining
-            // spaces length and append to the current line, then write remaining suffix text to new line
-            int lastSpace = text.substring(0, lastLineRemaining).lastIndexOf(" ");
-            if (lastSpace != -1) {
-                String appendString = text.substring(0, lastSpace + 1);
-                ensureSplit(' ', appendString);
-                writer.writeInline(appendString);
-                text = StringUtils.wrap(text.substring(appendString.length()), docWrapLength, newLineIndent, false);
-            } else {
-                text = StringUtils.wrap(text, docWrapLength, newLineIndent, false);
-            }
-
-            writeNewline();
-            writeInLine(StringUtils.stripStart(newLineIndent, "\n") + text,
-                    docWrapLength - (text.length() - 1 - text.lastIndexOf(newLineIndent)));
         }
 
-        private void ensureSplit(char split, String text) {
-            if (text.charAt(0) != split && lastString != null && !lastString.isEmpty()
-                    && lastString.charAt(lastString.length() - 1) != split) {
-                writeInLine(split + "", lastLineRemaining - 1);
+        private void ensureSplit(String split, String text) {
+            if (!text.startsWith(split) && !lastLineString.isEmpty() && !lastLineString.endsWith(split)) {
+                writeInline(split);
             }
         }
 
         private void writeNewline() {
             // While jsoup will strip out redundant whitespace, it will still leave some. If we
             // start a new line then we want to make sure we don't keep any prefixing whitespace.
-            // need to refresh last string written and last line remaining white space to reach docWrapLength
+            // need to refresh last line string
             shouldStripPrefixWhitespace = true;
             writer.write("");
-            lastString = null;
-            lastLineRemaining = docWrapLength;
+            lastLineString = "";
         }
 
-        private void writeInLine(String text, int lastLineRemaining) {
-//            write text at the current line, update last string written and last line remaining
-//            spaces to reach the docWrapLength
-            writer.writeInline(text);
-            lastString = text;
-            this.lastLineRemaining = lastLineRemaining;
+        private void writeInline(String contents, String... args) {
+//            write text at the current line, update last line string
+            writer.writeInline(contents, args);
+            String appendedString = lastLineString + writer.format(contents, args);
+            lastLineString = appendedString.substring(appendedString.lastIndexOf("\n") + 1, appendedString.length());
         }
 
         void writeIndent() {
@@ -306,9 +289,7 @@ public final class DocumentationConverter {
                 if (!url.isEmpty()) {
                     // godoc can't render links with text bodies, so we simply append the link.
                     // Full links do get rendered.
-                    writer.writeInline(" ($L)", url);
-                    lastString = ")";
-                    lastLineRemaining -= url.length() + 3; // url and outer bracket length
+                    writeInline(" ($L)", url);
                 }
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.

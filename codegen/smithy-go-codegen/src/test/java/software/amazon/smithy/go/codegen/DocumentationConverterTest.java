@@ -37,31 +37,31 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<ul><li>Testing 1 2 3</li> <li>FooBar</li></ul>",
-                        "    - Testing 1 2 3\n    - FooBar"
+                        "  - Testing 1 2 3\n  - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    - Testing 1 2 3\n    - FooBar"
+                        "  - Testing 1 2 3\n  - FooBar"
                 ),
                 Arguments.of(
                         " <ul> <li>Testing 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    - Testing 1 2 3\n    - FooBar"
+                        "  - Testing 1 2 3\n  - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li> <p>Testing 1 2 3</p> </li><li> <p>FooBar</p></li></ul>",
-                        "    - Testing 1 2 3\n    - FooBar"
+                        "  - Testing 1 2 3\n  - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><code>Testing</code>: 1 2 3</li> <li>FooBar</li> </ul>",
-                        "    - Testing : 1 2 3\n    - FooBar"
+                        "  - Testing : 1 2 3\n  - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><p><code>FOO</code> Bar</p></li><li><p><code>Xyz</code> ABC</p></li></ul>",
-                        "    - FOO Bar\n    - Xyz ABC"
+                        "  - FOO Bar\n  - Xyz ABC"
                 ),
                 Arguments.of(
                         "<ul><li>        foo</li><li>\tbar</li><li>\nbaz</li></ul>",
-                        "    - foo\n    - bar\n    - baz"
+                        "  - foo\n  - bar\n  - baz"
                 ),
                 Arguments.of(
                         "<p><code>Testing</code>: 1 2 3</p>",
@@ -96,7 +96,7 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "* foo\n* bar",
-                        "    - foo\n    - bar"
+                        "  - foo\n  - bar"
                 ),
                 Arguments.of(
                         "[a link](https://example.com)",
