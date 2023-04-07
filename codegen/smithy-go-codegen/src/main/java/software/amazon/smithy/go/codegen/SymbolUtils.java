@@ -192,4 +192,18 @@ public final class SymbolUtils {
         return symbol.getProperty(SymbolUtils.GO_UNIVERSE_TYPE, Boolean.class)
                 .orElse(false);
     }
+
+    public static Symbol.Builder getPackageSymbol(
+        String importPath, String symbolName, String namespaceAlias, boolean pointable
+    ) {
+        Symbol.Builder builder;
+        if (pointable) {
+            builder = SymbolUtils.createPointableSymbolBuilder(symbolName);
+        } else {
+            builder = SymbolUtils.createValueSymbolBuilder(symbolName);
+        }
+
+        // TODO this doesn't seem right
+        return builder.namespace(importPath, "/").putProperty(SymbolUtils.NAMESPACE_ALIAS, namespaceAlias);
+    }
 }
