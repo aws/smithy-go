@@ -1,0 +1,8 @@
+{
+    "id": "1a8aa15f-7f06-49e3-ba08-4e5ab48a6345",
+    "type": "bugfix",
+    "description": "correct list formatting in service client docs",
+    "modules": [
+        "codegen"
+    ]
+}

@@ -63,7 +63,7 @@ public final class DocumentationConverter {
      * @param docs commonmark formatted documentation
      * @return godoc formatted documentation
      */
-    public static String convert(String docs) {
+    public static String convert(String docs, int docWrapLength) {
         // Smithy's documentation format is commonmark, which can inline html. So here we convert
         // to html so we have a single known format to work with.
         String htmlDocs = HtmlRenderer.builder().escapeHtml(false).build().render(MARKDOWN_PARSER.parse(docs));
@@ -72,7 +72,7 @@ public final class DocumentationConverter {
         htmlDocs = Jsoup.clean(htmlDocs, GODOC_ALLOWLIST);
 
         // Now we parse the html and visit the resultant nodes to render the godoc.
-        FormattingVisitor formatter = new FormattingVisitor();
+        FormattingVisitor formatter = new FormattingVisitor(docWrapLength);
         Node body = Jsoup.parse(htmlDocs).body();
         NodeTraversor.traverse(formatter, body);
         return formatter.toString();
@@ -80,7 +80,7 @@ public final class DocumentationConverter {
 
     private static class FormattingVisitor implements NodeVisitor {
         private static final Set<String> TEXT_BLOCK_NODES = SetUtils.of(
-                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6"
+                "br", "p", "h1", "h2", "h3", "h4", "h5", "h6", "note"
         );
         private static final Set<String> LIST_BLOCK_NODES = SetUtils.of("ul", "ol");
         private static final Set<String> CODE_BLOCK_NODES = SetUtils.of("pre", "code");
@@ -88,12 +88,19 @@ public final class DocumentationConverter {
 
         private boolean needsListPrefix = false;
         private boolean shouldStripPrefixWhitespace = false;
+        private int docWrapLength;
+        private int listDepth;
+        // the last line string written, used to calculate the remaining spaces to reach docWrapLength
+        // and determine if a split char is needed between it and next string
+        private String lastLineString;
 
-        FormattingVisitor() {
+        FormattingVisitor(int docWrapLength) {
             writer = new CodeWriter();
             writer.trimTrailingSpaces(false);
             writer.trimBlankLines();
             writer.insertTrailingNewline(false);
+            this.docWrapLength = docWrapLength;
+            this.lastLineString = "";
         }
 
         @Override
@@ -109,7 +116,7 @@ public final class DocumentationConverter {
                 writeNewline();
                 writeIndent();
             } else if (LIST_BLOCK_NODES.contains(name)) {
-                writeNewline();
+                listDepth++;
             } else if (name.equals("li")) {
                 // We don't actually write out the list prefix here in case the list element
                 // starts with one or more text blocks. By deferring writing those out until
@@ -119,13 +126,6 @@ public final class DocumentationConverter {
             }
         }
 
-        private void writeNewline() {
-            // While jsoup will strip out redundant whitespace, it will still leave some. If we
-            // start a new line then we want to make sure we don't keep any prefixing whitespace.
-            shouldStripPrefixWhitespace = true;
-            writer.write("");
-        }
-
         private void writeText(TextNode node) {
             if (node.isBlank()) {
                 return;
@@ -133,19 +133,74 @@ public final class DocumentationConverter {
 
             // Docs can have valid $ characters that shouldn't run through formatters.
             String text = node.text().replace("$", "$$");
-
             if (shouldStripPrefixWhitespace) {
                 shouldStripPrefixWhitespace = false;
                 text = StringUtils.stripStart(text, " \t");
             }
 
-            if (needsListPrefix) {
-                needsListPrefix = false;
-                writer.write("");
-                writeIndent();
-                text = "* " + StringUtils.stripStart(text, " \t");
+            if (listDepth > 0) {
+                text = StringUtils.stripStart(text, " \t");
+                if (needsListPrefix) {
+                    needsListPrefix = false;
+                    text = "  - " + text;
+                    writeNewline();
+                }
+
+                writeWrappedText(text, "\n  ");
+            } else {
+                writeWrappedText(text, "\n");
             }
-            writer.writeInline(text);
+        }
+
+        private void writeWrappedText(String text, String newLineIndent) {
+            // check the last line's remaining space to see if test should be
+            // split to 2 parts to write to current and next line
+            // note that wrapped text will not contain desired indent at the beginning,
+            // so indent will be added to the wrapped text when it is written to a new line
+
+            // right boundary index of text to be written to the same line exceeding
+            // neither docWrapLength nor text length
+            int trailingLineCutoff = Math.min(Math.max(docWrapLength - lastLineString.length(), 0), text.length());
+            // the index of last space on the left of boundary if exist
+            int lastSpace = text.substring(0, trailingLineCutoff).lastIndexOf(" ");
+            // if current line is large enough to put the text, just append complete text to current line
+            // otherwise, cut out next line string starting from lastSpace index
+            String appendString = trailingLineCutoff < text.length() ? text.substring(0, lastSpace + 1) : text;
+            String nextLineString = trailingLineCutoff < text.length() ? text.substring(lastSpace + 1) : "";
+
+            if (!appendString.isEmpty()) {
+                ensureSplit(" ", appendString);
+                writeInline(appendString);
+            }
+            if (!nextLineString.isEmpty()) {
+                nextLineString = StringUtils.stripStart(newLineIndent, "\n")
+                    + StringUtils.wrap(nextLineString, docWrapLength, newLineIndent, false);
+                writeNewline();
+                writeInline(nextLineString);
+            }
+        }
+
+        private void ensureSplit(String split, String text) {
+            if (!text.startsWith(split) && !lastLineString.isEmpty() && !lastLineString.endsWith(split)) {
+                writeInline(split);
+            }
+        }
+
+        private void writeNewline() {
+            // While jsoup will strip out redundant whitespace, it will still leave some. If we
+            // start a new line then we want to make sure we don't keep any prefixing whitespace.
+            // need to refresh last line string
+            shouldStripPrefixWhitespace = true;
+            writer.write("");
+            lastLineString = "";
+        }
+
+        private void writeInline(String contents, String... args) {
+            // write text at the current line, update last line string
+            String formatText = writer.format(contents, args);
+            writer.writeInlineWithNoFormatting(formatText);
+            formatText = lastLineString + formatText;
+            lastLineString = formatText.substring(formatText.lastIndexOf("\n") + 1);
         }
 
         void writeIndent() {
@@ -223,21 +278,23 @@ public final class DocumentationConverter {
                 writer.dedent();
             }
 
-            if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)
-                    || LIST_BLOCK_NODES.contains(name)) {
+            if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)) {
                 writeNewline();
-                writeNewline();
+            } else if (LIST_BLOCK_NODES.contains(name)) {
+                listDepth--;
+                if (listDepth == 0) {
+                    writeNewline();
+                }
             } else if (name.equals("a")) {
                 String url = node.absUrl("href");
                 if (!url.isEmpty()) {
                     // godoc can't render links with text bodies, so we simply append the link.
                     // Full links do get rendered.
-                    writer.writeInline(" ($L)", url);
+                    writeInline(" ($L)", url);
                 }
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.
                 needsListPrefix = false;
-                writer.write("");
             }
         }
 
