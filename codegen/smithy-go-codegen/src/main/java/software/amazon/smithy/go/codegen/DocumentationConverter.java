@@ -90,8 +90,8 @@ public final class DocumentationConverter {
         private boolean shouldStripPrefixWhitespace = false;
         private int docWrapLength;
         private int listDepth;
-//        the last line string written, used to calculate the remaining spaces to reach docWrapLength
-//        and determine if a split char is needed between it and next string
+        // the last line string written, used to calculate the remaining spaces to reach docWrapLength
+        // and determine if a split char is needed between it and next string
         private String lastLineString;
 
         FormattingVisitor(int docWrapLength) {
@@ -101,7 +101,6 @@ public final class DocumentationConverter {
             writer.insertTrailingNewline(false);
             this.docWrapLength = docWrapLength;
             this.lastLineString = "";
-//            lastLineRemaining = docWrapLength;
         }
 
         @Override
@@ -154,19 +153,20 @@ public final class DocumentationConverter {
         }
 
         private void writeWrappedText(String text, String newLineIndent) {
-//             check the last line's remaining space to see if test should be
-//             split to 2 parts to write to current and next line
-//             note that wrapped text will not contain desired indent at the beginning,
-//             so indent will be added to the wrapped text when it is written to a new line
+            // check the last line's remaining space to see if test should be
+            // split to 2 parts to write to current and next line
+            // note that wrapped text will not contain desired indent at the beginning,
+            // so indent will be added to the wrapped text when it is written to a new line
 
-//          right boundary index of text to be written to the same line exceeding neither docWrapLength nor text length
-            int sameLineRemain = Math.min(Math.max(docWrapLength - lastLineString.length(), 0), text.length());
-//          the index of last space on the left of boundary if exist
-            int lastSpace = text.substring(0, sameLineRemain).lastIndexOf(" ");
-//          if current line is large enough to put the text, just append complete text to current line
-//          otherwise, cut out next line string starting from lastSpace index
-            String appendString = sameLineRemain < text.length() ? text.substring(0, lastSpace + 1) : text;
-            String nextLineString = sameLineRemain < text.length() ? text.substring(lastSpace + 1) : "";
+            // right boundary index of text to be written to the same line exceeding
+            // neither docWrapLength nor text length
+            int trailingLineCutoff = Math.min(Math.max(docWrapLength - lastLineString.length(), 0), text.length());
+            // the index of last space on the left of boundary if exist
+            int lastSpace = text.substring(0, trailingLineCutoff).lastIndexOf(" ");
+            // if current line is large enough to put the text, just append complete text to current line
+            // otherwise, cut out next line string starting from lastSpace index
+            String appendString = trailingLineCutoff < text.length() ? text.substring(0, lastSpace + 1) : text;
+            String nextLineString = trailingLineCutoff < text.length() ? text.substring(lastSpace + 1) : "";
 
             if (!appendString.isEmpty()) {
                 ensureSplit(" ", appendString);
@@ -196,10 +196,11 @@ public final class DocumentationConverter {
         }
 
         private void writeInline(String contents, String... args) {
-//            write text at the current line, update last line string
-            writer.writeInline(contents, args);
-            String appendedString = lastLineString + writer.format(contents, args);
-            lastLineString = appendedString.substring(appendedString.lastIndexOf("\n") + 1);
+            // write text at the current line, update last line string
+            String formatText = writer.format(contents, args);
+            writer.writeInlineWithNoFormatting(formatText);
+            formatText = lastLineString + formatText;
+            lastLineString = formatText.substring(formatText.lastIndexOf("\n") + 1);
         }
 
         void writeIndent() {
