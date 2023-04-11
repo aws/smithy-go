@@ -16,7 +16,6 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -28,8 +27,6 @@ import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
-import software.amazon.smithy.utils.ListUtils;
-import software.amazon.smithy.utils.SetUtils;
 
 public class SmithyEndpointGenerator implements GoIntegration {
 
@@ -67,21 +64,6 @@ public class SmithyEndpointGenerator implements GoIntegration {
 
                 });
 
-    }
-
-    @Override
-    public List<RuntimeClientPlugin> getClientPlugins() {
-        return ListUtils.of(
-                RuntimeClientPlugin.builder()
-                        .configFields(SetUtils.of(
-                                ConfigField.builder()
-                                        .name(PUBLIC_PARAMETERS_NAME)
-                                        .type(SymbolUtils.createValueSymbolBuilder(PUBLIC_PARAMETERS_NAME)
-                                                .build())
-                                        .documentation("The Smithy client endpoint parameters to be used "
-                                                + "when attempting to resolve an endpoint.")
-                                        .build()))
-                        .build());
     }
 
 }
