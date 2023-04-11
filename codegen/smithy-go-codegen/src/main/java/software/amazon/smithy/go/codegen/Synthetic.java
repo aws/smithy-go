@@ -56,6 +56,25 @@ public final class Synthetic extends AbstractTrait implements ToSmithyBuilder<Sy
     }
 
     @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        } else if (!(other instanceof Synthetic)) {
+            return false;
+        } else {
+            Synthetic b = (Synthetic) other;
+            return toShapeId().equals(b.toShapeId()) && archetype.equals(b.getArchetype());
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return toShapeId().hashCode() * 17 + Node.objectNode()
+            .withOptionalMember(ARCHETYPE, archetype.map(ShapeId::toString).map(Node::from))
+            .hashCode();
+    }
+
+    @Override
     public SmithyBuilder<Synthetic> toBuilder() {
         Builder builder = builder();
         getArchetype().ifPresent(builder::archetype);
