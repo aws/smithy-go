@@ -16,18 +16,26 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
+
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.EndpointGenerator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.endpoints.EndpointParametersGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 
+
+/**
+ * Generates all components required for Smithy Ruleset Endpoint Resolution.
+ * These components include a Provider, Parameters, and Tests.
+ */
 public class SmithyEndpointGenerator implements GoIntegration {
 
     public static final String PUBLIC_PARAMETERS_NAME = "EndpointParameters";
@@ -41,12 +49,11 @@ public class SmithyEndpointGenerator implements GoIntegration {
 
         var serviceShape = settings.getService(model);
 
-        var publicOptionsType = SymbolUtils.createValueSymbolBuilder(PUBLIC_PARAMETERS_NAME).build();
+        var publicParametersType = SymbolUtils.createValueSymbolBuilder(PUBLIC_PARAMETERS_NAME).build();
 
-        var generator = EndpointGenerator.builder()
-                .publicParametersType(publicOptionsType)
+        var parametersGenerator = EndpointParametersGenerator.builder()
+                .parametersType(publicParametersType)
                 .build();
-
 
         Optional<EndpointRuleSet> rulesetOpt = Optional.empty();
         var ruleSetTraitOpt = serviceShape.getTrait(EndpointRuleSetTrait.class);
@@ -57,9 +64,10 @@ public class SmithyEndpointGenerator implements GoIntegration {
         Optional<EndpointRuleSet> finalRulesetOpt = rulesetOpt;
         writerFactory.accept("endpoints.go", settings.getModuleName(), (w) -> {
                     if (finalRulesetOpt.isPresent()) {
-                        w.write("$W", generator.generateParameters(finalRulesetOpt.get()));
+                        w.write("$W", joinWritables(Arrays.asList(
+                            parametersGenerator.generate(finalRulesetOpt.get().getParameters())), "\n\n"));
                     } else {
-                        w.write("$W", generator.generateEmptyParameters());
+                        w.write("$W", parametersGenerator.generateEmptyParameters());
                     }
 
                 });

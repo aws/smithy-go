@@ -106,32 +106,7 @@ public final class EndpointParametersGenerator {
                 w.write("");
             });
 
-            w.write("$W", generateLoggerMember());
         };
-    }
-
-    private GoWriter.Writable generateLoggerMember() {
-        Map<String, Object> loggerArgs = MapUtils.of(
-                "loggerMemberName", LOGGER_MEMBER_NAME,
-                "loggerType", SymbolUtils.createValueSymbolBuilder("Logger",
-                        SmithyGoDependency.SMITHY_LOGGING).build(),
-                "enableLoggingMemberName", ENABLE_LOGGING_MEMBER_NAME);
-        return goTemplate("""
-                $loggerMemberDocs:W
-                $loggerMemberName:L $loggerType:T
-
-                $enableLoggingMemberDocs:W
-                $enableLoggingMemberName:L bool
-                """,
-                loggerArgs,
-                MapUtils.of(
-                        "loggerMemberDocs", goDocTemplate(
-                                "$loggerMemberName:L provides logging of errors occurring when resolving an endpoint.",
-                                loggerArgs),
-                        "enableLoggingMemberDocs", goDocTemplate(
-                                "$loggerMemberName:L provides logging of errors occurring when resolving an endpoint.",
-                                loggerArgs)));
-
     }
 
     private GoWriter.Writable generateDefaultsMethod(Parameters parameters) {
