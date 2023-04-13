@@ -23,12 +23,14 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.node.StringNode;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.eval.Value;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
@@ -51,18 +53,19 @@ public final class EndpointParametersGenerator {
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
     }
 
-    public GoWriter.Writable generate(Parameters parameters) {
-        return generateParameters(MapUtils.of(
+    public GoWriter.Writable generate(Optional<EndpointRuleSet> ruleset) {
+        if (ruleset.isPresent()) {
+            var parameters = ruleset.get().getParameters();
+            return generateParameters(MapUtils.of(
                 "parametersMembers", generateParametersMembers(parameters),
                 "parametersValidationMethod", generateValidationMethod(parameters),
                 "parametersDefaultValueMethod", generateDefaultsMethod(parameters)));
-    }
-
-    public GoWriter.Writable generateEmptyParameters() {
-        return generateParameters(MapUtils.of(
+        } else {
+            return generateParameters(MapUtils.of(
                 "parametersMembers", emptyGoTemplate(),
                 "parametersValidationMethod", emptyGoTemplate(),
                 "parametersDefaultValueMethod", emptyGoTemplate()));
+        }
     }
 
     private GoWriter.Writable generateParameters(Map<String, Object> overriddenArgs) {
@@ -90,7 +93,7 @@ public final class EndpointParametersGenerator {
     private GoWriter.Writable generateParametersMembers(Parameters parameters) {
         return (GoWriter w) -> {
             w.indent();
-            sortParameters(parameters).forEach((parameter) -> {
+            parameters.toList().stream().forEach((parameter) -> {
                 var writeChain = new GoWriter.ChainWritable()
                         .add(parameter.getDocumentation(), GoWriter::goTemplate)
                         .add(parameter.isRequired(), goTemplate("Parameter is required."))

@@ -55,22 +55,14 @@ public class SmithyEndpointGenerator implements GoIntegration {
                 .parametersType(publicParametersType)
                 .build();
 
-        Optional<EndpointRuleSet> rulesetOpt = Optional.empty();
-        var ruleSetTraitOpt = serviceShape.getTrait(EndpointRuleSetTrait.class);
-        if (ruleSetTraitOpt.isPresent()) {
-            rulesetOpt = Optional.of(EndpointRuleSet.fromNode(ruleSetTraitOpt.get().getRuleSet()));
-        }
+        Optional<EndpointRuleSet> rulesetOpt = serviceShape.getTrait(EndpointRuleSetTrait.class)
+                                                    .map((trait) -> EndpointRuleSet.fromNode(
+                                                        trait.getRuleSet()
+                                                    ));
 
-        Optional<EndpointRuleSet> finalRulesetOpt = rulesetOpt;
         writerFactory.accept("endpoints.go", settings.getModuleName(), (w) -> {
-                    if (finalRulesetOpt.isPresent()) {
-                        w.write("$W", joinWritables(Arrays.asList(
-                            parametersGenerator.generate(finalRulesetOpt.get().getParameters())), "\n\n"));
-                    } else {
-                        w.write("$W", parametersGenerator.generateEmptyParameters());
-                    }
-
-                });
+                    w.write("$W", parametersGenerator.generate(rulesetOpt));
+        });
 
     }
 
