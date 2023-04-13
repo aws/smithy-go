@@ -16,9 +16,6 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
-
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
