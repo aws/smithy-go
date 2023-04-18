@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -101,6 +102,26 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
     // TODO to try to find programming bugs.
 
     /**
+     * Joins multiple writables together within a single writable without newlines between writables in the list.
+     *
+     * @param writables list of writables to join
+     * @param separator separator between writables
+     * @return new writable
+     */
+    public static Writable joinWritables(List<Writable> writables, String separator) {
+        return (GoWriter w) -> {
+            for (int i = 0; i < writables.size(); i++) {
+                var writable = writables.get(i);
+                var sep = separator;
+                if (i == writables.size() - 1) {
+                    sep = "";
+                }
+                w.writeInline("$W" + sep, writable);
+            }
+        };
+    }
+
+    /**
      * Returns a Writable for the string and args to be composed inline to another writer's contents.
      *
      * @param contents string to write.
@@ -112,6 +133,18 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         validateTemplateArgsNotNull(args);
         return (GoWriter w) -> {
             w.writeGoTemplate(contents, args);
+        };
+    }
+
+    public static Writable goDocTemplate(String contents) {
+        return goDocTemplate(contents, new HashMap<>());
+    }
+
+    @SafeVarargs
+    public static Writable goDocTemplate(String contents, Map<String, Object>... args) {
+        validateTemplateArgsNotNull(args);
+        return (GoWriter w) -> {
+            w.writeGoDocTemplate(contents, args);
         };
     }
 
@@ -287,6 +320,11 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
                 throw new CodegenException("Failed to render template\n" + contents + "\nReason: " + e.getMessage(), e);
             }
         });
+    }
+
+    @SafeVarargs
+    public final void writeGoDocTemplate(String contents, Map<String, Object>... args) {
+        writeRenderedDocs(goTemplate(contents, args));
     }
 
     /**
