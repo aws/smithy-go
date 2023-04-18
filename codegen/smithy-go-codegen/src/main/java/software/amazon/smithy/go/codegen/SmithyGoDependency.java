@@ -45,6 +45,7 @@ public final class SmithyGoDependency {
     public static final GoDependency PATH = stdlib("path");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
+    public static final GoDependency SMITHY_TRANSPORT = smithy("transport", "smithytransport");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
     public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
     public static final GoDependency SMITHY_TIME = smithy("time", "smithytime");
