@@ -13,40 +13,40 @@
  * permissions and limitations under the License.
  */
 
- package software.amazon.smithy.go.codegen.endpoints;
+package software.amazon.smithy.go.codegen.endpoints;
 
- import java.util.HashMap;
- import java.util.Map;
- import java.util.Optional;
- import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
 
- class Scope {
-     private final Map<Expression, String> mapping;
+class Scope {
+    private final Map<Expression, String> mapping;
 
-     Scope(Map<Expression, String> mapping) {
-         this.mapping = mapping;
-     }
+    Scope(Map<Expression, String> mapping) {
+        this.mapping = mapping;
+    }
 
-     static Scope empty() {
-         return new Scope(new HashMap<>());
-     }
+    static Scope empty() {
+        return new Scope(new HashMap<>());
+    }
 
-     Optional<String> getIdent(Expression expr) {
-         if (!mapping.containsKey(expr)) {
-             return Optional.empty();
-         }
-         return Optional.of(mapping.get(expr));
-     }
+    Optional<String> getIdent(Expression expr) {
+        if (!mapping.containsKey(expr)) {
+            return Optional.empty();
+        }
+        return Optional.of(mapping.get(expr));
+    }
 
-     Scope withMember(Expression expr, String name) {
-         Map<Expression, String> newMapping = new HashMap<>(mapping);
-         newMapping.put(expr, name);
-         return new Scope(newMapping);
-     }
+    Scope withMember(Expression expr, String name) {
+        Map<Expression, String> newMapping = new HashMap<>(mapping);
+        newMapping.put(expr, name);
+        return new Scope(newMapping);
+    }
 
-     Scope withIdent(Expression expr, String name) {
-         var newMapping = new HashMap<>(mapping);
-         newMapping.put(expr, name);
-         return new Scope(newMapping);
-     }
- }
+    Scope withIdent(Expression expr, String name) {
+        var newMapping = new HashMap<>(mapping);
+        newMapping.put(expr, name);
+        return new Scope(newMapping);
+    }
+}

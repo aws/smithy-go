@@ -13,89 +13,91 @@
  * permissions and limitations under the License.
  */
 
- package software.amazon.smithy.go.codegen.endpoints;
+package software.amazon.smithy.go.codegen.endpoints;
 
- import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
- import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
 
- import java.util.ArrayList;
- import java.util.List;
- import software.amazon.smithy.codegen.core.Symbol;
- import software.amazon.smithy.go.codegen.GoWriter;
- import software.amazon.smithy.go.codegen.SmithyGoDependency;
- import software.amazon.smithy.go.codegen.SymbolUtils;
- import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
- import software.amazon.smithy.rulesengine.language.syntax.fn.FunctionDefinition;
- import software.amazon.smithy.utils.MapUtils;
+import java.util.ArrayList;
+import java.util.List;
+import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
+import software.amazon.smithy.rulesengine.language.syntax.fn.FunctionDefinition;
+import software.amazon.smithy.utils.MapUtils;
 
- public class FnGenerator {
-     private final Scope scope;
-     private final FnProvider fnProvider;
+public class FnGenerator {
+    private final Scope scope;
+    private final FnProvider fnProvider;
 
-     FnGenerator(Scope scope) {
-         this.scope = scope;
-         this.fnProvider = new BuiltInFnProvider();
-     }
+    public FnGenerator(Scope scope, FnProvider fnProvider) {
+        this.scope = scope;
+        this.fnProvider = fnProvider;
+    }
 
-     GoWriter.Writable generate(FunctionDefinition fnDef, List<Expression> fnArgs) {
-         var goFn = fnProvider.fnFor(fnDef.getId());
+    GoWriter.Writable generate(FunctionDefinition fnDef, List<Expression> fnArgs) {
 
-         List<GoWriter.Writable> writableFnArgs = new ArrayList<>();
-         fnArgs.forEach((expr) -> {
-             writableFnArgs.add(new ExpressionGenerator(scope).generate(expr));
-         });
+        Symbol goFn;
+        if (this.fnProvider.fnFor(fnDef.getId()) == null) {
+            var defaultFnProvider = new DefaultFnProvider();
+            goFn = defaultFnProvider.fnFor(fnDef.getId());
+        }
+        goFn = this.fnProvider.fnFor(fnDef.getId());
 
-         // Add error collector as last parameter in all builtin functions so that
-         // unexpected or failed endpoint resolution can be investigated.
-         writableFnArgs.add((GoWriter w) -> w.write("ec"));
+        List<GoWriter.Writable> writableFnArgs = new ArrayList<>();
+        fnArgs.forEach((expr) -> {
+            writableFnArgs.add(new ExpressionGenerator(scope, this.fnProvider).generate(expr));
+        });
 
-         return goTemplate("$fn:T($args:W)", MapUtils.of(
-                 "fn", goFn,
-                 "args", joinWritables(writableFnArgs, ", ")
-         ));
-     }
+        // Add error collector as last parameter in all builtin functions so that
+        // unexpected or failed endpoint resolution can be investigated.
+        writableFnArgs.add((GoWriter w) -> w.write("ec"));
 
-     interface FnProvider {
-         Symbol fnFor(String name);
-     }
+        return goTemplate("$fn:T($args:W)", MapUtils.of(
+                "fn", goFn,
+                "args", joinWritables(writableFnArgs, ", ")));
+    }
 
-     static class BuiltInFnProvider implements FnProvider {
+    public static class DefaultFnProvider implements FnProvider {
 
-         @Override
-         public Symbol fnFor(String name) {
-             return switch (name) {
-                 case "aws.partition" -> SymbolUtils.createValueSymbolBuilder("GetPartition",
-                         SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
-                 case "aws.parseArn" -> SymbolUtils.createValueSymbolBuilder("ParseARN",
-                         SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
-                 case "aws.isVirtualHostableS3Bucket" ->
-                         SymbolUtils.createValueSymbolBuilder("IsVirtualHostableS3Bucket",
-                         SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
-                 case "isValidHostLabel" -> SymbolUtils.createValueSymbolBuilder("IsValidHostLabel",
-                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
-                 case "parseURL" -> SymbolUtils.createValueSymbolBuilder("ParseURL",
-                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
-                 case "substring" -> SymbolUtils.createValueSymbolBuilder("SubString",
-                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
-                 case "uriEncode" -> SymbolUtils.createValueSymbolBuilder("URIEncode",
-                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+        @Override
+        public Symbol fnFor(String name) {
+            return switch (name) {
+                // case "aws.partition" -> SymbolUtils.createValueSymbolBuilder("GetPartition",
+                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
+                // case "aws.parseArn" -> SymbolUtils.createValueSymbolBuilder("ParseARN",
+                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
+                // case "aws.isVirtualHostableS3Bucket" ->
+                // SymbolUtils.createValueSymbolBuilder("IsVirtualHostableS3Bucket",
+                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
+                case "isValidHostLabel" -> SymbolUtils.createValueSymbolBuilder("IsValidHostLabel",
+                        SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+                case "parseURL" -> SymbolUtils.createValueSymbolBuilder("ParseURL",
+                        SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+                case "substring" -> SymbolUtils.createValueSymbolBuilder("SubString",
+                        SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+                case "uriEncode" -> SymbolUtils.createValueSymbolBuilder("URIEncode",
+                        SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
 
-                 default -> SymbolUtils.createValueSymbolBuilder("TODO_" + name).build();
-             };
-         }
-     }
+                default -> null;
+            };
+        }
+    }
 
-     static boolean isBuiltInFnResultOptional(FunctionDefinition fn) {
-             return switch (fn.getId()) {
-                 case "aws.partition" -> true;
-                 case "aws.parseArn" -> true;
-                 case "isValidHostLabel" -> true;
-                 case "aws.isVirtualHostableS3Bucket" -> true;
-                 case "parseURL" -> true;
-                 case "substring" -> true;
-                 case "uriEncode" -> false;
+    static boolean isFnResultOptional(FunctionDefinition fn) {
+        return switch (fn.getId()) {
+            // case "aws.partition" -> true;
+            // case "aws.parseArn" -> true;
+            // case "aws.isVirtualHostableS3Bucket" -> true;
+            case "isValidHostLabel" -> true;
+            case "parseURL" -> true;
+            case "substring" -> true;
+            case "uriEncode" -> false;
 
-                 default -> false;
-             };
-     }
- }
+            default -> false;
+        };
+    }
+
+}

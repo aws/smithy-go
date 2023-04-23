@@ -40,9 +40,12 @@
 
  final class ExpressionGenerator {
      private final Scope scope;
+     private final FnProvider fnProvider;
 
-     ExpressionGenerator(Scope scope) {
+
+     ExpressionGenerator(Scope scope, FnProvider fnProvider) {
          this.scope = scope;
+         this.fnProvider = fnProvider;
      }
 
      public GoWriter.Writable generate(Expression expr) {
@@ -51,14 +54,14 @@
          if (optExprIdent.isPresent()) {
              exprOrRef = new Reference(Identifier.of(optExprIdent.get()), SourceLocation.NONE);
          }
-         return exprOrRef.accept(new ExpressionGeneratorVisitor(scope));
+         return exprOrRef.accept(new ExpressionGeneratorVisitor(scope, fnProvider));
      }
 
-     private record ExpressionGeneratorVisitor(Scope scope) implements ExpressionVisitor<GoWriter.Writable> {
+     private record ExpressionGeneratorVisitor(Scope scope, FnProvider fnProvider) implements ExpressionVisitor<GoWriter.Writable> {
 
          @Override
          public GoWriter.Writable visitLiteral(Literal literal) {
-             return literal.accept(new LiteralGeneratorVisitor(scope));
+             return literal.accept(new LiteralGeneratorVisitor(scope, fnProvider));
          }
 
          @Override
@@ -68,7 +71,7 @@
 
          @Override
          public GoWriter.Writable visitGetAttr(GetAttr getAttr) {
-             var target = new ExpressionGenerator(scope).generate(getAttr.getTarget());
+             var target = new ExpressionGenerator(scope, fnProvider).generate(getAttr.getTarget());
              var path = (GoWriter.Writable) (GoWriter w) -> {
                  getAttr.getPath().stream().toList().forEach((part) -> {
                      if (part instanceof GetAttr.Part.Key) {
@@ -85,21 +88,21 @@
          @Override
          public GoWriter.Writable visitIsSet(Expression expr) {
              return (GoWriter w) -> {
-                 w.write("$W != nil", new ExpressionGenerator(scope).generate(expr));
+                 w.write("$W != nil", new ExpressionGenerator(scope, fnProvider).generate(expr));
              };
          }
 
          @Override
          public GoWriter.Writable visitNot(Expression expr) {
              return (GoWriter w) -> {
-                 w.write("!($W)", new ExpressionGenerator(scope).generate(expr));
+                 w.write("!($W)", new ExpressionGenerator(scope, fnProvider).generate(expr));
              };
          }
 
          @Override
          public GoWriter.Writable visitBoolEquals(Expression left, Expression right) {
              return (GoWriter w) -> {
-                 var generator = new ExpressionGenerator(scope);
+                 var generator = new ExpressionGenerator(scope, fnProvider);
                  w.write("$W == $W", generator.generate(left), generator.generate(right));
              };
          }
@@ -107,18 +110,18 @@
          @Override
          public GoWriter.Writable visitStringEquals(Expression left, Expression right) {
              return (GoWriter w) -> {
-                 var generator = new ExpressionGenerator(scope);
+                 var generator = new ExpressionGenerator(scope, fnProvider);
                  w.write("$W == $W", generator.generate(left), generator.generate(right));
              };
          }
 
          @Override
          public GoWriter.Writable visitLibraryFunction(FunctionDefinition fnDef, List<Expression> args) {
-             return new FnGenerator(scope).generate(fnDef, args);
+             return new FnGenerator(scope, fnProvider).generate(fnDef, args);
          }
      }
 
-     private record LiteralGeneratorVisitor(Scope scope) implements Literal.Vistor<GoWriter.Writable> {
+     private record LiteralGeneratorVisitor(Scope scope, FnProvider fnProvider) implements Literal.Vistor<GoWriter.Writable> {
 
          @Override
          public GoWriter.Writable visitBool(boolean b) {
@@ -128,7 +131,7 @@
          @Override
          public GoWriter.Writable visitString(Template value) {
              Stream<GoWriter.Writable> parts = value.accept(
-                     new TemplateGeneratorVisitor((expr) -> new ExpressionGenerator(scope).generate(expr)));
+                     new TemplateGeneratorVisitor((expr) -> new ExpressionGenerator(scope, fnProvider).generate(expr)));
 
              return (GoWriter w) -> {
                  parts.forEach((p) -> w.write("$W", p));
@@ -140,7 +143,7 @@
              return goBlockTemplate("map[string]interface{}{", "}",
                      (w) -> {
                          members.forEach((k, v) -> {
-                             w.write("$S: $W,", k.getName().toString(), new ExpressionGenerator(scope).generate(v));
+                             w.write("$S: $W,", k.getName().toString(), new ExpressionGenerator(scope, fnProvider).generate(v));
                          });
                      });
          }
@@ -149,7 +152,7 @@
          public GoWriter.Writable visitTuple(List<Literal> members) {
              return goBlockTemplate("[]interface{}{", "}",
                      (w) -> {
-                         members.forEach((v) -> w.write("$W,", new ExpressionGenerator(scope).generate(v)));
+                         members.forEach((v) -> w.write("$W,", new ExpressionGenerator(scope, fnProvider).generate(v)));
                      });
          }
 

@@ -27,6 +27,8 @@ import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.endpoints.EndpointRulesEngineGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.EventStreamInfo;
@@ -95,6 +97,12 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                     generateEventStreamSerializers(context, context.getModel().expectShape(shapeId, UnionShape.class),
                             eventStreamInfos);
                 }));
+    }
+
+    @Override
+    public void generateEndpointRulesEngine(GenerationContext context) {
+        var generator = new EndpointRulesEngineGenerator(new FnGenerator.DefaultFnProvider());
+        generator.generate(context);
     }
 
     /**

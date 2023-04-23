@@ -242,6 +242,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 });
             }
 
+            writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                protocolGenerator.generateEndpointRulesEngine(context);
+            });
+
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
                         + " unit tests for " + service.getId());
             writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {

@@ -434,6 +434,15 @@ public interface ProtocolGenerator {
     default void generateEventStreamComponents(GenerationContext context) {
     }
 
+
+    /**
+     * Generate all components necessary for Endpoint Rules Engine endpoint resolution.
+     *
+     * @param context the generation context.
+     */
+    default void generateEndpointRulesEngine(GenerationContext context) {
+    }
+
     /**
      * Context object used for service serialization and deserialization.
      */
