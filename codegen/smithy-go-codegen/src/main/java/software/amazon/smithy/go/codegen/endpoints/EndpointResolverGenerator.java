@@ -66,7 +66,8 @@ public final class EndpointResolverGenerator {
 
     private EndpointResolverGenerator(Builder builder) {
         var parametersType = SmithyBuilder.requiredState("parametersType", builder.parametersType);
-        var resolverType = SmithyBuilder.requiredState("resolverType", builder.resolverType);
+        var resolverInterfaceType = SmithyBuilder.requiredState("resolverInterfaceType", builder.resolverInterfaceType);
+        var resolverImplementationType = SmithyBuilder.requiredState("resolverImplementationType", builder.resolverImplementationType);
         var newResolverFn = SmithyBuilder.requiredState("newResolverFn", builder.newResolverFn);
         var endpointType = SmithyBuilder.requiredState("endpointType", builder.endpointType);
         var resolveEndpointMethodName = SmithyBuilder.requiredState("resolveEndpointMethodName",
@@ -77,7 +78,8 @@ public final class EndpointResolverGenerator {
                 "paramArgName", PARAMS_ARG_NAME,
                 "parametersType", parametersType,
                 "endpointType", endpointType,
-                "resolverType", resolverType,
+                "resolverInterfaceType", resolverInterfaceType,
+                "resolverImplementationType", resolverImplementationType,
                 "newResolverFn", newResolverFn,
                 "resolveEndpointMethodName", resolveEndpointMethodName,
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
@@ -98,8 +100,8 @@ public final class EndpointResolverGenerator {
 
     private GoWriter.Writable generateResolverType(GoWriter.Writable resolveMethodBody) {
         return goTemplate("""
-                // $resolverType:T provides the interface for resolving service endpoints.
-                type $resolverType:T interface {
+                // $resolverInterfaceType:T provides the interface for resolving service endpoints.
+                type $resolverInterfaceType:T interface {
                     $resolveEndpointMethodDocs:W
                     $resolveEndpointMethodName:L(ctx $context:T, options $parametersType:T) (
                         $endpointType:T, error,
@@ -107,14 +109,14 @@ public final class EndpointResolverGenerator {
                 }
 
                 $resolverTypeDocs:W
-                type $resolverType:T struct{}
+                type $resolverImplementationType:T struct{}
 
-                func $newResolverFn:T() *$resolverType:T {
-                    return &$resolverType:T{}
+                func $newResolverFn:T() *$resolverImplementationType:T {
+                    return &$resolverImplementationType:T{}
                 }
 
                 $resolveEndpointMethodDocs:W
-                func (r *$resolverType:T) $resolveEndpointMethodName:L(
+                func (r *$resolverImplementationType:T) $resolveEndpointMethodName:L(
                     ctx $context:T, $paramArgName:L $parametersType:T,
                 ) (
                     endpoint $endpointType:T, err error,
@@ -178,7 +180,7 @@ public final class EndpointResolverGenerator {
     }
 
     private GoWriter.Writable generateResolverTypeDocs() {
-        return goDocTemplate("$resolverType:T provides the implementation for resolving endpoints.", commonCodegenArgs);
+        return goDocTemplate("$resolverImplementationType:T provides the implementation for resolving endpoints.", commonCodegenArgs);
     }
 
     private GoWriter.Writable generateResolveEndpointMethodDocs() {
@@ -459,7 +461,8 @@ public final class EndpointResolverGenerator {
     }
 
     public static final class Builder implements SmithyBuilder<EndpointResolverGenerator> {
-        private Symbol resolverType;
+        private Symbol resolverInterfaceType;
+        private Symbol resolverImplementationType;
         private Symbol newResolverFn;
         private Symbol parametersType;
         private Symbol endpointType;
@@ -474,8 +477,13 @@ public final class EndpointResolverGenerator {
             return this;
         }
 
-        public Builder resolverType(Symbol resolverType) {
-            this.resolverType = resolverType;
+        public Builder resolverInterfaceType(Symbol resolverInterfaceType) {
+            this.resolverInterfaceType = resolverInterfaceType;
+            return this;
+        }
+
+        public Builder resolverImplementationType(Symbol resolverImplementationType) {
+            this.resolverImplementationType = resolverImplementationType;
             return this;
         }
 

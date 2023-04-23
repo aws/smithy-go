@@ -51,11 +51,12 @@ public class EndpointRulesEngineGenerator {
 
 
 
-
+    public static final String FEATURE_NAME = "RulesEngine";
     public static final String PARAMETERS_TYPE_NAME = "EndpointParameters";
-    public static final String RESOLVER_TYPE_NAME = "EndpointResolverV2";
+    public static final String RESOLVER_INTERFACE_NAME = "Endpoint" + FEATURE_NAME + "Resolver";
+    public static final String RESOLVER_IMPLEMENTATION_NAME = FEATURE_NAME + "Resolver";
     public static final String RESOLVER_ENDPOINT_METHOD_NAME = "ResolveEndpoint";
-    public static final String NEW_RESOLVER_FUNC_NAME = "NewDefault" + RESOLVER_TYPE_NAME;
+    public static final String NEW_RESOLVER_FUNC_NAME = "NewDefault" + RESOLVER_INTERFACE_NAME;
 
     private final FnProvider fnProvider;
 
@@ -71,7 +72,8 @@ public class EndpointRulesEngineGenerator {
                 SmithyGoDependency.SMITHY_TRANSPORT).build();
 
         var parametersType = SymbolUtils.createValueSymbolBuilder(PARAMETERS_TYPE_NAME).build();
-        var resolverType = SymbolUtils.createValueSymbolBuilder(RESOLVER_TYPE_NAME).build();
+        var resolverInterfaceType = SymbolUtils.createValueSymbolBuilder(RESOLVER_INTERFACE_NAME).build();
+        var resolverImplementationType = SymbolUtils.createValueSymbolBuilder(RESOLVER_IMPLEMENTATION_NAME).build();
         var newResolverFn = SymbolUtils.createValueSymbolBuilder(NEW_RESOLVER_FUNC_NAME).build();
 
         var parametersGenerator = EndpointParametersGenerator.builder()
@@ -80,7 +82,8 @@ public class EndpointRulesEngineGenerator {
 
         var resolverGenerator = EndpointResolverGenerator.builder()
                 .parametersType(parametersType)
-                .resolverType(resolverType)
+                .resolverInterfaceType(resolverInterfaceType)
+                .resolverImplementationType(resolverImplementationType)
                 .newResolverFn(newResolverFn)
                 .endpointType(endpointType)
                 .resolveEndpointMethodName(RESOLVER_ENDPOINT_METHOD_NAME)
