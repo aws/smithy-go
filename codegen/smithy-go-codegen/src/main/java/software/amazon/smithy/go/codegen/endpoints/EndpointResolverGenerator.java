@@ -155,56 +155,23 @@ public final class EndpointResolverGenerator {
 
         ruleset.typecheck();
         return goTemplate("""
-                    $paramsWithDefaults:W
                     $validateParams:W
                     $paramVars:W
-
-                    ec := $newErrorCollector:T()
-                    $resolveErrorLogging:W
 
                     $rules:W
                 """,
                 commonCodegenArgs,
                 MapUtils.of(
                         "logPrintln", SymbolUtils.createValueSymbolBuilder("Println", SmithyGoDependency.LOG).build(),
-                        "newErrorCollector", SymbolUtils.createValueSymbolBuilder("NewErrorCollector",
-                                SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build(),
-                        "paramsWithDefaults", generateParamsWithDefaults(),
                         "validateParams", generateValidateParams(ruleset.getParameters()),
                         "paramVars", (GoWriter.Writable) (GoWriter w) -> {
                             ruleset.getParameters().toList().stream().filter(Parameter::isRequired).forEach((p) -> {
                                 w.write("$L := *$L", getLocalVarParameterName(p), getMemberParameterName(p));
                             });
                         },
-                        "rules", generateRulesList(ruleset.getRules(), scope),
-                        "resolveErrorLogging", generateResolveErrorLogging()));
+                        "rules", generateRulesList(ruleset.getRules(), scope)));
     }
 
-    GoWriter.Writable generateResolveErrorLogging() {
-        return goTemplate("""
-                    defer func () {
-                       if $paramArgName:L.$enableLoggingMember:L &&
-                            $paramArgName:L.$loggerMember:L != nil &&
-                            ec.IsEmpty() {
-                            $paramArgName:L.$loggerMember:L.Logf($logClassification:T,
-                                "Endpoint resolution had errors, %v", ec)
-                       }
-                    }()
-                """,
-                commonCodegenArgs,
-                MapUtils.of(
-                        "loggerMember", EndpointParametersGenerator.LOGGER_MEMBER_NAME,
-                        "enableLoggingMember", EndpointParametersGenerator.ENABLE_LOGGING_MEMBER_NAME,
-                        "logClassification", SymbolUtils.createValueSymbolBuilder("Warn",
-                                SmithyGoDependency.SMITHY_LOGGING).build()));
-    }
-
-    private GoWriter.Writable generateParamsWithDefaults() {
-        return goTemplate("$paramArgName:L = $paramArgName:L.$withDefaults:L()",
-                commonCodegenArgs,
-                MapUtils.of(
-                        "withDefaults", EndpointParametersGenerator.DEFAULT_VALUE_FUNC_NAME));
-    }
 
     private GoWriter.Writable generateEmptyResolveMethodBody() {
         return goTemplate("return endpoint, $fmtErrorf:T(\"no endpoint rules defined\")", commonCodegenArgs);
@@ -225,7 +192,8 @@ public final class EndpointResolverGenerator {
             return emptyGoTemplate();
         }
 
-        return goTemplate("""
+        return goTemplate(
+                """
                 if err = $paramArgName:L.$paramsValidateMethod:L(); err != nil {
                     return endpoint, $fmtErrorf:T("endpoint parameters are not valid, %w", err)
                 }

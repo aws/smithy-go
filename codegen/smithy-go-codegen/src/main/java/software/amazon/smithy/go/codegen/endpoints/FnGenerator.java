@@ -51,10 +51,6 @@ public class FnGenerator {
             writableFnArgs.add(new ExpressionGenerator(scope, this.fnProvider).generate(expr));
         });
 
-        // Add error collector as last parameter in all builtin functions so that
-        // unexpected or failed endpoint resolution can be investigated.
-        writableFnArgs.add((GoWriter w) -> w.write("ec"));
-
         return goTemplate("$fn:T($args:W)", MapUtils.of(
                 "fn", goFn,
                 "args", joinWritables(writableFnArgs, ", ")));
@@ -65,13 +61,6 @@ public class FnGenerator {
         @Override
         public Symbol fnFor(String name) {
             return switch (name) {
-                // case "aws.partition" -> SymbolUtils.createValueSymbolBuilder("GetPartition",
-                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
-                // case "aws.parseArn" -> SymbolUtils.createValueSymbolBuilder("ParseARN",
-                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
-                // case "aws.isVirtualHostableS3Bucket" ->
-                // SymbolUtils.createValueSymbolBuilder("IsVirtualHostableS3Bucket",
-                // SmithyGoDependency.SMITHY_ENDPOINT_AWSRULESFN).build();
                 case "isValidHostLabel" -> SymbolUtils.createValueSymbolBuilder("IsValidHostLabel",
                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
                 case "parseURL" -> SymbolUtils.createValueSymbolBuilder("ParseURL",
@@ -88,9 +77,6 @@ public class FnGenerator {
 
     static boolean isFnResultOptional(FunctionDefinition fn) {
         return switch (fn.getId()) {
-            // case "aws.partition" -> true;
-            // case "aws.parseArn" -> true;
-            // case "aws.isVirtualHostableS3Bucket" -> true;
             case "isValidHostLabel" -> true;
             case "parseURL" -> true;
             case "substring" -> true;

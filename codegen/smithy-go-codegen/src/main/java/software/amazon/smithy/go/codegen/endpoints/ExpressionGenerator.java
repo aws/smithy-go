@@ -185,6 +185,10 @@
          @Override
          public GoWriter.Writable visitDynamicElement(Expression expr) {
              return (GoWriter w) -> {
+                // TODO[Isaiah]: how to inspect whether this is a string pointer
+                // that needs to be dereferenced??
+                // or should i create a new method for visiting a string pointer
+                // specifically ??
                  w.write("out.WriteString($W)", this.generator.apply(expr));
              };
          }

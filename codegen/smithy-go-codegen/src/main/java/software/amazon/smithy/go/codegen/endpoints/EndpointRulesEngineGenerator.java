@@ -83,7 +83,7 @@ public class EndpointRulesEngineGenerator {
                 .resolverType(resolverType)
                 .newResolverFn(newResolverFn)
                 .endpointType(endpointType)
-                .resolveEndpointMethodName(NEW_RESOLVER_FUNC_NAME)
+                .resolveEndpointMethodName(RESOLVER_ENDPOINT_METHOD_NAME)
                 .fnProvider(this.fnProvider)
                 .build();
 
