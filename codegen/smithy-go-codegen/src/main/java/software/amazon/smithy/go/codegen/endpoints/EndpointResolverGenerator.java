@@ -67,7 +67,8 @@ public final class EndpointResolverGenerator {
     private EndpointResolverGenerator(Builder builder) {
         var parametersType = SmithyBuilder.requiredState("parametersType", builder.parametersType);
         var resolverInterfaceType = SmithyBuilder.requiredState("resolverInterfaceType", builder.resolverInterfaceType);
-        var resolverImplementationType = SmithyBuilder.requiredState("resolverImplementationType", builder.resolverImplementationType);
+        var resolverImplementationType = SmithyBuilder.requiredState("resolverImplementationType",
+                builder.resolverImplementationType);
         var newResolverFn = SmithyBuilder.requiredState("newResolverFn", builder.newResolverFn);
         var endpointType = SmithyBuilder.requiredState("endpointType", builder.endpointType);
         var resolveEndpointMethodName = SmithyBuilder.requiredState("resolveEndpointMethodName",
@@ -174,13 +175,13 @@ public final class EndpointResolverGenerator {
                         "rules", generateRulesList(ruleset.getRules(), scope)));
     }
 
-
     private GoWriter.Writable generateEmptyResolveMethodBody() {
         return goTemplate("return endpoint, $fmtErrorf:T(\"no endpoint rules defined\")", commonCodegenArgs);
     }
 
     private GoWriter.Writable generateResolverTypeDocs() {
-        return goDocTemplate("$resolverImplementationType:T provides the implementation for resolving endpoints.", commonCodegenArgs);
+        return goDocTemplate("$resolverImplementationType:T provides the implementation for resolving endpoints.",
+                commonCodegenArgs);
     }
 
     private GoWriter.Writable generateResolveEndpointMethodDocs() {
@@ -193,16 +194,15 @@ public final class EndpointResolverGenerator {
         if (!haveRequiredParameters(parameters)) {
             return emptyGoTemplate();
         }
-
-        return goTemplate(
-                """
+        return goTemplate("""
                 if err = $paramArgName:L.$paramsValidateMethod:L(); err != nil {
-                    return endpoint, $fmtErrorf:T("endpoint parameters are not valid, %w", err)
-                }
+                        return endpoint, $fmtErrorf:T("endpoint parameters are not valid, %w", err)
+                    }
                 """,
                 commonCodegenArgs,
                 MapUtils.of(
                         "paramsValidateMethod", VALIDATE_REQUIRED_FUNC_NAME));
+
     }
 
     private GoWriter.Writable generateRulesList(List<Rule> rules, Scope scope) {
@@ -212,7 +212,6 @@ public final class EndpointResolverGenerator {
                 w.write("$W", generateRule(rule, rule.getConditions(), scope));
             });
 
-            // TODO Creates duplicate return statement in s3 API model for some reason.
             if (!rules.isEmpty() && !(rules.get(rules.size() - 1).getConditions().isEmpty())) {
                 // TODO better error including parameters that were used?
                 w.writeGoTemplate("return endpoint, $fmtErrorf:T("

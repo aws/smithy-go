@@ -43,8 +43,10 @@ public class FnGenerator {
         if (this.fnProvider.fnFor(fnDef.getId()) == null) {
             var defaultFnProvider = new DefaultFnProvider();
             goFn = defaultFnProvider.fnFor(fnDef.getId());
+        } else {
+            goFn = this.fnProvider.fnFor(fnDef.getId());
         }
-        goFn = this.fnProvider.fnFor(fnDef.getId());
+
 
         List<GoWriter.Writable> writableFnArgs = new ArrayList<>();
         fnArgs.forEach((expr) -> {
@@ -70,8 +72,7 @@ public class FnGenerator {
                 case "uriEncode" -> SymbolUtils.createValueSymbolBuilder("URIEncode",
                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
 
-                default -> null;
-            };
+                default -> null;            };
         }
     }
 
