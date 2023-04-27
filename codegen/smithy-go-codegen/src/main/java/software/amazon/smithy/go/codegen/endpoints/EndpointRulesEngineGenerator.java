@@ -31,15 +31,6 @@ import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
  */
 public class EndpointRulesEngineGenerator {
 
-    // make the FnGenerator parameterizable? or something else
-
-    // EndpointRulesEngineGenerator
-        // EndpointResolverGenerator
-            // ExpressionGenerator
-                // FnGenerator
-
-
-
     public static final String FEATURE_NAME = "RulesEngine";
     public static final String PARAMETERS_TYPE_NAME = "EndpointParameters";
     public static final String RESOLVER_INTERFACE_NAME = "Endpoint" + FEATURE_NAME + "Resolver";
