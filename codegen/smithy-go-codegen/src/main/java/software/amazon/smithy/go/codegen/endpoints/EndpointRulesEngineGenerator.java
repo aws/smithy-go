@@ -16,24 +16,13 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
-import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
-import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-
-
 import java.util.Optional;
-import java.util.function.Consumer;
-import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoSettings;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
-import software.amazon.smithy.model.Model;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
-import software.amazon.smithy.utils.MapUtils;
-import software.amazon.smithy.utils.SmithyBuilder;
+
 
 
 /**

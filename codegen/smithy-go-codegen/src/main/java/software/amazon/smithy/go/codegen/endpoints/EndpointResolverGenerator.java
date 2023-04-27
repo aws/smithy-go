@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.logging.Logger;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -57,10 +56,11 @@ import software.amazon.smithy.utils.SmithyBuilder;
 
 public final class EndpointResolverGenerator {
     private static final String PARAMS_ARG_NAME = "params";
+    private static final Logger LOGGER = Logger.getLogger(EndpointResolverGenerator.class.getName());
+
     private final Map<String, Object> commonCodegenArgs;
     private final FnProvider fnProvider;
 
-    private static final Logger LOGGER = Logger.getLogger(EndpointResolverGenerator.class.getName());
 
     private int conditionNameCounter = 0;
 
@@ -438,7 +438,7 @@ public final class EndpointResolverGenerator {
             return false;
         }
 
-        final boolean[] isOptionalResult = { false };
+        final boolean[] isOptionalResult = {false};
         fn.accept(new ExpressionVisitor.Default<Void>() {
             @Override
             public Void getDefault() {

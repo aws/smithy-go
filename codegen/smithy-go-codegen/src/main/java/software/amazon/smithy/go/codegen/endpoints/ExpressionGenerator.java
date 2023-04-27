@@ -22,15 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
-import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.SourceLocation;
-import software.amazon.smithy.rulesengine.language.eval.Type;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expr.Literal;
