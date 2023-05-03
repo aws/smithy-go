@@ -62,7 +62,6 @@ public final class EndpointResolverGenerator {
     private final Map<String, Object> commonCodegenArgs;
     private final FnProvider fnProvider;
 
-
     private int conditionIdentCounter = 0;
 
     private EndpointResolverGenerator(Builder builder) {
@@ -256,7 +255,10 @@ public final class EndpointResolverGenerator {
                     MapUtils.of(
                             "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
-                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionIdentifier))));
+                            "next", generateRule(
+                                    rule,
+                                    remainingConditions,
+                                    scope.withMember(fn, conditionIdentifier))));
         }
 
         if (condition.getResult().isPresent()) {
@@ -268,7 +270,10 @@ public final class EndpointResolverGenerator {
                     MapUtils.of(
                             "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
-                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionIdentifier))));
+                            "next", generateRule(
+                                    rule,
+                                    remainingConditions,
+                                    scope.withMember(fn, conditionIdentifier))));
         }
 
         return goTemplate("""

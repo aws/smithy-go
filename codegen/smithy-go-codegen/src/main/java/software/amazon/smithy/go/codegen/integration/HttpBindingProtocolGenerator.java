@@ -37,8 +37,6 @@ import software.amazon.smithy.go.codegen.GoValueAccessUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.go.codegen.endpoints.EndpointRulesEngineGenerator;
-import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.NoSerializeTrait;
 import software.amazon.smithy.model.Model;
