@@ -29,7 +29,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.Synthetic;
-import software.amazon.smithy.go.codegen.endpoints.EndpointRulesEngineGenerator;
+import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionV2Generator;
 import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
@@ -52,7 +52,8 @@ public interface ProtocolGenerator {
      * Sanitizes the name of the protocol so it can be used as a symbol
      * in Go.
      *
-     * <p>For example, the default implementation converts "." to "_",
+     * <p>
+     * For example, the default implementation converts "." to "_",
      * and converts "-" to become camelCase separated words. This means
      * that "aws.rest-json-1.1" becomes "Aws_RestJson1_1".
      *
@@ -93,13 +94,15 @@ public interface ProtocolGenerator {
      * application protocol level, meaning they both use HTTP, or MQTT
      * for example.
      *
-     * <p>Two protocol implementations are considered compatible if the
+     * <p>
+     * Two protocol implementations are considered compatible if the
      * {@link ApplicationProtocol#equals} method of {@link #getApplicationProtocol}
      * returns true when called with {@code other}. The default implementation
      * should work for most interfaces, but may be overridden for more in-depth
      * handling of things like minor version incompatibilities.
      *
-     * <p>By default, if the application protocols are considered equal, then
+     * <p>
+     * By default, if the application protocols are considered equal, then
      * {@code other} is returned.
      *
      * @param service            Service being generated.
@@ -110,8 +113,7 @@ public interface ProtocolGenerator {
     default ApplicationProtocol resolveApplicationProtocol(
             ServiceShape service,
             Collection<ProtocolGenerator> protocolGenerators,
-            ApplicationProtocol other
-    ) {
+            ApplicationProtocol other) {
         if (!getApplicationProtocol().equals(other)) {
             String protocolNames = protocolGenerators.stream()
                     .map(ProtocolGenerator::getProtocol)
@@ -161,7 +163,8 @@ public interface ProtocolGenerator {
     void generateResponseDeserializers(GenerationContext context);
 
     /**
-     * Generates the code for validating the generated protocol's serializers and deserializers.
+     * Generates the code for validating the generated protocol's serializers and
+     * deserializers.
      *
      * @param context Generation context
      */
@@ -200,7 +203,8 @@ public interface ProtocolGenerator {
      * Generates the name of a serializer function for shapes of a service.
      *
      * @param shape    The shape the serializer function is being generated for.
-     * @param service  The service shape within which the deserialized shape is enclosed.
+     * @param service  The service shape within which the deserialized shape is
+     *                 enclosed.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
@@ -217,7 +221,8 @@ public interface ProtocolGenerator {
      * Generates the name of a deserializer function for shapes of a service.
      *
      * @param shape    The shape the deserializer function is being generated for.
-     * @param service  The service shape within which the deserialized shape is enclosed.
+     * @param service  The service shape within which the deserialized shape is
+     *                 enclosed.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
@@ -237,7 +242,8 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of an error deserializer function for shapes of a service.
      *
-     * @param shape    The error structure shape for which deserializer name is being generated.
+     * @param shape    The error structure shape for which deserializer name is
+     *                 being generated.
      * @param service  The service enclosing the service shape.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
@@ -271,11 +277,14 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generates the UnmarshalSmithyDocument function body of the service's internal documentMarshaler type.
+     * Generates the UnmarshalSmithyDocument function body of the service's internal
+     * documentMarshaler type.
      * <p>
-     * The document marshaler type is expected to handle user provided Go types and convert them to protocol documents.
+     * The document marshaler type is expected to handle user provided Go types and
+     * convert them to protocol documents.
      * <p>
-     * The default implementation will throw a {@code CodegenException} if not implemented.
+     * The default implementation will throw a {@code CodegenException} if not
+     * implemented.
      *
      * <pre>{@code
      * type documentMarshaler struct {
@@ -296,11 +305,14 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generates the UnmarshalSmithyDocument function body of the service's internal documentMarshaler type.
+     * Generates the UnmarshalSmithyDocument function body of the service's internal
+     * documentMarshaler type.
      * <p>
-     * The document marshaler type is expected to handle user provided Go types and convert them to protocol documents.
+     * The document marshaler type is expected to handle user provided Go types and
+     * convert them to protocol documents.
      * <p>
-     * The default implementation will throw a {@code CodegenException} if not implemented.
+     * The default implementation will throw a {@code CodegenException} if not
+     * implemented.
      *
      * <pre>{@code
      * type documentMarshaler struct {
@@ -321,12 +333,15 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generates the UnmarshalSmithyDocument function body of the service's internal documentUnmarshaler type.
+     * Generates the UnmarshalSmithyDocument function body of the service's internal
+     * documentUnmarshaler type.
      * <p>
-     * The document unmarshaler type is expected to handle protocol documents received from the service and provide the
+     * The document unmarshaler type is expected to handle protocol documents
+     * received from the service and provide the
      * ability to unmarshal or round-trip the document.
      * <p>
-     * The default implementation will throw a {@code CodegenException} if not implemented.
+     * The default implementation will throw a {@code CodegenException} if not
+     * implemented.
      *
      * <pre>{@code
      * type documentUnmarshaler struct {
@@ -347,12 +362,15 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generates the MarshalSmithyDocument function body of the service's internal documentUnmarshaler type.
+     * Generates the MarshalSmithyDocument function body of the service's internal
+     * documentUnmarshaler type.
      * <p>
-     * The document unmarshaler type is expected to handle protocol documents received from the service and provide the
+     * The document unmarshaler type is expected to handle protocol documents
+     * received from the service and provide the
      * ability to unmarshal or round-trip the document.
      * <p>
-     * The default implementation will throw a {@code CodegenException} if not implemented.
+     * The default implementation will throw a {@code CodegenException} if not
+     * implemented.
      *
      * <pre>{@code
      * type documentUnmarshaler struct {
@@ -373,7 +391,8 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generate the internal constructor function body for the service's internal documentMarshaler type.
+     * Generate the internal constructor function body for the service's internal
+     * documentMarshaler type.
      *
      * <pre>{@code
      * func NewDocumentMarshaler(v interface{}) Interface {
@@ -394,7 +413,8 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generate the internal constructor function body for the service's internal documentUnmarshaler type.
+     * Generate the internal constructor function body for the service's internal
+     * documentUnmarshaler type.
      *
      * <pre>{@code
      * func NewDocumentUnmarshaler(v interface{}) Interface {
@@ -415,12 +435,14 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Returns an error code for an error shape. Defaults to error shape name as error code.
+     * Returns an error code for an error shape. Defaults to error shape name as
+     * error code.
      *
-     * @param service the service enclosure for the error shape.
+     * @param service    the service enclosure for the error shape.
      * @param errorShape the error shape for which error code is retrieved.
      * @return the error code associated with the provided shape.
-     * @throws ExpectationNotMetException if provided shape is not modeled with an {@link ErrorTrait}.
+     * @throws ExpectationNotMetException if provided shape is not modeled with an
+     *                                    {@link ErrorTrait}.
      */
     default String getErrorCode(ServiceShape service, StructureShape errorShape) {
         errorShape.expectTrait(ErrorTrait.class);
@@ -428,22 +450,24 @@ public interface ProtocolGenerator {
     }
 
     /**
-     * Generate specific components for the protocol's event stream implementation. These components
-     * types should provide implementations that satisfy the reader and writer event stream interfaces.
+     * Generate specific components for the protocol's event stream implementation.
+     * These components
+     * types should provide implementations that satisfy the reader and writer event
+     * stream interfaces.
      *
      * @param context the generation context.
      */
     default void generateEventStreamComponents(GenerationContext context) {
     }
 
-
     /**
-     * Generate all components necessary for Endpoint Rules Engine endpoint resolution.
+     * Generate all components necessary for Endpoint Rules Engine endpoint
+     * resolution.
      *
      * @param context the generation context.
      */
-    default void generateEndpointRulesEngine(GenerationContext context) {
-        var generator = new EndpointRulesEngineGenerator(new FnGenerator.DefaultFnProvider());
+    default void generateEndpointResolutionV2(GenerationContext context) {
+        var generator = new EndpointResolutionV2Generator(new FnGenerator.DefaultFnProvider());
         generator.generate(context);
     }
 

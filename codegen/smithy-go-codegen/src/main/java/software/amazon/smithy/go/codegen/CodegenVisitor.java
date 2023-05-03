@@ -92,18 +92,19 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         var modelTransformer = ModelTransformer.create();
 
         /*
-         smithy 1.23.0 added support for mixins. This transform flattens and applies the mixins
-         and remove them from the model
-        */
+         * smithy 1.23.0 added support for mixins. This transform flattens and applies
+         * the mixins
+         * and remove them from the model
+         */
         resolvedModel = modelTransformer.flattenAndRemoveMixins(resolvedModel);
 
         // Add unique operation input/output shapes
         resolvedModel = AddOperationShapes.execute(resolvedModel, settings.getService());
 
         /*
-         smithy 1.12.0 added support for binding common errors to the service shape
-         this transform copies these common errors to the operations
-        */
+         * smithy 1.12.0 added support for binding common errors to the service shape
+         * this transform copies these common errors to the operations
+         */
         resolvedModel = modelTransformer.copyServiceErrorsToOperations(resolvedModel,
                 settings.getService(resolvedModel));
 
@@ -154,8 +155,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             Collection<GoIntegration> integrations,
             Model model,
             ServiceShape service,
-            GoSettings settings
-    ) {
+            GoSettings settings) {
         // Collect all the supported protocol generators.
         Map<ShapeId, ProtocolGenerator> generators = new HashMap<>();
         for (GoIntegration integration : integrations) {
@@ -222,7 +222,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     .delegator(writers);
 
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
-                        + " on " + service.getId());
+                    + " on " + service.getId());
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateRequestSerializers(context);
@@ -244,11 +244,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
             writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointRulesEngine(context);
+                protocolGenerator.generateEndpointResolutionV2(context);
             });
 
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                        + " unit tests for " + service.getId());
+                    + " unit tests for " + service.getId());
             writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
                 protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
             });
@@ -261,9 +261,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.flushWriters();
 
         GoModuleInfo goModuleInfo = new GoModuleInfo.Builder()
-            .goDirective(settings.getGoDirective())
-            .dependencies(dependencies)
-            .build();
+                .goDirective(settings.getGoDirective())
+                .dependencies(dependencies)
+                .build();
 
         GoModGenerator.writeGoMod(settings, fileManifest, goModuleInfo);
 
@@ -325,7 +325,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
                     runtimePlugins, applicationProtocol).run();
 
-            // Generate each operation for the service. We do this here instead of via the operation visitor method to
+            // Generate each operation for the service. We do this here instead of via the
+            // operation visitor method to
             // limit it to the operations bound to the service.
             TopDownIndex topDownIndex = model.getKnowledge(TopDownIndex.class);
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));

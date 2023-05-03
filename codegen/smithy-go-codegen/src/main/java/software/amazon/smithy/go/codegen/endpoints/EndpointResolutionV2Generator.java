@@ -29,7 +29,7 @@ import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
  * Generates all components required for Smithy Ruleset Endpoint Resolution.
  * These components include a Provider, Parameters, and Tests.
  */
-public class EndpointRulesEngineGenerator {
+public class EndpointResolutionV2Generator {
 
     public static final String FEATURE_NAME = "V2";
     public static final String PARAMETERS_TYPE_NAME = "EndpointParameters";
@@ -40,7 +40,7 @@ public class EndpointRulesEngineGenerator {
 
     private final FnProvider fnProvider;
 
-    public EndpointRulesEngineGenerator(FnProvider fnProvider) {
+    public EndpointResolutionV2Generator(FnProvider fnProvider) {
         this.fnProvider = fnProvider;
     }
 
