@@ -1,3 +1,4 @@
+// The '@httpApiKeyAuth' trait support is experimental and subject to breaking changes.
 package auth
 
 type key string

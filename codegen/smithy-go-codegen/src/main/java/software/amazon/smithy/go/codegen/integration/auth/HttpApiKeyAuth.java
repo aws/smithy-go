@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.integration.auth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
@@ -52,6 +53,7 @@ public class HttpApiKeyAuth implements GoIntegration {
     private static final String NEW_DEFAULT_SIGNER_NAME = "newDefault" + SIGNER_OPTION_NAME;
     private static final String SIGNER_RESOLVER_NAME = "resolve" + SIGNER_OPTION_NAME;
     public static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
+    private static final Logger LOGGER = Logger.getLogger(HttpApiKeyAuth.class.getName());
 
     @Override
     public void writeAdditionalFiles(
@@ -71,6 +73,7 @@ public class HttpApiKeyAuth implements GoIntegration {
         service.expectTrait(HttpApiKeyAuthTrait.class).getScheme().ifPresent(scheme ->
             authDefinition.put("scheme", scheme));
 
+        LOGGER.warning("The '@httpApiKeyAuth' trait support is experimental and subject to breaking changes.");
         goDelegator.useShapeWriter(service, (writer) -> {
             writeMiddlewareRegister(writer, authDefinition);
             writeSignerConfigFieldResolver(writer);
