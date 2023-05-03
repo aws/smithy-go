@@ -29,6 +29,8 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.Synthetic;
+import software.amazon.smithy.go.codegen.endpoints.EndpointRulesEngineGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -441,6 +443,8 @@ public interface ProtocolGenerator {
      * @param context the generation context.
      */
     default void generateEndpointRulesEngine(GenerationContext context) {
+        var generator = new EndpointRulesEngineGenerator(new FnGenerator.DefaultFnProvider());
+        generator.generate(context);
     }
 
     /**

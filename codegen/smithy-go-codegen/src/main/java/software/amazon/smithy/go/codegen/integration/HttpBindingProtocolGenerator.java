@@ -140,12 +140,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }));
     }
 
-    @Override
-    public void generateEndpointRulesEngine(GenerationContext context) {
-        var generator = new EndpointRulesEngineGenerator(new FnGenerator.DefaultFnProvider());
-        generator.generate(context);
-    }
-
 
     /**
      * Generate the event stream serializers for the given event stream target and associated operations.
