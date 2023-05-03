@@ -1,12 +1,16 @@
 package transport
 
-import "github.com/aws/smithy-go"
+import (
+	"net/http"
+	"net/url"
+	"github.com/aws/smithy-go"
+)
 
 // Endpoint is a Smithy endpoint.
 type Endpoint struct {
-	URI string
+	URI url.URL
 
-	Fields *FieldSet
+	Headers *http.Header
 
 	Properties smithy.Properties
 }

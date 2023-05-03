@@ -56,6 +56,7 @@ import software.amazon.smithy.utils.SmithyBuilder;
 
 public final class EndpointResolverGenerator {
     private static final String PARAMS_ARG_NAME = "params";
+    private static final String REALIZED_URL_VARIABLE_NAME = "uri";
     private static final Logger LOGGER = Logger.getLogger(EndpointResolverGenerator.class.getName());
 
     private final Map<String, Object> commonCodegenArgs;
@@ -309,59 +310,57 @@ public final class EndpointResolverGenerator {
     private GoWriter.Writable generateEndpoint(Endpoint endpoint, Scope scope) {
         return goTemplate("""
                 $endpointType:T{
-                    URI: $url:W,
-                    $fieldSet:W
+                    URI: *$uriVariableName:L,
+                    $headers:W
                     $properties:W
                 }
                 """,
                 commonCodegenArgs,
                 MapUtils.of(
-                        "url", new ExpressionGenerator(scope, this.fnProvider).generate(endpoint.getUrl()),
-                        "fieldSet", generateEndpointFieldSet(endpoint.getHeaders(), scope),
+                        "uriVariableName", REALIZED_URL_VARIABLE_NAME,
+                        "headers", generateEndpointHeaders(endpoint.getHeaders(), scope),
                         "properties", generateEndpointProperties(endpoint.getProperties(), scope)));
     }
 
-    private GoWriter.Writable generateEndpointFieldSet(Map<String, List<Expression>> fields, Scope scope) {
+    private GoWriter.Writable generateEndpointHeaders(Map<String, List<Expression>> headers, Scope scope) {
         Map<String, Object> args = MapUtils.of(
-                "memberName", "Fields",
-                "fieldSetType", SymbolUtils.createPointableSymbolBuilder("FieldSet",
-                        SmithyGoDependency.SMITHY_TRANSPORT).build(),
-                "newFieldSet", SymbolUtils.createValueSymbolBuilder("NewFieldSet",
-                        SmithyGoDependency.SMITHY_TRANSPORT).build());
+                "memberName", "Headers",
+                "headerType", SymbolUtils.createPointableSymbolBuilder("Header",
+                        SmithyGoDependency.NET_HTTP).build(),
+                "newHeaders", SymbolUtils.createValueSymbolBuilder("Header{}",
+                        SmithyGoDependency.NET_HTTP).build());
 
-        if (fields.isEmpty()) {
-            return goTemplate("Fields: $newFieldSet:T(),", args);
+        if (headers.isEmpty()) {
+            return goTemplate("Headers: &$newHeaders:T,", args);
         }
 
-        var writableFields = new TreeMap<String, List<GoWriter.Writable>>();
+        var writableHeaders = new TreeMap<String, List<GoWriter.Writable>>();
         var generator = new ExpressionGenerator(scope, this.fnProvider);
-        fields.forEach((k, vs) -> {
+        headers.forEach((k, vs) -> {
             var writables = new ArrayList<GoWriter.Writable>();
             vs.forEach(v -> writables.add(generator.generate(v)));
-            writableFields.put(k, writables);
+            writableHeaders.put(k, writables);
         });
 
-        return goBlockTemplate("$memberName:L: func() *$fieldSetType:T {", "}(),", args, (w) -> {
-            w.writeGoTemplate("fieldSet := $newFieldSet:T()", args);
-            writableFields.forEach((k, vs) -> {
-                w.write("fieldSet.SetHeader($W)", generateNewFieldValue(k, vs));
+        return goBlockTemplate("$memberName:L: func() *$headerType:T {", "}(),", args, (w) -> {
+            w.writeGoTemplate("headers := $newHeaders:T", args);
+            writableHeaders.forEach((k, vs) -> {
+                w.write("headers.Set($W)", generateNewHeaderValue(k, vs));
             });
-            w.write("return fieldSet");
+            w.write("return &headers");
         });
     }
 
-    private GoWriter.Writable generateNewFieldValue(String fieldName, List<GoWriter.Writable> fieldValues) {
+    private GoWriter.Writable generateNewHeaderValue(String headerName, List<GoWriter.Writable> headerValues) {
         Map<String, Object> args = MapUtils.of(
-                "newField", SymbolUtils.createValueSymbolBuilder("NewField",
-                        SmithyGoDependency.SMITHY_TRANSPORT).build(),
-                "fieldName", fieldName,
-                "fieldValues", joinWritables(fieldValues, ", "));
+                "headerName", headerName,
+                "headerValues", joinWritables(headerValues, ", "));
 
-        if (fieldValues.isEmpty()) {
-            return goTemplate("$newField:T($fieldName:W)", args);
+        if (headerValues.isEmpty()) {
+            return goTemplate("$headerName:W", args);
         }
 
-        return goTemplate("$newField:T($fieldName:S, $fieldValues:W)", args);
+        return goTemplate("$headerName:S, $headerValues:W", args);
     }
 
     private GoWriter.Writable generateEndpointProperties(Map<Identifier, Literal> properties, Scope scope) {
@@ -425,9 +424,18 @@ public final class EndpointResolverGenerator {
         @Override
         public GoWriter.Writable visitEndpointRule(Endpoint endpoint) {
             return goTemplate("""
+
+                    uriString := $url:W
+
+                    uri, err := url.Parse(uriString)
+                    if err != nil {
+                        return endpoint, fmt.Errorf(\"Failed to parse uri: %s\", uriString)
+                    }
+
                     return $endpoint:W, nil
                     """,
                     MapUtils.of(
+                            "url", new ExpressionGenerator(scope, this.fnProvider).generate(endpoint.getUrl()),
                             "endpoint", generateEndpoint(endpoint, scope)));
         }
 
