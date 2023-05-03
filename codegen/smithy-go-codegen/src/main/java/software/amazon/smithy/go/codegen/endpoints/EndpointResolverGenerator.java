@@ -63,7 +63,7 @@ public final class EndpointResolverGenerator {
     private final FnProvider fnProvider;
 
 
-    private int conditionNameCounter = 0;
+    private int conditionIdentCounter = 0;
 
     private EndpointResolverGenerator(Builder builder) {
         var parametersType = SmithyBuilder.requiredState("parametersType", builder.parametersType);
@@ -233,42 +233,42 @@ public final class EndpointResolverGenerator {
         var generator = new ExpressionGenerator(scope, this.fnProvider);
         var fn = conditionalFunc(condition);
 
-        String conditionName;
+        String conditionIdentifier;
         if (condition.getResult().isPresent()) {
             var ident = condition.getResult().get();
-            conditionName = "_" + ident.asString();
+            conditionIdentifier = "_" + ident.asString();
 
             // Store the condition result so that it can be referenced in the future by the
             // result identifier.
-            scope = scope.withIdent(new Reference(ident, SourceLocation.NONE), conditionName);
+            scope = scope.withIdent(new Reference(ident, SourceLocation.NONE), conditionIdentifier);
         } else {
-            conditionName = nameForExpression(fn);
+            conditionIdentifier = nameForExpression(fn);
         }
 
         if (fn.type() instanceof Type.Option || isConditionalFnResultOptional(condition, fn)) {
             return goTemplate("""
                     if exprVal := $target:W; exprVal != nil {
-                        $condName:L := *exprVal
-                        _ = $condName:L
+                        $conditionIdent:L := *exprVal
+                        _ = $conditionIdent:L
                         $next:W
                     }
                     """,
                     MapUtils.of(
-                            "condName", conditionName,
+                            "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
-                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionName))));
+                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionIdentifier))));
         }
 
         if (condition.getResult().isPresent()) {
             return goTemplate("""
-                    $condName:L := $target:W
-                    _ = $condName:L
+                    $conditionIdent:L := $target:W
+                    _ = $conditionIdent:L
                     $next:W
                     """,
                     MapUtils.of(
-                            "condName", conditionName,
+                            "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
-                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionName))));
+                            "next", generateRule(rule, remainingConditions, scope.withMember(fn, conditionIdentifier))));
         }
 
         return goTemplate("""
@@ -290,11 +290,11 @@ public final class EndpointResolverGenerator {
     }
 
     private String nameForExpression(Expression expr) {
-        conditionNameCounter++;
+        conditionIdentCounter++;
         if (expr instanceof Reference) {
             return nameForRef((Reference) expr);
         }
-        return String.format("_var_%d", conditionNameCounter);
+        return String.format("_var_%d", conditionIdentCounter);
     }
 
     /**

@@ -17,6 +17,11 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import software.amazon.smithy.codegen.core.Symbol;
 
+/*
+ * FnProvider is the means by which generator consumers
+ * can provide custom library functions to be invoked by
+ * by Endpoint resolution.
+ */
 public interface FnProvider {
     Symbol fnFor(String name);
 }

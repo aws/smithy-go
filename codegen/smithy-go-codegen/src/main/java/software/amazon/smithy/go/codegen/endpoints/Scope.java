@@ -20,6 +20,9 @@ import java.util.Map;
 import java.util.Optional;
 import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
 
+/*
+ * Provides contextualized scope down the call tree to inform generator of expression origin.
+ */
 class Scope {
     private final Map<Expression, String> mapping;
 
