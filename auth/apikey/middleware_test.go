@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/smithy-go/auth"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -17,7 +16,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 	cases := map[string]struct {
 		message        Message
 		apiKey         string
-		authDefinition *auth.HttpAuthDefinition
+		authDefinition *HttpApiKeyAuthDefinition
 		expectMessage  Message
 		expectErr      string
 	}{
@@ -32,7 +31,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 				r.URL, _ = url.Parse("http://example.aws")
 				return r
 			}(),
-			authDefinition: &auth.HttpAuthDefinition{
+			authDefinition: &HttpApiKeyAuthDefinition{
 				In:   "invalid",
 				Name: "invalid",
 			},
@@ -45,7 +44,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 				return r
 			}(),
 			apiKey: "abc123",
-			authDefinition: &auth.HttpAuthDefinition{
+			authDefinition: &HttpApiKeyAuthDefinition{
 				In:     "header",
 				Name:   "Authorization",
 				Scheme: "Apikey",
@@ -64,7 +63,7 @@ func TestApiKeyMiddleware(t *testing.T) {
 				return r
 			}(),
 			apiKey: "abc123",
-			authDefinition: &auth.HttpAuthDefinition{
+			authDefinition: &HttpApiKeyAuthDefinition{
 				In:   "query",
 				Name: "api_key",
 			},

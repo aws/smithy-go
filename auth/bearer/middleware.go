@@ -63,22 +63,18 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 
 	token, err := m.tokenProvider.RetrieveBearerToken(ctx)
 	if err != nil || len(token.Value) == 0 {
-		fmt.Println("failed AuthenticationMiddleware wrap message, %w", err)
+		fmt.Println("failed httpBearerAuth AuthenticationMiddleware wrap message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
 	signedMessage, err := m.signer.SignWithBearerToken(ctx, token, in.Request)
 	if err != nil {
-		fmt.Println("failed AuthenticationMiddleware sign message, %w", err)
+		fmt.Println("failed httpBearerAuth AuthenticationMiddleware sign message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
 	in.Request = signedMessage
-	return next.HandleFinalize(context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, auth.HttpAuthDefinition{
-		In:     "header",
-		Name:   "Authorization",
-		Scheme: "Bearer",
-	}), in)
+	return next.HandleFinalize(context.WithValue(ctx, auth.CURRENT_AUTH_CONFIG, "Bearer"), in)
 }
 
 // SignHTTPSMessage provides a bearer token authentication implementation that

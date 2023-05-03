@@ -16,7 +16,7 @@ type Message interface{}
 // message with an api key. The signer is responsible for validating the
 // message type is compatible with the signer.
 type Signer interface {
-	SignWithApiKey(context.Context, string, *auth.HttpAuthDefinition, Message) (Message, error)
+	SignWithApiKey(context.Context, string, *HttpApiKeyAuthDefinition, Message) (Message, error)
 }
 
 // AuthenticationMiddleware provides the Finalize middleware step for signing
@@ -24,12 +24,12 @@ type Signer interface {
 type AuthenticationMiddleware struct {
 	signer         Signer
 	apiKeyProvider ApiKeyProvider
-	authDefinition auth.HttpAuthDefinition
+	authDefinition HttpApiKeyAuthDefinition
 }
 
 // AddAuthenticationMiddleware helper adds the AuthenticationMiddleware to the
 // middleware Stack in the Finalize step with the options provided.
-func AddAuthenticationMiddleware(s *middleware.Stack, signer Signer, apiKeyProvider ApiKeyProvider, authDefinition auth.HttpAuthDefinition) error {
+func AddAuthenticationMiddleware(s *middleware.Stack, signer Signer, apiKeyProvider ApiKeyProvider, authDefinition HttpApiKeyAuthDefinition) error {
 	return s.Finalize.Add(
 		NewAuthenticationMiddleware(signer, apiKeyProvider, authDefinition),
 		middleware.After,
@@ -37,7 +37,7 @@ func AddAuthenticationMiddleware(s *middleware.Stack, signer Signer, apiKeyProvi
 }
 
 // NewAuthenticationMiddleware returns an initialized AuthenticationMiddleware.
-func NewAuthenticationMiddleware(signer Signer, apiKeyProvider ApiKeyProvider, authDefinition auth.HttpAuthDefinition) *AuthenticationMiddleware {
+func NewAuthenticationMiddleware(signer Signer, apiKeyProvider ApiKeyProvider, authDefinition HttpApiKeyAuthDefinition) *AuthenticationMiddleware {
 	return &AuthenticationMiddleware{
 		signer:         signer,
 		apiKeyProvider: apiKeyProvider,
@@ -65,13 +65,13 @@ func (m *AuthenticationMiddleware) HandleFinalize(
 
 	apiKey, err := m.apiKeyProvider.RetrieveApiKey(ctx)
 	if err != nil || len(apiKey) == 0 {
-		fmt.Println("failed AuthenticationMiddleware wrap message, %w", err)
+		fmt.Println("failed httpApiKeyAuth AuthenticationMiddleware wrap message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
 	signedMessage, err := m.signer.SignWithApiKey(ctx, apiKey, &m.authDefinition, in.Request)
 	if err != nil {
-		fmt.Println("failed AuthenticationMiddleware sign message, %w", err)
+		fmt.Println("failed httpApiKeyAuth AuthenticationMiddleware sign message, %w", err)
 		return next.HandleFinalize(ctx, in)
 	}
 
@@ -92,7 +92,7 @@ func NewSignMessage() *SignMessage {
 // added via either Header or Query parameter as defined in the Smithy model.
 //
 // Returns an error if the request message is not an smithy-go HTTP Request pointer type.
-func (SignMessage) SignWithApiKey(ctx context.Context, apiKey string, authDefinition *auth.HttpAuthDefinition, message Message) (Message, error) {
+func (SignMessage) SignWithApiKey(ctx context.Context, apiKey string, authDefinition *HttpApiKeyAuthDefinition, message Message) (Message, error) {
 	req, ok := message.(*smithyhttp.Request)
 	if !ok {
 		return nil, fmt.Errorf("expect smithy-go HTTP Request, got %T", message)
