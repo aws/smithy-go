@@ -6,7 +6,8 @@ import (
 	"github.com/aws/smithy-go"
 )
 
-// Endpoint is a Smithy endpoint.
+// Endpoint is the endpoint object returned
+// by Endpoint resolution V2
 type Endpoint struct {
 	URI url.URL
 
