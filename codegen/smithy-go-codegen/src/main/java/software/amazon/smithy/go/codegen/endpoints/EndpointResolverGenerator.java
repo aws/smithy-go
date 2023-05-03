@@ -435,6 +435,8 @@ public final class EndpointResolverGenerator {
                     return $endpoint:W, nil
                     """,
                     MapUtils.of(
+                            // TODO: consider simplifying how the URI string is built
+                            // look into strings.Join
                             "url", new ExpressionGenerator(scope, this.fnProvider).generate(endpoint.getUrl()),
                             "endpoint", generateEndpoint(endpoint, scope)));
         }
