@@ -26,6 +26,7 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -46,7 +47,7 @@ public class HttpBearerAuth implements GoIntegration {
     private static final String SIGNER_OPTION_NAME = "BearerAuthSigner";
     private static final String NEW_DEFAULT_SIGNER_NAME = "newDefault" + SIGNER_OPTION_NAME;
     private static final String SIGNER_RESOLVER_NAME = "resolve" + SIGNER_OPTION_NAME;
-    public static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
+    private static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
 
     @Override
     public void writeAdditionalFiles(
@@ -150,6 +151,16 @@ public class HttpBearerAuth implements GoIntegration {
                                 .location(ConfigFieldResolver.Location.CLIENT)
                                 .target(ConfigFieldResolver.Target.INITIALIZATION)
                                 .resolver(SymbolUtils.createValueSymbolBuilder(SIGNER_RESOLVER_NAME).build())
+                                .build())
+                        .build(),
+
+                // TODO this is incorrect for an API client/operation that supports multiple auth schemes.
+                RuntimeClientPlugin.builder()
+                        .operationPredicate(HttpBearerAuth::hasBearerAuthScheme)
+                        .registerMiddleware(MiddlewareRegistrar.builder()
+                                .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
+                                        REGISTER_MIDDLEWARE_NAME).build())
+                                .useClientOptions()
                                 .build())
                         .build()
         );

@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -38,10 +39,12 @@ import software.amazon.smithy.model.traits.OptionalAuthTrait;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyUnstableApi;
 
 /**
  * Integration to add support for httpApiKeyAuth authentication scheme to an API client.
  */
+@SmithyUnstableApi
 public class HttpApiKeyAuth implements GoIntegration {
 
     public static final String API_KEY_PROVIDER_OPTION_NAME = "ApiKeyAuthProvider";
@@ -172,6 +175,16 @@ public class HttpApiKeyAuth implements GoIntegration {
                                 .location(ConfigFieldResolver.Location.CLIENT)
                                 .target(ConfigFieldResolver.Target.INITIALIZATION)
                                 .resolver(SymbolUtils.createValueSymbolBuilder(SIGNER_RESOLVER_NAME).build())
+                                .build())
+                        .build(),
+
+                // TODO this is incorrect for an API client/operation that supports multiple auth schemes.
+                RuntimeClientPlugin.builder()
+                        .operationPredicate(HttpApiKeyAuth::hasApiKeyAuthScheme)
+                        .registerMiddleware(MiddlewareRegistrar.builder()
+                                .resolvedFunction(SymbolUtils.createValueSymbolBuilder(
+                                        REGISTER_MIDDLEWARE_NAME).build())
+                                .useClientOptions()
                                 .build())
                         .build()
         );
