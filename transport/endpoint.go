@@ -14,7 +14,7 @@ type Endpoint struct {
 	URI url.URL
 
 	// An optional set of headers to be sent using transport layer headers.
-	Headers *http.Header
+	Headers http.Header
 
 	// A grab-bag property map of endpoint attributes. The
 	// values present here are subject to change, or being add/removed at any
