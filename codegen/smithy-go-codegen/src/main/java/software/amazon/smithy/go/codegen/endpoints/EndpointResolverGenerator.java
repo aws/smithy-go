@@ -335,6 +335,9 @@ public final class EndpointResolverGenerator {
                 "newHeaders", SymbolUtils.createValueSymbolBuilder("Header{}",
                         SmithyGoDependency.NET_HTTP).build());
 
+        // TODO: consider removing this line (letting it default to nil init)
+        // rather than generating empty headers
+        // https://github.com/aws/aws-sdk-go-v2/pull/2110/files#r1186193501
         if (headers.isEmpty()) {
             return goTemplate("Headers: $newHeaders:T,", args);
         }
