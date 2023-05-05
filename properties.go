@@ -46,11 +46,12 @@ func (m Properties) Clone() Properties {
 // be lost.
 //
 // Panics if the key type is not comparable.
-func (m *Properties) Set(key, value interface{}) {
+func (m Properties) Set(key, value interface{}) Properties {
 	if m.values == nil {
 		m.values = map[interface{}]interface{}{}
 	}
 	m.values[key] = value
+	return m
 }
 
 // Has returns whether the key exists in the metadata.
