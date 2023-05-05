@@ -34,7 +34,7 @@ public class EndpointResolutionV2Generator {
     public static final String FEATURE_NAME = "V2";
     public static final String PARAMETERS_TYPE_NAME = "EndpointParameters";
     public static final String RESOLVER_INTERFACE_NAME = "Endpoint" + "Resolver" + FEATURE_NAME;
-    public static final String RESOLVER_IMPLEMENTATION_NAME = "resolver" + FEATURE_NAME;
+    public static final String RESOLVER_IMPLEMENTATION_NAME = "resolver";
     public static final String RESOLVER_ENDPOINT_METHOD_NAME = "ResolveEndpoint";
     public static final String NEW_RESOLVER_FUNC_NAME = "NewDefault" + RESOLVER_INTERFACE_NAME;
 

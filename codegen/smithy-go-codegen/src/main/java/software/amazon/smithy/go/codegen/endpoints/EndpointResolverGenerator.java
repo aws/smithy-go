@@ -104,7 +104,7 @@ public final class EndpointResolverGenerator {
                 // $resolverInterfaceType:T provides the interface for resolving service endpoints.
                 type $resolverInterfaceType:T interface {
                     $resolveEndpointMethodDocs:W
-                    $resolveEndpointMethodName:L(ctx $context:T, options $parametersType:T) (
+                    $resolveEndpointMethodName:L(ctx $context:T, $paramArgName:L $parametersType:T) (
                         $endpointType:T, error,
                     )
                 }
@@ -112,7 +112,7 @@ public final class EndpointResolverGenerator {
                 $resolverTypeDocs:W
                 type $resolverImplementationType:T struct{}
 
-                func $newResolverFn:T() *$resolverImplementationType:T {
+                func $newResolverFn:T() $resolverInterfaceType:T {
                     return &$resolverImplementationType:T{}
                 }
 
