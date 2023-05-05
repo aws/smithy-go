@@ -138,6 +138,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }));
     }
 
+
     /**
      * Generate the event stream serializers for the given event stream target and associated operations.
      *

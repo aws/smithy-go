@@ -77,7 +77,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "127.0.0.1",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 		"ip4 URL with port": {
@@ -87,7 +87,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "127.0.0.1:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 		"ip6 short": {
@@ -97,7 +97,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1]",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 		"ip6 short with interface": {
@@ -107,7 +107,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1%25en0]",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 		"ip6 short with port": {
@@ -117,7 +117,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1]:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 		"ip6 short with port with interface": {
@@ -127,7 +127,7 @@ func TestParseURL(t *testing.T) {
 				Authority:      "[fe80::1%25en0]:8443",
 				Path:           "",
 				NormalizedPath: "/",
-				IsIP:           true,
+				IsIp:           true,
 			},
 		},
 	}

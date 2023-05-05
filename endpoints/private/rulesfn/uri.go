@@ -65,9 +65,9 @@ func ParseURL(input string) *URL {
 	// be reverted since the returned URL will be used in string builders.
 	authority := strings.ReplaceAll(u.Host, "%", "%25")
 
-	var isIP bool
+	var isIp bool
 	if _, err = netip.ParseAddr(u.Hostname()); err == nil {
-		isIP = true
+		isIp = true
 	}
 
 	return &URL{
@@ -75,7 +75,7 @@ func ParseURL(input string) *URL {
 		Authority:      authority,
 		Path:           u.Path,
 		NormalizedPath: normalizedPath,
-		IsIP:           isIP,
+		IsIp:           isIp,
 	}
 }
 
@@ -86,7 +86,7 @@ type URL struct {
 	Authority      string // https://www.rfc-editor.org/rfc/rfc3986#section-3.2
 	Path           string // https://www.rfc-editor.org/rfc/rfc3986#section-3.3
 	NormalizedPath string // https://www.rfc-editor.org/rfc/rfc3986#section-6.2.3
-	IsIP           bool
+	IsIp           bool
 }
 
 // URIEncode returns an percent-encoded [RFC3986 section 2.1] version of the
