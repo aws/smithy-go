@@ -82,7 +82,7 @@ public final class EndpointParametersGenerator {
 
     private GoWriter.Writable generateParametersTypeDocs() {
         return goDocTemplate("""
-                $parametersType:T provides the option parameters for influence how endpoints are resolved.
+                $parametersType:T provides the parameters that influence how endpoints are resolved.
                 """, commonCodegenArgs);
     }
 
