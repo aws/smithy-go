@@ -336,7 +336,7 @@ public final class EndpointResolverGenerator {
                         SmithyGoDependency.NET_HTTP).build());
 
         if (headers.isEmpty()) {
-            return goTemplate("Headers: &$newHeaders:T,", args);
+            return goTemplate("Headers: $newHeaders:T,", args);
         }
 
         var writableHeaders = new TreeMap<String, List<GoWriter.Writable>>();
@@ -352,7 +352,7 @@ public final class EndpointResolverGenerator {
             writableHeaders.forEach((k, vs) -> {
                 w.write("headers.Set($W)", generateNewHeaderValue(k, vs));
             });
-            w.write("return &headers");
+            w.write("return headers");
         });
     }
 

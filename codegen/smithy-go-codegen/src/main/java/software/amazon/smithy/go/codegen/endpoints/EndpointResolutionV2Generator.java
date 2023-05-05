@@ -49,7 +49,7 @@ public class EndpointResolutionV2Generator {
         var serviceShape = context.getService();
 
         var endpointType = SymbolUtils.createValueSymbolBuilder("Endpoint",
-                SmithyGoDependency.SMITHY_TRANSPORT).build();
+                SmithyGoDependency.SMITHY_ENDPOINTS).build();
 
         var parametersType = SymbolUtils.createValueSymbolBuilder(PARAMETERS_TYPE_NAME).build();
         var resolverInterfaceType = SymbolUtils.createValueSymbolBuilder(RESOLVER_INTERFACE_NAME).build();
