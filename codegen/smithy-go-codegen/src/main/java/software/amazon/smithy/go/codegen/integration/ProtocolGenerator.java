@@ -466,7 +466,7 @@ public interface ProtocolGenerator {
      *
      * @param context the generation context.
      */
-    default void generateEndpointResolutionV2(GenerationContext context) {
+    default void generateEndpointResolution(GenerationContext context) {
         var generator = new EndpointResolutionV2Generator(new FnGenerator.DefaultFnProvider());
         generator.generate(context);
     }

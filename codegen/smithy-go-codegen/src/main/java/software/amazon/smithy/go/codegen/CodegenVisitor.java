@@ -244,7 +244,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
             writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolutionV2(context);
+                protocolGenerator.generateEndpointResolution(context);
             });
 
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
