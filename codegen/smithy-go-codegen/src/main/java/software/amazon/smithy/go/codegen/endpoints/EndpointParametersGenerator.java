@@ -31,6 +31,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.language.eval.Value;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.utils.MapUtils;
@@ -56,12 +57,14 @@ public final class EndpointParametersGenerator {
         if (ruleset.isPresent()) {
             var parameters = ruleset.get().getParameters();
             return generateParameters(MapUtils.of(
-                "parametersMembers", generateParametersMembers(parameters),
-                "parametersValidationMethod", generateValidationMethod(parameters)));
+                    "parametersMembers", generateParametersMembers(parameters),
+                    "parametersValidationMethod", generateValidationMethod(parameters),
+                    "parametersDefaultValueMethod", generateDefaultsMethod(parameters)));
         } else {
             return generateParameters(MapUtils.of(
-                "parametersMembers", emptyGoTemplate(),
-                "parametersValidationMethod", emptyGoTemplate()));
+                    "parametersMembers", emptyGoTemplate(),
+                    "parametersValidationMethod", emptyGoTemplate(),
+                    "parametersDefaultValueMethod", emptyGoTemplate()));
         }
     }
 
@@ -73,6 +76,7 @@ public final class EndpointParametersGenerator {
                 }
 
                 $parametersValidationMethod:W
+                $parametersDefaultValueMethod:W
                 """,
                 commonCodegenArgs,
                 MapUtils.of(
@@ -109,6 +113,50 @@ public final class EndpointParametersGenerator {
         };
     }
 
+    private GoWriter.Writable generateDefaultsMethod(Parameters parameters) {
+        return goTemplate("""
+                $methodDocs:W
+                func (p $parametersType:T) $funcName:L() $parametersType:T {
+                    $setDefaults:W
+                    return p
+                }
+                """,
+                commonCodegenArgs,
+                MapUtils.of(
+                        "funcName", DEFAULT_VALUE_FUNC_NAME,
+                        "methodDocs", goDocTemplate("$funcName:L returns a shallow copy of $parametersType:T"
+                                + "with default values applied to members where applicable.",
+                                commonCodegenArgs,
+                                MapUtils.of(
+                                        "funcName", DEFAULT_VALUE_FUNC_NAME)),
+                        "setDefaults", (GoWriter.Writable) (GoWriter w) -> {
+                            sortParameters(parameters).forEach((parameter) -> {
+                                parameter.getDefaultValue().ifPresent(defaultValue -> {
+                                    w.writeGoTemplate("""
+                                            if p.$memberName:L == nil {
+                                                p.$memberName:L = $defaultValue:W
+                                            }
+                                            """,
+                                            MapUtils.of(
+                                                    "memberName", getExportedParameterName(parameter),
+                                                    "defaultValue", generateDefaultValue(parameter, defaultValue)
+
+                                            ));
+                                });
+                            });
+                        }));
+    }
+
+    private GoWriter.Writable generateDefaultValue(Parameter parameter, Value defaultValue) {
+        return switch (parameter.getType()) {
+            case STRING -> goTemplate("$ptrString:T($value:S)", MapUtils.of(
+                    "ptrString", SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build(),
+                    "value", defaultValue.expectString()));
+            case BOOLEAN -> goTemplate("$ptrBool:T($value:L)", MapUtils.of(
+                    "ptrBool", SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build(),
+                    "value", defaultValue.expectBool()));
+        };
+    }
 
     private GoWriter.Writable generateValidationMethod(Parameters parameters) {
         if (!haveRequiredParameters(parameters)) {
