@@ -16,12 +16,19 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointTestCase;
+import software.amazon.smithy.rulesengine.traits.EndpointTestsTrait;
+
 
 
 
@@ -29,7 +36,7 @@ import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
  * Generates all components required for Smithy Ruleset Endpoint Resolution.
  * These components include a Provider, Parameters, and Tests.
  */
-public class EndpointResolutionV2Generator {
+public class EndpointResolutionGenerator {
 
     public static final String FEATURE_NAME = "V2";
     public static final String PARAMETERS_TYPE_NAME = "EndpointParameters";
@@ -39,22 +46,27 @@ public class EndpointResolutionV2Generator {
     public static final String NEW_RESOLVER_FUNC_NAME = "NewDefault" + RESOLVER_INTERFACE_NAME;
 
     private final FnProvider fnProvider;
+    private final Symbol endpointType;
+    private final Symbol parametersType;
+    private final Symbol resolverInterfaceType;
+    private final Symbol resolverImplementationType;
+    private final Symbol newResolverFn;
 
-    public EndpointResolutionV2Generator(FnProvider fnProvider) {
+
+    public EndpointResolutionGenerator(FnProvider fnProvider) {
         this.fnProvider = fnProvider;
+        this.endpointType = SymbolUtils.createValueSymbolBuilder("Endpoint",
+                SmithyGoDependency.SMITHY_ENDPOINTS).build();
+
+        this.parametersType = SymbolUtils.createValueSymbolBuilder(PARAMETERS_TYPE_NAME).build();
+        this.resolverInterfaceType = SymbolUtils.createValueSymbolBuilder(RESOLVER_INTERFACE_NAME).build();
+        this.resolverImplementationType = SymbolUtils.createValueSymbolBuilder(RESOLVER_IMPLEMENTATION_NAME).build();
+        this.newResolverFn = SymbolUtils.createValueSymbolBuilder(NEW_RESOLVER_FUNC_NAME).build();
     }
 
     public void generate(ProtocolGenerator.GenerationContext context) {
 
         var serviceShape = context.getService();
-
-        var endpointType = SymbolUtils.createValueSymbolBuilder("Endpoint",
-                SmithyGoDependency.SMITHY_ENDPOINTS).build();
-
-        var parametersType = SymbolUtils.createValueSymbolBuilder(PARAMETERS_TYPE_NAME).build();
-        var resolverInterfaceType = SymbolUtils.createValueSymbolBuilder(RESOLVER_INTERFACE_NAME).build();
-        var resolverImplementationType = SymbolUtils.createValueSymbolBuilder(RESOLVER_IMPLEMENTATION_NAME).build();
-        var newResolverFn = SymbolUtils.createValueSymbolBuilder(NEW_RESOLVER_FUNC_NAME).build();
 
         var parametersGenerator = EndpointParametersGenerator.builder()
                 .parametersType(parametersType)
@@ -70,12 +82,12 @@ public class EndpointResolutionV2Generator {
                 .fnProvider(this.fnProvider)
                 .build();
 
-
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                                                     .map(
                                                         (trait)
                                                         -> EndpointRuleSet.fromNode(trait.getRuleSet())
                                                     );
+
 
         context.getWriter()
                 .map(
@@ -88,6 +100,37 @@ public class EndpointResolutionV2Generator {
                     (writer)
                     -> writer.write("$W", resolverGenerator.generate(ruleset))
                 );
+
+    }
+
+    public void generateTests(ProtocolGenerator.GenerationContext context) {
+
+        var serviceShape = context.getService();
+        Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
+                                                    .map(
+                                                        (trait)
+                                                        -> EndpointRuleSet.fromNode(trait.getRuleSet())
+                                                    );
+
+
+        var testsGenerator = EndpointTestsGenerator.builder()
+            .parametersType(parametersType)
+            .newResolverFn(newResolverFn)
+            .endpointType(endpointType)
+            .resolveEndpointMethodName(RESOLVER_ENDPOINT_METHOD_NAME)
+            .build();
+
+        final List<EndpointTestCase> testCases = new ArrayList<>();
+        var endpointTestTrait = serviceShape.getTrait(EndpointTestsTrait.class);
+        endpointTestTrait.ifPresent(trait -> testCases.addAll(trait.getTestCases()));
+
+        context.getWriter()
+            .map(
+                (writer) -> {
+                    writer.addUseImports(SmithyGoDependency.NET_URL);
+                    return writer.write("$W", testsGenerator.generate(ruleset, testCases));
+                }
+            );
 
     }
 
