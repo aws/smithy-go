@@ -19,7 +19,6 @@ package software.amazon.smithy.go.codegen.endpoints;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
