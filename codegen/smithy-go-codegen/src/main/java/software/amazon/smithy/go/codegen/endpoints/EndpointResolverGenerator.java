@@ -158,6 +158,7 @@ public final class EndpointResolverGenerator {
 
         ruleset.typecheck();
         return goTemplate("""
+                    $paramsWithDefaults:W
                     $validateParams:W
                     $paramVars:W
 
@@ -167,12 +168,21 @@ public final class EndpointResolverGenerator {
                 MapUtils.of(
                         "logPrintln", SymbolUtils.createValueSymbolBuilder("Println", SmithyGoDependency.LOG).build(),
                         "validateParams", generateValidateParams(ruleset.getParameters()),
+                        "paramsWithDefaults", generateParamsWithDefaults(),
                         "paramVars", (GoWriter.Writable) (GoWriter w) -> {
                             ruleset.getParameters().toList().stream().filter(Parameter::isRequired).forEach((p) -> {
                                 w.write("$L := *$L", getLocalVarParameterName(p), getMemberParameterName(p));
                             });
                         },
                         "rules", generateRulesList(ruleset.getRules(), scope)));
+    }
+
+    private GoWriter.Writable generateParamsWithDefaults() {
+        return goTemplate("$paramArgName:L = $paramArgName:L.$withDefaults:L()",
+                commonCodegenArgs,
+                MapUtils.of(
+                        "withDefaults", EndpointParametersGenerator.DEFAULT_VALUE_FUNC_NAME
+                ));
     }
 
     private GoWriter.Writable generateEmptyResolveMethodBody() {
@@ -350,7 +360,7 @@ public final class EndpointResolverGenerator {
             writableHeaders.put(k, writables);
         });
 
-        return goBlockTemplate("$memberName:L: func() *$headerType:T {", "}(),", args, (w) -> {
+        return goBlockTemplate("$memberName:L: func() $headerType:T {", "}(),", args, (w) -> {
             w.writeGoTemplate("headers := $newHeaders:T", args);
             writableHeaders.forEach((k, vs) -> {
                 w.write("headers.Set($W)", generateNewHeaderValue(k, vs));
@@ -432,10 +442,9 @@ public final class EndpointResolverGenerator {
         @Override
         public GoWriter.Writable visitEndpointRule(Endpoint endpoint) {
             return goTemplate("""
-
                     uriString := $url:W
 
-                    uri, err := url.Parse(uriString)
+                    $uriVariableName:L, err := url.Parse(uriString)
                     if err != nil {
                         return endpoint, fmt.Errorf(\"Failed to parse uri: %s\", uriString)
                     }
@@ -445,6 +454,7 @@ public final class EndpointResolverGenerator {
                     MapUtils.of(
                             // TODO: consider simplifying how the URI string is built
                             // look into strings.Join
+                            "uriVariableName", REALIZED_URL_VARIABLE_NAME,
                             "url", new ExpressionGenerator(scope, this.fnProvider).generate(endpoint.getUrl()),
                             "endpoint", generateEndpoint(endpoint, scope)));
         }

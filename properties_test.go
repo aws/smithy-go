@@ -10,7 +10,7 @@ func TestPropertiesClone(t *testing.T) {
 
 	var m Properties
 	for k, v := range original {
-		m.Set(k, v)
+		m = m.Set(k, v)
 	}
 
 	o := m.Clone()

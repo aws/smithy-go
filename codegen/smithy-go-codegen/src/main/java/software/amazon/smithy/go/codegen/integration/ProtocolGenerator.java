@@ -29,7 +29,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.Synthetic;
-import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionV2Generator;
+import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
 import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
@@ -467,8 +467,18 @@ public interface ProtocolGenerator {
      * @param context the generation context.
      */
     default void generateEndpointResolution(GenerationContext context) {
-        var generator = new EndpointResolutionV2Generator(new FnGenerator.DefaultFnProvider());
+        var generator = new EndpointResolutionGenerator(new FnGenerator.DefaultFnProvider());
         generator.generate(context);
+    }
+
+    /**
+     * Generate the tests for Endpoint Rules Engine endpoint resolution.
+     *
+     * @param context the generation context.
+     */
+    default void generateEndpointResolutionTests(GenerationContext context) {
+        var generator = new EndpointResolutionGenerator(new FnGenerator.DefaultFnProvider());
+        generator.generateTests(context);
     }
 
     /**
