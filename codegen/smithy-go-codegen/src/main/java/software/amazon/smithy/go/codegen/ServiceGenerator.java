@@ -206,18 +206,19 @@ final class ServiceGenerator implements Runnable {
             });
         });
 
-        getAllConfigFields().stream().filter(ConfigField::getWithHelper)
+        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(ConfigField::isDeprecated)
+            .forEach(configField -> {
+                writer.writeDocs(configField.getDeprecated().get());
+                writeWithHelperFunction(writer, configField);
+            });
+
+        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(Predicate.not(ConfigField::isDeprecated))
                 .forEach(configField -> {
                     writer.writeDocs(
                             String.format("With%s returns a functional option for setting the Client's %s option.",
                                     configField.getName(), configField.getName()));
-                    writer.openBlock("func With$L(v $P) func(*Options) {", "}", configField.getName(),
-                            configField.getType(),
-                            () -> {
-                                writer.openBlock("return func(o *Options) {", "}", () -> {
-                                    writer.write("o.$L = v", configField.getName());
-                                });
-                            }).write("");
+                    writeWithHelperFunction(writer, configField);
+
                 });
 
         generateApplicationProtocolTypes();
@@ -231,6 +232,16 @@ final class ServiceGenerator implements Runnable {
             writer.write("copy(to.APIOptions, o.APIOptions)").write("");
             writer.write("return to");
         });
+    }
+
+    private void writeWithHelperFunction(GoWriter writer, ConfigField configField) {
+        writer.openBlock("func With$L(v $P) func(*Options) {", "}", configField.getName(),
+        configField.getType(),
+        () -> {
+            writer.openBlock("return func(o *Options) {", "}", () -> {
+                writer.write("o.$L = v", configField.getName());
+            });
+        }).write("");
     }
 
     private List<ConfigField> getAllConfigFields() {

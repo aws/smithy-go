@@ -74,6 +74,13 @@ public class ConfigField implements ToSmithyBuilder<ConfigField> {
         return Optional.ofNullable(deprecated);
     }
 
+    /**
+     * @return Returns if the config option is deprecated.
+     */
+    public Boolean isDeprecated() {
+        return getDeprecated().isPresent();
+    }
+
     @Override
     public SmithyBuilder<ConfigField> toBuilder() {
         return builder().type(type).name(name).documentation(documentation).withHelper(withHelper);
