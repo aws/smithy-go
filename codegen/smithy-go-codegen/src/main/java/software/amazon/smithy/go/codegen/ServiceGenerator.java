@@ -212,10 +212,12 @@ final class ServiceGenerator implements Runnable {
                 writeWithHelperFunction(writer, configField);
             });
 
-        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(Predicate.not(ConfigField::isDeprecated))
+        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(
+            Predicate.not(ConfigField::isDeprecated))
                 .forEach(configField -> {
                     writer.writeDocs(
-                            String.format("With%s returns a functional option for setting the Client's %s option.",
+                            String.format(
+                                "With%s returns a functional option for setting the Client's %s option.",
                                     configField.getName(), configField.getName()));
                     writeWithHelperFunction(writer, configField);
 
