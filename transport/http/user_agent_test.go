@@ -13,10 +13,10 @@ func TestUserAgentBuilder(t *testing.T) {
 			Key:    "baz",
 			Expect: "baz",
 		},
-		"Single key and value": {
+		"Single key and value with allowed char": {
 			Key:    "baz/ba",
-			Value:  "1+2-3",
-			Expect: "baz/ba#1+2-3",
+			Value:  "a+b-C$4'5.6",
+			Expect: "baz/ba#a+b-C$4'5.6",
 		},
 		"Tow keys": {
 			Key:       "baz/ba",
