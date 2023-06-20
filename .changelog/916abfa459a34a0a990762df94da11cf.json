@@ -1,0 +1,8 @@
+{
+    "id": "916abfa4-59a3-4a0a-9907-62df94da11cf",
+    "type": "bugfix",
+    "description": "modify user agent builder syntax",
+    "modules": [
+        "."
+    ]
+}
