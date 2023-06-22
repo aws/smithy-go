@@ -1,14 +1,27 @@
+/*
+ * Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+
 package software.amazon.smithy.go.codegen.endpoints;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoSettings;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
@@ -19,15 +32,12 @@ import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.ListUtils;
-import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
-import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
-
 import software.amazon.smithy.utils.StringUtils;
-
-
 
 public class EndpointClientPluginsGenerator implements GoIntegration {
 
@@ -63,8 +73,8 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
                     .documentation(
                         """
                         This endpoint will be given as input to an EndpointResolverV2.
-                        It is used for providing a custom base endpoint that is subject 
-                        to modifications by the processing EndpointResolverV2.        
+                        It is used for providing a custom base endpoint that is subject
+                        to modifications by the processing EndpointResolverV2.
                         """
                     )
                     .build()
@@ -77,7 +87,7 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
     public void processFinalizedModel(GoSettings settings, Model model) {
         ServiceShape service = settings.getService(model);
         var rulesetTrait = service.getTrait(EndpointRuleSetTrait.class);
-        Optional<EndpointRuleSet> rulesetOpt = (rulesetTrait.isPresent()) 
+        Optional<EndpointRuleSet> rulesetOpt = (rulesetTrait.isPresent())
         ? Optional.of(EndpointRuleSet.fromNode(rulesetTrait.get().getRuleSet()))
         : Optional.empty();
         var clientContextParamsTrait = service.getTrait(ClientContextParamsTrait.class);
@@ -109,10 +119,13 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
                     var parameters = rulesetOpt.get().getParameters();
                     parameters.toList().stream().forEach(param -> {
                         if (
-                            clientContextParams.getParameters().containsKey(param.getName().asString()) &&
-                            !param.getBuiltIn().isPresent()
+                            clientContextParams.getParameters().containsKey(param.getName().asString())
+                            && !param.getBuiltIn().isPresent()
                         ) {
-                            var documentation = param.getDocumentation().isPresent() ?  param.getDocumentation().get() : "";
+                            var documentation = param.getDocumentation().isPresent()
+                                ? param.getDocumentation().get()
+                                : "";
+
                             runtimeClientPlugins.add(RuntimeClientPlugin.builder()
                             .configFields(ListUtils.of(
                                 ConfigField.builder()
