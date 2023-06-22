@@ -1,5 +1,7 @@
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +13,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.StringUtils;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
@@ -28,10 +31,6 @@ import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.go.codegen.GoDelegator;
-
-
-
-
 
 public class EndpointMiddlewareGenerator {
 
@@ -142,57 +141,55 @@ public class EndpointMiddlewareGenerator {
     }
 
     private GoWriter.Writable generateMiddlewareResolverBody(OperationShape operationShape, Model model, Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+        return goTemplate(
+            """
+            $requestValidator:W
 
-        return (GoWriter writer) -> {
-            var fmtErrorSymbol = SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build();
-            writer.write(
-                """
-                    $W
-                
-                    $W
-                
-                    if m.EndpointResolver == nil {
-                        return out, metadata, $T(\"expected endpoint resolver to not be nil\")
-                    }
-                
-                    params := EndpointParameters{}
+            $inputValidator:W
 
-                    $W
+            $legacyResolverValidator:W
 
-                    $W
+            params := $endpointParametersType:L{}
 
-                    $W
+            $builtInResolverInvocation:W
 
-                    $W
+            $clientContextBinding:W
 
-                    var resolvedEndpoint $T
-                    resolvedEndpoint, err = m.EndpointResolver.ResolveEndpoint(ctx, params)
-                    if err != nil {
-                        return out, metadata, $T(\"failed to resolve service endpoint, %w\", err)
-                    }
+            $contextBinding:W
 
-                    req.URL = &resolvedEndpoint.URI
-g
-                    for k := range resolvedEndpoint.Headers {
-                        req.Header.Set(
-                            k,
-                            resolvedEndpoint.Headers.Get(k),
-                        )
-                    }
+            $staticContextBinding:W
 
-                    return next.HandleSerialize(ctx, in)
-                """,
-                generateRequestValidator(),
-                generateInputValidator(model, operationShape),
-                fmtErrorSymbol,
-                generateBuiltInResolverInvocation(parameters),
-                generateClientContextParamBinding(parameters, clientContextParamsTrait),
-                generateContextParamBinding(operationShape, model),
-                generateStaticContextParamBinding(parameters, operationShape),
-                SymbolUtils.createValueSymbolBuilder("Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS).build(),
-                fmtErrorSymbol
-            );
-        };
+            var resolvedEndpoint $endpointType:T
+            resolvedEndpoint, err = m.EndpointResolver.ResolveEndpoint(ctx, params)
+            if err != nil {
+                return out, metadata, $errorType:T(\"failed to resolve service endpoint, %w\", err)
+            }
+
+            req.URL = &resolvedEndpoint.URI
+
+            for k := range resolvedEndpoint.Headers {
+                req.Header.Set(
+                    k,
+                    resolvedEndpoint.Headers.Get(k),
+                )
+            }
+
+            return next.HandleSerialize(ctx, in)
+
+            """,
+            MapUtils.of(
+                "requestValidator", generateRequestValidator(),
+                "inputValidator", generateInputValidator(model, operationShape),
+                "legacyResolverValidator", generateLegacyResolverValidator(),
+                "endpointParametersType", EndpointResolutionGenerator.PARAMETERS_TYPE_NAME,
+                "builtInResolverInvocation", generateBuiltInResolverInvocation(parameters),
+                "clientContextBinding", generateClientContextParamBinding(parameters, clientContextParamsTrait),
+                "contextBinding", generateContextParamBinding(operationShape, model),
+                "staticContextBinding", generateStaticContextParamBinding(parameters, operationShape),
+                "endpointType", SymbolUtils.createValueSymbolBuilder("Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS).build(),
+                "errorType", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
+            )
+        );
     }
     
     private GoWriter.Writable generateRequestValidator() {
@@ -234,6 +231,19 @@ g
             }
         }
         return inputValidator;
+    }
+
+    private GoWriter.Writable generateLegacyResolverValidator() {
+        return (GoWriter writer) -> {
+            writer.write(
+                """
+                    if m.EndpointResolver == nil {
+                        return out, metadata, $T(\"expected endpoint resolver to not be nil\")
+                    }
+                """,
+                SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
+            );
+        };
     }
 
     private GoWriter.Writable generateBuiltInResolverInvocation(Parameters parameters) {
