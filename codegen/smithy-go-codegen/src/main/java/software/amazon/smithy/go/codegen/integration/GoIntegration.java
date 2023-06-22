@@ -188,15 +188,32 @@ public interface GoIntegration {
         return serviceId;
     }
 
-
+    /**
+     * Used by integrations to set a member on the endpoints resolution
+     * middleware object.
+     *
+     * @param writer Settings used to generate.
+     */
     default void renderEndpointBuiltInField(GoWriter writer) {
         // pass
     }
 
+    /**
+     * Used by integrations to set invoke BuiltIn resolution during Endpoint 
+     * resolution.
+     *
+     * @param writer Settings used to generate.
+     */
     default void renderEndpointBuiltInInvocation(GoWriter writer) {
         // pass
     }
 
+    /**
+     * Used by integrations to set initialize BuiltIn values on the Endpoint
+     * resolution object.
+     *
+     * @param writer Settings used to generate.
+     */
     default void renderEndpointBuiltInInitialization(GoWriter writer, Parameters parameters) {
         // pass
     }
