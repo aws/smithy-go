@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -111,10 +110,6 @@ public class EndpointResolutionGenerator {
             context.getModel(),
             context.getSymbolProvider(),
             context.getDelegator());
-        
-
-        
-
     }
 
     public void generateTests(ProtocolGenerator.GenerationContext context) {

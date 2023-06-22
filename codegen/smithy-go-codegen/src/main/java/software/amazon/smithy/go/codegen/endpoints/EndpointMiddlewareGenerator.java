@@ -1,22 +1,39 @@
+/*
+ * Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+
 package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.List;
 import java.util.Optional;
-
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.utils.MapUtils;
-import software.amazon.smithy.utils.SmithyBuilder;
-import software.amazon.smithy.utils.StringUtils;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.ParameterType;
@@ -25,14 +42,11 @@ import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
 import software.amazon.smithy.rulesengine.traits.ContextParamTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.rulesengine.traits.StaticContextParamsTrait;
-import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.OperationIndex;
-import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.shapes.OperationShape;
-import software.amazon.smithy.model.shapes.ToShapeId;
-import software.amazon.smithy.go.codegen.GoDelegator;
+import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyBuilder;
+import software.amazon.smithy.utils.StringUtils;
 
-public class EndpointMiddlewareGenerator {
+public final class EndpointMiddlewareGenerator {
 
     List<GoIntegration> integrations;
 
@@ -47,10 +61,10 @@ public class EndpointMiddlewareGenerator {
         var rulesetTrait = serviceShape.getTrait(EndpointRuleSetTrait.class);
         var clientContextParamsTrait = serviceShape.getTrait(ClientContextParamsTrait.class);
 
-        Optional<EndpointRuleSet> rulesetOpt = (rulesetTrait.isPresent()) 
+        Optional<EndpointRuleSet> rulesetOpt = (rulesetTrait.isPresent())
                 ? Optional.of(EndpointRuleSet.fromNode(rulesetTrait.get().getRuleSet()))
                 : Optional.empty();
-        
+
         TopDownIndex topDownIndex = TopDownIndex.of(model);
 
         for (ToShapeId operation : topDownIndex.getContainedOperations(serviceShape)) {
@@ -65,11 +79,12 @@ public class EndpointMiddlewareGenerator {
                         $W
 
                         $W
-    
+
                         $W
                         """,
                         generateMiddlewareType(parameters, clientContextParamsTrait, operationName),
-                        generateMiddlewareMethods(parameters, clientContextParamsTrait, symbolProvider, operationShape, model),
+                        generateMiddlewareMethods(
+                            parameters, clientContextParamsTrait, symbolProvider, operationShape, model),
                         generateMiddlewareAdder(parameters, operationName, clientContextParamsTrait)
                     );
                 }
@@ -77,7 +92,8 @@ public class EndpointMiddlewareGenerator {
         }
     }
 
-    private GoWriter.Writable generateMiddlewareType(Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait, String operationName) {
+    private GoWriter.Writable generateMiddlewareType(
+        Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait, String operationName) {
         return (GoWriter w) -> {
             w.openBlock("type $L struct {", "}", getMiddlewareObjectName(operationName), () -> {
                 w.write("EndpointResolver $T", SymbolUtils.createValueSymbolBuilder("EndpointResolverV2").build());
@@ -90,7 +106,7 @@ public class EndpointMiddlewareGenerator {
                     }
                 }
 
-                
+
                 if (clientContextParamsTrait.isPresent()) {
                     var clientContextParams = clientContextParamsTrait.get();
                     parameters.toList().stream().forEach(param -> {
@@ -105,7 +121,11 @@ public class EndpointMiddlewareGenerator {
         };
     }
 
-    private GoWriter.Writable generateMiddlewareMethods(Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait, SymbolProvider symbolProvider, OperationShape operationShape, Model model) {
+    private GoWriter.Writable generateMiddlewareMethods(
+        Parameters parameters,
+        Optional<ClientContextParamsTrait> clientContextParamsTrait,
+        SymbolProvider symbolProvider, OperationShape operationShape, Model model) {
+
         Symbol operationSymbol = symbolProvider.toSymbol(operationShape);
         String operationName = operationSymbol.getName();
         String middlewareName = getMiddlewareObjectName(operationName);
@@ -116,15 +136,20 @@ public class EndpointMiddlewareGenerator {
                 MiddlewareIdentifier.string(middlewareName).writeInline(writer);
                 writer.write("");
             });
-    
+
             writer.write("");
 
             String handleMethodName = "HandleSerialize";
-            Symbol contextType = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
-            Symbol metadataType = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-            var inputType = SymbolUtils.createValueSymbolBuilder("SerializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-            var outputType = SymbolUtils.createValueSymbolBuilder("SerializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-            var handlerType = SymbolUtils.createValueSymbolBuilder("SerializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+            Symbol contextType =
+                SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
+            Symbol metadataType =
+                SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+            var inputType =
+                SymbolUtils.createValueSymbolBuilder("SerializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+            var outputType =
+                SymbolUtils.createValueSymbolBuilder("SerializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
+            var handlerType =
+                SymbolUtils.createValueSymbolBuilder("SerializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
 
 
             writer.openBlock("func (m $P) $L(ctx $T, in $T, next $T) (\n"
@@ -135,12 +160,17 @@ public class EndpointMiddlewareGenerator {
                             metadataType,
                     },
                     () -> {
-                        writer.write("$W", generateMiddlewareResolverBody(operationShape, model, parameters, clientContextParamsTrait));
+                        writer.write("$W",
+                            generateMiddlewareResolverBody(operationShape, model, parameters, clientContextParamsTrait)
+                        );
                     });
         };
     }
 
-    private GoWriter.Writable generateMiddlewareResolverBody(OperationShape operationShape, Model model, Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+    private GoWriter.Writable generateMiddlewareResolverBody(
+        OperationShape operationShape, Model model, Parameters parameters,
+        Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+
         return goTemplate(
             """
             $requestValidator:W
@@ -186,12 +216,14 @@ public class EndpointMiddlewareGenerator {
                 "clientContextBinding", generateClientContextParamBinding(parameters, clientContextParamsTrait),
                 "contextBinding", generateContextParamBinding(operationShape, model),
                 "staticContextBinding", generateStaticContextParamBinding(parameters, operationShape),
-                "endpointType", SymbolUtils.createValueSymbolBuilder("Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS).build(),
+                "endpointType", SymbolUtils.createValueSymbolBuilder(
+                    "Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS
+                ).build(),
                 "errorType", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
             )
         );
     }
-    
+
     private GoWriter.Writable generateRequestValidator() {
         return (GoWriter writer) -> {
             writer.write(
@@ -210,23 +242,27 @@ public class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateInputValidator(Model model, OperationShape operationShape) {
         var opIndex = OperationIndex.of(model);
         var inputOpt = opIndex.getInput(operationShape);
-        GoWriter.Writable inputValidator = (GoWriter writer) -> {writer.write("");};
+        GoWriter.Writable inputValidator = (GoWriter writer) -> {
+            writer.write("");
+        };
 
         if (inputOpt.isPresent()) {
             var input = inputOpt.get();
             for (var inputMember : input.getAllMembers().values()) {
                 var contextParamTraitOpt = inputMember.getTrait(ContextParamTrait.class);
                 if (contextParamTraitOpt.isPresent()) {
-                    inputValidator = (GoWriter writer) -> {writer.write(
-                        """
-                            input, ok := in.Parameters.($P)
-                            if !ok {
-                                return out, metadata, $T(\"unknown transport type %T\", in.Request)
-                            }     
-                        """,
-                        SymbolUtils.createPointableSymbolBuilder(operationShape.getInput().get().getName()).build(),
-                        SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
-                    );};
+                    inputValidator = (GoWriter writer) -> {
+                        writer.write(
+                            """
+                                input, ok := in.Parameters.($P)
+                                if !ok {
+                                    return out, metadata, $T(\"unknown transport type %T\", in.Request)
+                                }
+                            """,
+                            SymbolUtils.createPointableSymbolBuilder(operationShape.getInput().get().getName()).build(),
+                            SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
+                        );
+                    };
                 }
             }
         }
@@ -259,7 +295,9 @@ public class EndpointMiddlewareGenerator {
         };
     }
 
-    private GoWriter.Writable generateClientContextParamBinding(Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+    private GoWriter.Writable generateClientContextParamBinding(
+        Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+
         return (GoWriter writer) -> {
             if (clientContextParamsTrait.isPresent()) {
                 var clientContextParams = clientContextParamsTrait.get();
@@ -287,7 +325,7 @@ public class EndpointMiddlewareGenerator {
                         var contextParamTrait = contextParamTraitOpt.get();
                         writer.write(
                             """
-                            params.$L = input.$L     
+                            params.$L = input.$L
                             """,
                             contextParamTrait.getName(),
                             inputMember.getMemberName()
@@ -303,7 +341,7 @@ public class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateStaticContextParamBinding(Parameters parameters, OperationShape operationShape) {
         var staticContextParamTraitOpt = operationShape.getTrait(StaticContextParamsTrait.class);
         return (GoWriter writer) -> {
-            parameters.toList().stream().forEach( param -> {
+            parameters.toList().stream().forEach(param -> {
                 if (staticContextParamTraitOpt.isPresent()) {
                     var paramName = param.getName().asString();
 
@@ -314,11 +352,14 @@ public class EndpointMiddlewareGenerator {
                     if (staticParam != null) {
                         Symbol valueWrapper;
                         if (param.getType() == ParameterType.BOOLEAN) {
-                            valueWrapper = SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build();
+                            valueWrapper = SymbolUtils.createValueSymbolBuilder(
+                                "Bool", SmithyGoDependency.SMITHY_PTR).build();
                         } else if (param.getType() == ParameterType.STRING) {
-                            valueWrapper = SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build();
+                            valueWrapper = SymbolUtils.createValueSymbolBuilder(
+                                "String", SmithyGoDependency.SMITHY_PTR).build();
                         } else {
-                            throw new CodegenException(String.format("unexpected static context param type: %s", param.getType()));
+                            throw new CodegenException(
+                                String.format("unexpected static context param type: %s", param.getType()));
                         }
                         writer.write("params.$L = $T($L)", paramName, valueWrapper, staticParam.getValue());
                     }
@@ -329,7 +370,9 @@ public class EndpointMiddlewareGenerator {
     }
 
 
-    private GoWriter.Writable generateMiddlewareAdder(Parameters parameters, String operationName, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+    private GoWriter.Writable generateMiddlewareAdder(
+        Parameters parameters, String operationName, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+
         return (GoWriter writer) -> {
             writer.write(
                 """
@@ -346,8 +389,6 @@ public class EndpointMiddlewareGenerator {
                 SymbolUtils.createValueSymbolBuilder(getMiddlewareObjectName(operationName)).build(),
                 generateBuiltInInitialization(parameters),
                 generateClientContextParamInitialization(parameters, clientContextParamsTrait)
-
-    
             );
         };
     }
@@ -365,14 +406,16 @@ public class EndpointMiddlewareGenerator {
         };
     }
 
-    private GoWriter.Writable generateClientContextParamInitialization(Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+    private GoWriter.Writable generateClientContextParamInitialization(
+        Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
+
         return (GoWriter writer) -> {
             if (clientContextParamsTrait.isPresent()) {
                 var clientContextParams = clientContextParamsTrait.get();
                 parameters.toList().stream().forEach(param -> {
                     if (
-                        clientContextParams.getParameters().containsKey(param.getName().asString()) &&
-                        !param.getBuiltIn().isPresent()
+                        clientContextParams.getParameters().containsKey(param.getName().asString())
+                        && !param.getBuiltIn().isPresent()
                     ) {
                         var name = getExportedParameterName(param);
                         writer.write("$L: options.$L,", name, name);
@@ -385,7 +428,7 @@ public class EndpointMiddlewareGenerator {
     private static String getAddEndpointMiddlewareFuncName(String operationName) {
         return String.format("add%sResolveEndpointMiddleware", operationName);
     }
-    
+
 
     private static String getMiddlewareObjectName(String operationName) {
         return String.format("op%sResolveEndpointMiddleware", operationName);
