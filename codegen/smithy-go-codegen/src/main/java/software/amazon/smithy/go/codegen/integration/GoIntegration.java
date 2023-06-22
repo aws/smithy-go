@@ -199,7 +199,7 @@ public interface GoIntegration {
     }
 
     /**
-     * Used by integrations to set invoke BuiltIn resolution during Endpoint 
+     * Used by integrations to set invoke BuiltIn resolution during Endpoint
      * resolution.
      *
      * @param writer Settings used to generate.
