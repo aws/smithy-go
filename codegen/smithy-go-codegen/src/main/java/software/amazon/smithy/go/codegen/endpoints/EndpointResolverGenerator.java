@@ -225,21 +225,17 @@ public final class EndpointResolverGenerator {
             });
 
             if (!rules.isEmpty() && !(rules.get(rules.size() - 1).getConditions().isEmpty())) {
-                // the rules tree can be constructed in a manner that tricks us
-                // into writing this twice consecutively (we write it, return
-                // to the outer generateRulesList call, and write it again
-                // without having closed the outer parentheses
-                //
-                // ensure we write only once to avoid unreachable code, but
-                // this should most likely be handled/fixed elsewhere
+                // FIXME: there's currently a bug in traversal that sometimes causes subsequent returns to be generated
+                // which fails vet. Patch over it via debounce for now
                 ensureFinalTreeRuleError(w);
             }
         };
     }
 
     private void ensureFinalTreeRuleError(GoWriter w) {
-        final String expected = "return endpoint, fmt.Errorf(\"" + ERROR_MESSAGE_ENDOFTREE + "\")";
-        if (!w.toString().trim().endsWith(expected)) {
+        final String[] lines = w.toString().split("\n");
+        final String lastLine = lines[lines.length - 1];
+        if (!lastLine.trim().startsWith("return")) {
             w.writeGoTemplate(
                 "return endpoint, $fmtErrorf:T(\"" + ERROR_MESSAGE_ENDOFTREE + "\")",
                 commonCodegenArgs

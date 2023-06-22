@@ -122,7 +122,11 @@ final class ServiceGenerator implements Runnable {
                         writer.writeInline(", opID");
                     }
                     if (resolver.isWithClientInput()) {
-                        writer.writeInline(", *c");
+                        if (resolver.getLocation() == ConfigFieldResolver.Location.CLIENT) {
+                            writer.writeInline(", client");
+                        } else {
+                            writer.writeInline(", *c");
+                        }
                     }
                     writer.write(")");
                     writer.write("");
@@ -153,16 +157,16 @@ final class ServiceGenerator implements Runnable {
                     writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
                     writer.write("");
 
+                    writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
+                        writer.write("options: options,");
+                    }).write("");
+
                     // Run any config finalization functions registered by runtime plugins.
                     for (RuntimeClientPlugin plugin : plugins) {
                         writeConfigFieldResolvers(writer, plugin, resolver ->
                                 resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
                                         && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
                     }
-
-                    writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
-                        writer.write("options: options,");
-                    }).write("");
 
                     // Run any client member resolver functions registered by runtime plugins.
                     for (RuntimeClientPlugin plugin : plugins) {
