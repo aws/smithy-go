@@ -25,6 +25,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 
 
 /**
@@ -185,5 +186,18 @@ public interface GoIntegration {
      */
     default String processServiceId(GoSettings settings, Model model, String serviceId) {
         return serviceId;
+    }
+
+
+    default void renderEndpointBuiltInField(GoWriter writer) {
+        // pass
+    }
+
+    default void renderEndpointBuiltInInvocation(GoWriter writer) {
+        // pass
+    }
+
+    default void renderEndpointBuiltInInitialization(GoWriter writer, Parameters parameters) {
+        // pass
     }
 }

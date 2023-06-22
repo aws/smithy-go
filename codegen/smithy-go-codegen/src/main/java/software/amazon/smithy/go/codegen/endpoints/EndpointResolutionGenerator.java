@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -81,6 +82,10 @@ public class EndpointResolutionGenerator {
                 .fnProvider(this.fnProvider)
                 .build();
 
+        var middlewareGenerator = EndpointMiddlewareGenerator.builder()
+                .integrations(context.getIntegrations())
+                .build();
+
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                                                     .map(
                                                         (trait)
@@ -99,6 +104,16 @@ public class EndpointResolutionGenerator {
                     (writer)
                     -> writer.write("$W", resolverGenerator.generate(ruleset))
                 );
+
+
+        middlewareGenerator.generate(
+            context.getSettings(),
+            context.getModel(),
+            context.getSymbolProvider(),
+            context.getDelegator());
+        
+
+        
 
     }
 
