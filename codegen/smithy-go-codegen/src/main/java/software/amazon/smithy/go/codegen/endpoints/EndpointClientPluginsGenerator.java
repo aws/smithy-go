@@ -39,6 +39,11 @@ import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.StringUtils;
 
+
+/**
+ * Class responsible for registering client config fields that
+ * are modeled in endpoint rulesets.
+ */
 public class EndpointClientPluginsGenerator implements GoIntegration {
 
     private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();

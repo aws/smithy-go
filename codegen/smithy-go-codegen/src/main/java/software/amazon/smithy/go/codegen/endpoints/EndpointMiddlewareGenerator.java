@@ -46,6 +46,11 @@ import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.StringUtils;
 
+
+/**
+ * Class responsible for generating middleware
+ * that will be used during endpoint resolution.
+ */
 public final class EndpointMiddlewareGenerator {
 
     List<GoIntegration> integrations;
