@@ -172,6 +172,13 @@ public class EndpointMiddlewareGenerator {
                     }
 
                     req.URL = &resolvedEndpoint.URI
+g
+                    for k := range resolvedEndpoint.Headers {
+                        req.Header.Set(
+                            k,
+                            resolvedEndpoint.Headers.Get(k),
+                        )
+                    }
 
                     return next.HandleSerialize(ctx, in)
                 """,

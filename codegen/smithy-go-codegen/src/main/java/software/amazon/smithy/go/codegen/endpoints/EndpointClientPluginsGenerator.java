@@ -57,7 +57,7 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
         runtimeClientPlugins.add(RuntimeClientPlugin.builder()
         .configFields(ListUtils.of(
             ConfigField.builder()
-                    .name("MutableBaseEndpoint")
+                    .name("BaseEndpoint")
                     .type(SymbolUtils.createPointableSymbolBuilder("string")
                         .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true).build())
                     .documentation(
