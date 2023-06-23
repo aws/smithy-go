@@ -17,16 +17,16 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.endpoints.EndpointBuiltInHandler;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
-
 
 /**
  * Java SPI for customizing Go code generation, registering
@@ -189,32 +189,11 @@ public interface GoIntegration {
     }
 
     /**
-     * Used by integrations to set a member on the endpoints resolution
-     * middleware object.
-     *
-     * @param writer Settings used to generate.
+     * Used by integrations to provide an EndpointBuiltInHandler
+     * that allows endpoint resolution middleware generation
+     * to resolve BuiltIn values.
      */
-    default void renderEndpointBuiltInField(GoWriter writer) {
-        // pass
-    }
-
-    /**
-     * Used by integrations to set invoke BuiltIn resolution during Endpoint
-     * resolution.
-     *
-     * @param writer Settings used to generate.
-     */
-    default void renderEndpointBuiltInInvocation(GoWriter writer) {
-        // pass
-    }
-
-    /**
-     * Used by integrations to set initialize BuiltIn values on the Endpoint
-     * resolution object.
-     *
-     * @param writer Settings used to generate.
-     */
-    default void renderEndpointBuiltInInitialization(GoWriter writer, Parameters parameters) {
-        // pass
+    default Optional<EndpointBuiltInHandler> getEndpointBuiltinHandler() {
+        return Optional.empty();
     }
 }

@@ -105,7 +105,10 @@ public final class EndpointMiddlewareGenerator {
                 for (Parameter param : parameters.toList()) {
                     if (param.getBuiltIn().isPresent()) {
                         for (GoIntegration integration : this.integrations) {
-                            integration.renderEndpointBuiltInField(w);
+                            var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
+                            if (builtInHandlerOpt.isPresent()) {
+                                builtInHandlerOpt.get().renderEndpointBuiltInField(w);
+                            }
                         }
                         break;
                     }
@@ -292,7 +295,10 @@ public final class EndpointMiddlewareGenerator {
             for (Parameter parameter : parameters.toList()) {
                 if (parameter.getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
-                        integration.renderEndpointBuiltInInvocation(writer);
+                        var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
+                        if (builtInHandlerOpt.isPresent()) {
+                            builtInHandlerOpt.get().renderEndpointBuiltInInvocation(writer);
+                        }
                     }
                     break;
                 }
@@ -403,7 +409,10 @@ public final class EndpointMiddlewareGenerator {
             for (Parameter parameter : parameters.toList()) {
                 if (parameter.getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
-                        integration.renderEndpointBuiltInInitialization(writer, parameters);
+                        var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
+                        if (builtInHandlerOpt.isPresent()) {
+                            builtInHandlerOpt.get().renderEndpointBuiltInInitialization(writer, parameters);
+                        }
                     }
                     break;
                 }
