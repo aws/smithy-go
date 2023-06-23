@@ -17,15 +17,16 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.endpoints.EndpointBuiltInHandler;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
-
 
 /**
  * Java SPI for customizing Go code generation, registering
@@ -185,5 +186,14 @@ public interface GoIntegration {
      */
     default String processServiceId(GoSettings settings, Model model, String serviceId) {
         return serviceId;
+    }
+
+    /**
+     * Used by integrations to provide an EndpointBuiltInHandler
+     * that allows endpoint resolution middleware generation
+     * to resolve BuiltIn values.
+     */
+    default Optional<EndpointBuiltInHandler> getEndpointBuiltinHandler() {
+        return Optional.empty();
     }
 }

@@ -81,6 +81,10 @@ public class EndpointResolutionGenerator {
                 .fnProvider(this.fnProvider)
                 .build();
 
+        var middlewareGenerator = EndpointMiddlewareGenerator.builder()
+                .integrations(context.getIntegrations())
+                .build();
+
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                                                     .map(
                                                         (trait)
@@ -100,6 +104,12 @@ public class EndpointResolutionGenerator {
                     -> writer.write("$W", resolverGenerator.generate(ruleset))
                 );
 
+
+        middlewareGenerator.generate(
+            context.getSettings(),
+            context.getModel(),
+            context.getSymbolProvider(),
+            context.getDelegator());
     }
 
     public void generateTests(ProtocolGenerator.GenerationContext context) {
