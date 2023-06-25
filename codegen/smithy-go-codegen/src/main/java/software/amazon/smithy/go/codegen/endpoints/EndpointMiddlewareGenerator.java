@@ -33,6 +33,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
@@ -89,7 +90,7 @@ public final class EndpointMiddlewareGenerator {
                         """,
                         generateMiddlewareType(parameters, clientContextParamsTrait, operationName),
                         generateMiddlewareMethods(
-                            parameters, clientContextParamsTrait, symbolProvider, operationShape, model),
+                            parameters, serviceShape, clientContextParamsTrait, symbolProvider, operationShape, model),
                         generateMiddlewareAdder(parameters, operationName, clientContextParamsTrait)
                     );
                 }
@@ -130,7 +131,7 @@ public final class EndpointMiddlewareGenerator {
     }
 
     private GoWriter.Writable generateMiddlewareMethods(
-        Parameters parameters,
+        Parameters parameters, ServiceShape serviceShape,
         Optional<ClientContextParamsTrait> clientContextParamsTrait,
         SymbolProvider symbolProvider, OperationShape operationShape, Model model) {
 
@@ -169,7 +170,8 @@ public final class EndpointMiddlewareGenerator {
                     },
                     () -> {
                         writer.write("$W",
-                            generateMiddlewareResolverBody(operationShape, model, parameters, clientContextParamsTrait)
+                            generateMiddlewareResolverBody(
+                                operationShape, model, parameters, clientContextParamsTrait, serviceShape)
                         );
                     });
         };
@@ -177,8 +179,8 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateMiddlewareResolverBody(
         OperationShape operationShape, Model model, Parameters parameters,
-        Optional<ClientContextParamsTrait> clientContextParamsTrait) {
-
+        Optional<ClientContextParamsTrait> clientContextParamsTrait,
+        ServiceShape serviceShape) {
         return goTemplate(
             """
             $requestValidator:W
@@ -197,20 +199,9 @@ public final class EndpointMiddlewareGenerator {
 
             $staticContextBinding:W
 
-            var resolvedEndpoint $endpointType:T
-            resolvedEndpoint, err = m.EndpointResolver.ResolveEndpoint(ctx, params)
-            if err != nil {
-                return out, metadata, $errorType:T(\"failed to resolve service endpoint, %w\", err)
-            }
+            $endpointResolution:W
 
-            req.URL = &resolvedEndpoint.URI
-
-            for k := range resolvedEndpoint.Headers {
-                req.Header.Set(
-                    k,
-                    resolvedEndpoint.Headers.Get(k),
-                )
-            }
+            $authSchemeResolution:W
 
             return next.HandleSerialize(ctx, in)
 
@@ -224,10 +215,8 @@ public final class EndpointMiddlewareGenerator {
                 "clientContextBinding", generateClientContextParamBinding(parameters, clientContextParamsTrait),
                 "contextBinding", generateContextParamBinding(operationShape, model),
                 "staticContextBinding", generateStaticContextParamBinding(parameters, operationShape),
-                "endpointType", SymbolUtils.createValueSymbolBuilder(
-                    "Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS
-                ).build(),
-                "errorType", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
+                "endpointResolution", generateEndpointResolution(),
+                "authSchemeResolution", generateAuthSchemeResolution(serviceShape)
             )
         );
     }
@@ -377,6 +366,45 @@ public final class EndpointMiddlewareGenerator {
                 }
             });
             writer.write("");
+        };
+    }
+
+    private GoWriter.Writable generateEndpointResolution() {
+        return goTemplate(
+            """
+                var resolvedEndpoint $endpointType:T
+                resolvedEndpoint, err = m.EndpointResolver.ResolveEndpoint(ctx, params)
+                if err != nil {
+                    return out, metadata, $errorType:T(\"failed to resolve service endpoint, %w\", err)
+                }
+
+                req.URL = &resolvedEndpoint.URI
+
+                for k := range resolvedEndpoint.Headers {
+                    req.Header.Set(
+                        k,
+                        resolvedEndpoint.Headers.Get(k),
+                    )
+                }
+
+            """,
+             MapUtils.of(
+                "endpointType", SymbolUtils.createValueSymbolBuilder(
+                    "Endpoint", SmithyGoDependency.SMITHY_ENDPOINTS
+                ).build(),
+                "errorType", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build()
+            )
+        );
+    }
+
+    private GoWriter.Writable generateAuthSchemeResolution(ServiceShape serviceShape) {
+        return (GoWriter writer) -> {
+            for (GoIntegration integration : this.integrations) {
+                var authSchemeGeneratorOpt = integration.getAuthenticationSchemeGenerator();
+                if (authSchemeGeneratorOpt.isPresent()) {
+                    authSchemeGeneratorOpt.get().renderEndpointBasedAuthSchemeResolution(writer, serviceShape);
+                }
+            }
         };
     }
 
