@@ -196,4 +196,10 @@ public interface GoIntegration {
     default Optional<EndpointBuiltInHandler> getEndpointBuiltinHandler() {
         return Optional.empty();
     }
+
+
+    default void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
+        // pass
+    }
+
 }
