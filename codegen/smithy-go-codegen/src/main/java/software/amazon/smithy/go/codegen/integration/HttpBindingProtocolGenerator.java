@@ -270,8 +270,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)");
             writer.write("request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)");
             writer.write("request.Method = $S", httpTrait.getMethod());
-            writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
-                    + "request.Header)");
+            writer.write(
+                "restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawPath, "
+                    + "request.URL.RawQuery, request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });

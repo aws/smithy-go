@@ -29,7 +29,7 @@ type Encoder struct {
 // NewEncoder creates a new encoder from the passed in request. All query and
 // header values will be added on top of the request's existing values. Overwriting
 // duplicate values.
-func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
+func NewEncoder(path, rawPath string, query string, headers http.Header) (*Encoder, error) {
 	parseQuery, err := url.ParseQuery(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query string: %w", err)
@@ -37,7 +37,7 @@ func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
 
 	e := &Encoder{
 		path:    []byte(path),
-		rawPath: []byte(path),
+		rawPath: []byte(rawPath),
 		query:   parseQuery,
 		header:  headers.Clone(),
 	}

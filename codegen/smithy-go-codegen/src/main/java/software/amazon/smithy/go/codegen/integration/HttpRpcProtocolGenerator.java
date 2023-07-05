@@ -180,7 +180,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                          }""");
             writer.write("request.Request.Method = \"POST\"");
             writer.write("httpBindingEncoder, err := httpbinding.NewEncoder(request.URL.Path, "
-                         + "request.URL.RawQuery, request.Header)");
+                         + "request.URL.RawPath, request.URL.RawQuery, request.Header)");
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });

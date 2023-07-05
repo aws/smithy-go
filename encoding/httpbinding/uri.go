@@ -23,8 +23,9 @@ func (u URIValue) modifyURI(value string) (err error) {
 	if err != nil {
 		return err
 	}
-	*u.rawPath, *u.buffer, err = replacePathElement(*u.rawPath, *u.buffer, u.key, value, true)
-	return err
+	return nil
+	// *u.rawPath, *u.buffer, err = replacePathElement(*u.rawPath, *u.buffer, u.key, value, true)
+	// return err
 }
 
 // Boolean encodes v as a URI string value
