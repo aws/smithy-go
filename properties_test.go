@@ -2,7 +2,7 @@ package smithy
 
 import "testing"
 
-func TestPropertiesClone(t *testing.T) {
+func TestProperties(t *testing.T) {
 	original := map[interface{}]interface{}{
 		"abc": 123,
 		"efg": "hij",
@@ -10,21 +10,11 @@ func TestPropertiesClone(t *testing.T) {
 
 	var m Properties
 	for k, v := range original {
-		m = m.Set(k, v)
+		m.Set(k, v)
 	}
-
-	o := m.Clone()
-	o.Set("unique", "value")
-	for k := range original {
-		if !o.Has(k) {
-			t.Errorf("expect %v to be in cloned metadata", k)
+	for k, v := range original {
+		if m.Get(k) != v {
+			t.Errorf("expect key / value properties to be equivalent: %v / %v", k, v)
 		}
-	}
-
-	if !o.Has("unique") {
-		t.Errorf("expect cloned metadata to have new entry")
-	}
-	if m.Has("unique") {
-		t.Errorf("expect cloned metadata to not leak in to original")
 	}
 }
