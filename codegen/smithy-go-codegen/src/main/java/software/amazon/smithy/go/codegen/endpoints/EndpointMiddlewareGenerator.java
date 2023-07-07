@@ -463,12 +463,12 @@ public final class EndpointMiddlewareGenerator {
         };
     }
 
-    private static String getAddEndpointMiddlewareFuncName(String operationName) {
+    public static String getAddEndpointMiddlewareFuncName(String operationName) {
         return String.format("add%sResolveEndpointMiddleware", operationName);
     }
 
 
-    private static String getMiddlewareObjectName(String operationName) {
+    public static String getMiddlewareObjectName(String operationName) {
         return String.format("op%sResolveEndpointMiddleware", operationName);
     }
 
