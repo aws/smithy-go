@@ -21,21 +21,8 @@ type Properties struct {
 // key was not found.
 //
 // Panics if key type is not comparable.
-func (m Properties) Get(key interface{}) interface{} {
+func (m *Properties) Get(key interface{}) interface{} {
 	return m.values[key]
-}
-
-// Clone creates a shallow copy of Properties entries, returning a new Properties
-// value with the original entries copied into it.
-func (m Properties) Clone() Properties {
-	vs := make(map[interface{}]interface{}, len(m.values))
-	for k, v := range m.values {
-		vs[k] = v
-	}
-
-	return Properties{
-		values: vs,
-	}
 }
 
 // Set stores the value pointed to by the key. If a value already exists at
@@ -46,18 +33,17 @@ func (m Properties) Clone() Properties {
 // be lost.
 //
 // Panics if the key type is not comparable.
-func (m Properties) Set(key, value interface{}) Properties {
+func (m *Properties) Set(key, value interface{}) {
 	if m.values == nil {
 		m.values = map[interface{}]interface{}{}
 	}
 	m.values[key] = value
-	return m
 }
 
 // Has returns whether the key exists in the metadata.
 //
 // Panics if the key type is not comparable.
-func (m Properties) Has(key interface{}) bool {
+func (m *Properties) Has(key interface{}) bool {
 	if m.values == nil {
 		return false
 	}
