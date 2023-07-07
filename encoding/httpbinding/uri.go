@@ -19,13 +19,15 @@ func newURIValue(path *[]byte, rawPath *[]byte, buffer *[]byte, key string) URIV
 }
 
 func (u URIValue) modifyURI(value string) (err error) {
+	if len(*u.rawPath) == 0 {
+		*u.rawPath = append([]byte(nil), *u.path...)
+	}
 	*u.path, *u.buffer, err = replacePathElement(*u.path, *u.buffer, u.key, value, false)
 	if err != nil {
 		return err
 	}
-	return nil
-	// *u.rawPath, *u.buffer, err = replacePathElement(*u.rawPath, *u.buffer, u.key, value, true)
-	// return err
+	*u.rawPath, *u.buffer, err = replacePathElement(*u.rawPath, *u.buffer, u.key, value, true)
+	return err
 }
 
 // Boolean encodes v as a URI string value
