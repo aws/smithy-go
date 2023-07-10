@@ -30,13 +30,13 @@ type Encoder struct {
 // raw path contains no valuable information at this point, so it passes in path
 // as path and raw path for subsequent trans
 func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
-	return NewHTTPBindingEncoder(path, path, query, headers)
+	return NewEncoderWithRawPath(path, path, query, headers)
 }
 
 // NewHTTPBindingEncoder creates a new encoder from the passed in request. All query and
 // header values will be added on top of the request's existing values. Overwriting
 // duplicate values.
-func NewHTTPBindingEncoder(path, rawPath, query string, headers http.Header) (*Encoder, error) {
+func NewEncoderWithRawPath(path, rawPath, query string, headers http.Header) (*Encoder, error) {
 	parseQuery, err := url.ParseQuery(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query string: %w", err)

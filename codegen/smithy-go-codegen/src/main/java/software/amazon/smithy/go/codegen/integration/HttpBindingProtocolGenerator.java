@@ -287,7 +287,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 SymbolUtils.createValueSymbolBuilder(
                     "JoinPath", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build(),
                 SymbolUtils.createValueSymbolBuilder(
-                    "NewHTTPBindingEncoder", SmithyGoDependency.SMITHY_HTTP_BINDING).build()
+                    "NewEncoderWithRawPath", SmithyGoDependency.SMITHY_HTTP_BINDING).build()
             );
 
             writer.openBlock("if err != nil {", "}", () -> {
