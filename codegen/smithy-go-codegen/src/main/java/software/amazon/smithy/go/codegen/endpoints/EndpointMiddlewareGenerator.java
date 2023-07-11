@@ -52,6 +52,8 @@ import software.amazon.smithy.utils.StringUtils;
  * that will be used during endpoint resolution.
  */
 public final class EndpointMiddlewareGenerator {
+    // TODO(ep20): remove existing v1 "ResolveEndpoint" and rename
+    public static final String MIDDLEWARE_ID = "ResolveEndpointV2";
 
     List<GoIntegration> integrations;
 
@@ -141,7 +143,7 @@ public final class EndpointMiddlewareGenerator {
         return (GoWriter writer) -> {
             writer.openBlock("func ($P) ID() string {", "}", middlewareSymbol, () -> {
                 writer.writeInline("return ");
-                MiddlewareIdentifier.string(middlewareName).writeInline(writer);
+                MiddlewareIdentifier.string(MIDDLEWARE_ID).writeInline(writer);
                 writer.write("");
             });
 
