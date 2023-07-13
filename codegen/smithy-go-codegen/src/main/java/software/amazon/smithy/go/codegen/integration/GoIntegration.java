@@ -197,6 +197,9 @@ public interface GoIntegration {
         return Optional.empty();
     }
 
+    default void renderPreEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
+        // pass
+    }
 
     default void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
         // pass

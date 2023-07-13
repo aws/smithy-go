@@ -184,6 +184,8 @@ public final class EndpointMiddlewareGenerator {
         GoSettings settings) {
         return goTemplate(
             """
+            $preEndpointResolutionHook:W
+
             $requestValidator:W
 
             $inputValidator:W
@@ -208,6 +210,9 @@ public final class EndpointMiddlewareGenerator {
 
             """,
             MapUtils.of(
+                "preEndpointResolutionHook", generatePreEndpointResolutionHook(settings, model)
+            ),
+            MapUtils.of(
                 "requestValidator", generateRequestValidator(),
                 "inputValidator", generateInputValidator(model, operationShape),
                 "legacyResolverValidator", generateLegacyResolverValidator(),
@@ -220,6 +225,14 @@ public final class EndpointMiddlewareGenerator {
                 "postEndpointResolution", generatePostEndpointResolutionHook(settings, model)
             )
         );
+    }
+
+    private GoWriter.Writable generatePreEndpointResolutionHook(GoSettings settings, Model model) {
+        return (GoWriter writer) -> {
+            for (GoIntegration integration : this.integrations) {
+                integration.renderPreEndpointResolutionHook(settings, writer, model);
+            }
+        };
     }
 
     private GoWriter.Writable generateRequestValidator() {
