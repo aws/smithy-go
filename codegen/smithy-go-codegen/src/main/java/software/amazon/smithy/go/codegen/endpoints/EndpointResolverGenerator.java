@@ -225,7 +225,7 @@ public final class EndpointResolverGenerator {
             if (!rules.isEmpty() && !(rules.get(rules.size() - 1).getConditions().isEmpty())) {
                 // TODO better error including parameters that were used?
                 w.writeGoTemplate("return endpoint, $fmtErrorf:T("
-                        + "\"no rules matched these parameters. This is a bug, %#v\", $paramArgName:L)",
+                        + "\"Endpoint resolution failed. Invalid operation or environment input.\")",
                         commonCodegenArgs);
             }
         };
