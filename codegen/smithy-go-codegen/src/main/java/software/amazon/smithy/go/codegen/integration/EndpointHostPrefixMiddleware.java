@@ -77,7 +77,8 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
                         """
                         ctx = $T(ctx, true)
                         """,
-                        SymbolUtils.createPointableSymbolBuilder("DisableEndpointHostPrefix", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build()
+                        SymbolUtils.createPointableSymbolBuilder(
+                            "DisableEndpointHostPrefix", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build()
                     );
                     written = true;
                 }
