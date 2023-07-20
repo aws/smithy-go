@@ -26,6 +26,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.go.codegen.endpoints.EndpointBuiltInHandler;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
@@ -201,7 +202,8 @@ public interface GoIntegration {
         // pass
     }
 
-    default void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
+    default void renderPostEndpointResolutionHook(
+        GoSettings settings, GoWriter writer, Model model, Optional<OperationShape> operation) {
         // pass
     }
 
