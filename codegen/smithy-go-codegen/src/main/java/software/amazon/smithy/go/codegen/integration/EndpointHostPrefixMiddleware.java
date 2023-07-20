@@ -30,6 +30,7 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.pattern.SmithyPattern;
+import software.amazon.smithy.model.pattern.SmithyPattern.Segment;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -63,6 +64,29 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
             );
         });
     }
+
+    @Override
+    public void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
+        boolean written = false;
+        for (OperationShape operation : endpointPrefixOperations) {
+            EndpointTrait endpointTrait = operation.expectTrait(EndpointTrait.class);
+
+            for (Segment segment : endpointTrait.getHostPrefix().getLabels()) {
+                if (segment.isLabel() && segment.getContent().equals("AccountId") && !written) {
+                    writer.write(
+                        """
+                        ctx = $T(ctx, true)
+                        """,
+                        SymbolUtils.createPointableSymbolBuilder("DisableEndpointHostPrefix", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build()
+                    );
+                    written = true;
+                }
+            }
+
+        }
+
+    }
+
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
