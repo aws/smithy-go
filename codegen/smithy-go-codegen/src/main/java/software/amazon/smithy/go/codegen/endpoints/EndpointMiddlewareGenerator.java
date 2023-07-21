@@ -222,7 +222,7 @@ public final class EndpointMiddlewareGenerator {
                 "contextBinding", generateContextParamBinding(operationShape, model),
                 "staticContextBinding", generateStaticContextParamBinding(parameters, operationShape),
                 "endpointResolution", generateEndpointResolution(),
-                "postEndpointResolution", generatePostEndpointResolutionHook(settings, model)
+                "postEndpointResolution", generatePostEndpointResolutionHook(settings, model, operationShape)
             )
         );
     }
@@ -411,10 +411,12 @@ public final class EndpointMiddlewareGenerator {
         );
     }
 
-    private GoWriter.Writable generatePostEndpointResolutionHook(GoSettings settings, Model model) {
+    private GoWriter.Writable generatePostEndpointResolutionHook(
+        GoSettings settings, Model model, OperationShape operation
+    ) {
         return (GoWriter writer) -> {
             for (GoIntegration integration : this.integrations) {
-                integration.renderPostEndpointResolutionHook(settings, writer, model);
+                integration.renderPostEndpointResolutionHook(settings, writer, model, Optional.of(operation));
             }
         };
     }
