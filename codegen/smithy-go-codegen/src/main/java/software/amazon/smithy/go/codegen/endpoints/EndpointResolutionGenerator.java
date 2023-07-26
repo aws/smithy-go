@@ -104,7 +104,6 @@ public class EndpointResolutionGenerator {
                     -> writer.write("$W", resolverGenerator.generate(ruleset))
                 );
 
-
         middlewareGenerator.generate(
             context.getSettings(),
             context.getModel(),
@@ -136,7 +135,6 @@ public class EndpointResolutionGenerator {
         context.getWriter()
             .map(
                 (writer) -> {
-                    writer.addUseImports(SmithyGoDependency.NET_URL);
                     return writer.write("$W", testsGenerator.generate(ruleset, testCases));
                 }
             );

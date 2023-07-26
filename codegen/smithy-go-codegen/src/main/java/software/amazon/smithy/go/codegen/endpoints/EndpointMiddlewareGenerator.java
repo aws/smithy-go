@@ -368,14 +368,20 @@ public final class EndpointMiddlewareGenerator {
                         if (param.getType() == ParameterType.BOOLEAN) {
                             valueWrapper = SymbolUtils.createValueSymbolBuilder(
                                 "Bool", SmithyGoDependency.SMITHY_PTR).build();
+                            writer.write(
+                                "params.$L = $T($L)", paramName, valueWrapper, staticParam.getValue());
                         } else if (param.getType() == ParameterType.STRING) {
                             valueWrapper = SymbolUtils.createValueSymbolBuilder(
                                 "String", SmithyGoDependency.SMITHY_PTR).build();
+                            writer.write(
+                                "params.$L = $T($L)", paramName, valueWrapper, String.format(
+                                    "\"%s\"", staticParam.getValue()
+                                ));
+
                         } else {
                             throw new CodegenException(
                                 String.format("unexpected static context param type: %s", param.getType()));
                         }
-                        writer.write("params.$L = $T($L)", paramName, valueWrapper, staticParam.getValue());
                     }
                 }
             });

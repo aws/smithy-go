@@ -97,6 +97,10 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
         : Optional.empty();
         var clientContextParamsTrait = service.getTrait(ClientContextParamsTrait.class);
 
+        if (!rulesetOpt.isPresent()) {
+            return;
+        }
+
         var topDownIndex = TopDownIndex.of(model);
 
         for (ToShapeId operationId : topDownIndex.getContainedOperations(service)) {

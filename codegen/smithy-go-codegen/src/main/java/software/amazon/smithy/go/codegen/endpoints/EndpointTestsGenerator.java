@@ -194,7 +194,7 @@ public final class EndpointTestsGenerator {
         var endpoint = expectEndpoint.get();
 
         return goTemplate("""
-                uri, _ := url.Parse($expectURL:S)
+                uri, _ := $urlParse:T($expectURL:S)
 
                 expectEndpoint := $endpointType:T{
                     URI: *uri,
@@ -212,6 +212,7 @@ public final class EndpointTestsGenerator {
                 """,
                 commonCodegenArgs,
                 MapUtils.of(
+                        "urlParse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL).build(),
                         "cmpDiff", SymbolUtils.createPointableSymbolBuilder("Diff", SmithyGoDependency.GO_CMP).build(),
                         "expectURL", endpoint.getUrl(),
                         "headers", generateHeaders(endpoint.getHeaders()),
