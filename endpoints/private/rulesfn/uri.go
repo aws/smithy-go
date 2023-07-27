@@ -2,9 +2,10 @@ package rulesfn
 
 import (
 	"fmt"
-	"net/netip"
+	"net"
 	"net/url"
 	"strings"
+
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -65,17 +66,12 @@ func ParseURL(input string) *URL {
 	// be reverted since the returned URL will be used in string builders.
 	authority := strings.ReplaceAll(u.Host, "%", "%25")
 
-	var isIp bool
-	if _, err = netip.ParseAddr(u.Hostname()); err == nil {
-		isIp = true
-	}
-
 	return &URL{
 		Scheme:         u.Scheme,
 		Authority:      authority,
 		Path:           u.Path,
 		NormalizedPath: normalizedPath,
-		IsIp:           isIp,
+		IsIp:           net.ParseIP(u.Hostname()) != nil,
 	}
 }
 
