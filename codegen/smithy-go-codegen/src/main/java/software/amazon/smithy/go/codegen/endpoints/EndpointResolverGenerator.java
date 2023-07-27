@@ -57,6 +57,8 @@ import software.amazon.smithy.utils.SmithyBuilder;
 public final class EndpointResolverGenerator {
     private static final String PARAMS_ARG_NAME = "params";
     private static final String REALIZED_URL_VARIABLE_NAME = "uri";
+    private static final String ERROR_MESSAGE_ENDOFTREE =
+        "Endpoint resolution failed. Invalid operation or environment input.";
     private static final Logger LOGGER = Logger.getLogger(EndpointResolverGenerator.class.getName());
 
     private final Map<String, Object> commonCodegenArgs;
@@ -223,12 +225,26 @@ public final class EndpointResolverGenerator {
             });
 
             if (!rules.isEmpty() && !(rules.get(rules.size() - 1).getConditions().isEmpty())) {
-                // TODO better error including parameters that were used?
-                w.writeGoTemplate("return endpoint, $fmtErrorf:T("
-                        + "\"Endpoint resolution failed. Invalid operation or environment input.\")",
-                        commonCodegenArgs);
+                // the rules tree can be constructed in a manner that tricks us
+                // into writing this twice consecutively (we write it, return
+                // to the outer generateRulesList call, and write it again
+                // without having closed the outer parentheses
+                //
+                // ensure we write only once to avoid unreachable code, but
+                // this should most likely be handled/fixed elsewhere
+                ensureFinalTreeRuleError(w);
             }
         };
+    }
+
+    private void ensureFinalTreeRuleError(GoWriter w) {
+        final String expected = "return endpoint, fmt.Errorf(\"" + ERROR_MESSAGE_ENDOFTREE + "\")";
+        if (!w.toString().trim().endsWith(expected)) {
+            w.writeGoTemplate(
+                "return endpoint, $fmtErrorf:T(\"" + ERROR_MESSAGE_ENDOFTREE + "\")",
+                commonCodegenArgs
+            );
+        }
     }
 
     private GoWriter.Writable generateRule(Rule rule, List<Condition> conditions, Scope scope) {
