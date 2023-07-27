@@ -71,7 +71,7 @@ func ParseURL(input string) *URL {
 		Authority:      authority,
 		Path:           u.Path,
 		NormalizedPath: normalizedPath,
-		IsIp:           net.ParseIP(u.Hostname()) != nil,
+		IsIp:           net.ParseIP(hostnameWithoutZone(u)) != nil,
 	}
 }
 
@@ -108,4 +108,23 @@ func validPercentEncodedChar(c byte) bool {
 		(c >= 'A' && c <= 'Z') ||
 		(c >= '0' && c <= '9') ||
 		c == '-' || c == '_' || c == '.' || c == '~'
+}
+
+// hostname implements u.Hostname() but strips the ipv6 zone ID (if present)
+// such that net.ParseIP can still recognize IPv6 addresses with zone IDs.
+//
+// FUTURE(10/2023): netip.ParseAddr handles this natively but we can't take
+// that package as a dependency yet due to our min go version (1.15, netip
+// starts in 1.18).  When we align with go runtime deprecation policy in
+// 10/2023, we can remove this.
+func hostnameWithoutZone(u *url.URL) string {
+	full := u.Hostname()
+
+	// this more or less mimics the internals of net/ (see unexported
+	// splitHostZone in that source) but throws the zone away because we don't
+	// need it
+	if i := strings.LastIndex(full, "%"); i > -1 {
+		return full[:i]
+	}
+	return full
 }
