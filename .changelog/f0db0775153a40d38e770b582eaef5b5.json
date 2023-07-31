@@ -1,0 +1,9 @@
+{
+    "id": "f0db0775-153a-40d3-8e77-0b582eaef5b5",
+    "type": "feature",
+    "collapse": true,
+    "description": "Adds support for smithy-modeled endpoint resolution.",
+    "modules": [
+        "."
+    ]
+}

@@ -1,8 +1,0 @@
-{
-    "id": "0758a384-b567-4e95-a6cb-223424dcfeb3",
-    "type": "feature",
-    "description": "Added support for smithy-modeled endpoints resolution.",
-    "modules": [
-        "."
-    ]
-}
