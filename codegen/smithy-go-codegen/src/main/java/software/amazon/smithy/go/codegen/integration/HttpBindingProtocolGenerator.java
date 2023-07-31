@@ -138,6 +138,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 }));
     }
 
+
     /**
      * Generate the event stream serializers for the given event stream target and associated operations.
      *
@@ -269,8 +270,26 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)");
             writer.write("request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)");
             writer.write("request.Method = $S", httpTrait.getMethod());
-            writer.write("restEncoder, err := httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, "
-                    + "request.Header)");
+            writer.write(
+                """
+                var restEncoder $P
+                if request.URL.RawPath == "" {
+                    restEncoder, err = $T(request.URL.Path, request.URL.RawQuery, request.Header)
+                } else {
+                    request.URL.RawPath = $T(request.URL.RawPath, opPath)
+                    restEncoder, err = $T(request.URL.Path, request.URL.RawPath, request.URL.RawQuery, request.Header)
+                }
+                """,
+                SymbolUtils.createPointableSymbolBuilder(
+                    "Encoder", SmithyGoDependency.SMITHY_HTTP_BINDING).build(),
+                SymbolUtils.createValueSymbolBuilder(
+                    "NewEncoder", SmithyGoDependency.SMITHY_HTTP_BINDING).build(),
+                SymbolUtils.createValueSymbolBuilder(
+                    "JoinPath", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build(),
+                SymbolUtils.createValueSymbolBuilder(
+                    "NewEncoderWithRawPath", SmithyGoDependency.SMITHY_HTTP_BINDING).build()
+            );
+
             writer.openBlock("if err != nil {", "}", () -> {
                 writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
             });
@@ -290,7 +309,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // archetype.
             if (!CodegenUtils.isStubSynthetic(ProtocolUtils.expectInput(model, operation))) {
                 Optional<EventStreamInfo> eventStreamInfo = EventStreamIndex.of(model).getInputInfo(operation);
-
                 // document bindings vs payload bindings vs event streams
                 HttpBindingIndex httpBindingIndex = HttpBindingIndex.of(model);
                 boolean hasDocumentBindings = httpBindingIndex
