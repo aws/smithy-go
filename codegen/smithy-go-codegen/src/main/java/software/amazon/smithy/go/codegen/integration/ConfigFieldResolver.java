@@ -61,7 +61,7 @@ public final class ConfigFieldResolver {
     }
 
     public boolean isWithClientInput() {
-        return withClientInput && location == Location.OPERATION;
+        return withClientInput;
     }
 
     public static Builder builder() {
