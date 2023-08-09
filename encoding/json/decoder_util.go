@@ -25,6 +25,9 @@ func DiscardUnknownField(decoder *json.Decoder) error {
 	if _, ok := v.(json.Delim); ok {
 		for decoder.More() {
 			err = DiscardUnknownField(decoder)
+			if err != nil {
+				return err
+			}
 		}
 		endToken, err := decoder.Token()
 		if err != nil {
