@@ -19,6 +19,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.function.Consumer;
 import java.util.logging.Logger;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -195,9 +196,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      *
      * @param writer writer to write generated code with.
      */
-    protected void generateTestBodySetup(GoWriter writer) {
-        writer.write("var actualReq *http.Request");
-    }
+    protected void generateTestBodySetup(GoWriter writer) {}
 
     /**
      * Hook to generate the HTTP response body of the protocol test.
@@ -205,26 +204,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      * @param writer writer to write generated code with.
      */
     protected void generateTestServerHandler(GoWriter writer) {
-        writer.write("actualReq = r.Clone(r.Context())");
-        // Go does not set RawPath on http server if nothing is escaped
-        writer.openBlock("if len(actualReq.URL.RawPath) == 0 {", "}", () -> {
-            writer.write("actualReq.URL.RawPath = actualReq.URL.Path");
-        });
-        // Go automatically removes Content-Length header setting it to the member.
-        writer.addUseImports(SmithyGoDependency.STRCONV);
-        writer.openBlock("if v := actualReq.ContentLength; v != 0 {", "}", () -> {
-            writer.write("actualReq.Header.Set(\"Content-Length\", strconv.FormatInt(v, 10))");
-        });
-
-        writer.addUseImports(SmithyGoDependency.BYTES);
-        writer.write("var buf bytes.Buffer");
-        writer.openBlock("if _, err := io.Copy(&buf, r.Body); err != nil {", "}", () -> {
-            writer.write("t.Errorf(\"failed to read request body, %v\", err)");
-        });
-        writer.addUseImports(SmithyGoDependency.IOUTIL);
-        writer.write("actualReq.Body = ioutil.NopCloser(&buf)");
-        writer.write("");
-
         super.generateTestServerHandler(writer);
     }
 
@@ -236,8 +215,19 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      */
     @Override
     protected void generateTestInvokeClientOperation(GoWriter writer, String clientName) {
+        Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack",
+                SmithyGoDependency.SMITHY_MIDDLEWARE).build();
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("result, err := $L.$T(context.Background(), c.Params)", clientName, opSymbol);
+        writer.write("capturedReq := &http.Request{}");
+        writer.openBlock("result, err := $L.$T(context.Background(), c.Params, func(options *Options) {", "})",
+            clientName, opSymbol, () -> {
+                writer.openBlock("options.APIOptions = append(options.APIOptions, func(stack $P) error {", "})",
+                    stackSymbol, () -> {
+                            writer.write("return $T(stack, capturedReq)",
+                            SymbolUtils.createValueSymbolBuilder("AddCaptureRequestMiddleware",
+                            SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build());
+            });
+        });
     }
 
     /**
@@ -250,20 +240,21 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertNil(writer, "err");
         writeAssertNotNil(writer, "result");
 
-        writeAssertScalarEqual(writer, "c.ExpectMethod", "actualReq.Method", "method");
-        writeAssertScalarEqual(writer, "c.ExpectURIPath", "actualReq.URL.RawPath", "path");
+        writeAssertScalarEqual(writer, "c.ExpectMethod", "capturedReq.Method", "method");
+        writeAssertScalarEqual(writer, "c.ExpectURIPath", "capturedReq.URL.RawPath", "path");
 
-        writeQueryItemBreakout(writer, "actualReq.URL.RawQuery", "queryItems");
+        writeQueryItemBreakout(writer, "capturedReq.URL.RawQuery", "queryItems");
+
         writeAssertHasQuery(writer, "c.ExpectQuery", "queryItems");
         writeAssertRequireQuery(writer, "c.RequireQuery", "queryItems");
         writeAssertForbidQuery(writer, "c.ForbidQuery", "queryItems");
 
-        writeAssertHasHeader(writer, "c.ExpectHeader", "actualReq.Header");
-        writeAssertRequireHeader(writer, "c.RequireHeader", "actualReq.Header");
-        writeAssertForbidHeader(writer, "c.ForbidHeader", "actualReq.Header");
+        writeAssertHasHeader(writer, "c.ExpectHeader", "capturedReq.Header");
+        writeAssertRequireHeader(writer, "c.RequireHeader", "capturedReq.Header");
+        writeAssertForbidHeader(writer, "c.ForbidHeader", "capturedReq.Header");
 
         writer.openBlock("if c.BodyAssert != nil {", "}", () -> {
-            writer.openBlock("if err := c.BodyAssert(actualReq.Body); err != nil {", "}", () -> {
+            writer.openBlock("if err := c.BodyAssert(capturedReq.Body); err != nil {", "}", () -> {
                 writer.write("t.Errorf(\"expect body equal, got %v\", err)");
             });
         });
@@ -282,7 +273,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             String name,
             Consumer<GoWriter> handler
     ) {
-        super.generateTestServer(writer, name, handler);
+        // We aren't using a test server, but we do need a URL to set.
+        writer.write("serverURL := \"http://localhost:8888/\"");
         writer.pushState();
         writer.putContext("parse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL)
                 .build());
