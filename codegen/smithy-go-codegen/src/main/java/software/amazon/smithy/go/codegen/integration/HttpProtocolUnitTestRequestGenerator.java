@@ -196,7 +196,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      *
      * @param writer writer to write generated code with.
      */
-    protected void generateTestBodySetup(GoWriter writer) {}
+    protected void generateTestBodySetup(GoWriter writer) {
+    }
 
     /**
      * Hook to generate the HTTP response body of the protocol test.
