@@ -44,7 +44,7 @@ func TestAddCaptureRequestMiddleware(t *testing.T) {
 					Path:    "test/path",
 					RawPath: "test/path",
 				},
-				Body: io.NopCloser(strings.NewReader("hello world.")),
+				Body: ioutil.NopCloser(strings.NewReader("hello world.")),
 			},
 			ExpectQuery: []smithytesting.QueryItem{
 				{
@@ -89,7 +89,7 @@ func TestAddCaptureRequestMiddleware(t *testing.T) {
 				t.Errorf("expect %v path, got %v", e, a)
 			}
 			if c.ExpectRequest.Body != nil {
-				expect, err := io.ReadAll(c.ExpectRequest.Body)
+				expect, err := ioutil.ReadAll(c.ExpectRequest.Body)
 				if capturedRequest.Body == nil {
 					t.Errorf("Expect request stream %v captured, get nil", string(expect))
 				}
