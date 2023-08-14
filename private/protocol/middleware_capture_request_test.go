@@ -1,9 +1,10 @@
-package http
+package protocol
 
 import (
 	"context"
 	"github.com/aws/smithy-go/middleware"
 	smithytesting "github.com/aws/smithy-go/testing"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -63,9 +64,14 @@ func TestAddCaptureRequestMiddleware(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			var err error
-			req := &Request{
+			req := &smithyhttp.Request{
 				Request: c.Request,
-				stream:  c.Stream,
+			}
+			if c.Stream != nil {
+				req, err = req.SetStream(c.Stream)
+				if err != nil {
+					t.Fatalf("Got error while retrieving case stream: %v", err)
+				}
 			}
 			capturedRequest := &http.Request{}
 			m := captureRequestMiddleware{

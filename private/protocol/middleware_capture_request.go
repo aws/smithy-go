@@ -1,9 +1,10 @@
-package http
+package protocol
 
 import (
 	"context"
 	"fmt"
 	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"net/http"
 	"strconv"
 )
@@ -29,7 +30,7 @@ func (m *captureRequestMiddleware) HandleBuild(ctx context.Context, input middle
 ) (
 	output middleware.BuildOutput, metadata middleware.Metadata, err error,
 ) {
-	request, ok := input.Request.(*Request)
+	request, ok := input.Request.(*smithyhttp.Request)
 	if !ok {
 		return output, metadata, fmt.Errorf("error while retrieving http request")
 	}

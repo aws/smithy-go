@@ -197,6 +197,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      * @param writer writer to write generated code with.
      */
     protected void generateTestBodySetup(GoWriter writer) {
+        writer.write("actualReq := &http.Request{}");
     }
 
     /**
@@ -219,14 +220,13 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack",
                 SmithyGoDependency.SMITHY_MIDDLEWARE).build();
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("capturedReq := &http.Request{}");
         writer.openBlock("result, err := $L.$T(context.Background(), c.Params, func(options *Options) {", "})",
             clientName, opSymbol, () -> {
                 writer.openBlock("options.APIOptions = append(options.APIOptions, func(stack $P) error {", "})",
                     stackSymbol, () -> {
-                            writer.write("return $T(stack, capturedReq)",
+                            writer.write("return $T(stack, actualReq)",
                             SymbolUtils.createValueSymbolBuilder("AddCaptureRequestMiddleware",
-                            SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build());
+                            SmithyGoDependency.SMITHY_PRIVATE_PROTOCOL).build());
             });
         });
     }
@@ -241,21 +241,21 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         writeAssertNil(writer, "err");
         writeAssertNotNil(writer, "result");
 
-        writeAssertScalarEqual(writer, "c.ExpectMethod", "capturedReq.Method", "method");
-        writeAssertScalarEqual(writer, "c.ExpectURIPath", "capturedReq.URL.RawPath", "path");
+        writeAssertScalarEqual(writer, "c.ExpectMethod", "actualReq.Method", "method");
+        writeAssertScalarEqual(writer, "c.ExpectURIPath", "actualReq.URL.RawPath", "path");
 
-        writeQueryItemBreakout(writer, "capturedReq.URL.RawQuery", "queryItems");
+        writeQueryItemBreakout(writer, "actualReq.URL.RawQuery", "queryItems");
 
         writeAssertHasQuery(writer, "c.ExpectQuery", "queryItems");
         writeAssertRequireQuery(writer, "c.RequireQuery", "queryItems");
         writeAssertForbidQuery(writer, "c.ForbidQuery", "queryItems");
 
-        writeAssertHasHeader(writer, "c.ExpectHeader", "capturedReq.Header");
-        writeAssertRequireHeader(writer, "c.RequireHeader", "capturedReq.Header");
-        writeAssertForbidHeader(writer, "c.ForbidHeader", "capturedReq.Header");
+        writeAssertHasHeader(writer, "c.ExpectHeader", "actualReq.Header");
+        writeAssertRequireHeader(writer, "c.RequireHeader", "actualReq.Header");
+        writeAssertForbidHeader(writer, "c.ForbidHeader", "actualReq.Header");
 
         writer.openBlock("if c.BodyAssert != nil {", "}", () -> {
-            writer.openBlock("if err := c.BodyAssert(capturedReq.Body); err != nil {", "}", () -> {
+            writer.openBlock("if err := c.BodyAssert(actualReq.Body); err != nil {", "}", () -> {
                 writer.write("t.Errorf(\"expect body equal, got %v\", err)");
             });
         });
