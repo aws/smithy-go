@@ -224,23 +224,34 @@ public final class EndpointResolverGenerator {
                 w.write("$W", generateRule(rule, rule.getConditions(), scope));
             });
 
-            if (!rules.isEmpty() && !(rules.get(rules.size() - 1).getConditions().isEmpty())) {
-                // FIXME: there's currently a bug in traversal that sometimes causes subsequent returns to be generated
-                // which fails vet. Patch over it via debounce for now
-                ensureFinalTreeRuleError(w);
+            if (!rules.isEmpty()) {
+                Rule lastRule = rules.get(rules.size() - 1);
+                // Trees are terminal, so we must ensure there's a final fallback condition at the end of each one.
+                // Generally we know we need to insert one when the final rule in a tree is not "static" i.e. it has
+                // conditions that might mean it is not selected. Since it may not be chosen (its set of conditions may
+                // evaluate to false) we MUST put a fallback error return after which we know will get executed.
+                //
+                // However, assignment statements are conflated with conditions in the rules language, and while certain
+                // assignments DO have a condition associated with them (basically, checking that the result of the
+                // assignment is not nil), some do not. Therefore, remove "static" condition/assignments from
+                // consideration.
+                boolean needsFallback = !lastRule.getConditions().stream().filter(
+                        condition -> {
+                            // You can't assert into a FunctionDefinition from an Expression - we have to inspect the fn
+                            // member of the node directly.
+                            String fn = condition.toNode().expectObjectNode().expectStringMember("fn").getValue();
+                            // the only static assignment condition, as of this writing...
+                            return !fn.equals("uriEncode");
+                        }
+                ).toList().isEmpty();
+                if (needsFallback) {
+                    w.writeGoTemplate(
+                            "return endpoint, $fmtErrorf:T(\"" + ERROR_MESSAGE_ENDOFTREE + "\")",
+                            commonCodegenArgs
+                    );
+                }
             }
         };
-    }
-
-    private void ensureFinalTreeRuleError(GoWriter w) {
-        final String[] lines = w.toString().split("\n");
-        final String lastLine = lines[lines.length - 1];
-        if (!lastLine.trim().startsWith("return")) {
-            w.writeGoTemplate(
-                "return endpoint, $fmtErrorf:T(\"" + ERROR_MESSAGE_ENDOFTREE + "\")",
-                commonCodegenArgs
-            );
-        }
     }
 
     private GoWriter.Writable generateRule(Rule rule, List<Condition> conditions, Scope scope) {
