@@ -24,22 +24,3 @@ jobs:
 
     - name: Test
       run: go test -v ./...
-
-  deprecated-unit-tests:
-    needs: unit-tests
-    name: Deprecated Go version SDK Unit Tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: [1.15, 1.16, 1.17, 1.18]
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go-version }}
-
-    - name: Test
-      run: go test -v ./...
