@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenPlugin;
@@ -54,7 +55,7 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
     }
 
     private static String getExportedParameterName(Parameter parameter) {
-        return StringUtils.capitalize(parameter.getName().asString());
+        return StringUtils.capitalize(parameter.getName().getName().getValue());
     }
 
     private static Symbol parameterAsSymbol(Parameter parameter) {
@@ -126,9 +127,9 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
                 if (rulesetOpt.isPresent()) {
                     var clientContextParams = clientContextParamsTrait.get();
                     var parameters = rulesetOpt.get().getParameters();
-                    parameters.toList().stream().forEach(param -> {
+                    parameters.forEach(param -> {
                         if (
-                            clientContextParams.getParameters().containsKey(param.getName().asString())
+                            clientContextParams.getParameters().containsKey(param.getName().getName().getValue())
                             && !param.getBuiltIn().isPresent()
                         ) {
                             var documentation = param.getDocumentation().isPresent()
