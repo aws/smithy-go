@@ -277,7 +277,7 @@ public final class EndpointResolverGenerator {
         String conditionIdentifier;
         if (condition.getResult().isPresent()) {
             var ident = condition.getResult().get();
-            conditionIdentifier = "_" + ident.toString();
+            conditionIdentifier = "_" + ident.getName().getValue();
 
             // Store the condition result so that it can be referenced in the future by the
             // result identifier.
