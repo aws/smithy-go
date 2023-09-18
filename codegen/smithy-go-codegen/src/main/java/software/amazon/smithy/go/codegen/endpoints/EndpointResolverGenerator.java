@@ -37,15 +37,18 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.model.SourceException;
 import software.amazon.smithy.model.SourceLocation;
 import software.amazon.smithy.rulesengine.language.Endpoint;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.language.error.RuleError;
 import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.IsSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.language.syntax.rule.Condition;
@@ -329,7 +332,16 @@ public final class EndpointResolverGenerator {
     }
 
     private static Expression conditionalFunc(Condition condition) {
-        return condition.getFunction();
+        var fn = condition.getFunction();
+        if (fn instanceof IsSet) {
+            var setFn = ((IsSet) fn);
+            List<Expression> argv = setFn.getArguments();
+            if (argv.size() == 1) {
+                return argv.get(0);
+            }
+            throw new RuleError(new SourceException("expected 1 argument but found " + argv.size(), setFn));
+        }
+        return fn;
     }
 
     private String nameForExpression(Expression expr) {
