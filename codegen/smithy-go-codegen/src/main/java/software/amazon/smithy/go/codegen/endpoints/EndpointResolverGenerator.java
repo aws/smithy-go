@@ -158,7 +158,7 @@ public final class EndpointResolverGenerator {
             }
             scope = scope.withIdent(p.toExpression(), identName);
         }
-
+        ruleset.typeCheck();
         return goTemplate("""
                     $paramsWithDefaults:W
                     $validateParams:W
