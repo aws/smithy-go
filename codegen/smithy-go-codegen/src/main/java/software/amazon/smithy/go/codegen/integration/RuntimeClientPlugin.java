@@ -29,6 +29,7 @@ import software.amazon.smithy.go.codegen.auth.AuthParametersResolver;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.ToSmithyBuilder;
 
@@ -52,6 +53,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Set<AuthParametersResolver> authParameterResolvers;
     private final MiddlewareRegistrar registerMiddleware;
     private final Map<String, GoWriter.Writable> endpointBuiltinBindings;
+    private final Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions;
 
     private RuntimeClientPlugin(Builder builder) {
         operationPredicate = builder.operationPredicate;
@@ -64,6 +66,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         authParameterResolvers = builder.authParameterResolvers;
         configFieldResolvers = builder.configFieldResolvers;
         endpointBuiltinBindings = builder.endpointBuiltinBindings;
+        authSchemeDefinitions = builder.authSchemeDefinitions;
     }
 
     @FunctionalInterface
@@ -117,6 +120,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Map<String, GoWriter.Writable> getEndpointBuiltinBindings() {
         return endpointBuiltinBindings;
+    }
+
+    /**
+     * Gets the registered auth scheme codegen definitions.
+     * @return the definitions.
+     */
+    public Map<ShapeId, AuthSchemeDefinition> getAuthSchemeDefinitions() {
+        return authSchemeDefinitions;
     }
 
     /**
@@ -230,6 +241,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Set<AuthParametersResolver> authParameterResolvers = new HashSet<>();
         private Map<String, GoWriter.Writable> endpointBuiltinBindings = new HashMap<>();
         private MiddlewareRegistrar registerMiddleware;
+        private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
 
         @Override
         public RuntimeClientPlugin build() {
@@ -471,6 +483,17 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addEndpointBuiltinBinding(String name, GoWriter.Writable binding) {
             this.endpointBuiltinBindings.put(name, binding);
+            return this;
+        }
+
+        /**
+         * Registers a codegen definition for a modeled auth scheme.
+         * @param schemeId The scheme id.
+         * @param definition The codegen definition.
+         * @return Returns the builder.
+         */
+        public Builder addAuthSchemeDefinition(ShapeId schemeId, AuthSchemeDefinition definition) {
+            this.authSchemeDefinitions.put(schemeId, definition);
             return this;
         }
     }

@@ -998,6 +998,10 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
             writables = new ArrayList<>();
         }
 
+        public boolean isEmpty() {
+            return writables.isEmpty();
+        }
+
         public ChainWritable add(GoWriter.Writable writable) {
             writables.add(writable);
             return this;

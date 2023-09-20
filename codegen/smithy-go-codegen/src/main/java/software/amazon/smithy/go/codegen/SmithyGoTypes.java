@@ -24,6 +24,10 @@ import software.amazon.smithy.codegen.core.Symbol;
 public final class SmithyGoTypes {
     private SmithyGoTypes() { }
 
+    public static final class Smithy {
+        public static final Symbol Properties = SmithyGoDependency.SMITHY.pointableSymbol("Properties");
+    }
+
     public static final class Ptr {
         public static final Symbol String = SmithyGoDependency.SMITHY_PTR.valueSymbol("String");
         public static final Symbol Bool = SmithyGoDependency.SMITHY_PTR.valueSymbol("Bool");
@@ -40,6 +44,18 @@ public final class SmithyGoTypes {
     public static final class Transport {
         public static final class Http {
             public static final Symbol Request = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("Request");
+
+            public static final Symbol NewSigV4Option = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewSigV4Option");
+            public static final Symbol NewSigV4AOption = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewSigV4AOption");
+            public static final Symbol NewBearerOption = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewBearerOption");
+            public static final Symbol NewAnonymousOption = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewAnonymousOption");
+
+            public static final Symbol SigV4Properties = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("SigV4Properties");
+            public static final Symbol SigV4AProperties = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("SigV4AProperties");
         }
+    }
+
+    public static final class Auth {
+        public static final Symbol Option = SmithyGoDependency.SMITHY_AUTH.pointableSymbol("Option");
     }
 }
