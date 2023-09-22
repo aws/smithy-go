@@ -39,7 +39,7 @@ public final class GoUniverseTypes {
     public static Symbol tInt32 = universe("int32");
     public static Symbol tInt64 = universe("int64");
     public static Symbol tRune = universe("rune");
-    public static Symbol tString = universe("string");
+    public static final Symbol STRING = universe("string");
 
     public static Symbol tUint = universe("uint");
     public static Symbol tUint8 = universe("uint8");
