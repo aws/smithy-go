@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -209,7 +208,7 @@ public final class EndpointParametersGenerator {
     }
 
     public static boolean haveRequiredParameters(Parameters parameters) {
-        for(Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();){
+        for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
             if (iter.next().isRequired()) {
                 return true;
             }

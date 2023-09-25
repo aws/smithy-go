@@ -17,10 +17,9 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Iterator;
-
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -106,7 +105,7 @@ public final class EndpointMiddlewareGenerator {
         return (GoWriter w) -> {
             w.openBlock("type $L struct {", "}", getMiddlewareObjectName(operationName), () -> {
                 w.write("EndpointResolver $T", SymbolUtils.createValueSymbolBuilder("EndpointResolverV2").build());
-                for(Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();){
+                for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
                     if (iter.next().getBuiltIn().isPresent()) {
                         for (GoIntegration integration : this.integrations) {
                             var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
@@ -296,7 +295,7 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateBuiltInResolverInvocation(Parameters parameters) {
         return (GoWriter writer) -> {
-            for(Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();){
+            for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
                 if (iter.next().getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
                         var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
@@ -453,7 +452,7 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateBuiltInInitialization(Parameters parameters) {
         return (GoWriter writer) -> {
-            for(Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();){
+            for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
                 if (iter.next().getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
                         var builtInHandlerOpt = integration.getEndpointBuiltinHandler();

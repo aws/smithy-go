@@ -201,9 +201,9 @@ subprojects {
          * CheckStyle
          * ====================================================
          */
-        // apply(plugin = "checkstyle")
+        apply(plugin = "checkstyle")
 
-        // tasks["checkstyleTest"].enabled = false
+        tasks["checkstyleTest"].enabled = false
 
         /*
          * Tests

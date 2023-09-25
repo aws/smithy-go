@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.logging.Logger;
-
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -45,15 +44,15 @@ import software.amazon.smithy.rulesengine.language.error.RuleError;
 import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
-import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.IsSet;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.language.syntax.rule.Condition;
 import software.amazon.smithy.rulesengine.language.syntax.rule.Rule;
-import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
 import software.amazon.smithy.rulesengine.language.syntax.rule.RuleValueVisitor;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
@@ -61,7 +60,8 @@ import software.amazon.smithy.utils.SmithyBuilder;
 public final class EndpointResolverGenerator {
     private static final String PARAMS_ARG_NAME = "params";
     private static final String REALIZED_URL_VARIABLE_NAME = "uri";
-    private static final String ERROR_MESSAGE_ENDOFTREE = "Endpoint resolution failed. Invalid operation or environment input.";
+    private static final String ERROR_MESSAGE_ENDOFTREE =
+        "Endpoint resolution failed. Invalid operation or environment input.";
     private static final Logger LOGGER = Logger.getLogger(EndpointResolverGenerator.class.getName());
 
     private final Map<String, Object> commonCodegenArgs;
@@ -148,7 +148,7 @@ public final class EndpointResolverGenerator {
 
     private GoWriter.Writable generateResolveMethodBody(EndpointRuleSet ruleset) {
         var scope = Scope.empty();
-        for(Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();){
+        for (Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();) {
             // Required parameters can be dereferenced directly so that read access are
             // always by value.
             // Optional parameters will be dereferenced via conditional checks.
@@ -175,7 +175,7 @@ public final class EndpointResolverGenerator {
                         "validateParams", generateValidateParams(ruleset.getParameters()),
                         "paramsWithDefaults", generateParamsWithDefaults(),
                         "paramVars", (GoWriter.Writable) (GoWriter w) -> {
-                            for(Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();){
+                            for (Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();) {
                                 Parameter param = iter.next();
                                 if (!param.isRequired()) {
                                     continue;
@@ -506,7 +506,7 @@ public final class EndpointResolverGenerator {
             return false;
         }
 
-        final boolean[] isOptionalResult = { false };
+        final boolean[] isOptionalResult = {false};
         fn.accept(new ExpressionVisitor.Default<Void>() {
             @Override
             public Void getDefault() {
