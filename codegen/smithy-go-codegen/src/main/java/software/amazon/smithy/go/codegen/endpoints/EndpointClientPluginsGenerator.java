@@ -19,8 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -47,11 +45,6 @@ import software.amazon.smithy.utils.StringUtils;
 public class EndpointClientPluginsGenerator implements GoIntegration {
 
     private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
-
-
-    private static String getAddEndpointMiddlewareFuncName(String operationName) {
-        return String.format("add%sResolveEndpointMiddleware", operationName);
-    }
 
     private static String getExportedParameterName(Parameter parameter) {
         return StringUtils.capitalize(parameter.getName().asString());
@@ -106,18 +99,13 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
         for (ToShapeId operationId : topDownIndex.getContainedOperations(service)) {
             OperationShape operationShape = model.expectShape(operationId.toShapeId(), OperationShape.class);
 
-            SymbolProvider symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings);
-
-            String inputHelperFuncName = getAddEndpointMiddlewareFuncName(
-                    symbolProvider.toSymbol(operationShape).getName()
-            );
+            Symbol addFunc = SymbolUtils.createValueSymbolBuilder(EndpointMiddlewareGenerator.ADD_FUNC_NAME).build();
             runtimeClientPlugins.add(RuntimeClientPlugin.builder()
                     .operationPredicate((m, s, o) -> {
                         return o.equals(operationShape);
                     })
                     .registerMiddleware(MiddlewareRegistrar.builder()
-                            .resolvedFunction(SymbolUtils.createValueSymbolBuilder(inputHelperFuncName)
-                                    .build())
+                            .resolvedFunction(addFunc)
                             .useClientOptions()
                             .build())
                     .build());
