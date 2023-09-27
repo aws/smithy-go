@@ -130,6 +130,15 @@ public final class OperationGenerator implements Runnable {
                 .renderStructure(() -> {
                 }, true);
 
+        writer.write("""
+                func (*$T) operationName() string {
+                    return $S
+                }
+                """,
+                inputSymbol,
+                operationSymbol.getName()
+        );
+
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();

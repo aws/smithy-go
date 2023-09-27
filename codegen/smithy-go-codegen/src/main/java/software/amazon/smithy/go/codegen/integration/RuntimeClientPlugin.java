@@ -21,6 +21,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import software.amazon.smithy.go.codegen.auth.AuthParameter;
+import software.amazon.smithy.go.codegen.auth.AuthParametersResolver;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -43,6 +45,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Set<ConfigFieldResolver> configFieldResolvers;
     private final Set<ClientMember> clientMembers;
     private final Set<ClientMemberResolver> clientMemberResolvers;
+    private final Set<AuthParameter> authParameters;
+    private final Set<AuthParametersResolver> authParameterResolvers;
     private final MiddlewareRegistrar registerMiddleware;
 
     private RuntimeClientPlugin(Builder builder) {
@@ -52,6 +56,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         registerMiddleware = builder.registerMiddleware;
         clientMembers = builder.clientMembers;
         clientMemberResolvers = builder.clientMemberResolvers;
+        authParameters = builder.authParameters;
+        authParameterResolvers = builder.authParameterResolvers;
         configFieldResolvers = builder.configFieldResolvers;
     }
 
@@ -83,6 +89,22 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Set<ClientMemberResolver> getClientMemberResolvers() {
         return clientMemberResolvers;
+    }
+
+    /**
+     * Gets the auth parameters that will be added by this plugin.
+     * @return the auth parameters.
+     */
+    public Set<AuthParameter> getAuthParameters() {
+        return authParameters;
+    }
+
+    /**
+     * Gets the auth parameter resolvers that will be added by this plugin.
+     * @return the auth parameter resolvers.
+     */
+    public Set<AuthParametersResolver> getAuthParameterResolvers() {
+        return authParameterResolvers;
     }
 
     /**
@@ -192,6 +214,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Set<ConfigFieldResolver> configFieldResolvers = new HashSet<>();
         private Set<ClientMember> clientMembers = new HashSet<>();
         private Set<ClientMemberResolver> clientMemberResolvers = new HashSet<>();
+        private Set<AuthParameter> authParameters = new HashSet<>();
+        private Set<AuthParametersResolver> authParameterResolvers = new HashSet<>();
         private MiddlewareRegistrar registerMiddleware;
 
         @Override
@@ -401,6 +425,28 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addClientMemberResolver(ClientMemberResolver clientMemberResolver) {
             this.clientMemberResolvers.add(clientMemberResolver);
+            return this;
+        }
+
+        /**
+         * Adds a field to the auth parameters.
+         *
+         * @param param The field.
+         * @return Returns the builder.
+         */
+        public Builder addAuthParameter(AuthParameter param) {
+            this.authParameters.add(param);
+            return this;
+        }
+
+        /**
+         * Adds a resolver for fields on auth parameters.
+         *
+         * @param resolver The auth field resolver.
+         * @return Returns the builder.
+         */
+        public Builder addAuthParameterResolver(AuthParametersResolver resolver) {
+            this.authParameterResolvers.add(resolver);
             return this;
         }
     }
