@@ -21,32 +21,33 @@ import software.amazon.smithy.codegen.core.Symbol;
  * Collection of Symbol constants for golang universe types.
  * See <a href="https://go.dev/ref/spec#Predeclared_identifiers">predeclared identifiers</a>.
  */
+@SuppressWarnings("checkstyle:ConstantName")
 public final class GoUniverseTypes {
-    public static Symbol tAny = universe("any");
-    public static Symbol tBool = universe("bool");
-    public static Symbol tByte = universe("byte");
-    public static Symbol tComparable = universe("comparable");
+    public static final Symbol Any = universe("any");
+    public static final Symbol Bool = universe("bool");
+    public static final Symbol Byte = universe("byte");
+    public static final Symbol Comparable = universe("comparable");
 
-    public static Symbol tComplex64 = universe("complex64");
-    public static Symbol tComplex128 = universe("complex128");
-    public static Symbol tError = universe("error");
-    public static Symbol tFloat32 = universe("float32");
-    public static Symbol tFloat64 = universe("float64");
+    public static final Symbol Complex64 = universe("complex64");
+    public static final Symbol Complex128 = universe("complex128");
+    public static final Symbol Error = universe("error");
+    public static final Symbol Float32 = universe("float32");
+    public static final Symbol Float64 = universe("float64");
 
-    public static Symbol tInt = universe("int");
-    public static Symbol tInt8 = universe("int8");
-    public static Symbol tInt16 = universe("int16");
-    public static Symbol tInt32 = universe("int32");
-    public static Symbol tInt64 = universe("int64");
-    public static Symbol tRune = universe("rune");
-    public static final Symbol STRING = universe("string");
+    public static final Symbol Int = universe("int");
+    public static final Symbol Int8 = universe("int8");
+    public static final Symbol Int16 = universe("int16");
+    public static final Symbol Int32 = universe("int32");
+    public static final Symbol Int64 = universe("int64");
+    public static final Symbol Rune = universe("rune");
+    public static final Symbol String = universe("string");
 
-    public static Symbol tUint = universe("uint");
-    public static Symbol tUint8 = universe("uint8");
-    public static Symbol tUint16 = universe("uint16");
-    public static Symbol tUint32 = universe("uint32");
-    public static Symbol tUint64 = universe("uint64");
-    public static Symbol tUintptr = universe("uintptr");
+    public static final Symbol Uint = universe("uint");
+    public static final Symbol Uint8 = universe("uint8");
+    public static final Symbol Uint16 = universe("uint16");
+    public static final Symbol Uint32 = universe("uint32");
+    public static final Symbol Uint64 = universe("uint64");
+    public static final Symbol Uintptr = universe("uintptr");
 
     private GoUniverseTypes() {}
 

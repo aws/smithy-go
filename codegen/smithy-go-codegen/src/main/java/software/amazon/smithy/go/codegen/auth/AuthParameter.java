@@ -22,12 +22,12 @@ public record AuthParameter(String name, String docs, Symbol type) {
     public static final AuthParameter OPERATION = new AuthParameter(
             "Operation",
             "The name of the operation being invoked.",
-            GoUniverseTypes.STRING
+            GoUniverseTypes.String
     );
 
     public static final AuthParameter REGION = new AuthParameter(
             "Region",
             "The region in which the operation is being invoked.",
-            GoUniverseTypes.STRING
+            GoUniverseTypes.String
     );
 }

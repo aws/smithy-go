@@ -43,9 +43,7 @@ public class AuthParametersResolverGenerator {
     }
 
     public GoWriter.Writable generate() {
-        loadBindings();
-
-        var paramsSymbol = SymbolUtils.createPointableSymbolBuilder(AuthParametersGenerator.STRUCT_NAME).build();
+        loadResolvers();
 
         return goTemplate("""
                 $operationNamer:W
@@ -63,8 +61,8 @@ public class AuthParametersResolverGenerator {
                 MapUtils.of(
                         "name", FUNC_NAME,
                         "operationNamer", generateOperationNamer(),
-                        "params", paramsSymbol,
-                        "bindings", generateBindings()
+                        "params", AuthParametersGenerator.STRUCT_SYMBOL,
+                        "bindings", generateResolvers()
                 ));
     }
 
@@ -78,7 +76,7 @@ public class AuthParametersResolverGenerator {
         };
     }
 
-    private GoWriter.Writable generateBindings() {
+    private GoWriter.Writable generateResolvers() {
         return (writer) -> {
             for (var resolver: resolvers) {
                 writer.write("$T(params, input, options)", resolver.resolver());
@@ -86,7 +84,7 @@ public class AuthParametersResolverGenerator {
         };
     }
 
-    private void loadBindings() {
+    private void loadResolvers() {
         for (var integration: context.getIntegrations()) {
             var plugins = integration.getClientPlugins().stream().filter(it ->
                     it.matchesService(context.getModel(), context.getService())).toList();

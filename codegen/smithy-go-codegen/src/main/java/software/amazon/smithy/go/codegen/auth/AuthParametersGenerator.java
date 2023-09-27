@@ -19,7 +19,6 @@ import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
-import software.amazon.smithy.aws.traits.auth.SigV4Trait;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -89,10 +88,6 @@ public class AuthParametersGenerator {
     }
 
     private void loadFields() {
-        if (context.getService().hasTrait(SigV4Trait.class)) {
-            fields.add(AuthParameter.REGION);
-        }
-
         for (var integration: context.getIntegrations()) {
             var plugins = integration.getClientPlugins().stream().filter(it ->
                     it.matchesService(context.getModel(), context.getService())).toList();

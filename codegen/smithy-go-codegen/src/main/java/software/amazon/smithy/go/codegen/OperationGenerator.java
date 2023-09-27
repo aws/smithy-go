@@ -131,10 +131,10 @@ public final class OperationGenerator implements Runnable {
                 }, true);
 
         writer.write("""
-                            func (*$T) operationName() string {
-                                return $S
-                            }
-                            """,
+                func (*$T) operationName() string {
+                    return $S
+                }
+                """,
                 inputSymbol,
                 operationSymbol.getName()
         );
