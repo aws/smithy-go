@@ -46,6 +46,7 @@ import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
 import software.amazon.smithy.utils.AbstractCodeWriter;
+import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -134,6 +135,17 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         return (GoWriter w) -> {
             w.writeGoTemplate(contents, args);
         };
+    }
+
+    /**
+     * Returns a Writable for the string and args to be composed inline to another writer's contents.
+     *
+     * @param content  string to write.
+     * @param args     Arguments to use when evaluating the contents string.
+     * @return Writable to be evaluated.
+     */
+    public static Writable goTemplate(Object content, Object... args) {
+        return writer -> writer.write(content, args);
     }
 
     public static Writable goDocTemplate(String contents) {
@@ -842,6 +854,10 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
                 && !Prelude.isPreludeShape(member.getTarget());
     }
 
+    public void write(Writable w) {
+        write("$W", w);
+    }
+
     @Override
     public String toString() {
         String contents = super.toString();
@@ -987,6 +1003,22 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
             writables = new ArrayList<>();
         }
 
+        public static ChainWritable of(GoWriter.Writable... writables) {
+            var chain = new ChainWritable();
+            chain.writables.addAll(ListUtils.of(writables));
+            return chain;
+        }
+
+        public static ChainWritable of(List<GoWriter.Writable> writables) {
+            var chain = new ChainWritable();
+            chain.writables.addAll(writables);
+            return chain;
+        }
+
+        public boolean isEmpty() {
+            return writables.isEmpty();
+        }
+
         public ChainWritable add(GoWriter.Writable writable) {
             writables.add(writable);
             return this;
@@ -1004,17 +1036,21 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
             return this;
         }
 
-        public GoWriter.Writable compose() {
+        public GoWriter.Writable compose(boolean writeNewlines) {
             return (GoWriter writer) -> {
                 var hasPrevious = false;
                 for (GoWriter.Writable writable : writables) {
-                    if (hasPrevious) {
+                    if (hasPrevious && writeNewlines) {
                         writer.write("");
                     }
                     hasPrevious = true;
                     writer.write("$W", writable);
                 }
             };
+        }
+
+        public GoWriter.Writable compose() {
+            return compose(true);
         }
     }
 }

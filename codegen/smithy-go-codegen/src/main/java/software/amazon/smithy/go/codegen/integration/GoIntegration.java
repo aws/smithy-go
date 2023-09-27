@@ -17,16 +17,14 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
-import software.amazon.smithy.go.codegen.endpoints.EndpointBuiltInHandler;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
@@ -178,6 +176,15 @@ public interface GoIntegration {
     }
 
     /**
+     * Gets a list of plugins to apply to the generated client.
+     *
+     * @return Returns the list of RuntimePlugins to apply to the client.
+     */
+    default List<RuntimeClientPlugin> getClientPlugins(Model model, ServiceShape service) {
+        return getClientPlugins().stream().filter(plugin -> plugin.matchesService(model, service)).toList();
+    }
+
+    /**
      * Processes the given serviceId and may return a unmodified, modified, or replacement value.
      *
      * @param settings Settings used to generate
@@ -189,22 +196,11 @@ public interface GoIntegration {
         return serviceId;
     }
 
-    /**
-     * Used by integrations to provide an EndpointBuiltInHandler
-     * that allows endpoint resolution middleware generation
-     * to resolve BuiltIn values.
-     */
-    default Optional<EndpointBuiltInHandler> getEndpointBuiltinHandler() {
-        return Optional.empty();
-    }
-
     default void renderPreEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
         // pass
     }
 
-    default void renderPostEndpointResolutionHook(
-        GoSettings settings, GoWriter writer, Model model, Optional<OperationShape> operation) {
+    default void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
         // pass
     }
-
 }

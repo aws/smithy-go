@@ -1,4 +1,3 @@
-software.amazon.smithy.go.codegen.integration.auth.HttpBearerAuth
 software.amazon.smithy.go.codegen.integration.ValidationGenerator
 software.amazon.smithy.go.codegen.integration.IdempotencyTokenMiddlewareGenerator
 software.amazon.smithy.go.codegen.integration.AddChecksumRequiredMiddleware
@@ -9,3 +8,7 @@ software.amazon.smithy.go.codegen.integration.Paginators
 software.amazon.smithy.go.codegen.integration.Waiters
 software.amazon.smithy.go.codegen.integration.ClientLogger
 software.amazon.smithy.go.codegen.endpoints.EndpointClientPluginsGenerator
+
+# modeled auth schemes
+software.amazon.smithy.go.codegen.integration.auth.SigV4AuthScheme
+software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme
