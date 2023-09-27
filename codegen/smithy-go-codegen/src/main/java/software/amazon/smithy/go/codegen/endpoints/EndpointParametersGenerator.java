@@ -22,16 +22,18 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
-import software.amazon.smithy.rulesengine.language.eval.Value;
+import software.amazon.smithy.rulesengine.language.evaluation.value.Value;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.utils.MapUtils;
@@ -93,12 +95,12 @@ public final class EndpointParametersGenerator {
     private GoWriter.Writable generateParametersMembers(Parameters parameters) {
         return (GoWriter w) -> {
             w.indent();
-            parameters.toList().stream().forEach((parameter) -> {
+            parameters.forEach((parameter) -> {
                 var writeChain = new GoWriter.ChainWritable()
                         .add(parameter.getDocumentation(), GoWriter::goTemplate)
                         // TODO[GH-25977529]: fix incorrect wrapping in generated comment
                         .add(parameter.isRequired(), goTemplate("Parameter is required."))
-                        .add(parameter.getDefaultValue(), (defaultValue) -> {
+                        .add(parameter.getDefault(), (defaultValue) -> {
                             return goTemplate("Defaults to " + defaultValue + " if no value is provided.");
                         })
                         .add(parameter.getBuiltIn(), GoWriter::goTemplate)
@@ -131,7 +133,7 @@ public final class EndpointParametersGenerator {
                                         "funcName", DEFAULT_VALUE_FUNC_NAME)),
                         "setDefaults", (GoWriter.Writable) (GoWriter w) -> {
                             sortParameters(parameters).forEach((parameter) -> {
-                                parameter.getDefaultValue().ifPresent(defaultValue -> {
+                                parameter.getDefault().ifPresent(defaultValue -> {
                                     w.writeGoTemplate("""
                                             if p.$memberName:L == nil {
                                                 p.$memberName:L = $defaultValue:W
@@ -151,10 +153,10 @@ public final class EndpointParametersGenerator {
         return switch (parameter.getType()) {
             case STRING -> goTemplate("$ptrString:T($value:S)", MapUtils.of(
                     "ptrString", SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build(),
-                    "value", defaultValue.expectString()));
+                    "value", defaultValue.expectStringValue()));
             case BOOLEAN -> goTemplate("$ptrBool:T($value:L)", MapUtils.of(
                     "ptrBool", SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build(),
-                    "value", defaultValue.expectBool()));
+                    "value", defaultValue.expectBooleanValue()));
         };
     }
 
@@ -206,8 +208,8 @@ public final class EndpointParametersGenerator {
     }
 
     public static boolean haveRequiredParameters(Parameters parameters) {
-        for (Parameter parameter : parameters.toList()) {
-            if (parameter.isRequired()) {
+        for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
+            if (iter.next().isRequired()) {
                 return true;
             }
         }
@@ -216,7 +218,7 @@ public final class EndpointParametersGenerator {
     }
 
     public static String getExportedParameterName(Parameter parameter) {
-        return StringUtils.capitalize(parameter.getName().asString());
+        return StringUtils.capitalize(parameter.getName().getName().getValue());
     }
 
     public static String getExportedParameterName(StringNode name) {
@@ -245,7 +247,9 @@ public final class EndpointParametersGenerator {
     }
 
     public static Stream<Parameter> sortParameters(Parameters parameters) {
-        return parameters.toList().stream().sorted(new Sorted());
+        return StreamSupport
+            .stream(parameters.spliterator(), false)
+            .sorted(new Sorted());
     }
 
     public static final class Sorted implements Comparator<Parameter>, Serializable {
@@ -274,7 +278,7 @@ public final class EndpointParametersGenerator {
                 return requiredOption;
             }
 
-            return a.getName().asString().compareTo(b.getName().asString());
+            return a.getName().getName().getValue().compareTo(b.getName().getName().getValue());
         }
     }
 }

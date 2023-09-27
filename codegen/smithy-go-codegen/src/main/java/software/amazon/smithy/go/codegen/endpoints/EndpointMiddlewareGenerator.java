@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -104,8 +105,8 @@ public final class EndpointMiddlewareGenerator {
         return (GoWriter w) -> {
             w.openBlock("type $L struct {", "}", getMiddlewareObjectName(operationName), () -> {
                 w.write("EndpointResolver $T", SymbolUtils.createValueSymbolBuilder("EndpointResolverV2").build());
-                for (Parameter param : parameters.toList()) {
-                    if (param.getBuiltIn().isPresent()) {
+                for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
+                    if (iter.next().getBuiltIn().isPresent()) {
                         for (GoIntegration integration : this.integrations) {
                             var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
                             if (builtInHandlerOpt.isPresent()) {
@@ -116,11 +117,10 @@ public final class EndpointMiddlewareGenerator {
                     }
                 }
 
-
                 if (clientContextParamsTrait.isPresent()) {
                     var clientContextParams = clientContextParamsTrait.get();
-                    parameters.toList().stream().forEach(param -> {
-                        if (clientContextParams.getParameters().containsKey(param.getName().asString())
+                    parameters.forEach(param -> {
+                        if (clientContextParams.getParameters().containsKey(param.getName().getName().getValue())
                         && !param.getBuiltIn().isPresent()) {
                             w.write("$L $P", getExportedParameterName(param), parameterAsSymbol(param));
                         }
@@ -295,8 +295,8 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateBuiltInResolverInvocation(Parameters parameters) {
         return (GoWriter writer) -> {
-            for (Parameter parameter : parameters.toList()) {
-                if (parameter.getBuiltIn().isPresent()) {
+            for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
+                if (iter.next().getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
                         var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
                         if (builtInHandlerOpt.isPresent()) {
@@ -311,12 +311,11 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateClientContextParamBinding(
         Parameters parameters, Optional<ClientContextParamsTrait> clientContextParamsTrait) {
-
         return (GoWriter writer) -> {
             if (clientContextParamsTrait.isPresent()) {
                 var clientContextParams = clientContextParamsTrait.get();
-                parameters.toList().stream().forEach(param -> {
-                    if (clientContextParams.getParameters().containsKey(param.getName().asString())
+                parameters.forEach(param -> {
+                    if (clientContextParams.getParameters().containsKey(param.getName().getName().getValue())
                     && !param.getBuiltIn().isPresent()
                     ) {
                         var name = getExportedParameterName(param);
@@ -355,9 +354,9 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateStaticContextParamBinding(Parameters parameters, OperationShape operationShape) {
         var staticContextParamTraitOpt = operationShape.getTrait(StaticContextParamsTrait.class);
         return (GoWriter writer) -> {
-            parameters.toList().stream().forEach(param -> {
+            parameters.forEach(param -> {
                 if (staticContextParamTraitOpt.isPresent()) {
-                    var paramName = param.getName().asString();
+                    var paramName = param.getName().getName().getValue();
 
                     var staticParam = staticContextParamTraitOpt
                                             .get()
@@ -453,8 +452,8 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateBuiltInInitialization(Parameters parameters) {
         return (GoWriter writer) -> {
-            for (Parameter parameter : parameters.toList()) {
-                if (parameter.getBuiltIn().isPresent()) {
+            for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
+                if (iter.next().getBuiltIn().isPresent()) {
                     for (GoIntegration integration : this.integrations) {
                         var builtInHandlerOpt = integration.getEndpointBuiltinHandler();
                         if (builtInHandlerOpt.isPresent()) {
@@ -473,9 +472,9 @@ public final class EndpointMiddlewareGenerator {
         return (GoWriter writer) -> {
             if (clientContextParamsTrait.isPresent()) {
                 var clientContextParams = clientContextParamsTrait.get();
-                parameters.toList().stream().forEach(param -> {
+                parameters.forEach(param -> {
                     if (
-                        clientContextParams.getParameters().containsKey(param.getName().asString())
+                        clientContextParams.getParameters().containsKey(param.getName().getName().getValue())
                         && !param.getBuiltIn().isPresent()
                     ) {
                         var name = getExportedParameterName(param);
@@ -496,7 +495,7 @@ public final class EndpointMiddlewareGenerator {
     }
 
     public static String getExportedParameterName(Parameter parameter) {
-        return StringUtils.capitalize(parameter.getName().asString());
+        return StringUtils.capitalize(parameter.getName().getName().getValue());
     }
 
     public static Symbol parameterAsSymbol(Parameter parameter) {

@@ -18,7 +18,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 
 /*
  * Provides contextualized scope down the call tree to inform generator of expression origin.

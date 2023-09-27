@@ -42,7 +42,7 @@ import software.amazon.smithy.model.node.NumberNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
-import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.traits.EndpointTestCase;
 import software.amazon.smithy.rulesengine.traits.ExpectedEndpoint;
 import software.amazon.smithy.utils.MapUtils;
@@ -71,9 +71,7 @@ public final class EndpointTestsGenerator {
         if (!ruleset.isPresent()) {
             return emptyGoTemplate();
         }
-
-        var parameters = ruleset.get().getParameters().toList();
-
+        var parameters = ruleset.get().getParameters();
         List<GoWriter.Writable> writables = new ArrayList<>();
 
         for (int i = 0; i < testCases.size(); i++) {
@@ -103,7 +101,7 @@ public final class EndpointTestsGenerator {
         return emptyGoTemplate();
     }
 
-    private GoWriter.Writable generateTestCase(List<Parameter> parameters, EndpointTestCase testCase) {
+    private GoWriter.Writable generateTestCase(Parameters parameters, EndpointTestCase testCase) {
         return goTemplate("""
                 var params = $parametersType:T{
                     $parameterValues:W
@@ -126,7 +124,7 @@ public final class EndpointTestsGenerator {
                         "expectEndpoint", generateExpectEndpoint(testCase.getExpect().getEndpoint())));
     }
 
-    private GoWriter.Writable generateParameterValues(List<Parameter> parameters, EndpointTestCase testCase) {
+    private GoWriter.Writable generateParameterValues(Parameters parameters, EndpointTestCase testCase) {
         List<GoWriter.Writable> writables = new ArrayList<>();
         // TODO filter keys based on actual modeled parameters
         Set<String> parameterNames = new TreeSet<>();

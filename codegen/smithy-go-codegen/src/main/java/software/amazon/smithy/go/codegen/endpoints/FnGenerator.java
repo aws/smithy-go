@@ -24,8 +24,8 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
-import software.amazon.smithy.rulesengine.language.syntax.fn.FunctionDefinition;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
 import software.amazon.smithy.utils.MapUtils;
 
 public class FnGenerator {
@@ -46,7 +46,6 @@ public class FnGenerator {
         } else {
             goFn = this.fnProvider.fnFor(fnDef.getId());
         }
-
 
         List<GoWriter.Writable> writableFnArgs = new ArrayList<>();
         fnArgs.forEach((expr) -> {
@@ -72,7 +71,8 @@ public class FnGenerator {
                 case "uriEncode" -> SymbolUtils.createValueSymbolBuilder("URIEncode",
                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
 
-                default -> null;            };
+                default -> null;
+            };
         }
     }
 

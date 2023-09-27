@@ -27,14 +27,15 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.SourceLocation;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Expression;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Literal;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Reference;
-import software.amazon.smithy.rulesengine.language.syntax.expr.Template;
-import software.amazon.smithy.rulesengine.language.syntax.fn.FunctionDefinition;
-import software.amazon.smithy.rulesengine.language.syntax.fn.GetAttr;
-import software.amazon.smithy.rulesengine.language.visit.ExpressionVisitor;
-import software.amazon.smithy.rulesengine.language.visit.TemplateVisitor;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Template;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.TemplateVisitor;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.GetAttr;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.LiteralVisitor;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -122,10 +123,10 @@ final class ExpressionGenerator {
     }
 
     private record LiteralGeneratorVisitor(Scope scope, FnProvider fnProvider)
-            implements Literal.Vistor<GoWriter.Writable> {
+            implements LiteralVisitor<GoWriter.Writable> {
 
         @Override
-        public GoWriter.Writable visitBool(boolean b) {
+        public GoWriter.Writable visitBoolean(boolean b) {
             return goTemplate(String.valueOf(b));
         }
 
