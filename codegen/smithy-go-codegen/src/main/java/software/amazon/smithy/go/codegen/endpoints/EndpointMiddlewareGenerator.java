@@ -162,7 +162,6 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generatePostEndpointResolutionHook() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
-                // TODO: refactor op-dependent hooks since this is now a single middleware
                 integration.renderPostEndpointResolutionHook(
                         context.getSettings(), writer, context.getModel(), Optional.empty());
             }
