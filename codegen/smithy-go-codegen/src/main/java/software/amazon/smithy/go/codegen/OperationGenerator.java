@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.endpoints.EndpointParameterOperationBindingsGenerator;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
@@ -134,9 +135,12 @@ public final class OperationGenerator implements Runnable {
                 func (*$T) operationName() string {
                     return $S
                 }
+
+                $W
                 """,
                 inputSymbol,
-                operationSymbol.getName()
+                operationSymbol.getName(),
+                new EndpointParameterOperationBindingsGenerator(operation, inputShape, inputSymbol).generate()
         );
 
         // The output structure gets a metadata member added.

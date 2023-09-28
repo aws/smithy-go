@@ -17,7 +17,6 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import java.util.Optional;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -68,7 +67,6 @@ public final class EndpointMiddlewareGenerator {
     private void generateFields(GoStackStepMiddlewareGenerator generator, GoWriter writer) {
         writer.writeGoTemplate("""
                 options Options
-                resolver EndpointResolverV2
                 """);
     }
 
@@ -116,7 +114,7 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateAssertResolver() {
         return goTemplate("""
-                if m.resolver == nil {
+                if m.options.EndpointResolverV2 == nil {
                     return out, metadata, $T("expected endpoint resolver to not be nil")
                 }
                 """,
@@ -126,7 +124,7 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
                 params := bindEndpointParams(in.Parameters.(endpointParamsBinder), m.options)
-                resolvedEndpoint, err := m.resolver.ResolveEndpoint(ctx, *params)
+                resolvedEndpoint, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
                 if err != nil {
                     return out, metadata, $T("failed to resolve service endpoint, %w", err)
                 }
@@ -142,8 +140,7 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generatePostResolutionHooks() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
-                integration.renderPostEndpointResolutionHook(
-                        context.getSettings(), writer, context.getModel(), Optional.empty());
+                integration.renderPostEndpointResolutionHook(context.getSettings(), writer, context.getModel());
             }
         };
     }
@@ -153,7 +150,6 @@ public final class EndpointMiddlewareGenerator {
                 func $funcName:L(stack $stack:P, options Options) error {
                     return stack.Serialize.Insert(&$structName:L{
                         options: options,
-                        resolver: options.EndpointResolverV2,
                     }, "ResolveEndpoint", middleware.After)
                 }
                 """,

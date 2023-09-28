@@ -17,7 +17,6 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -25,7 +24,6 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -202,8 +200,7 @@ public interface GoIntegration {
         // pass
     }
 
-    default void renderPostEndpointResolutionHook(
-        GoSettings settings, GoWriter writer, Model model, Optional<OperationShape> operation) {
+    default void renderPostEndpointResolutionHook(GoSettings settings, GoWriter writer, Model model) {
         // pass
     }
 }
