@@ -18,8 +18,10 @@ package software.amazon.smithy.go.codegen.endpoints;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Optional;
+import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -50,72 +52,50 @@ public final class EndpointMiddlewareGenerator {
                 $W
 
                 $W
-
-                $W
                 """,
-                generateType(),
-                generateMethods(),
+                generateMiddleware(),
                 generateAddFunc());
     }
 
-    private GoWriter.Writable generateType() {
-        return goTemplate("""
-                type $L struct {
-                    options Options
-                    resolver EndpointResolverV2
-                }
-                """,
-                MIDDLEWARE_NAME);
+    private GoWriter.Writable generateMiddleware() {
+        return writer -> {
+            GoStackStepMiddlewareGenerator
+                    .createSerializeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
+                    .writeMiddleware(writer, this::generateBody, this::generateFields);
+        };
     }
 
-    private GoWriter.Writable generateMethods() {
-        return goTemplate("""
-                func (*$name:L) ID() string {
-                    return $id:S
-                }
-
-                func (m *$name:L) HandleSerialize(ctx $ctxSym:T, in $inSym:T, next $nextSym:T) (
-                    out $outSym:T, md $mdSym:T, err error,
-                ) {
-                    $handleSerializeBody:W
-                }
-                """,
-                MapUtils.of(
-                        "name", MIDDLEWARE_NAME,
-                        "id", MIDDLEWARE_ID,
-                        "ctxSym", GoStdlibTypes.Context.Context,
-                        "inSym", SmithyGoTypes.Middleware.SerializeInput,
-                        "nextSym", SmithyGoTypes.Middleware.SerializeHandler,
-                        "outSym", SmithyGoTypes.Middleware.SerializeOutput,
-                        "mdSym", SmithyGoTypes.Middleware.Metadata,
-                        "handleSerializeBody", generateHandleSerializeBody()
-                ));
+    private void generateFields(GoStackStepMiddlewareGenerator generator, GoWriter writer) {
+        writer.writeGoTemplate("""
+                options Options
+                resolver EndpointResolverV2
+                """);
     }
 
-    private GoWriter.Writable generateHandleSerializeBody() {
-        return goTemplate("""
-                $preEndpointResolutionHook:W
+    private void generateBody(GoStackStepMiddlewareGenerator generator, GoWriter writer) {
+        writer.writeGoTemplate("""
+                $pre:W
 
-                $requestValidator:W
+                $assertRequest:W
 
-                $legacyResolverValidator:W
+                $assertResolver:W
 
-                $endpointResolution:W
+                $resolveEndpoint:W
 
-                $postEndpointResolution:W
+                $post:W
 
                 return next.HandleSerialize(ctx, in)
                 """,
                 MapUtils.of(
-                    "preEndpointResolutionHook", generatePreEndpointResolutionHook(),
-                    "requestValidator", generateRequestValidator(),
-                    "legacyResolverValidator", generateLegacyResolverValidator(),
-                    "endpointResolution", generateEndpointResolution(),
-                    "postEndpointResolution", generatePostEndpointResolutionHook()
+                        "pre", generatePreResolutionHooks(),
+                        "assertRequest", generateAssertRequest(),
+                        "assertResolver", generateAssertResolver(),
+                        "resolveEndpoint", generateResolveEndpoint(),
+                        "post", generatePostResolutionHooks()
                 ));
     }
 
-    private GoWriter.Writable generatePreEndpointResolutionHook() {
+    private GoWriter.Writable generatePreResolutionHooks() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
                 integration.renderPreEndpointResolutionHook(context.getSettings(), writer, context.getModel());
@@ -123,32 +103,32 @@ public final class EndpointMiddlewareGenerator {
         };
     }
 
-    private GoWriter.Writable generateRequestValidator() {
+    private GoWriter.Writable generateAssertRequest() {
         return goTemplate("""
                 req, ok := in.Request.($P)
                 if !ok {
-                    return out, md, $T("unknown transport type %T", in.Request)
+                    return out, metadata, $T("unknown transport type %T", in.Request)
                 }
                 """,
                 SmithyGoTypes.Transport.Http.Request,
                 GoStdlibTypes.Fmt.Errorf);
     }
 
-    private GoWriter.Writable generateLegacyResolverValidator() {
+    private GoWriter.Writable generateAssertResolver() {
         return goTemplate("""
                 if m.resolver == nil {
-                    return out, md, $T("expected endpoint resolver to not be nil")
+                    return out, metadata, $T("expected endpoint resolver to not be nil")
                 }
                 """,
                 GoStdlibTypes.Fmt.Errorf);
     }
 
-    private GoWriter.Writable generateEndpointResolution() {
+    private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
                 params := bindEndpointParams(in.Parameters.(endpointParamsBinder), m.options)
                 resolvedEndpoint, err := m.resolver.ResolveEndpoint(ctx, *params)
                 if err != nil {
-                    return out, md, $T("failed to resolve service endpoint, %w", err)
+                    return out, metadata, $T("failed to resolve service endpoint, %w", err)
                 }
 
                 req.URL = &resolvedEndpoint.URI
@@ -159,7 +139,7 @@ public final class EndpointMiddlewareGenerator {
                 GoStdlibTypes.Fmt.Errorf);
     }
 
-    private GoWriter.Writable generatePostEndpointResolutionHook() {
+    private GoWriter.Writable generatePostResolutionHooks() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
                 integration.renderPostEndpointResolutionHook(
