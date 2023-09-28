@@ -24,6 +24,11 @@ import software.amazon.smithy.codegen.core.Symbol;
 public final class SmithyGoTypes {
     private SmithyGoTypes() { }
 
+    public static final class Ptr {
+        public static final Symbol String = SmithyGoDependency.SMITHY_PTR.valueSymbol("String");
+        public static final Symbol Bool = SmithyGoDependency.SMITHY_PTR.valueSymbol("Bool");
+    }
+
     public static final class Middleware {
         public static final Symbol Stack = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("Stack");
         public static final Symbol SerializeInput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeInput");

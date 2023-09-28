@@ -21,8 +21,7 @@ import java.util.HashMap;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.node.Node;
@@ -174,13 +173,9 @@ public class EndpointParameterBindingsGenerator {
         return writer -> {
             Node value = literal.getValue();
             if (value.isStringNode()) {
-                writer.writeInline("$T($S)",
-                        SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build(),
-                        value.expectStringNode().getValue());
+                writer.writeInline("$T($S)", SmithyGoTypes.Ptr.String, value.expectStringNode().getValue());
             } else if (value.isBooleanNode()) {
-                writer.writeInline("$T($L)",
-                        SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build(),
-                        value.expectBooleanNode().getValue());
+                writer.writeInline("$T($L)", SmithyGoTypes.Ptr.Bool, value.expectBooleanNode().getValue());
             } else {
                 throw new CodegenException("unrecognized static context param value type");
             }
