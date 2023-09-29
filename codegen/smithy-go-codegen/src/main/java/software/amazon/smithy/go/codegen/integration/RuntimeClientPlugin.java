@@ -16,11 +16,14 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.auth.AuthParameter;
 import software.amazon.smithy.go.codegen.auth.AuthParametersResolver;
 import software.amazon.smithy.model.Model;
@@ -48,6 +51,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Set<AuthParameter> authParameters;
     private final Set<AuthParametersResolver> authParameterResolvers;
     private final MiddlewareRegistrar registerMiddleware;
+    private final Map<String, GoWriter.Writable> endpointBuiltinBindings;
 
     private RuntimeClientPlugin(Builder builder) {
         operationPredicate = builder.operationPredicate;
@@ -59,8 +63,8 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         authParameters = builder.authParameters;
         authParameterResolvers = builder.authParameterResolvers;
         configFieldResolvers = builder.configFieldResolvers;
+        endpointBuiltinBindings = builder.endpointBuiltinBindings;
     }
-
 
     @FunctionalInterface
     public interface OperationPredicate {
@@ -105,6 +109,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Set<AuthParametersResolver> getAuthParameterResolvers() {
         return authParameterResolvers;
+    }
+
+    /**
+     * Gets the endpoint builtin bindings that will be rendered by this plugin.
+     * @return the bindings.
+     */
+    public Map<String, GoWriter.Writable> getEndpointBuiltinBindings() {
+        return endpointBuiltinBindings;
     }
 
     /**
@@ -216,6 +228,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Set<ClientMemberResolver> clientMemberResolvers = new HashSet<>();
         private Set<AuthParameter> authParameters = new HashSet<>();
         private Set<AuthParametersResolver> authParameterResolvers = new HashSet<>();
+        private Map<String, GoWriter.Writable> endpointBuiltinBindings = new HashMap<>();
         private MiddlewareRegistrar registerMiddleware;
 
         @Override
@@ -447,6 +460,17 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addAuthParameterResolver(AuthParametersResolver resolver) {
             this.authParameterResolvers.add(resolver);
+            return this;
+        }
+
+        /**
+         * Adds a binding for an endpoint parameter builtin.
+         * @param name The name of the builtin.
+         * @param binding The writable binding.
+         * @return Returns the builder.
+         */
+        public Builder addEndpointBuiltinBinding(String name, GoWriter.Writable binding) {
+            this.endpointBuiltinBindings.put(name, binding);
             return this;
         }
     }
