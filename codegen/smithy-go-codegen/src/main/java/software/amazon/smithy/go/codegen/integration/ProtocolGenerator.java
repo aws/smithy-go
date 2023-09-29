@@ -41,6 +41,8 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.Trait;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.StringUtils;
@@ -541,6 +543,10 @@ public interface ProtocolGenerator {
 
         public ServiceShape getService() {
             return service;
+        }
+
+        public EndpointRuleSet getEndpointRules() {
+            return EndpointRuleSet.fromNode(service.expectTrait(EndpointRuleSetTrait.class).getRuleSet());
         }
 
         public SymbolProvider getSymbolProvider() {

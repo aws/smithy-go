@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.utils.SetUtils;
@@ -144,6 +145,24 @@ public final class GoDependency implements SymbolDependencyContainer, Comparable
      */
     public String getVersion() {
         return version;
+    }
+
+    /**
+     * Creates a Symbol for a name exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol valueSymbol(String name) {
+        return SymbolUtils.createValueSymbolBuilder(name, this).build();
+    }
+
+    /**
+     * Creates a pointable Symbol for a name exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol pointableSymbol(String name) {
+        return SymbolUtils.createPointableSymbolBuilder(name, this).build();
     }
 
     @Override

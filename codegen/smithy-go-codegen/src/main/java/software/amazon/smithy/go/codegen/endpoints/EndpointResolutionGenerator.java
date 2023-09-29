@@ -19,6 +19,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -27,9 +28,6 @@ import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointTestCase;
 import software.amazon.smithy.rulesengine.traits.EndpointTestsTrait;
-
-
-
 
 /**
  * Generates all components required for Smithy Ruleset Endpoint Resolution.
@@ -64,6 +62,11 @@ public class EndpointResolutionGenerator {
     }
 
     public void generate(ProtocolGenerator.GenerationContext context) {
+        if (context.getWriter().isEmpty()) {
+            throw new CodegenException("writer is required");
+        }
+
+        var writer = context.getWriter().get();
 
         var serviceShape = context.getService();
 
@@ -81,45 +84,28 @@ public class EndpointResolutionGenerator {
                 .fnProvider(this.fnProvider)
                 .build();
 
-        var middlewareGenerator = EndpointMiddlewareGenerator.builder()
-                .integrations(context.getIntegrations())
-                .build();
+        var bindingGenerator = new EndpointParameterBindingsGenerator(context);
+        var middlewareGenerator = new EndpointMiddlewareGenerator(context);
 
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
-                                                    .map(
-                                                        (trait)
-                                                        -> EndpointRuleSet.fromNode(trait.getRuleSet())
-                                                    );
+                .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
 
-
-        context.getWriter()
-                .map(
-                    (writer)
-                    -> writer.write("$W", parametersGenerator.generate(ruleset))
-                );
-
-        context.getWriter()
-                .map(
-                    (writer)
-                    -> writer.write("$W", resolverGenerator.generate(ruleset))
-                );
-
-        middlewareGenerator.generate(
-            context.getSettings(),
-            context.getModel(),
-            context.getSymbolProvider(),
-            context.getDelegator());
+        writer
+                .write("$W\n", parametersGenerator.generate(ruleset))
+                .write("$W\n", resolverGenerator.generate(ruleset))
+                .write("$W\n", bindingGenerator.generate())
+                .write("$W", middlewareGenerator.generate());
     }
 
     public void generateTests(ProtocolGenerator.GenerationContext context) {
+        if (context.getWriter().isEmpty()) {
+            throw new CodegenException("writer is required");
+        }
 
+        var writer = context.getWriter().get();
         var serviceShape = context.getService();
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
-                                                    .map(
-                                                        (trait)
-                                                        -> EndpointRuleSet.fromNode(trait.getRuleSet())
-                                                    );
-
+                .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
 
         var testsGenerator = EndpointTestsGenerator.builder()
             .parametersType(parametersType)
@@ -132,15 +118,6 @@ public class EndpointResolutionGenerator {
         var endpointTestTrait = serviceShape.getTrait(EndpointTestsTrait.class);
         endpointTestTrait.ifPresent(trait -> testCases.addAll(trait.getTestCases()));
 
-        context.getWriter()
-            .map(
-                (writer) -> {
-                    return writer.write("$W", testsGenerator.generate(ruleset, testCases));
-                }
-            );
-
+        writer.write("$W", testsGenerator.generate(ruleset, testCases));
     }
-
-
-
 }
