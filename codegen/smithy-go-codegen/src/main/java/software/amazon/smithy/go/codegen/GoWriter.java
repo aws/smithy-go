@@ -136,6 +136,17 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         };
     }
 
+    /**
+     * Returns a Writable for the string and args to be composed inline to another writer's contents.
+     *
+     * @param content  string to write.
+     * @param args     Arguments to use when evaluating the contents string.
+     * @return Writable to be evaluated.
+     */
+    public static Writable goTemplate(Object content, Object... args) {
+        return writer -> writer.write(content, args);
+    }
+
     public static Writable goDocTemplate(String contents) {
         return goDocTemplate(contents, new HashMap<>());
     }

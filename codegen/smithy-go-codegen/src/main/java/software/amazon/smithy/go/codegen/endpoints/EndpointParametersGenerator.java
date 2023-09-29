@@ -43,8 +43,6 @@ import software.amazon.smithy.utils.StringUtils;
 public final class EndpointParametersGenerator {
     public static final String VALIDATE_REQUIRED_FUNC_NAME = "ValidateRequired";
     public static final String DEFAULT_VALUE_FUNC_NAME = "WithDefaults";
-    public static final String LOGGER_MEMBER_NAME = "SDKClientLogger";
-    public static final String ENABLE_LOGGING_MEMBER_NAME = "LogRuleFuncErrors";
     private final Map<String, Object> commonCodegenArgs;
 
     private EndpointParametersGenerator(Builder builder) {
