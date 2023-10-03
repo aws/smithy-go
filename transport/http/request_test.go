@@ -118,6 +118,7 @@ func TestRequestSetStream(t *testing.T) {
 		expectNilStream        bool
 		expectNilBody          bool
 		expectReqContentLength int64
+		expectGetBody          bool
 	}{
 		"nil stream": {
 			expectNilStream: true,
@@ -141,6 +142,7 @@ func TestRequestSetStream(t *testing.T) {
 			expectNilStream:        false,
 			expectNilBody:          false,
 			expectReqContentLength: -1,
+			expectGetBody:          true,
 		},
 		"unseekable stream": {
 			reader:                 bytes.NewBuffer([]byte("abc123")),
@@ -148,6 +150,7 @@ func TestRequestSetStream(t *testing.T) {
 			expectNilStream:        false,
 			expectNilBody:          false,
 			expectReqContentLength: 6,
+			expectGetBody:          true,
 		},
 		"seekable stream": {
 			reader:                 bytes.NewReader([]byte("abc123")),
@@ -156,6 +159,7 @@ func TestRequestSetStream(t *testing.T) {
 			expectSeekable:         true,
 			expectNilBody:          false,
 			expectReqContentLength: 6,
+			expectGetBody:          true,
 		},
 		"offset seekable stream": {
 			reader: func() io.Reader {
@@ -169,6 +173,7 @@ func TestRequestSetStream(t *testing.T) {
 			expectNilStream:        false,
 			expectNilBody:          false,
 			expectReqContentLength: 5,
+			expectGetBody:          true,
 		},
 		"NoBody stream": {
 			reader:          http.NoBody,
@@ -215,6 +220,9 @@ func TestRequestSetStream(t *testing.T) {
 			}
 			if e, a := c.expectContentLength, req.ContentLength; e != a {
 				t.Errorf("expect %v request content-length, got %v", e, a)
+			}
+			if e, a := c.expectGetBody, r.GetBody != nil; e != a {
+				t.Errorf("expect %v request GetBody, got %v", e, a)
 			}
 		})
 	}

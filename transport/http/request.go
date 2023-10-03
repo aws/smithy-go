@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -176,6 +177,13 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 		// "unknown". This is unwanted behavior.
 		if req.ContentLength != 0 && r.stream != nil {
 			req.Body = iointernal.NewSafeReadCloser(ioutil.NopCloser(stream))
+			// Implement GetBody so the HTTP Client can retry with body.
+			req.GetBody = func() (io.ReadCloser, error) {
+				buf := new(bytes.Buffer)
+				io.Copy(buf, stream)
+				r := bytes.NewReader(buf.Bytes())
+				return io.NopCloser(r), nil
+			}
 		}
 	}
 
