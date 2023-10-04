@@ -16,7 +16,7 @@ type Identity interface {
 // IdentityResolver defines the interface through which an Identity is
 // retrieved.
 type IdentityResolver interface {
-	GetIdentity(ctx context.Context, params *smithy.Properties) (Identity, error)
+	GetIdentity(context.Context, smithy.Properties) (Identity, error)
 }
 
 // IdentityResolverOptions defines the interface through which an entity can be

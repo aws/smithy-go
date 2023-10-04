@@ -32,9 +32,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.logging.Logger;
+//import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.SourceException;
 import software.amazon.smithy.model.SourceLocation;
@@ -49,6 +51,9 @@ import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.IsSet;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.RecordLiteral;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.StringLiteral;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.TupleLiteral;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.language.syntax.rule.Condition;
@@ -89,6 +94,14 @@ public final class EndpointResolverGenerator {
                 "newResolverFn", newResolverFn,
                 "resolveEndpointMethodName", resolveEndpointMethodName,
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
+    }
+
+    public static String mapEndpointPropertyAuthSchemeName(String name) {
+        return switch (name) {
+            case "sigv4" -> "aws.auth#sigv4";
+            case "sigv4a" -> "aws.auth#sigv4a";
+            default -> throw new IllegalStateException("Unexpected value: " + name);
+        };
     }
 
     public GoWriter.Writable generate(Optional<EndpointRuleSet> ruleset) {
@@ -422,37 +435,95 @@ public final class EndpointResolverGenerator {
     }
 
     private GoWriter.Writable generateEndpointProperties(Map<Identifier, Literal> properties, Scope scope) {
-        Map<String, Object> propertyTypeArg = MapUtils.of(
-                "memberName", "Properties",
-                "propertyType", SymbolUtils.createValueSymbolBuilder("Properties",
-                        SmithyGoDependency.SMITHY).build());
-
         if (properties.isEmpty()) {
             return emptyGoTemplate();
         }
 
-        var writableProperties = new TreeMap<String, GoWriter.Writable>();
         var generator = new ExpressionGenerator(scope, this.fnProvider);
-        properties.forEach((k, v) -> {
-            writableProperties.put(k.toString(), generator.generate(v));
-        });
+        return goTemplate("""
+                Properties: func() $1T {
+                    var out $1T
+                    $2W
+                    return out
+                }(),
+                """,
+                SmithyGoTypes.Smithy.Properties,
+                GoWriter.ChainWritable.of(
+                        properties.entrySet().stream()
+                                .map(it -> generateSetProperty(generator, it.getKey(), it.getValue()))
+                                .toList()
+                ).compose(false));
+    }
 
-        return goBlockTemplate(
-                """
-                        $memberName:L: func() $propertyType:T{
-                            var out $propertyType:T
-                        """,
-                """
-                        return out
-                        }(),
-                        """, propertyTypeArg,
-                (w) -> {
-                    writableProperties.forEach((k, v) -> {
-                        // TODO these properties should be typed, and ignore properties that are
-                        // unknown.
-                        w.write("out.Set($S, $W)", k, v);
-                    });
-                });
+    private GoWriter.Writable generateSetProperty(ExpressionGenerator generator, Identifier ident, Expression expr) {
+        // FUTURE: add these via GoIntegration?
+        return ident.toString().equals("authSchemes")
+                ? generateSetAuthOptionsProperty(generator, expr)
+                : goTemplate("out.Set($S, $W)", ident.toString(), generator.generate(expr));
+    }
+
+    private GoWriter.Writable generateSetAuthOptionsProperty(ExpressionGenerator generator, Expression expr) {
+        return goTemplate("""
+                $T(&out, []$P{
+                    $W
+                })
+                """,
+                SmithyGoTypes.Auth.SetAuthOptions,
+                SmithyGoTypes.Auth.Option,
+                GoWriter.ChainWritable.of(
+                        ((TupleLiteral) expr).members().stream()
+                                .map(it -> generateAuthOption(generator, (RecordLiteral) it))
+                                .toList()
+                ).compose(false));
+    }
+
+    private GoWriter.Writable generateAuthOption(ExpressionGenerator generator, RecordLiteral scheme) {
+        var members = scheme.members();
+        var schemeName = ((StringLiteral) members.get(Identifier.of("name"))).value().expectLiteral();
+        return goTemplate("""
+                {
+                    SchemeID: $1S,
+                    SignerProperties: func() $2T {
+                        var sp $2T
+                        $3W
+                        return sp
+                    }(),
+                },""",
+                mapEndpointPropertyAuthSchemeName(schemeName),
+                SmithyGoTypes.Smithy.Properties,
+                generateAuthOptionSignerProperties(generator, scheme));
+    }
+
+    private GoWriter.Writable generateAuthOptionSignerProperties(ExpressionGenerator generator, RecordLiteral scheme) {
+        var props = new GoWriter.ChainWritable();
+        scheme.members().forEach((ident, expr) -> {
+            var name = ident.getName().expectStringNode().getValue();
+            switch (name) { // properties that don't apply to the scheme would just be ignored by the signer impl.
+                case "signingName" -> props.add(goTemplate("""
+                        $1T(&sp, $3W)
+                        $2T(&sp, $3W)""",
+                        SmithyGoTypes.Transport.Http.SetSigV4SigningName,
+                        SmithyGoTypes.Transport.Http.SetSigV4ASigningName,
+                        generator.generate(expr)));
+                case "signingRegion" -> props.add(goTemplate("$T(&sp, $W)",
+                        SmithyGoTypes.Transport.Http.SetSigV4SigningRegion, generator.generate(expr)));
+                case "signingRegionSet" -> {
+                    var regions = GoWriter.ChainWritable.of(
+                            ((TupleLiteral) expr).members().stream()
+                                    .map(generator::generate)
+                                    .toList()
+                    ).compose();
+                    props.add(goTemplate("$T(&sp, []string{$W})",
+                            SmithyGoTypes.Transport.Http.SetSigV4ASigningRegions, regions));
+                }
+                case "disableDoubleEncoding" -> props.add(goTemplate("$T(&sp, $W)",
+                        SmithyGoTypes.Transport.Http.SetDisableDoubleEncoding, generator.generate(expr)));
+                default -> {
+                    return;
+                }
+            }
+        });
+        return props.compose();
     }
 
     class RuleVisitor implements RuleValueVisitor<GoWriter.Writable> {

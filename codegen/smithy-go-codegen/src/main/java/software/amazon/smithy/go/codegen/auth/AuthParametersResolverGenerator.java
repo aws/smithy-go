@@ -18,9 +18,7 @@ package software.amazon.smithy.go.codegen.auth;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -31,8 +29,6 @@ import software.amazon.smithy.utils.MapUtils;
  */
 public class AuthParametersResolverGenerator {
     public static final String FUNC_NAME = "bindAuthResolverParams";
-
-    public static final Symbol FUNC_SYMBOL = SymbolUtils.createValueSymbolBuilder(FUNC_NAME).build();
 
     private final ProtocolGenerator.GenerationContext context;
 
@@ -46,9 +42,9 @@ public class AuthParametersResolverGenerator {
         loadResolvers();
 
         return goTemplate("""
-                func $name:L(input interface{}, options Options) $params:P {
+                func $name:L(operation string, input interface{}, options Options) $params:P {
                     params := &$params:T{
-                        Operation: "",
+                        Operation: operation,
                     }
 
                     $bindings:W

@@ -98,6 +98,22 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create a new FinalizeStep middleware generator with the provided type name.
+     *
+     * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createFinalizeStepMiddleware(String name, MiddlewareIdentifier id) {
+        return createMiddleware(name,
+                id,
+                "HandleFinalize",
+                SmithyGoTypes.Middleware.FinalizeInput,
+                SmithyGoTypes.Middleware.FinalizeOutput,
+                SmithyGoTypes.Middleware.FinalizeHandler);
+    }
+
+    /**
      * Create a new DeserializeStep middleware generator with the provided type name.
      *
      * @param name is the type name to identify the middleware.
@@ -214,6 +230,20 @@ public final class GoStackStepMiddlewareGenerator {
                 () -> {
                     handlerBodyConsumer.accept(this, writer);
                 });
+    }
+
+    /**
+     * Creates a Writable which renders the middleware.
+     * @param body A Writable that renders the middleware body.
+     * @param fields A Writable that renders the middleware struct's fields.
+     * @return the writable.
+     */
+    public GoWriter.Writable asWritable(GoWriter.Writable body, GoWriter.Writable fields) {
+        return writer -> writeMiddleware(
+                writer,
+                (generator, bodyWriter) -> bodyWriter.write("$W", body),
+                (generator, fieldWriter) -> fieldWriter.write("$W", fields)
+        );
     }
 
     /**

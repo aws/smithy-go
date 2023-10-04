@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"net/http"
 
 	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/auth"
@@ -18,5 +17,5 @@ type AuthScheme interface {
 // Signer defines the interface through which HTTP requests are supplemented
 // with an Identity.
 type Signer interface {
-	SignRequest(context.Context, *http.Request, auth.Identity, *smithy.Properties) error
+	SignRequest(context.Context, *Request, auth.Identity, smithy.Properties) error
 }

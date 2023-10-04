@@ -22,6 +22,9 @@ import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.auth.ResolveAuthSchemeMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.auth.SignRequestMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.endpoints.EndpointParameterOperationBindingsGenerator;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -228,6 +231,12 @@ public final class OperationGenerator implements Runnable {
                             writer.write("); err != nil {\nreturn err\n}");
                         }
                     });
+
+                    writer.write("$W", GoWriter.ChainWritable.of(
+                            ResolveAuthSchemeMiddlewareGenerator.generateAddMiddleware(operationSymbol.getName()),
+                            SignRequestMiddlewareGenerator.generateAddMiddleware(),
+                            GetIdentityMiddlewareGenerator.generateAddMiddleware()
+                    ).compose());
 
                     writer.write("return nil");
                 });

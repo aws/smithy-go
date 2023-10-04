@@ -44,3 +44,11 @@ func (m *Properties) Has(key interface{}) bool {
 	_, ok := m.values[key]
 	return ok
 }
+
+// SetAll accepts all of the given Properties into the receiver, overwriting
+// any existing keys in the case of conflicts.
+func (m *Properties) SetAll(other *Properties) {
+	for k, v := range other.values {
+		m.values[k] = v
+	}
+}

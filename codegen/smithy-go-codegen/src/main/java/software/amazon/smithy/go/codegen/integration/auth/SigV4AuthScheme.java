@@ -18,7 +18,6 @@ package software.amazon.smithy.go.codegen.integration.auth;
 import java.util.List;
 import software.amazon.smithy.aws.traits.auth.SigV4Trait;
 import software.amazon.smithy.go.codegen.auth.AuthParameter;
-import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
@@ -29,21 +28,18 @@ import software.amazon.smithy.utils.ListUtils;
  * Code generation for SigV4.
  */
 public class SigV4AuthScheme implements GoIntegration {
-    private static final AuthSchemeDefinition SIGV4_DEFINITION = new SigV4Definition();
-
     private boolean isSigV4Service(Model model, ServiceShape service) {
         return service.hasTrait(SigV4Trait.class);
     }
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
-        // FUTURE: add default Region client option and resolver - we need a more structured way of suppressing
-        //         elements of a GoIntegration before we do so, for now those live on the SDK side
+        // FUTURE: add default Region client option, scheme definition, and resolver - we need a more structured way of
+        //         suppressing elements of a GoIntegration before we do so, for now those live on the SDK side
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
                         .servicePredicate(this::isSigV4Service)
                         .addAuthParameter(AuthParameter.REGION)
-                        .addAuthSchemeDefinition(SigV4Trait.ID, SIGV4_DEFINITION)
                         .build()
         );
     }

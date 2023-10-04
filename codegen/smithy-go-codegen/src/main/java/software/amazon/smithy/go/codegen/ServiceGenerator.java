@@ -15,13 +15,18 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
+import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ClientMember;
 import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -29,7 +34,9 @@ import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 
 /**
  * Generates a service client and configuration.
@@ -46,6 +53,7 @@ final class ServiceGenerator implements Runnable {
     private final List<GoIntegration> integrations;
     private final List<RuntimeClientPlugin> runtimePlugins;
     private final ApplicationProtocol applicationProtocol;
+    private final Map<ShapeId, AuthSchemeDefinition> authSchemes;
 
     ServiceGenerator(
             GoSettings settings,
@@ -65,6 +73,10 @@ final class ServiceGenerator implements Runnable {
         this.integrations = integrations;
         this.runtimePlugins = runtimePlugins;
         this.applicationProtocol = applicationProtocol;
+        this.authSchemes = integrations.stream()
+                .flatMap(it -> it.getClientPlugins(model, service).stream())
+                .flatMap(it -> it.getAuthSchemeDefinitions().entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
@@ -96,6 +108,7 @@ final class ServiceGenerator implements Runnable {
         generateConstructor(serviceSymbol);
         generateConfig();
         generateClientInvokeOperation();
+        generateProtocolResolvers();
     }
 
     private void writeClientMemberResolvers(
@@ -153,6 +166,7 @@ final class ServiceGenerator implements Runnable {
                                 resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
                                         && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
                     }
+                    writeProtocolResolvers();
 
                     writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
                     writer.write("");
@@ -202,6 +216,8 @@ final class ServiceGenerator implements Runnable {
 
             generateApplicationProtocolConfig();
         }).write("");
+
+        generateGetIdentityResolver();
 
         writer.writeDocs("WithAPIOptions returns a functional option for setting the Client's APIOptions option.");
         writer.openBlock("func WithAPIOptions(optFns ...func(*middleware.Stack) error) func(*Options) {", "}", () -> {
@@ -284,6 +300,12 @@ final class ServiceGenerator implements Runnable {
         writer.writeDocs(
                 "The HTTP client to invoke API calls with. Defaults to client's default HTTP implementation if nil.");
         writer.write("HTTPClient HTTPClient").write("");
+
+        writer.writeDocs("The auth scheme resolver which determines how to authenticate for each operation.");
+        writer.write("AuthSchemeResolver $L", AuthSchemeResolverGenerator.INTERFACE_NAME).write("");
+
+        writer.writeDocs("The list of auth schemes supported by the client.");
+        writer.write("AuthSchemes []$T", SmithyGoTypes.Transport.Http.AuthScheme).write("");
     }
 
     private void generateApplicationProtocolTypes() {
@@ -292,6 +314,71 @@ final class ServiceGenerator implements Runnable {
         writer.openBlock("type HTTPClient interface {", "}", () -> {
             writer.write("Do(*http.Request) (*http.Response, error)");
         }).write("");
+    }
+
+    private void writeProtocolResolvers() {
+        ensureSupportedProtocol();
+
+        writer.write("""
+                resolveAuthSchemeResolver(&options)
+
+                resolveAuthSchemes(&options)
+                """);
+    }
+
+    private void generateProtocolResolvers() {
+        ensureSupportedProtocol();
+
+        var schemeMappings = GoWriter.ChainWritable.of(
+                ServiceIndex.of(model)
+                        .getEffectiveAuthSchemes(service).keySet().stream()
+                        .filter(authSchemes::containsKey)
+                        .map(authSchemes::get)
+                        .map(it -> goTemplate("$W, ", it.generateDefaultAuthScheme()))
+                        .toList()
+        ).compose(false);
+
+        writer.write("""
+                func resolveAuthSchemeResolver(options *Options) {
+                    options.AuthSchemeResolver = &$L{}
+                }
+
+                func resolveAuthSchemes(options *Options) {
+                    options.AuthSchemes = []$T{
+                        $W
+                    }
+                }
+                """,
+                AuthSchemeResolverGenerator.DEFAULT_NAME,
+                SmithyGoTypes.Transport.Http.AuthScheme,
+                schemeMappings);
+    }
+
+    private void generateGetIdentityResolver() {
+        var resolverMappings = GoWriter.ChainWritable.of(
+                ServiceIndex.of(model)
+                        .getEffectiveAuthSchemes(service).keySet().stream()
+                        .filter(authSchemes::containsKey)
+                        .map(trait -> generateGetIdentityResolverMapping(trait, authSchemes.get(trait)))
+                        .toList()
+        );
+
+        writer.write("""
+                func (o $L) GetIdentityResolver(schemeID string) $T {
+                    $W
+                    return nil
+                }
+                """,
+                CONFIG_NAME,
+                SmithyGoTypes.Auth.IdentityResolver,
+                resolverMappings.compose(false));
+    }
+
+    private GoWriter.Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
+        return goTemplate("""
+                if schemeID == $S {
+                    return $W
+                }""", schemeId.toString(), scheme.generateOptionsIdentityResolver());
     }
 
     private void generateClientInvokeOperation() {

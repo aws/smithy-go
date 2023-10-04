@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"net/http"
 
 	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/auth"
@@ -79,6 +78,6 @@ type nopSigner struct{}
 
 var _ Signer = (*nopSigner)(nil)
 
-func (*nopSigner) SignRequest(context.Context, *http.Request, auth.Identity, *smithy.Properties) error {
+func (*nopSigner) SignRequest(context.Context, *Request, auth.Identity, smithy.Properties) error {
 	return nil
 }
