@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -13,28 +13,37 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.integration;
+package software.amazon.smithy.go.codegen.integration.auth;
 
 import java.util.List;
+import software.amazon.smithy.aws.traits.auth.SigV4Trait;
 import software.amazon.smithy.go.codegen.auth.AuthParameter;
+import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.ListUtils;
 
 /**
- * Adds the input region as an auth resolution parameter for SigV4x-based services.
+ * Code generation for SigV4.
  */
-public class SigV4AuthParameters implements GoIntegration {
+public class SigV4AuthScheme implements GoIntegration {
+    private static final AuthSchemeDefinition SIGV4_DEFINITION = new SigV4Definition();
+
     private boolean isSigV4Service(Model model, ServiceShape service) {
-        return service.hasTrait("aws.auth#sigv4");
+        return service.hasTrait(SigV4Trait.class);
     }
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
+        // FUTURE: add default Region client option and resolver - we need a more structured way of suppressing
+        //         elements of a GoIntegration before we do so, for now those live on the SDK side
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
                         .servicePredicate(this::isSigV4Service)
                         .addAuthParameter(AuthParameter.REGION)
+                        .addAuthSchemeDefinition(SigV4Trait.ID, SIGV4_DEFINITION)
                         .build()
         );
     }

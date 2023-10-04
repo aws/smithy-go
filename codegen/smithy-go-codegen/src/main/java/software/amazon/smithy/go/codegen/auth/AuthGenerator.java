@@ -36,6 +36,13 @@ public class AuthGenerator {
         context.getWriter().get()
                 .write("$W", new AuthParametersGenerator(context).generate())
                 .write("")
-                .write("$W", new AuthParametersResolverGenerator(context).generate());
+                .write("$W", new AuthParametersResolverGenerator(context).generate())
+                .write("")
+                .write("$W", getResolverGenerator().generate());
+    }
+
+    // TODO(i&a): allow consuming generators to overwrite
+    private AuthSchemeResolverGenerator getResolverGenerator() {
+        return new AuthSchemeResolverGenerator(context);
     }
 }

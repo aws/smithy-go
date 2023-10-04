@@ -19,6 +19,8 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
@@ -32,8 +34,14 @@ import software.amazon.smithy.utils.MapUtils;
 public class EndpointParameterBindingsGenerator {
     private final ProtocolGenerator.GenerationContext context;
 
+    private final Map<String, GoWriter.Writable> builtinBindings;
+
     public EndpointParameterBindingsGenerator(ProtocolGenerator.GenerationContext context) {
         this.context = context;
+        this.builtinBindings = context.getIntegrations().stream()
+                .flatMap(it -> it.getClientPlugins(context.getModel(), context.getService()).stream())
+                .flatMap(it -> it.getEndpointBuiltinBindings().entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public GoWriter.Writable generate() {
@@ -81,7 +89,7 @@ public class EndpointParameterBindingsGenerator {
                 writer.write(
                         "params.$L = $W",
                         EndpointParametersGenerator.getExportedParameterName(param),
-                        bindings.get(param.getBuiltIn().get()));
+                        builtinBindings.get(param.getBuiltIn().get()));
             }
         };
     }
