@@ -23,6 +23,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
@@ -48,6 +49,7 @@ public class HttpBearerAuth implements GoIntegration {
     private static final String NEW_DEFAULT_SIGNER_NAME = "newDefault" + SIGNER_OPTION_NAME;
     private static final String SIGNER_RESOLVER_NAME = "resolve" + SIGNER_OPTION_NAME;
     private static final String REGISTER_MIDDLEWARE_NAME = "add" + SIGNER_OPTION_NAME + "Middleware";
+    private static final AuthSchemeDefinition HTTP_BEARER_DEFINITION = new HttpBearerDefinition();
 
     @Override
     public void writeAdditionalFiles(
@@ -162,6 +164,10 @@ public class HttpBearerAuth implements GoIntegration {
                                         REGISTER_MIDDLEWARE_NAME).build())
                                 .useClientOptions()
                                 .build())
+                        .build(),
+
+                RuntimeClientPlugin.builder()
+                        .addAuthSchemeDefinition(HttpBearerAuthTrait.ID, HTTP_BEARER_DEFINITION)
                         .build()
         );
     }
