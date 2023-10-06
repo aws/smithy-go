@@ -1,0 +1,8 @@
+{
+    "id": "a33cd9f8-b5d5-438a-8f81-40ee4f39c2f7",
+    "type": "feature",
+    "description": "Add `http.WithHeaderComment` middleware.",
+    "modules": [
+        "."
+    ]
+}
