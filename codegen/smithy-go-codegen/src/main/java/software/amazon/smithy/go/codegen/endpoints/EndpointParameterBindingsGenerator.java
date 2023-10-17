@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
@@ -45,6 +47,10 @@ public class EndpointParameterBindingsGenerator {
     }
 
     public GoWriter.Writable generate() {
+        if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
+            return emptyGoTemplate();
+        }
+
         return goTemplate("""
                 type endpointParamsBinder interface {
                     bindEndpointParams(*EndpointParameters)

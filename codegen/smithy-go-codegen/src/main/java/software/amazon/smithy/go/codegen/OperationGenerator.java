@@ -132,14 +132,8 @@ public final class OperationGenerator implements Runnable {
                 }, true);
 
         writer.write("""
-                func (*$T) operationName() string {
-                    return $S
-                }
-
                 $W
                 """,
-                inputSymbol,
-                operationSymbol.getName(),
                 new EndpointParameterOperationBindingsGenerator(operation, inputShape, inputSymbol).generate()
         );
 
