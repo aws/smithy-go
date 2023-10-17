@@ -46,11 +46,9 @@ public class AuthParametersResolverGenerator {
         loadResolvers();
 
         return goTemplate("""
-                $operationNamer:W
-
                 func $name:L(input interface{}, options Options) $params:P {
                     params := &$params:T{
-                        Operation: input.(operationNamer).operationName(),
+                        Operation: "",
                     }
 
                     $bindings:W
@@ -60,20 +58,9 @@ public class AuthParametersResolverGenerator {
                 """,
                 MapUtils.of(
                         "name", FUNC_NAME,
-                        "operationNamer", generateOperationNamer(),
                         "params", AuthParametersGenerator.STRUCT_SYMBOL,
                         "bindings", generateResolvers()
                 ));
-    }
-
-    private GoWriter.Writable generateOperationNamer() {
-        return (writer) -> {
-            writer.write("""
-                    type operationNamer interface {
-                        operationName() string
-                    }
-                    """);
-        };
     }
 
     private GoWriter.Writable generateResolvers() {
