@@ -11,5 +11,4 @@ software.amazon.smithy.go.codegen.endpoints.EndpointClientPluginsGenerator
 
 # modeled auth schemes
 software.amazon.smithy.go.codegen.integration.auth.SigV4AuthScheme
-software.amazon.smithy.go.codegen.integration.auth.HttpBearerAuth
 software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme

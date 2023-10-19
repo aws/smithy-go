@@ -80,6 +80,8 @@ public final class EndpointMiddlewareGenerator {
 
                 $resolveEndpoint:W
 
+                $mergeAuthProperties:W
+
                 $post:W
 
                 return next.HandleSerialize(ctx, in)
@@ -89,6 +91,7 @@ public final class EndpointMiddlewareGenerator {
                         "assertRequest", generateAssertRequest(),
                         "assertResolver", generateAssertResolver(),
                         "resolveEndpoint", generateResolveEndpoint(),
+                        "mergeAuthProperties", generateMergeAuthProperties(),
                         "post", generatePostResolutionHooks()
                 ));
     }
@@ -135,6 +138,20 @@ public final class EndpointMiddlewareGenerator {
                 }
                 """,
                 GoStdlibTypes.Fmt.Errorf);
+    }
+
+    private GoWriter.Writable generateMergeAuthProperties() {
+        return goTemplate("""
+                rscheme := getResolvedAuthScheme(ctx)
+                if rscheme == nil {
+                    return out, metadata, $T("no resolved auth scheme")
+                }
+
+                opts, _ := $T(&resolvedEndpoint.Properties)
+                for _, o := range opts {
+                    rscheme.SignerProperties.SetAll(&o.SignerProperties)
+                }
+                """, GoStdlibTypes.Fmt.Errorf, SmithyGoTypes.Auth.GetAuthOptions);
     }
 
     private GoWriter.Writable generatePostResolutionHooks() {

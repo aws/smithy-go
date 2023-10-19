@@ -34,11 +34,12 @@ public class AuthGenerator {
         }
 
         context.getWriter().get()
-                .write("$W", new AuthParametersGenerator(context).generate())
-                .write("")
-                .write("$W", new AuthParametersResolverGenerator(context).generate())
-                .write("")
-                .write("$W", getResolverGenerator().generate());
+                .write("$W\n", new AuthParametersGenerator(context).generate())
+                .write("$W\n", new AuthParametersResolverGenerator(context).generate())
+                .write("$W\n", getResolverGenerator().generate())
+                .write("$W\n", new ResolveAuthSchemeMiddlewareGenerator(context).generate())
+                .write("$W\n", new GetIdentityMiddlewareGenerator(context).generate())
+                .write("$W\n", new SignRequestMiddlewareGenerator(context).generate());
     }
 
     // TODO(i&a): allow consuming generators to overwrite
