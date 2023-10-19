@@ -26,6 +26,7 @@ public final class SmithyGoTypes {
 
     public static final class Smithy {
         public static final Symbol Properties = SmithyGoDependency.SMITHY.pointableSymbol("Properties");
+        public static final Symbol OperationError = SmithyGoDependency.SMITHY.pointableSymbol("OperationError");
     }
 
     public static final class Ptr {
@@ -35,11 +36,14 @@ public final class SmithyGoTypes {
 
     public static final class Middleware {
         public static final Symbol Stack = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("Stack");
+        public static final Symbol NewStack = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("NewStack");
         public static final Symbol Metadata = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("Metadata");
+        public static final Symbol ClearStackValues = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("ClearStackValues");
         public static final Symbol WithStackValue = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("WithStackValue");
         public static final Symbol GetStackValue = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("GetStackValue");
         public static final Symbol After = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("After");
         public static final Symbol Before = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("Before");
+        public static final Symbol DecorateHandler = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("DecorateHandler");
 
         public static final Symbol SerializeInput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeInput");
         public static final Symbol SerializeOutput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeOutput");
@@ -52,6 +56,8 @@ public final class SmithyGoTypes {
     public static final class Transport {
         public static final class Http {
             public static final Symbol Request = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("Request");
+            public static final Symbol NewStackRequest = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewStackRequest");
+            public static final Symbol NewClientHandler = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewClientHandler");
 
             public static final Symbol AuthScheme = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("AuthScheme");
             public static final Symbol SchemeIDAnonymous = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SchemeIDAnonymous");

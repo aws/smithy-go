@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
+import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
@@ -23,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
@@ -37,6 +38,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
  * Generates a service client and configuration.
@@ -81,189 +83,266 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
-        String serviceId = settings.getService().toString();
-        for (GoIntegration integration : integrations) {
-            serviceId = integration.processServiceId(settings, model, serviceId);
-        }
-
-        writer.write("const ServiceID = $S", serviceId);
-        writer.write("const ServiceAPIVersion = $S", service.getVersion());
-        writer.write("");
-
-        Symbol serviceSymbol = symbolProvider.toSymbol(service);
-        writer.writeDocs(String.format("%s provides the API client to make operations call for %s.",
-                serviceSymbol.getName(),
-                CodegenUtils.getServiceTitle(service, "the API")));
-        writer.openBlock("type $T struct {", "}", serviceSymbol, () -> {
-            writer.write("options $L", CONFIG_NAME);
-
-            // Add client members resolved from runtime plugins to the client struct.
-            for (ClientMember clientMember : getAllClientMembers()) {
-                writer.write("");
-                clientMember.getDocumentation().ifPresent(writer::writeDocs);
-                writer.write("$L $P", clientMember.getName(), clientMember.getType());
-            }
-        });
-
-        generateConstructor(serviceSymbol);
-        generateConfig();
-        generateClientInvokeOperation();
+        writer.write("$W", generate());
         writeProtocolResolverImpls();
     }
 
-    private void writeClientMemberResolvers(
-            GoWriter writer,
-            RuntimeClientPlugin plugin,
-            Predicate<ClientMemberResolver> predicate
-    ) {
-        plugin.getClientMemberResolvers().stream().filter(predicate)
-                .forEach(resolver -> {
-                    writer.write("$T(client)", resolver.getResolver());
-                    writer.write("");
-                });
+    private GoWriter.Writable generate() {
+        return GoWriter.ChainWritable.of(
+                generateMetadata(),
+                generateClient(),
+                generateNew(),
+                generateOptions(),
+                generateInvokeOperation()
+        ).compose();
     }
 
-    private void writeConfigFieldResolvers(
-            GoWriter writer,
-            RuntimeClientPlugin plugin,
-            Predicate<ConfigFieldResolver> predicate
-    ) {
-        plugin.getConfigFieldResolvers().stream().filter(predicate)
-                .forEach(resolver -> {
-                    writer.writeInline("$T(&options", resolver.getResolver());
-                    if (resolver.isWithOperationName()) {
-                        writer.writeInline(", opID");
+    private GoWriter.Writable generateMetadata() {
+        var serviceId = settings.getService().toString();
+        for (var integration : integrations) {
+            serviceId = integration.processServiceId(settings, model, serviceId);
+        }
+
+        return goTemplate("""
+                const ServiceID = $S
+                const ServiceAPIVersion = $S
+                """, serviceId, service.getVersion());
+    }
+
+    private GoWriter.Writable generateClient() {
+        return goTemplate("""
+                $W
+                type $T struct {
+                    options $L
+
+                    $W
+                }
+                """,
+                generateClientDocs(),
+                symbolProvider.toSymbol(service),
+                CONFIG_NAME,
+                GoWriter.ChainWritable.of(
+                        getAllClientMembers().stream()
+                                .map(this::generateClientMember)
+                                .toList()
+                ).compose());
+    }
+
+    private GoWriter.Writable generateClientDocs() {
+        return writer ->
+            writer.writeDocs(String.format(
+                    "%s provides the API client to make operations call for %s.",
+                    symbolProvider.toSymbol(service).getName(),
+                    CodegenUtils.getServiceTitle(service, "the API")
+            ));
+    }
+
+    private GoWriter.Writable generateClientMember(ClientMember member) {
+        return goTemplate("""
+                $W
+                $L $P
+                """,
+                member.getDocumentation().isPresent()
+                        ? goDocTemplate(member.getDocumentation().get())
+                        : emptyGoTemplate(),
+                member.getName(),
+                member.getType());
+    }
+
+    private GoWriter.Writable generateNew() {
+        var plugins = runtimePlugins.stream()
+                .filter(it -> it.matchesService(model, service))
+                .toList();
+        var serviceSymbol = symbolProvider.toSymbol(service);
+        var docs = goDocTemplate(
+                "New returns an initialized $name:L based on the functional options. Provide "
+                + "additional functional options to further configure the behavior of the client, such as changing the "
+                + "client's endpoint or adding custom middleware behavior.",
+                MapUtils.of("name", serviceSymbol.getName()));
+        return goTemplate("""
+                $docs:W
+                func New(options $options:L, optFns ...func(*$options:L)) *$client:L {
+                    options = options.Copy()
+
+                    $initializeResolvers:W
+
+                    $protocolResolvers:W
+
+                    for _, fn := range optFns {
+                        fn(&options)
                     }
-                    if (resolver.isWithClientInput()) {
-                        if (resolver.getLocation() == ConfigFieldResolver.Location.CLIENT) {
-                            writer.writeInline(", client");
-                        } else {
-                            writer.writeInline(", *c");
+
+                    client := &$client:L{
+                        options: options,
+                    }
+
+                    $finalizeResolvers:W
+
+                    $clientMemberResolvers:W
+
+                    return client
+                }
+                """, MapUtils.of(
+                        "docs", docs,
+                        "options", CONFIG_NAME,
+                        "client", serviceSymbol.getName(),
+                        "protocolResolvers", generateProtocolResolvers(),
+                        "initializeResolvers", GoWriter.ChainWritable.of(
+                                plugins.stream()
+                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
+                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.CLIENT))
+                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.INITIALIZATION))
+                                        .map(this::generateConfigFieldResolver)
+                                        .toList()
+                        ).compose(),
+                        "finalizeResolvers", GoWriter.ChainWritable.of(
+                                plugins.stream()
+                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
+                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.CLIENT))
+                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.FINALIZATION))
+                                        .map(this::generateConfigFieldResolver)
+                                        .toList()
+                        ).compose(),
+                        "clientMemberResolvers", GoWriter.ChainWritable.of(
+                                plugins.stream()
+                                        .flatMap(it -> it.getClientMemberResolvers().stream())
+                                        .map(this::generateClientMemberResolver)
+                                        .toList()
+                        ).compose()
+                ));
+    }
+
+    private GoWriter.Writable generateConfigFieldResolver(ConfigFieldResolver resolver) {
+        return writer -> {
+                writer.writeInline("$T(&options", resolver.getResolver());
+                if (resolver.isWithOperationName()) {
+                    writer.writeInline(", opID");
+                }
+                if (resolver.isWithClientInput()) {
+                    if (resolver.getLocation() == ConfigFieldResolver.Location.CLIENT) {
+                        writer.writeInline(", client");
+                    } else {
+                        writer.writeInline(", *c");
+                    }
+                }
+                writer.write(")");
+        };
+    }
+
+    private GoWriter.Writable generateClientMemberResolver(ClientMemberResolver resolver) {
+        return goTemplate("$T(client)", resolver.getResolver());
+    }
+
+    private GoWriter.Writable generateOptions() {
+        var apiOptionsDocs = goDocTemplate(
+                "Set of options to modify how an operation is invoked. These apply to all operations "
+                        + "invoked for this client. Use functional options on operation call to modify this "
+                        + "list for per operation behavior."
+        );
+        return goTemplate("""
+                type $options:L struct {
+                    $apiOptionsDocs:W
+                    APIOptions []func($stack:P) error
+
+                    $fields:W
+
+                    $protocolFields:W
+                }
+
+                $getIdentityResolver:W
+
+                $helpers:W
+
+                $copy:W
+                """, MapUtils.of(
+                "apiOptionsDocs", apiOptionsDocs,
+                "options", CONFIG_NAME,
+                "stack", SmithyGoTypes.Middleware.Stack,
+                "fields", GoWriter.ChainWritable.of(
+                        getAllConfigFields().stream()
+                                .map(this::writeConfigField)
+                                .toList()
+                ).compose(),
+                "protocolFields", generateProtocolFields(),
+                "getIdentityResolver", generateOptionsGetIdentityResolver(),
+                "helpers", generateOptionsHelpers(),
+                "copy", generateOptionsCopy()
+        ));
+    }
+
+    private GoWriter.Writable writeConfigField(ConfigField field) {
+        GoWriter.Writable docs = writer -> {
+            field.getDocumentation().ifPresent(writer::writeDocs);
+            field.getDeprecated().ifPresent(s -> {
+                if (field.getDocumentation().isPresent()) {
+                    writer.writeDocs("");
+                }
+                writer.writeDocs(String.format("Deprecated: %s", s));
+            });
+        };
+        return goTemplate("""
+                $W
+                $L $P
+                """, docs, field.getName(), field.getType());
+    }
+
+    private GoWriter.Writable generateOptionsHelpers() {
+        return writer -> {
+            writer.write("""
+                    $W
+                    func WithAPIOptions(optFns ...func($P) error) func(*Options) {
+                        return func (o *Options) {
+                            o.APIOptions = append(o.APIOptions, optFns...)
                         }
                     }
-                    writer.write(")");
-                    writer.write("");
-                });
-    }
+                    """,
+                    goDocTemplate(
+                            "WithAPIOptions returns a functional option for setting the Client's APIOptions option."
+                    ),
+                    SmithyGoTypes.Middleware.Stack);
 
-    private void generateConstructor(Symbol serviceSymbol) {
-        writer.writeDocs(String.format("New returns an initialized %s based on the functional options. "
-                + "Provide additional functional options to further configure the behavior "
-                + "of the client, such as changing the client's endpoint or adding custom "
-                + "middleware behavior.", serviceSymbol.getName()));
-        Symbol optionsSymbol = SymbolUtils.createPointableSymbolBuilder(CONFIG_NAME).build();
-        writer.openBlock("func New(options $T, optFns ...func($P)) $P {", "}", optionsSymbol, optionsSymbol,
-                serviceSymbol, () -> {
-                    writer.write("options = options.Copy()").write("");
-
-                    List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
-                            plugin.matchesService(model, service))
-                            .collect(Collectors.toList());
-
-                    // Run any config initialization functions registered by runtime plugins.
-                    for (RuntimeClientPlugin plugin : plugins) {
-                        writeConfigFieldResolvers(writer, plugin, resolver ->
-                                resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
-                                        && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
-                    }
-                    writeCallProtocolResolvers();
-
-                    writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
-                    writer.write("");
-
-                    writer.openBlock("client := &$T{", "}", serviceSymbol, () -> {
-                        writer.write("options: options,");
-                    }).write("");
-
-                    // Run any config finalization functions registered by runtime plugins.
-                    for (RuntimeClientPlugin plugin : plugins) {
-                        writeConfigFieldResolvers(writer, plugin, resolver ->
-                                resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
-                                        && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
-                    }
-
-                    // Run any client member resolver functions registered by runtime plugins.
-                    for (RuntimeClientPlugin plugin : plugins) {
-                        writeClientMemberResolvers(writer, plugin, resolver -> true);
-                    }
-
-                    writer.write("return client");
-                });
-    }
-
-    private void generateConfig() {
-        writer.openBlock("type $L struct {", "}", CONFIG_NAME, () -> {
-            writer.writeDocs("Set of options to modify how an operation is invoked. These apply to all operations "
-                    + "invoked for this client. Use functional options on operation call to modify this "
-                    + "list for per operation behavior."
-            );
-            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                    .build();
-            writer.write("APIOptions []func($P) error", stackSymbol).write("");
-
-            // Add config fields to the options struct.
-            for (ConfigField configField : getAllConfigFields()) {
-                configField.getDocumentation().ifPresent(writer::writeDocs);
-                configField.getDeprecated().ifPresent(s -> {
-                    if (configField.getDocumentation().isPresent()) {
-                        writer.writeDocs("");
-                    }
-                    writer.writeDocs(String.format("Deprecated: %s", s));
-                });
-                writer.write("$L $P", configField.getName(), configField.getType());
-                writer.write("");
-            }
-
-            generateApplicationProtocolConfig();
-        }).write("");
-
-        generateGetIdentityResolver();
-
-        writer.writeDocs("WithAPIOptions returns a functional option for setting the Client's APIOptions option.");
-        writer.openBlock("func WithAPIOptions(optFns ...func(*middleware.Stack) error) func(*Options) {", "}", () -> {
-            writer.openBlock("return func(o *Options) {", "}", () -> {
-                writer.write("o.APIOptions = append(o.APIOptions, optFns...)");
-            });
-        });
-
-        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(ConfigField::isDeprecated)
-            .forEach(configField -> {
-                writer.writeDocs(configField.getDeprecated().get());
-                writeWithHelperFunction(writer, configField);
-            });
-
-        getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(
-            Predicate.not(ConfigField::isDeprecated))
+            getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(ConfigField::isDeprecated)
                 .forEach(configField -> {
-                    writer.writeDocs(
-                            String.format(
-                                "With%s returns a functional option for setting the Client's %s option.",
-                                    configField.getName(), configField.getName()));
+                    writer.writeDocs(configField.getDeprecated().get());
                     writeWithHelperFunction(writer, configField);
-
                 });
 
-        generateApplicationProtocolTypes();
+            getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(
+                Predicate.not(ConfigField::isDeprecated))
+                    .forEach(configField -> {
+                        writer.writeDocs(
+                                String.format(
+                                    "With%s returns a functional option for setting the Client's %s option.",
+                                        configField.getName(), configField.getName()));
+                        writeWithHelperFunction(writer, configField);
 
-        writer.writeDocs("Copy creates a clone where the APIOptions list is deep copied.");
-        writer.openBlock("func (o $L) Copy() $L {", "}", CONFIG_NAME, CONFIG_NAME, () -> {
-            writer.write("to := o");
-            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                    .build();
-            writer.write("to.APIOptions = make([]func($P) error, len(o.APIOptions))", stackSymbol);
-            writer.write("copy(to.APIOptions, o.APIOptions)").write("");
-            writer.write("return to");
-        });
+                    });
+
+            generateApplicationProtocolTypes(writer);
+        };
+    }
+
+    private GoWriter.Writable generateOptionsCopy() {
+        return goTemplate("""
+                // Copy creates a clone where the APIOptions list is deep copied.
+                func (o $1L) Copy() $1L {
+                    to := o
+                    to.APIOptions = make([]func($2P) error, len(o.APIOptions))
+                    copy(to.APIOptions, o.APIOptions)
+
+                    return to
+                }
+                """, CONFIG_NAME, SmithyGoTypes.Middleware.Stack);
     }
 
     private void writeWithHelperFunction(GoWriter writer, ConfigField configField) {
-        writer.openBlock("func With$L(v $P) func(*Options) {", "}", configField.getName(),
-        configField.getType(),
-        () -> {
-            writer.openBlock("return func(o *Options) {", "}", () -> {
-                writer.write("o.$L = v", configField.getName());
-            });
-        }).write("");
+        writer.write("""
+                func With$1L(v $2P) func(*Options) {
+                    return func(o *Options) {
+                        o.$1L = v
+                    }
+                }
+                """, configField.getName(), configField.getType());
     }
 
     private List<ConfigField> getAllConfigFields() {
@@ -295,31 +374,38 @@ final class ServiceGenerator implements Runnable {
                 .collect(Collectors.toList());
     }
 
-    private void generateApplicationProtocolConfig() {
+    private GoWriter.Writable generateProtocolFields() {
         ensureSupportedProtocol();
-        writer.writeDocs(
-                "The HTTP client to invoke API calls with. Defaults to client's default HTTP implementation if nil.");
-        writer.write("HTTPClient HTTPClient").write("");
+        return goTemplate("""
+                $1W
+                HTTPClient HTTPClient
 
-        writer.writeDocs("The auth scheme resolver which determines how to authenticate for each operation.");
-        writer.write("AuthSchemeResolver $L", AuthSchemeResolverGenerator.INTERFACE_NAME).write("");
+                $2W
+                AuthSchemeResolver $4L
 
-        writer.writeDocs("The list of auth schemes supported by the client.");
-        writer.write("AuthSchemes []$T", SmithyGoTypes.Transport.Http.AuthScheme).write("");
+                $3W
+                AuthSchemes []$5T
+                """,
+                goDocTemplate("The HTTP client to invoke API calls with. "
+                        + "Defaults to client's default HTTP implementation if nil."),
+                goDocTemplate("The auth scheme resolver which determines how to authenticate for each operation."),
+                goDocTemplate("The list of auth schemes supported by the client."),
+                AuthSchemeResolverGenerator.INTERFACE_NAME,
+                SmithyGoTypes.Transport.Http.AuthScheme);
     }
 
-    private void generateApplicationProtocolTypes() {
+    private void generateApplicationProtocolTypes(GoWriter writer) {
         ensureSupportedProtocol();
-        writer.addUseImports(SmithyGoDependency.NET_HTTP);
-        writer.openBlock("type HTTPClient interface {", "}", () -> {
-            writer.write("Do(*http.Request) (*http.Response, error)");
-        }).write("");
-    }
-
-    private void writeCallProtocolResolvers() {
-        ensureSupportedProtocol();
-
         writer.write("""
+                type HTTPClient interface {
+                    Do($P) ($P, error)
+                }
+                """, GoStdlibTypes.Net.Http.Request, GoStdlibTypes.Net.Http.Response);
+    }
+
+    private GoWriter.Writable generateProtocolResolvers() {
+        ensureSupportedProtocol();
+        return goTemplate("""
                 resolveAuthSchemeResolver(&options)
 
                 resolveAuthSchemes(&options)
@@ -354,16 +440,8 @@ final class ServiceGenerator implements Runnable {
                 schemeMappings);
     }
 
-    private void generateGetIdentityResolver() {
-        var resolverMappings = GoWriter.ChainWritable.of(
-                ServiceIndex.of(model)
-                        .getEffectiveAuthSchemes(service).keySet().stream()
-                        .filter(authSchemes::containsKey)
-                        .map(trait -> generateGetIdentityResolverMapping(trait, authSchemes.get(trait)))
-                        .toList()
-        );
-
-        writer.write("""
+    private GoWriter.Writable generateOptionsGetIdentityResolver() {
+        return goTemplate("""
                 func (o $L) GetIdentityResolver(schemeID string) $T {
                     $W
                     return nil
@@ -371,7 +449,13 @@ final class ServiceGenerator implements Runnable {
                 """,
                 CONFIG_NAME,
                 SmithyGoTypes.Auth.IdentityResolver,
-                resolverMappings.compose(false));
+                GoWriter.ChainWritable.of(
+                        ServiceIndex.of(model)
+                                .getEffectiveAuthSchemes(service).keySet().stream()
+                                .filter(authSchemes::containsKey)
+                                .map(trait -> generateGetIdentityResolverMapping(trait, authSchemes.get(trait)))
+                                .toList()
+                ).compose(false));
     }
 
     private GoWriter.Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
@@ -381,89 +465,85 @@ final class ServiceGenerator implements Runnable {
                 }""", schemeId.toString(), scheme.generateOptionsIdentityResolver());
     }
 
-    private void generateClientInvokeOperation() {
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.addUseImports(SmithyGoDependency.SMITHY);
+    @SuppressWarnings("checkstyle:LineLength")
+    private GoWriter.Writable generateInvokeOperation() {
+        var plugins = runtimePlugins.stream()
+                .filter(it -> it.matchesService(model, service))
+                .toList();
+        return goTemplate("""
+                func (c *Client) invokeOperation(ctx $context:T, opID string, params interface{}, optFns []func(*Options), stackFns ...func($stack:P, Options) error) (result interface{}, metadata $metadata:T, err error) {
+                    ctx = $clearStackValues:T(ctx)
+                    $newStack:W
+                    options := c.options.Copy()
+                    $resolvers:W
 
-        writer.openBlock("func (c *Client) invokeOperation("
-                + "ctx context.Context, "
-                + "opID string, "
-                + "params interface{}, "
-                + "optFns []func(*Options), "
-                + "stackFns ...func(*middleware.Stack, Options) error"
-                + ") "
-                + "(result interface{}, metadata middleware.Metadata, err error) {", "}", () -> {
-            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                    for _, fn := range optFns {
+                        fn(&options)
+                    }
 
-            // Ensure operation stack invocations start with clean set of stack values.
-            writer.write("ctx = middleware.ClearStackValues(ctx)");
+                    $finalizers:W
 
-            generateConstructStack();
-            writer.write("options := c.options.Copy()");
+                    for _, fn := range stackFns {
+                        if err := fn(stack, options); err != nil {
+                            return nil, metadata, err
+                        }
+                    }
 
-            List<RuntimeClientPlugin> plugins = runtimePlugins.stream().filter(plugin ->
-                    plugin.matchesService(model, service))
-                    .collect(Collectors.toList());
+                    for _, fn := range options.APIOptions {
+                        if err := fn(stack); err != nil {
+                            return nil, metadata, err
+                        }
+                    }
 
-            for (RuntimeClientPlugin plugin : plugins) {
-                writeConfigFieldResolvers(writer, plugin, resolver ->
-                        resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
-                                && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
-            }
-
-            writer.write("for _, fn := range optFns { fn(&options) }");
-            writer.write("");
-
-            for (RuntimeClientPlugin plugin : plugins) {
-                writeConfigFieldResolvers(writer, plugin, resolver ->
-                        resolver.getLocation() == ConfigFieldResolver.Location.OPERATION
-                                && resolver.getTarget() == ConfigFieldResolver.Target.FINALIZATION);
-            }
-
-            writer.openBlock("for _, fn := range stackFns {", "}", () -> {
-                writer.write("if err := fn(stack, options); err != nil { return nil, metadata, err }");
-            });
-            writer.write("");
-
-            writer.openBlock("for _, fn := range options.APIOptions {", "}", () -> {
-                writer.write("if err := fn(stack); err != nil { return nil, metadata, err }");
-            });
-            writer.write("");
-
-            generateConstructStackHandler();
-            writer.write("result, metadata, err = handler.Handle(ctx, params)");
-            writer.openBlock("if err != nil {", "}", () -> {
-                writer.openBlock("err = &smithy.OperationError{", "}", () -> {
-                    writer.write("ServiceID: ServiceID,");
-                    writer.write("OperationName: opID,");
-                    writer.write("Err: err,");
-                });
-            });
-            writer.write("return result, metadata, err");
-        });
+                    $newStackHandler:W
+                    result, metadata, err = handler.Handle(ctx, params)
+                    if err != nil {
+                        err = &$operationError:T{
+                            ServiceID: ServiceID,
+                            OperationName: opID,
+                            Err: err,
+                        }
+                    }
+                    return result, metadata, err
+                }
+                """,
+                MapUtils.of(
+                        "context", GoStdlibTypes.Context.Context,
+                        "stack", SmithyGoTypes.Middleware.Stack,
+                        "metadata", SmithyGoTypes.Middleware.Metadata,
+                        "clearStackValues", SmithyGoTypes.Middleware.ClearStackValues,
+                        "newStack", generateNewStack(),
+                        "newStackHandler", generateNewStackHandler(),
+                        "operationError", SmithyGoTypes.Smithy.OperationError,
+                        "resolvers", GoWriter.ChainWritable.of(
+                                plugins.stream()
+                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
+                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.OPERATION))
+                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.INITIALIZATION))
+                                        .map(this::generateConfigFieldResolver)
+                                        .toList()
+                        ).compose(),
+                        "finalizers", GoWriter.ChainWritable.of(
+                                plugins.stream()
+                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
+                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.OPERATION))
+                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.FINALIZATION))
+                                        .map(this::generateConfigFieldResolver)
+                                        .toList()
+                        ).compose()
+                ));
     }
 
-    private void generateConstructStack() {
+    private GoWriter.Writable generateNewStack() {
         ensureSupportedProtocol();
-
-        Symbol newStack = SymbolUtils.createValueSymbolBuilder(
-                "NewStack", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-        Symbol newStackRequest = SymbolUtils.createValueSymbolBuilder(
-                "NewStackRequest", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
-
-        writer.write("stack := $T(opID, $T)", newStack, newStackRequest);
+        return goTemplate("stack := $T(opID, $T)",
+                SmithyGoTypes.Middleware.NewStack, SmithyGoTypes.Transport.Http.NewStackRequest);
     }
 
-    private void generateConstructStackHandler() {
+    private GoWriter.Writable generateNewStackHandler() {
         ensureSupportedProtocol();
-
-        Symbol decorateHandler = SymbolUtils.createValueSymbolBuilder(
-                "DecorateHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-        Symbol newClientHandler = SymbolUtils.createValueSymbolBuilder(
-                "NewClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
-
-        writer.write("handler := $T($T(options.HTTPClient), stack)", decorateHandler, newClientHandler);
+        return goTemplate("handler := $T($T(options.HTTPClient), stack)",
+                SmithyGoTypes.Middleware.DecorateHandler, SmithyGoTypes.Transport.Http.NewClientHandler);
     }
 
     private void ensureSupportedProtocol() {

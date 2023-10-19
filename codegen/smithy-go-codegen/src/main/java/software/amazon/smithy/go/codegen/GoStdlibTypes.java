@@ -31,4 +31,11 @@ public final class GoStdlibTypes {
     public static final class Fmt {
         public static final Symbol Errorf = SmithyGoDependency.FMT.valueSymbol("Errorf");
     }
+
+    public static final class Net {
+        public static final class Http {
+            public static final Symbol Request = SmithyGoDependency.NET_HTTP.pointableSymbol("Request");
+            public static final Symbol Response = SmithyGoDependency.NET_HTTP.pointableSymbol("Response");
+        }
+    }
 }
