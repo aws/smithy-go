@@ -108,7 +108,7 @@ final class ServiceGenerator implements Runnable {
         generateConstructor(serviceSymbol);
         generateConfig();
         generateClientInvokeOperation();
-        generateProtocolResolvers();
+        writeProtocolResolverImpls();
     }
 
     private void writeClientMemberResolvers(
@@ -166,7 +166,7 @@ final class ServiceGenerator implements Runnable {
                                 resolver.getLocation() == ConfigFieldResolver.Location.CLIENT
                                         && resolver.getTarget() == ConfigFieldResolver.Target.INITIALIZATION);
                     }
-                    writeProtocolResolvers();
+                    writeCallProtocolResolvers();
 
                     writer.openBlock("for _, fn := range optFns {", "}", () -> writer.write("fn(&options)"));
                     writer.write("");
@@ -316,7 +316,7 @@ final class ServiceGenerator implements Runnable {
         }).write("");
     }
 
-    private void writeProtocolResolvers() {
+    private void writeCallProtocolResolvers() {
         ensureSupportedProtocol();
 
         writer.write("""
@@ -326,7 +326,7 @@ final class ServiceGenerator implements Runnable {
                 """);
     }
 
-    private void generateProtocolResolvers() {
+    private void writeProtocolResolverImpls() {
         ensureSupportedProtocol();
 
         var schemeMappings = GoWriter.ChainWritable.of(
