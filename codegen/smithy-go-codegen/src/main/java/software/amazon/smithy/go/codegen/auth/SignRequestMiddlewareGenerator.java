@@ -23,6 +23,7 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -36,13 +37,17 @@ public class SignRequestMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddMiddleware() {
+    public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
-                err = stack.Finalize.Add(&$L{}, $T)
-                if err != nil {
-                    return err
+                if err := stack.Finalize.Insert(&$L{}, $S, $T); err != nil {
+                    return $T("add $L: %v", err)
                 }
-                """, MIDDLEWARE_NAME, SmithyGoTypes.Middleware.Before);
+                """,
+                MIDDLEWARE_NAME,
+                EndpointMiddlewareGenerator.MIDDLEWARE_ID,
+                SmithyGoTypes.Middleware.After,
+                GoStdlibTypes.Fmt.Errorf,
+                MIDDLEWARE_ID);
     }
 
     public GoWriter.Writable generate() {

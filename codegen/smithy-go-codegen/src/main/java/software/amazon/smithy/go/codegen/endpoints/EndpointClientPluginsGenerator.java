@@ -17,19 +17,13 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.shapes.OperationShape;
-import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
@@ -83,60 +77,32 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
 
     @Override
     public void processFinalizedModel(GoSettings settings, Model model) {
-        ServiceShape service = settings.getService(model);
-        var rulesetTrait = service.getTrait(EndpointRuleSetTrait.class);
-        Optional<EndpointRuleSet> rulesetOpt = (rulesetTrait.isPresent())
-        ? Optional.of(EndpointRuleSet.fromNode(rulesetTrait.get().getRuleSet()))
-        : Optional.empty();
-        var clientContextParamsTrait = service.getTrait(ClientContextParamsTrait.class);
-
-        if (!rulesetOpt.isPresent()) {
+        var service = settings.getService(model);
+        if (!service.hasTrait(EndpointRuleSetTrait.class) || !service.hasTrait(ClientContextParamsTrait.class)) {
             return;
         }
 
-        var topDownIndex = TopDownIndex.of(model);
-
-        for (ToShapeId operationId : topDownIndex.getContainedOperations(service)) {
-            OperationShape operationShape = model.expectShape(operationId.toShapeId(), OperationShape.class);
-
-            Symbol addFunc = SymbolUtils.createValueSymbolBuilder(EndpointMiddlewareGenerator.ADD_FUNC_NAME).build();
-            runtimeClientPlugins.add(RuntimeClientPlugin.builder()
-                    .operationPredicate((m, s, o) -> {
-                        return o.equals(operationShape);
-                    })
-                    .registerMiddleware(MiddlewareRegistrar.builder()
-                            .resolvedFunction(addFunc)
-                            .useClientOptions()
-                            .build())
-                    .build());
-
-            if (clientContextParamsTrait.isPresent()) {
-                if (rulesetOpt.isPresent()) {
-                    var clientContextParams = clientContextParamsTrait.get();
-                    var parameters = rulesetOpt.get().getParameters();
-                    parameters.forEach(param -> {
-                        if (
-                            clientContextParams.getParameters().containsKey(param.getName().getName().getValue())
-                            && !param.getBuiltIn().isPresent()
-                        ) {
-                            var documentation = param.getDocumentation().isPresent()
-                                ? param.getDocumentation().get()
-                                : "";
-
-                            runtimeClientPlugins.add(RuntimeClientPlugin.builder()
-                            .configFields(ListUtils.of(
-                                ConfigField.builder()
-                                        .name(getExportedParameterName(param))
-                                        .type(parameterAsSymbol(param))
-                                        .documentation(documentation)
-                                        .build()
-                            ))
-                            .build());
-                        }
-                    });
-                }
+        var ruleset = EndpointRuleSet.fromNode(service.expectTrait(EndpointRuleSetTrait.class).getRuleSet());
+        var ccParams = service.expectTrait(ClientContextParamsTrait.class).getParameters();
+        var parameters = ruleset.getParameters();
+        parameters.forEach(param -> {
+            var ccParam = ccParams.get(param.getName().getName().getValue());
+            if (ccParam == null || param.getBuiltIn().isPresent()) {
+                return;
             }
-        }
+
+            runtimeClientPlugins.add(
+                    RuntimeClientPlugin.builder()
+                            .addConfigField(
+                                    ConfigField.builder()
+                                            .name(getExportedParameterName(param))
+                                            .type(parameterAsSymbol(param))
+                                            .documentation(ccParam.getDocumentation().orElse(""))
+                                            .build()
+                            )
+                            .build()
+            );
+        });
     }
 }
 

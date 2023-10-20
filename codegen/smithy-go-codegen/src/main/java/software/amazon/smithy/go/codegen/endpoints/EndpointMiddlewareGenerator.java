@@ -15,13 +15,14 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
@@ -34,7 +35,6 @@ import software.amazon.smithy.utils.MapUtils;
 public final class EndpointMiddlewareGenerator {
     public static final String MIDDLEWARE_NAME = "resolveEndpointV2Middleware";
     public static final String MIDDLEWARE_ID = "ResolveEndpointV2";
-    public static final String ADD_FUNC_NAME = "addResolveEndpointV2Middleware";
 
     private final ProtocolGenerator.GenerationContext context;
 
@@ -42,36 +42,36 @@ public final class EndpointMiddlewareGenerator {
         this.context = context;
     }
 
-    public GoWriter.Writable generate() {
-        if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
-            return goTemplate("");
-        }
-
+    public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
-                $W
-
-                $W
+                if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
+                    return $T("add $L: %v", err)
+                }
                 """,
-                generateMiddleware(),
-                generateAddFunc());
+                MIDDLEWARE_NAME,
+                GetIdentityMiddlewareGenerator.MIDDLEWARE_ID,
+                SmithyGoTypes.Middleware.After,
+                GoStdlibTypes.Fmt.Errorf,
+                MIDDLEWARE_ID);
     }
 
-    private GoWriter.Writable generateMiddleware() {
-        return writer -> {
-            GoStackStepMiddlewareGenerator
-                    .createSerializeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
-                    .writeMiddleware(writer, this::generateBody, this::generateFields);
-        };
+    public GoWriter.Writable generate() {
+        return createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
+                .asWritable(generateBody(), generateFields());
     }
 
-    private void generateFields(GoStackStepMiddlewareGenerator generator, GoWriter writer) {
-        writer.writeGoTemplate("""
+    private GoWriter.Writable generateFields() {
+        return goTemplate("""
                 options Options
                 """);
     }
 
-    private void generateBody(GoStackStepMiddlewareGenerator generator, GoWriter writer) {
-        writer.writeGoTemplate("""
+    private GoWriter.Writable generateBody() {
+        if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
+            return goTemplate("return next.HandleFinalize(ctx, in)");
+        }
+
+        return goTemplate("""
                 $pre:W
 
                 $assertRequest:W
@@ -84,7 +84,7 @@ public final class EndpointMiddlewareGenerator {
 
                 $post:W
 
-                return next.HandleSerialize(ctx, in)
+                return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
                         "pre", generatePreResolutionHooks(),
@@ -126,18 +126,25 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
-                params := bindEndpointParams(in.Parameters, m.options)
-                resolvedEndpoint, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
+                params := bindEndpointParams(getOperationInput(ctx), m.options)
+                endpt, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
                 if err != nil {
-                    return out, metadata, $T("failed to resolve service endpoint, %w", err)
+                    return out, metadata, $1T("failed to resolve service endpoint, %w", err)
                 }
 
-                req.URL = &resolvedEndpoint.URI
-                for k := range resolvedEndpoint.Headers {
-                    req.Header.Set(k, resolvedEndpoint.Headers.Get(k))
+                if endpt.URI.RawPath == "" && req.URL.RawPath != "" {
+                    endpt.URI.RawPath = endpt.URI.Path
+                }
+                req.URL.Scheme = endpt.URI.Scheme
+                req.URL.Host = endpt.URI.Host
+                req.URL.Path = $2T(endpt.URI.Path, req.URL.Path)
+                req.URL.RawPath = $2T(endpt.URI.RawPath, req.URL.RawPath)
+                for k := range endpt.Headers {
+                    req.Header.Set(k, endpt.Headers.Get(k))
                 }
                 """,
-                GoStdlibTypes.Fmt.Errorf);
+                GoStdlibTypes.Fmt.Errorf,
+                SmithyGoTypes.Transport.Http.JoinPath);
     }
 
     private GoWriter.Writable generateMergeAuthProperties() {
@@ -147,7 +154,7 @@ public final class EndpointMiddlewareGenerator {
                     return out, metadata, $T("no resolved auth scheme")
                 }
 
-                opts, _ := $T(&resolvedEndpoint.Properties)
+                opts, _ := $T(&endpt.Properties)
                 for _, o := range opts {
                     rscheme.SignerProperties.SetAll(&o.SignerProperties)
                 }
@@ -160,20 +167,5 @@ public final class EndpointMiddlewareGenerator {
                 integration.renderPostEndpointResolutionHook(context.getSettings(), writer, context.getModel());
             }
         };
-    }
-
-    private GoWriter.Writable generateAddFunc() {
-        return goTemplate("""
-                func $funcName:L(stack $stack:P, options Options) error {
-                    return stack.Serialize.Insert(&$structName:L{
-                        options: options,
-                    }, "ResolveEndpoint", middleware.After)
-                }
-                """,
-                MapUtils.of(
-                        "funcName", ADD_FUNC_NAME,
-                        "structName", MIDDLEWARE_NAME,
-                        "stack", SmithyGoTypes.Middleware.Stack
-                ));
     }
 }

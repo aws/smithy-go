@@ -15,7 +15,7 @@
 
 package software.amazon.smithy.go.codegen.auth;
 
-import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createSerializeStepMiddleware;
+import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.codegen.core.Symbol;
@@ -23,7 +23,6 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
-import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -37,27 +36,21 @@ public class ResolveAuthSchemeMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddMiddleware(String operation) {
+    public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
-                err = stack.Serialize.Insert(&$name:L{
-                    operation: $operation:S,
-                    options:   options,
-                }, $resolveEndpointV2:S, $before:T)
-                if err != nil {
-                    return err
+                if err := stack.Finalize.Add(&$L{operation: operation, options: options}, $T); err != nil {
+                    return $T("add $L: %v", err)
                 }
                 """,
-                MapUtils.of(
-                        "name", MIDDLEWARE_NAME,
-                        "operation", operation,
-                        "resolveEndpointV2", EndpointMiddlewareGenerator.MIDDLEWARE_ID,
-                        "before", SmithyGoTypes.Middleware.Before
-                ));
+                MIDDLEWARE_NAME,
+                SmithyGoTypes.Middleware.Before,
+                GoStdlibTypes.Fmt.Errorf,
+                MIDDLEWARE_ID);
     }
 
     public GoWriter.Writable generate() {
         return GoWriter.ChainWritable.of(
-                createSerializeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
+                createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                         .asWritable(generateBody(), generateFields()),
                 generateSelectScheme(),
                 generateContextFuncs()
@@ -73,7 +66,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
 
     private GoWriter.Writable generateBody() {
         return goTemplate("""
-                params := $1L(m.operation, in.Parameters, m.options)
+                params := $1L(m.operation, getOperationInput(ctx), m.options)
                 options, err := m.options.AuthSchemeResolver.ResolveAuthSchemes(ctx, params)
                 if err != nil {
                     return out, metadata, $2T("resolve auth scheme: %v", err)
@@ -85,7 +78,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 }
 
                 ctx = setResolvedAuthScheme(ctx, scheme)
-                return next.HandleSerialize(ctx, in)
+                return next.HandleFinalize(ctx, in)
                 """,
                 AuthParametersResolverGenerator.FUNC_NAME,
                 GoStdlibTypes.Fmt.Errorf

@@ -24,3 +24,24 @@ type IdentityResolver interface {
 type IdentityResolverOptions interface {
 	GetIdentityResolver(schemeID string) IdentityResolver
 }
+
+// AnonymousIdentity is a sentinel to indicate no identity.
+type AnonymousIdentity struct{}
+
+var _ Identity = (*AnonymousIdentity)(nil)
+
+// Expiration returns the zero value for time, as anonymous identity never
+// expires.
+func (*AnonymousIdentity) Expiration() time.Time {
+	return time.Time{}
+}
+
+// AnonymousIdentityResolver returns AnonymousIdentity.
+type AnonymousIdentityResolver struct{}
+
+var _ IdentityResolver = (*AnonymousIdentityResolver)(nil)
+
+// GetIdentity returns AnonymousIdentity.
+func (*AnonymousIdentityResolver) GetIdentity(ctx context.Context, _ smithy.Properties) (Identity, error) {
+	return &AnonymousIdentity{}, nil
+}

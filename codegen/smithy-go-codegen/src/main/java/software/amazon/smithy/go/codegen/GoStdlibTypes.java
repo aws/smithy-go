@@ -38,4 +38,8 @@ public final class GoStdlibTypes {
             public static final Symbol Response = SmithyGoDependency.NET_HTTP.pointableSymbol("Response");
         }
     }
+
+    public static final class Path {
+        public static final Symbol Join = SmithyGoDependency.PATH.valueSymbol("Join");
+    }
 }

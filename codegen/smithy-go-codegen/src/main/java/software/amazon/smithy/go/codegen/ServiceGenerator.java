@@ -25,8 +25,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
+import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.auth.ResolveAuthSchemeMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.auth.SignRequestMiddlewareGenerator;
+import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ClientMember;
 import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
@@ -34,10 +39,12 @@ import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.integration.auth.AnonymousDefinition;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.traits.synthetic.NoAuthTrait;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
@@ -83,7 +90,7 @@ final class ServiceGenerator implements Runnable {
 
     @Override
     public void run() {
-        writer.write("$W", generate());
+        writer.write(generate());
         writeProtocolResolverImpls();
     }
 
@@ -93,7 +100,9 @@ final class ServiceGenerator implements Runnable {
                 generateClient(),
                 generateNew(),
                 generateOptions(),
-                generateInvokeOperation()
+                generateInvokeOperation(),
+                generateInputContextFuncs(),
+                generateAddProtocolFinalizerMiddleware()
         ).compose();
     }
 
@@ -172,11 +181,13 @@ final class ServiceGenerator implements Runnable {
                         fn(&options)
                     }
 
+                    $finalizeResolvers:W
+
                     client := &$client:L{
                         options: options,
                     }
 
-                    $finalizeResolvers:W
+                    $finalizeWithClientResolvers:W
 
                     $clientMemberResolvers:W
 
@@ -188,20 +199,22 @@ final class ServiceGenerator implements Runnable {
                         "client", serviceSymbol.getName(),
                         "protocolResolvers", generateProtocolResolvers(),
                         "initializeResolvers", GoWriter.ChainWritable.of(
-                                plugins.stream()
-                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
-                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.CLIENT))
-                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.INITIALIZATION))
-                                        .map(this::generateConfigFieldResolver)
-                                        .toList()
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.CLIENT,
+                                        ConfigFieldResolver.Target.INITIALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
                         "finalizeResolvers", GoWriter.ChainWritable.of(
-                                plugins.stream()
-                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
-                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.CLIENT))
-                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.FINALIZATION))
-                                        .map(this::generateConfigFieldResolver)
-                                        .toList()
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.CLIENT,
+                                        ConfigFieldResolver.Target.FINALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
+                        ).compose(),
+                        "finalizeWithClientResolvers", GoWriter.ChainWritable.of(
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.CLIENT,
+                                        ConfigFieldResolver.Target.FINALIZATION_WITH_CLIENT
+                                ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
                         "clientMemberResolvers", GoWriter.ChainWritable.of(
                                 plugins.stream()
@@ -444,6 +457,7 @@ final class ServiceGenerator implements Runnable {
         return goTemplate("""
                 func (o $L) GetIdentityResolver(schemeID string) $T {
                     $W
+                    $W
                     return nil
                 }
                 """,
@@ -455,7 +469,8 @@ final class ServiceGenerator implements Runnable {
                                 .filter(authSchemes::containsKey)
                                 .map(trait -> generateGetIdentityResolverMapping(trait, authSchemes.get(trait)))
                                 .toList()
-                ).compose(false));
+                ).compose(false),
+                generateGetIdentityResolverMapping(NoAuthTrait.ID, new AnonymousDefinition()));
     }
 
     private GoWriter.Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
@@ -467,9 +482,6 @@ final class ServiceGenerator implements Runnable {
 
     @SuppressWarnings("checkstyle:LineLength")
     private GoWriter.Writable generateInvokeOperation() {
-        var plugins = runtimePlugins.stream()
-                .filter(it -> it.matchesService(model, service))
-                .toList();
         return goTemplate("""
                 func (c *Client) invokeOperation(ctx $context:T, opID string, params interface{}, optFns []func(*Options), stackFns ...func($stack:P, Options) error) (result interface{}, metadata $metadata:T, err error) {
                     ctx = $clearStackValues:T(ctx)
@@ -516,20 +528,16 @@ final class ServiceGenerator implements Runnable {
                         "newStackHandler", generateNewStackHandler(),
                         "operationError", SmithyGoTypes.Smithy.OperationError,
                         "resolvers", GoWriter.ChainWritable.of(
-                                plugins.stream()
-                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
-                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.OPERATION))
-                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.INITIALIZATION))
-                                        .map(this::generateConfigFieldResolver)
-                                        .toList()
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.OPERATION,
+                                        ConfigFieldResolver.Target.INITIALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
                         "finalizers", GoWriter.ChainWritable.of(
-                                plugins.stream()
-                                        .flatMap(it -> it.getConfigFieldResolvers().stream())
-                                        .filter(it -> it.getLocation().equals(ConfigFieldResolver.Location.OPERATION))
-                                        .filter(it -> it.getTarget().equals(ConfigFieldResolver.Target.FINALIZATION))
-                                        .map(this::generateConfigFieldResolver)
-                                        .toList()
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.OPERATION,
+                                        ConfigFieldResolver.Target.FINALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
                         ).compose()
                 ));
     }
@@ -551,5 +559,52 @@ final class ServiceGenerator implements Runnable {
             throw new UnsupportedOperationException(
                     "Protocols other than HTTP are not yet implemented: " + applicationProtocol);
         }
+    }
+
+    private Stream<ConfigFieldResolver> getConfigResolvers(
+            ConfigFieldResolver.Location location, ConfigFieldResolver.Target target
+    ) {
+        return runtimePlugins.stream()
+                .filter(it -> it.matchesService(model, service))
+                .flatMap(it -> it.getConfigFieldResolvers().stream())
+                .filter(it -> it.getLocation() == location && it.getTarget() == target);
+    }
+
+    private GoWriter.Writable generateInputContextFuncs() {
+        return goTemplate("""
+                type operationInputKey struct{}
+
+                func setOperationInput(ctx $1T, input interface{}) $1T {
+                    return $2T(ctx, operationInputKey{}, input)
+                }
+
+                func getOperationInput(ctx $1T) interface{} {
+                    return $3T(ctx, operationInputKey{})
+                }
+
+                $4W
+                """,
+                GoStdlibTypes.Context.Context,
+                SmithyGoTypes.Middleware.WithStackValue,
+                SmithyGoTypes.Middleware.GetStackValue,
+                new SetOperationInputContextMiddleware().generate());
+    }
+
+    private GoWriter.Writable generateAddProtocolFinalizerMiddleware() {
+        ensureSupportedProtocol();
+        return goTemplate("""
+                func addProtocolFinalizerMiddlewares(stack $P, options $L, operation string) error {
+                    $W
+                    return nil
+                }
+                """,
+                SmithyGoTypes.Middleware.Stack,
+                CONFIG_NAME,
+                GoWriter.ChainWritable.of(
+                        ResolveAuthSchemeMiddlewareGenerator.generateAddToProtocolFinalizers(),
+                        GetIdentityMiddlewareGenerator.generateAddToProtocolFinalizers(),
+                        EndpointMiddlewareGenerator.generateAddToProtocolFinalizers(),
+                        SignRequestMiddlewareGenerator.generateAddToProtocolFinalizers()
+                ).compose(false));
     }
 }

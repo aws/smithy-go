@@ -22,9 +22,6 @@ import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
-import software.amazon.smithy.go.codegen.auth.ResolveAuthSchemeMiddlewareGenerator;
-import software.amazon.smithy.go.codegen.auth.SignRequestMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.endpoints.EndpointParameterOperationBindingsGenerator;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -204,8 +201,6 @@ public final class OperationGenerator implements Runnable {
                         MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
                         Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
 
-                        // TODO these functions do not all return err like they should. This should be fixed.
-                        // TODO Must be fixed for all public functions.
                         if (middlewareRegistrar.getInlineRegisterMiddlewareStatement() != null) {
                             String registerStatement = String.format("if err = stack.%s",
                                     middlewareRegistrar.getInlineRegisterMiddlewareStatement());
@@ -232,12 +227,6 @@ public final class OperationGenerator implements Runnable {
                         }
                     });
 
-                    writer.write("$W", GoWriter.ChainWritable.of(
-                            ResolveAuthSchemeMiddlewareGenerator.generateAddMiddleware(operationSymbol.getName()),
-                            SignRequestMiddlewareGenerator.generateAddMiddleware(),
-                            GetIdentityMiddlewareGenerator.generateAddMiddleware()
-                    ).compose());
-
                     writer.write("return nil");
                 });
     }
@@ -251,6 +240,12 @@ public final class OperationGenerator implements Runnable {
         }
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
 
+        // persist operation input to context for internal build/finalize middleware access
+        writer.write("""
+                if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+                    return err
+                }""");
+
         // Add request serializer middleware
         String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
                 operation.getId(), service, protocolGenerator.getProtocolName());
@@ -262,6 +257,15 @@ public final class OperationGenerator implements Runnable {
                 operation.getId(), service, protocolGenerator.getProtocolName());
         writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
         writer.write("if err != nil { return err }");
+
+        // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
+        writer.write("""
+                if err := addProtocolFinalizerMiddlewares(stack, options, $S); err != nil {
+                    return $T("add protocol finalizers: %v", err)
+                }""",
+                operationSymbol.getName(),
+                GoStdlibTypes.Fmt.Errorf);
+        writer.write("");
     }
 
     /**

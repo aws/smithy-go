@@ -25,21 +25,22 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 
 /**
- * Implements codegen for smithy.api#noAuth.
+ * Implements codegen for aws.auth#sigv4a.
  */
-public class AnonymousDefinition implements AuthSchemeDefinition {
+public class SigV4aDefinition implements AuthSchemeDefinition {
+    // FUTURE: reference modeled sigv4a trait
+
     @Override
-    public GoWriter.Writable generateServiceOption(ProtocolGenerator.GenerationContext c, ServiceShape s) {
-        return goTemplate("$T(),", SmithyGoTypes.Transport.Http.NewAnonymousOption);
+    public GoWriter.Writable generateServiceOption(
+            ProtocolGenerator.GenerationContext context, ServiceShape service
+    ) {
+        return goTemplate("$T(),", SmithyGoTypes.Transport.Http.NewSigV4AOption);
     }
 
     @Override
-    public GoWriter.Writable generateOperationOption(ProtocolGenerator.GenerationContext c, OperationShape o) {
-        return goTemplate("$T(),", SmithyGoTypes.Transport.Http.NewAnonymousOption);
-    }
-
-    @Override
-    public GoWriter.Writable generateOptionsIdentityResolver() {
-        return goTemplate("&$T{}", SmithyGoTypes.Auth.AnonymousIdentityResolver);
+    public GoWriter.Writable generateOperationOption(
+            ProtocolGenerator.GenerationContext context, OperationShape operation
+    ) {
+        return goTemplate("$T(),", SmithyGoTypes.Transport.Http.NewSigV4AOption);
     }
 }

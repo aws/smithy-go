@@ -59,6 +59,10 @@ public final class SmithyGoTypes {
             public static final Symbol NewStackRequest = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewStackRequest");
             public static final Symbol NewClientHandler = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewClientHandler");
 
+            public static final Symbol JoinPath = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("JoinPath");
+
+            public static final Symbol GetHostnameImmutable = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetHostnameImmutable");
+
             public static final Symbol AuthScheme = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("AuthScheme");
             public static final Symbol SchemeIDAnonymous = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SchemeIDAnonymous");
             public static final Symbol NewAnonymousScheme = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewAnonymousScheme");
@@ -70,6 +74,11 @@ public final class SmithyGoTypes {
 
             public static final Symbol SigV4Properties = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("SigV4Properties");
             public static final Symbol SigV4AProperties = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("SigV4AProperties");
+
+            public static final Symbol GetSigV4SigningName = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4SigningName");
+            public static final Symbol GetSigV4SigningRegion = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4SigningName");
+            public static final Symbol GetSigV4ASigningName = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4ASigningName");
+            public static final Symbol GetSigV4ASigningRegions = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4ASigningRegions");
 
             public static final Symbol SetSigV4SigningName = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SetSigV4SigningName");
             public static final Symbol SetSigV4SigningRegion = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SetSigV4SigningRegion");
@@ -84,6 +93,7 @@ public final class SmithyGoTypes {
         public static final Symbol Option = SmithyGoDependency.SMITHY_AUTH.pointableSymbol("Option");
         public static final Symbol IdentityResolver = SmithyGoDependency.SMITHY_AUTH.valueSymbol("IdentityResolver");
         public static final Symbol Identity = SmithyGoDependency.SMITHY_AUTH.valueSymbol("Identity");
+        public static final Symbol AnonymousIdentityResolver = SmithyGoDependency.SMITHY_AUTH.pointableSymbol("AnonymousIdentityResolver");
         public static final Symbol GetAuthOptions = SmithyGoDependency.SMITHY_AUTH.valueSymbol("GetAuthOptions");
         public static final Symbol SetAuthOptions = SmithyGoDependency.SMITHY_AUTH.valueSymbol("SetAuthOptions");
 

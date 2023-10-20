@@ -854,6 +854,10 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
                 && !Prelude.isPreludeShape(member.getTarget());
     }
 
+    public void write(Writable w) {
+        write("$W", w);
+    }
+
     @Override
     public String toString() {
         String contents = super.toString();

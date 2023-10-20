@@ -35,15 +35,17 @@ public class GetIdentityMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddMiddleware() {
+    public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
-                err = stack.Finalize.Add(&$L{
-                    options: options,
-                }, $T)
-                if err != nil {
-                    return err
+                if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
+                    return $T("add $L: %v", err)
                 }
-                """, MIDDLEWARE_NAME, SmithyGoTypes.Middleware.Before);
+                """,
+                MIDDLEWARE_NAME,
+                ResolveAuthSchemeMiddlewareGenerator.MIDDLEWARE_ID,
+                SmithyGoTypes.Middleware.After,
+                GoStdlibTypes.Fmt.Errorf,
+                MIDDLEWARE_ID);
     }
 
     public GoWriter.Writable generate() {
