@@ -44,6 +44,9 @@ public final class SmithyGoDependency {
     public static final GoDependency SYNC = stdlib("sync");
     public static final GoDependency PATH = stdlib("path");
     public static final GoDependency LOG = stdlib("log");
+    public static final GoDependency OS = stdlib("os");
+    public static final GoDependency PATH_FILEPATH = stdlib("path/filepath");
+    public static final GoDependency REFLECT = stdlib("reflect");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
     public static final GoDependency SMITHY_TRANSPORT = smithy("transport", "smithytransport");
