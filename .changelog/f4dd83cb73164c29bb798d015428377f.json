@@ -1,8 +1,0 @@
-{
-    "id": "f4dd83cb-7316-4c29-bb79-8d015428377f",
-    "type": "feature",
-    "description": "**LANG**: Bump minimum go version to 1.19.",
-    "modules": [
-        "."
-    ]
-}
