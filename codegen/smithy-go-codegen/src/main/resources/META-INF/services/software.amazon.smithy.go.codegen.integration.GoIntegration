@@ -9,3 +9,4 @@ software.amazon.smithy.go.codegen.integration.Paginators
 software.amazon.smithy.go.codegen.integration.Waiters
 software.amazon.smithy.go.codegen.integration.ClientLogger
 software.amazon.smithy.go.codegen.endpoints.EndpointClientPluginsGenerator
+software.amazon.smithy.go.codegen.requestcompression.RequestCompression
