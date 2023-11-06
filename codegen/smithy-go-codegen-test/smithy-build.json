@@ -1,7 +1,7 @@
 {
     "version": "1.0",
     "plugins": {
-        "go-codegen": {
+        "go-client-codegen": {
             "service": "example.weather#Weather",
             "module": "github.com/aws/smithy-go/internal/tests/service/weather",
             "moduleVersion": "0.0.1",
