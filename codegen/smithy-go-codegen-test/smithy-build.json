@@ -6,7 +6,7 @@
             "module": "github.com/aws/smithy-go/internal/tests/service/weather",
             "moduleVersion": "0.0.1",
             "generateGoMod": true,
-            "goDirective": "1.18"
+            "goDirective": "1.21"
         }
     }
 }
