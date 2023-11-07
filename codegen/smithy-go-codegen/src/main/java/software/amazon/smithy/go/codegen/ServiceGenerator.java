@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -35,20 +34,17 @@ import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ClientMember;
 import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
-import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
-import software.amazon.smithy.go.codegen.integration.auth.AnonymousDefinition;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.traits.synthetic.NoAuthTrait;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
- * Generates a service client and configuration.
+ * Generates a service client, its constructors, and core supporting logic.
  */
 final class ServiceGenerator implements Runnable {
 
@@ -99,7 +95,6 @@ final class ServiceGenerator implements Runnable {
                 generateMetadata(),
                 generateClient(),
                 generateNew(),
-                generateOptions(),
                 generateInvokeOperation(),
                 generateInputContextFuncs(),
                 generateAddProtocolFinalizerMiddleware()
@@ -246,132 +241,6 @@ final class ServiceGenerator implements Runnable {
         return goTemplate("$T(client)", resolver.getResolver());
     }
 
-    private GoWriter.Writable generateOptions() {
-        var apiOptionsDocs = goDocTemplate(
-                "Set of options to modify how an operation is invoked. These apply to all operations "
-                        + "invoked for this client. Use functional options on operation call to modify this "
-                        + "list for per operation behavior."
-        );
-        return goTemplate("""
-                type $options:L struct {
-                    $apiOptionsDocs:W
-                    APIOptions []func($stack:P) error
-
-                    $fields:W
-
-                    $protocolFields:W
-                }
-
-                $getIdentityResolver:W
-
-                $helpers:W
-
-                $copy:W
-                """, MapUtils.of(
-                "apiOptionsDocs", apiOptionsDocs,
-                "options", CONFIG_NAME,
-                "stack", SmithyGoTypes.Middleware.Stack,
-                "fields", GoWriter.ChainWritable.of(
-                        getAllConfigFields().stream()
-                                .map(this::writeConfigField)
-                                .toList()
-                ).compose(),
-                "protocolFields", generateProtocolFields(),
-                "getIdentityResolver", generateOptionsGetIdentityResolver(),
-                "helpers", generateOptionsHelpers(),
-                "copy", generateOptionsCopy()
-        ));
-    }
-
-    private GoWriter.Writable writeConfigField(ConfigField field) {
-        GoWriter.Writable docs = writer -> {
-            field.getDocumentation().ifPresent(writer::writeDocs);
-            field.getDeprecated().ifPresent(s -> {
-                if (field.getDocumentation().isPresent()) {
-                    writer.writeDocs("");
-                }
-                writer.writeDocs(String.format("Deprecated: %s", s));
-            });
-        };
-        return goTemplate("""
-                $W
-                $L $P
-                """, docs, field.getName(), field.getType());
-    }
-
-    private GoWriter.Writable generateOptionsHelpers() {
-        return writer -> {
-            writer.write("""
-                    $W
-                    func WithAPIOptions(optFns ...func($P) error) func(*Options) {
-                        return func (o *Options) {
-                            o.APIOptions = append(o.APIOptions, optFns...)
-                        }
-                    }
-                    """,
-                    goDocTemplate(
-                            "WithAPIOptions returns a functional option for setting the Client's APIOptions option."
-                    ),
-                    SmithyGoTypes.Middleware.Stack);
-
-            getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(ConfigField::isDeprecated)
-                .forEach(configField -> {
-                    writer.writeDocs(configField.getDeprecated().get());
-                    writeWithHelperFunction(writer, configField);
-                });
-
-            getAllConfigFields().stream().filter(ConfigField::getWithHelper).filter(
-                Predicate.not(ConfigField::isDeprecated))
-                    .forEach(configField -> {
-                        writer.writeDocs(
-                                String.format(
-                                    "With%s returns a functional option for setting the Client's %s option.",
-                                        configField.getName(), configField.getName()));
-                        writeWithHelperFunction(writer, configField);
-
-                    });
-
-            generateApplicationProtocolTypes(writer);
-        };
-    }
-
-    private GoWriter.Writable generateOptionsCopy() {
-        return goTemplate("""
-                // Copy creates a clone where the APIOptions list is deep copied.
-                func (o $1L) Copy() $1L {
-                    to := o
-                    to.APIOptions = make([]func($2P) error, len(o.APIOptions))
-                    copy(to.APIOptions, o.APIOptions)
-
-                    return to
-                }
-                """, CONFIG_NAME, SmithyGoTypes.Middleware.Stack);
-    }
-
-    private void writeWithHelperFunction(GoWriter writer, ConfigField configField) {
-        writer.write("""
-                func With$1L(v $2P) func(*Options) {
-                    return func(o *Options) {
-                        o.$1L = v
-                    }
-                }
-                """, configField.getName(), configField.getType());
-    }
-
-    private List<ConfigField> getAllConfigFields() {
-        List<ConfigField> configFields = new ArrayList<>();
-        for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
-            if (!runtimeClientPlugin.matchesService(model, service)) {
-                continue;
-            }
-            configFields.addAll(runtimeClientPlugin.getConfigFields());
-        }
-        return configFields.stream()
-                .distinct()
-                .sorted(Comparator.comparing(ConfigField::getName))
-                .collect(Collectors.toList());
-    }
-
     private List<ClientMember> getAllClientMembers() {
         List<ClientMember> clientMembers = new ArrayList<>();
         for (RuntimeClientPlugin runtimeClientPlugin : runtimePlugins) {
@@ -385,35 +254,6 @@ final class ServiceGenerator implements Runnable {
                 .distinct()
                 .sorted(Comparator.comparing(ClientMember::getName))
                 .collect(Collectors.toList());
-    }
-
-    private GoWriter.Writable generateProtocolFields() {
-        ensureSupportedProtocol();
-        return goTemplate("""
-                $1W
-                HTTPClient HTTPClient
-
-                $2W
-                AuthSchemeResolver $4L
-
-                $3W
-                AuthSchemes []$5T
-                """,
-                goDocTemplate("The HTTP client to invoke API calls with. "
-                        + "Defaults to client's default HTTP implementation if nil."),
-                goDocTemplate("The auth scheme resolver which determines how to authenticate for each operation."),
-                goDocTemplate("The list of auth schemes supported by the client."),
-                AuthSchemeResolverGenerator.INTERFACE_NAME,
-                SmithyGoTypes.Transport.Http.AuthScheme);
-    }
-
-    private void generateApplicationProtocolTypes(GoWriter writer) {
-        ensureSupportedProtocol();
-        writer.write("""
-                type HTTPClient interface {
-                    Do($P) ($P, error)
-                }
-                """, GoStdlibTypes.Net.Http.Request, GoStdlibTypes.Net.Http.Response);
     }
 
     private GoWriter.Writable generateProtocolResolvers() {
@@ -451,33 +291,6 @@ final class ServiceGenerator implements Runnable {
                 AuthSchemeResolverGenerator.DEFAULT_NAME,
                 SmithyGoTypes.Transport.Http.AuthScheme,
                 schemeMappings);
-    }
-
-    private GoWriter.Writable generateOptionsGetIdentityResolver() {
-        return goTemplate("""
-                func (o $L) GetIdentityResolver(schemeID string) $T {
-                    $W
-                    $W
-                    return nil
-                }
-                """,
-                CONFIG_NAME,
-                SmithyGoTypes.Auth.IdentityResolver,
-                GoWriter.ChainWritable.of(
-                        ServiceIndex.of(model)
-                                .getEffectiveAuthSchemes(service).keySet().stream()
-                                .filter(authSchemes::containsKey)
-                                .map(trait -> generateGetIdentityResolverMapping(trait, authSchemes.get(trait)))
-                                .toList()
-                ).compose(false),
-                generateGetIdentityResolverMapping(NoAuthTrait.ID, new AnonymousDefinition()));
-    }
-
-    private GoWriter.Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
-        return goTemplate("""
-                if schemeID == $S {
-                    return $W
-                }""", schemeId.toString(), scheme.generateOptionsIdentityResolver());
     }
 
     @SuppressWarnings("checkstyle:LineLength")
