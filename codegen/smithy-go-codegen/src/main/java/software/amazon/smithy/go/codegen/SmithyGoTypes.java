@@ -45,6 +45,9 @@ public final class SmithyGoTypes {
         public static final Symbol Before = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("Before");
         public static final Symbol DecorateHandler = SmithyGoDependency.SMITHY_MIDDLEWARE.valueSymbol("DecorateHandler");
 
+        public static final Symbol InitializeInput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("InitializeInput");
+        public static final Symbol InitializeOutput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("InitializeOutput");
+        public static final Symbol InitializeHandler = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("InitializeHandler");
         public static final Symbol SerializeInput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeInput");
         public static final Symbol SerializeOutput = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeOutput");
         public static final Symbol SerializeHandler = SmithyGoDependency.SMITHY_MIDDLEWARE.pointableSymbol("SerializeHandler");

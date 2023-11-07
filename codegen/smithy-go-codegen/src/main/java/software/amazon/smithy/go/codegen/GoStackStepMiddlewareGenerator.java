@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.function.BiConsumer;
 import software.amazon.smithy.codegen.core.Symbol;
 
@@ -63,6 +65,28 @@ public final class GoStackStepMiddlewareGenerator {
                 SymbolUtils.createValueSymbolBuilder("InitializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("InitializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE)
                         .build());
+    }
+
+    /**
+     * Create an inline Initialize func.
+     *
+     * @param body is the function body.
+     * @return the generated middleware func.
+     */
+    public static GoWriter.Writable generateInitializeMiddlewareFunc(GoWriter.Writable body) {
+        return goTemplate("""
+                func(ctx $T, in $T, next $T) (
+                    out $T, metadata $T, error,
+                ) {
+                    $W
+                }
+                """,
+                GoStdlibTypes.Context.Context,
+                SmithyGoTypes.Middleware.InitializeInput,
+                SmithyGoTypes.Middleware.InitializeHandler,
+                SmithyGoTypes.Middleware.InitializeOutput,
+                SmithyGoTypes.Middleware.Metadata,
+                body);
     }
 
     /**
