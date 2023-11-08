@@ -138,6 +138,28 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create an inline Finalize func.
+     *
+     * @param body is the function body.
+     * @return the generated middleware func.
+     */
+    public static GoWriter.Writable generateFinalizeMiddlewareFunc(GoWriter.Writable body) {
+        return goTemplate("""
+                func(ctx $T, in $T, next $T) (
+                    out $T, metadata $T, err error,
+                ) {
+                    $W
+                }
+                """,
+                GoStdlibTypes.Context.Context,
+                SmithyGoTypes.Middleware.FinalizeInput,
+                SmithyGoTypes.Middleware.FinalizeHandler,
+                SmithyGoTypes.Middleware.FinalizeOutput,
+                SmithyGoTypes.Middleware.Metadata,
+                body);
+    }
+
+    /**
      * Create a new DeserializeStep middleware generator with the provided type name.
      *
      * @param name is the type name to identify the middleware.
