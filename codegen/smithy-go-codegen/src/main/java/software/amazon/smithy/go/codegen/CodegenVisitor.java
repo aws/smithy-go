@@ -133,7 +133,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         service = settings.getService(model);
         LOGGER.info(() -> "Generating Go client for service " + service.getId());
 
-        SymbolProvider resolvedProvider = GoCodegenPlugin.createSymbolProvider(model, settings);
+        SymbolProvider resolvedProvider = GoClientCodegenPlugin.createSymbolProvider(model, settings);
         for (GoIntegration integration : integrations) {
             resolvedProvider = integration.decorateSymbolProvider(settings, model, resolvedProvider);
         }

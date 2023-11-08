@@ -24,10 +24,13 @@ import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.utils.BuilderRef;
 import software.amazon.smithy.utils.SmithyBuilder;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
+@SmithyInternalApi
 public final class GoModuleInfo {
 
-    public static final String DEFAULT_GO_DIRECTIVE = "1.15";
+    @SmithyInternalApi
+    public static final String DEFAULT_GO_DIRECTIVE = "1.19";
 
     private List<SymbolDependency> dependencies;
 

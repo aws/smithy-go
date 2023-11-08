@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoCodegenPlugin;
+import software.amazon.smithy.go.codegen.GoClientCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -106,7 +106,7 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
         for (ToShapeId operationId : topDownIndex.getContainedOperations(service)) {
             OperationShape operationShape = model.expectShape(operationId.toShapeId(), OperationShape.class);
 
-            SymbolProvider symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings);
+            SymbolProvider symbolProvider = GoClientCodegenPlugin.createSymbolProvider(model, settings);
 
             String inputHelperFuncName = getAddEndpointMiddlewareFuncName(
                     symbolProvider.toSymbol(operationShape).getName()
@@ -151,4 +151,3 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
         }
     }
 }
-
