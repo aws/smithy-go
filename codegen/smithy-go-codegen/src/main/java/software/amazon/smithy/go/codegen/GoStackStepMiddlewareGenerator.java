@@ -76,7 +76,7 @@ public final class GoStackStepMiddlewareGenerator {
     public static GoWriter.Writable generateInitializeMiddlewareFunc(GoWriter.Writable body) {
         return goTemplate("""
                 func(ctx $T, in $T, next $T) (
-                    out $T, metadata $T, error,
+                    out $T, metadata $T, err error,
                 ) {
                     $W
                 }
