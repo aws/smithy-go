@@ -20,6 +20,7 @@ type Properties struct {
 //
 // Panics if key type is not comparable.
 func (m *Properties) Get(key interface{}) interface{} {
+	m.lazyInit()
 	return m.values[key]
 }
 
@@ -28,9 +29,7 @@ func (m *Properties) Get(key interface{}) interface{} {
 //
 // Panics if the key type is not comparable.
 func (m *Properties) Set(key, value interface{}) {
-	if m.values == nil {
-		m.values = map[interface{}]interface{}{}
-	}
+	m.lazyInit()
 	m.values[key] = value
 }
 
@@ -38,9 +37,7 @@ func (m *Properties) Set(key, value interface{}) {
 //
 // Panics if the key type is not comparable.
 func (m *Properties) Has(key interface{}) bool {
-	if m.values == nil {
-		return false
-	}
+	m.lazyInit()
 	_, ok := m.values[key]
 	return ok
 }
@@ -48,7 +45,18 @@ func (m *Properties) Has(key interface{}) bool {
 // SetAll accepts all of the given Properties into the receiver, overwriting
 // any existing keys in the case of conflicts.
 func (m *Properties) SetAll(other *Properties) {
+	if other.values == nil {
+		return
+	}
+
+	m.lazyInit()
 	for k, v := range other.values {
 		m.values[k] = v
+	}
+}
+
+func (m *Properties) lazyInit() {
+	if m.values == nil {
+		m.values = map[interface{}]interface{}{}
 	}
 }
