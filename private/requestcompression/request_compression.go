@@ -1,3 +1,9 @@
+// Package requestcompression implements runtime support for smithy-modeled
+// request compression.
+//
+// This package is designated as private and is intended for use only by the
+// smithy client runtime. The exported API therein is not considered stable and
+// is subject to breaking changes without notice.
 package requestcompression
 
 import (
@@ -10,17 +16,35 @@ import (
 	"io"
 )
 
+// Algorithm represents the request compression algorithms supported
+type Algorithm string
+
+const maxRequestMinCompressSizeBytes = 10485760
+
+// Enumeration values for supported compress Algorithms.
+const (
+	GZIP Algorithm = "gzip"
+)
+
+type compressFunc func(io.Reader) ([]byte, error)
+
+var allowedAlgorithms = map[Algorithm]compressFunc{
+	GZIP: gzipCompress,
+}
+
 // AddRequestCompression add requestCompression middleware to op stack
 func AddRequestCompression(stack *middleware.Stack, DisableRequestCompression bool, RequestMinCompressSizeBytes int64) error {
-	return stack.Build.Add(&requestCompression{
+	return stack.Serialize.Add(&requestCompression{
 		disableRequestCompression:   DisableRequestCompression,
 		requestMinCompressSizeBytes: RequestMinCompressSizeBytes,
+		compressAlgorithms:          []Algorithm{GZIP},
 	}, middleware.After)
 }
 
 type requestCompression struct {
 	disableRequestCompression   bool
 	requestMinCompressSizeBytes int64
+	compressAlgorithms          []Algorithm
 }
 
 // ID returns the ID of the middleware
@@ -28,17 +52,17 @@ func (m requestCompression) ID() string {
 	return "RequestCompression"
 }
 
-// HandleBuild gzip compress the request's stream/body if enabled by config fields
-func (m requestCompression) HandleBuild(
-	ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler,
+// HandleSerialize gzip compress the request's stream/body if enabled by config fields
+func (m requestCompression) HandleSerialize(
+	ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler,
 ) (
-	out middleware.BuildOutput, metadata middleware.Metadata, err error,
+	out middleware.SerializeOutput, metadata middleware.Metadata, err error,
 ) {
 	if m.disableRequestCompression {
-		return next.HandleBuild(ctx, in)
+		return next.HandleSerialize(ctx, in)
 	}
 	// still need to check requestMinCompressSizeBytes in case it is out of range after service client config
-	if m.requestMinCompressSizeBytes < 0 || m.requestMinCompressSizeBytes > 10485760 {
+	if m.requestMinCompressSizeBytes < 0 || m.requestMinCompressSizeBytes > maxRequestMinCompressSizeBytes {
 		return out, metadata, fmt.Errorf("invalid range for min request compression size bytes %d, must be within 0 and 10485760 inclusively", m.requestMinCompressSizeBytes)
 	}
 
@@ -47,44 +71,52 @@ func (m requestCompression) HandleBuild(
 		return out, metadata, fmt.Errorf("unknown request type %T", req)
 	}
 
-	var isCompressed bool
-	if stream := req.GetStream(); stream != nil {
-		compressedBytes, err := compress(stream)
-		if err != nil {
-			return out, metadata, fmt.Errorf("failed to compress request stream, %v", err)
-		}
+	for _, algorithm := range m.compressAlgorithms {
+		compressFunc := allowedAlgorithms[algorithm]
+		if compressFunc != nil {
+			if stream := req.GetStream(); stream != nil {
+				compressedBytes, err := compressFunc(stream)
+				if err != nil {
+					return out, metadata, fmt.Errorf("failed to compress request stream, %v", err)
+				}
 
-		var newReq *http.Request
-		if newReq, err = req.SetStream(bytes.NewReader(compressedBytes)); err != nil {
-			return out, metadata, fmt.Errorf("failed to set request stream, %v", err)
-		}
-		*req = *newReq
-		isCompressed = true
-	} else if req.ContentLength >= m.requestMinCompressSizeBytes {
-		compressedBytes, err := compress(req.Body)
-		if err != nil {
-			return out, metadata, fmt.Errorf("failed to compress request body, %v", err)
-		}
+				var newReq *http.Request
+				if newReq, err = req.SetStream(bytes.NewReader(compressedBytes)); err != nil {
+					return out, metadata, fmt.Errorf("failed to set request stream, %v", err)
+				}
+				*req = *newReq
+			} else {
+				if req.Body == nil {
+					break
+				}
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					return out, metadata, fmt.Errorf("failed to read request body")
+				}
+				if int64(len(body)) < m.requestMinCompressSizeBytes {
+					req.Body = io.NopCloser(bytes.NewReader(body))
+					break
+				}
+				compressedBytes, err := compressFunc(bytes.NewReader(body))
+				if err != nil {
+					return out, metadata, fmt.Errorf("failed to compress request body, %v", err)
+				}
 
-		isCompressed = true
-		req.Body = io.NopCloser(bytes.NewReader(compressedBytes))
+				req.Body = io.NopCloser(bytes.NewReader(compressedBytes))
+			}
+
+			req.Header.Add("Content-Encoding", "gzip")
+
+			break
+		}
 	}
 
-	if isCompressed {
-		// Either append to the header if it already exists, else set it
-		if len(req.Header["Content-Encoding"]) != 0 {
-			req.Header["Content-Encoding"][0] += ", gzip"
-		} else {
-			req.Header.Set("Content-Encoding", "gzip")
-		}
-	}
-
-	return next.HandleBuild(ctx, in)
+	return next.HandleSerialize(ctx, in)
 }
 
-func compress(input io.Reader) ([]byte, error) {
+func gzipCompress(input io.Reader) ([]byte, error) {
 	var b bytes.Buffer
-	w, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
+	w, err := gzip.NewWriterLevel(&b, gzip.DefaultCompression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip writer, %v", err)
 	}

@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.requestcompression;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.List;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -28,11 +30,11 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
 import software.amazon.smithy.utils.ListUtils;
+import software.amazon.smithy.utils.MapUtils;
+
 
 public final class RequestCompression implements GoIntegration {
     private static final String ADD_REQUEST_COMPRESSION = "addRequestCompression";
@@ -55,31 +57,34 @@ public final class RequestCompression implements GoIntegration {
             return;
         }
 
-        goDelegator.useShapeWriter(service, this::writeMiddlewareHelper);
+        goDelegator.useShapeWriter(service, writeMiddlewareHelper());
     }
 
 
     public static boolean isRequestCompressionService(Model model, ServiceShape service) {
-        TopDownIndex topDownIndex = TopDownIndex.of(model);
-        for (ToShapeId operation : topDownIndex.getContainedOperations(service)) {
-            OperationShape operationShape = model.expectShape(operation.toShapeId(), OperationShape.class);
-            if (operationShape.hasTrait(RequestCompressionTrait.class)) {
-                return true;
-            }
-        }
-        return false;
+        return TopDownIndex.of(model)
+                .getContainedOperations(service).stream()
+                .anyMatch(it -> it.hasTrait(RequestCompressionTrait.class));
     }
 
-    private void writeMiddlewareHelper(GoWriter writer) {
-        writer.openBlock("func $L(stack *middleware.Stack, options Options) error {", "}",
-                ADD_REQUEST_COMPRESSION, () -> {
-                    writer.write(
-                    "return $T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes)",
-                            SymbolUtils.createValueSymbolBuilder(ADD_REQUEST_COMPRESSION_INTERNAL,
-                                    SmithyGoDependency.SMITHY_REQUEST_COMPRESSION).build()
-                    );
-                });
-        writer.insertTrailingNewline();
+    private GoWriter.Writable writeMiddlewareHelper() {
+        var stackSymbol = SymbolUtils
+                .createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+                .build();
+        var addInternalSymbol = SymbolUtils
+                .createValueSymbolBuilder(ADD_REQUEST_COMPRESSION_INTERNAL,
+                SmithyGoDependency.SMITHY_REQUEST_COMPRESSION)
+                .build();
+        return goTemplate("""
+                func $add:L(stack $stack:P, options Options) error {
+                    return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes)
+                }
+                """,
+                MapUtils.of(
+                        "add", ADD_REQUEST_COMPRESSION,
+                        "stack", stackSymbol,
+                        "addInternal", addInternalSymbol
+                ));
     }
 
     @Override
@@ -101,7 +106,8 @@ public final class RequestCompression implements GoIntegration {
                                         .type(SymbolUtils.createValueSymbolBuilder("bool")
                                                 .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
                                                 .build())
-                                        .documentation("Determine if request compression is allowed, default to false")
+                                        .documentation(
+                                        "Whether to disable automatic request compression for supported operations.")
                                         .build(),
                                 ConfigField.builder()
                                         .name(REQUEST_MIN_COMPRESSION_SIZE_BYTES)

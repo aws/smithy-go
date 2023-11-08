@@ -50,7 +50,7 @@ func TestRequestCompression(t *testing.T) {
 			},
 			ExpectedBody: []byte("Hello, world!"),
 			ExpectedHeader: map[string][]string{
-				"Content-Encoding": {"custom, gzip"},
+				"Content-Encoding": {"custom", "gzip"},
 			},
 		},
 		"GZip request stream ignoring min compress request size": {
@@ -99,11 +99,12 @@ func TestRequestCompression(t *testing.T) {
 			m := requestCompression{
 				disableRequestCompression:   c.DisableRequestCompression,
 				requestMinCompressSizeBytes: c.RequestMinCompressSizeBytes,
+				compressAlgorithms:          []Algorithm{GZIP},
 			}
-			_, _, err = m.HandleBuild(context.Background(),
-				middleware.BuildInput{Request: req},
-				middleware.BuildHandlerFunc(func(ctx context.Context, input middleware.BuildInput) (
-					out middleware.BuildOutput, metadata middleware.Metadata, err error) {
+			_, _, err = m.HandleSerialize(context.Background(),
+				middleware.SerializeInput{Request: req},
+				middleware.SerializeHandlerFunc(func(ctx context.Context, input middleware.SerializeInput) (
+					out middleware.SerializeOutput, metadata middleware.Metadata, err error) {
 					updatedRequest = input.Request.(*http.Request)
 					return out, metadata, nil
 				}),
