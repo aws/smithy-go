@@ -168,7 +168,7 @@ final class ServiceGenerator implements Runnable {
                 func New(options $options:L, optFns ...func(*$options:L)) *$client:L {
                     options = options.Copy()
 
-                    $initializeResolvers:W
+                    $resolvers:W
 
                     $protocolResolvers:W
 
@@ -176,13 +176,15 @@ final class ServiceGenerator implements Runnable {
                         fn(&options)
                     }
 
-                    $finalizeResolvers:W
+                    $finalizers:W
+
+                    $protocolFinalizers:W
 
                     client := &$client:L{
                         options: options,
                     }
 
-                    $finalizeWithClientResolvers:W
+                    $withClientFinalizers:W
 
                     $clientMemberResolvers:W
 
@@ -193,19 +195,20 @@ final class ServiceGenerator implements Runnable {
                         "options", CONFIG_NAME,
                         "client", serviceSymbol.getName(),
                         "protocolResolvers", generateProtocolResolvers(),
-                        "initializeResolvers", GoWriter.ChainWritable.of(
+                        "protocolFinalizers", generateProtocolFinalizers(),
+                        "resolvers", GoWriter.ChainWritable.of(
                                 getConfigResolvers(
                                         ConfigFieldResolver.Location.CLIENT,
                                         ConfigFieldResolver.Target.INITIALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
-                        "finalizeResolvers", GoWriter.ChainWritable.of(
+                        "finalizers", GoWriter.ChainWritable.of(
                                 getConfigResolvers(
                                         ConfigFieldResolver.Location.CLIENT,
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
-                        "finalizeWithClientResolvers", GoWriter.ChainWritable.of(
+                        "withClientFinalizers", GoWriter.ChainWritable.of(
                                 getConfigResolvers(
                                         ConfigFieldResolver.Location.CLIENT,
                                         ConfigFieldResolver.Target.FINALIZATION_WITH_CLIENT
@@ -260,7 +263,12 @@ final class ServiceGenerator implements Runnable {
         ensureSupportedProtocol();
         return goTemplate("""
                 resolveAuthSchemeResolver(&options)
+                """);
+    }
 
+    private GoWriter.Writable generateProtocolFinalizers() {
+        ensureSupportedProtocol();
+        return goTemplate("""
                 resolveAuthSchemes(&options)
                 """);
     }
@@ -279,12 +287,16 @@ final class ServiceGenerator implements Runnable {
 
         writer.write("""
                 func resolveAuthSchemeResolver(options *Options) {
-                    options.AuthSchemeResolver = &$L{}
+                    if options.AuthSchemeResolver == nil {
+                        options.AuthSchemeResolver = &$L{}
+                    }
                 }
 
                 func resolveAuthSchemes(options *Options) {
-                    options.AuthSchemes = []$T{
-                        $W
+                    if options.AuthSchemes == nil {
+                        options.AuthSchemes = []$T{
+                            $W
+                        }
                     }
                 }
                 """,
