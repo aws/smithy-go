@@ -70,7 +70,7 @@ public final class SmithyGoTypes {
             public static final Symbol NewAnonymousScheme = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewAnonymousScheme");
 
             public static final Symbol GetSigV4SigningName = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4SigningName");
-            public static final Symbol GetSigV4SigningRegion = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4SigningName");
+            public static final Symbol GetSigV4SigningRegion = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4SigningRegion");
             public static final Symbol GetSigV4ASigningName = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4ASigningName");
             public static final Symbol GetSigV4ASigningRegions = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("GetSigV4ASigningRegions");
 
