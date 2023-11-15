@@ -39,7 +39,7 @@ public class AuthSchemePropertyGenerator {
         return switch (name) {
             case "sigv4" -> "aws.auth#sigv4";
             case "sigv4a" -> "aws.auth#sigv4a";
-            default -> throw new IllegalStateException("Unexpected value: " + name);
+            default -> name;
         };
     }
 
