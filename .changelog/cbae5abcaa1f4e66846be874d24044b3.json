@@ -1,8 +1,0 @@
-{
-    "id": "cbae5abc-aa1f-4e66-846b-e874d24044b3",
-    "type": "feature",
-    "description": "Support identity/auth components of client reference architecture.",
-    "modules": [
-        "."
-    ]
-}
