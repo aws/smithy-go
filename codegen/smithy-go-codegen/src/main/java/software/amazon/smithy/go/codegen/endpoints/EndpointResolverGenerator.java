@@ -35,6 +35,7 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.SourceException;
 import software.amazon.smithy.model.SourceLocation;
@@ -422,37 +423,31 @@ public final class EndpointResolverGenerator {
     }
 
     private GoWriter.Writable generateEndpointProperties(Map<Identifier, Literal> properties, Scope scope) {
-        Map<String, Object> propertyTypeArg = MapUtils.of(
-                "memberName", "Properties",
-                "propertyType", SymbolUtils.createValueSymbolBuilder("Properties",
-                        SmithyGoDependency.SMITHY).build());
-
         if (properties.isEmpty()) {
             return emptyGoTemplate();
         }
 
-        var writableProperties = new TreeMap<String, GoWriter.Writable>();
         var generator = new ExpressionGenerator(scope, this.fnProvider);
-        properties.forEach((k, v) -> {
-            writableProperties.put(k.toString(), generator.generate(v));
-        });
+        return goTemplate("""
+                Properties: func() $1T {
+                    var out $1T
+                    $2W
+                    return out
+                }(),
+                """,
+                SmithyGoTypes.Smithy.Properties,
+                GoWriter.ChainWritable.of(
+                        properties.entrySet().stream()
+                                .map(it -> generateSetProperty(generator, it.getKey(), it.getValue()))
+                                .toList()
+                ).compose(false));
+    }
 
-        return goBlockTemplate(
-                """
-                        $memberName:L: func() $propertyType:T{
-                            var out $propertyType:T
-                        """,
-                """
-                        return out
-                        }(),
-                        """, propertyTypeArg,
-                (w) -> {
-                    writableProperties.forEach((k, v) -> {
-                        // TODO these properties should be typed, and ignore properties that are
-                        // unknown.
-                        w.write("out.Set($S, $W)", k, v);
-                    });
-                });
+    private GoWriter.Writable generateSetProperty(ExpressionGenerator generator, Identifier ident, Expression expr) {
+        // FUTURE: add these via GoIntegration?
+        return ident.toString().equals("authSchemes")
+                ? new AuthSchemePropertyGenerator(generator).generate(expr)
+                : goTemplate("out.Set($S, $W)", ident.toString(), generator.generate(expr));
     }
 
     class RuleVisitor implements RuleValueVisitor<GoWriter.Writable> {

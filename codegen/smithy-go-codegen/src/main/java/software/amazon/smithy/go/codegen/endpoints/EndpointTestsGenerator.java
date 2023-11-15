@@ -42,6 +42,7 @@ import software.amazon.smithy.model.node.NumberNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.traits.EndpointTestCase;
 import software.amazon.smithy.rulesengine.traits.ExpectedEndpoint;
@@ -274,19 +275,26 @@ public final class EndpointTestsGenerator {
             return goTemplate("Properties: $propertiesType:T{},", commonArgs);
         }
 
+        var expressionGenerator = new ExpressionGenerator(Scope.empty(), name -> null);
+
         return goBlockTemplate("""
                 Properties: func() $propertiesType:T {
-                    var properties $propertiesType:T
+                    var out $propertiesType:T
                 """, """
-                    return properties
+                    return out
                 }(),
                 """, commonArgs,
                 (w) -> {
                     properties.forEach((key, value) -> {
-                        w.writeGoTemplate("properties.Set($key:S, $value:W)",
-                                commonArgs, MapUtils.of(
-                                        "key", key,
-                                        "value", generateNodeValue(value)));
+                        if (key.equals("authSchemes")) {
+                            w.write("$W", new AuthSchemePropertyGenerator(expressionGenerator)
+                                    .generate(Expression.fromNode(value)));
+                        } else {
+                            w.writeGoTemplate("out.Set($key:S, $value:W)",
+                                    commonArgs, MapUtils.of(
+                                            "key", key,
+                                            "value", generateNodeValue(value)));
+                        }
                     });
                 });
     }

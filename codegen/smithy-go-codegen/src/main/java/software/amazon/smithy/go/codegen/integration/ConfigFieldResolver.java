@@ -120,7 +120,14 @@ public final class ConfigFieldResolver {
         /**
          * Indicates that the resolver targets config fields after customer mutation.
          */
-        FINALIZATION
+        FINALIZATION,
+
+        /**
+         * Indicates that the resolver targets config fields after the client has been instantiated. Resolvers with this
+         * target can then take a reference to the instantiated client in existing Options, but CANNOT modify fields on
+         * Options since it is passed to the already-existing client by value.
+         */
+        FINALIZATION_WITH_CLIENT
     }
 
     public static class Builder implements SmithyBuilder<ConfigFieldResolver> {
