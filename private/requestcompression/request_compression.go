@@ -85,29 +85,8 @@ func (m requestCompression) HandleSerialize(
 					return out, metadata, fmt.Errorf("failed to set request stream, %v", err)
 				}
 				*req = *newReq
-			} else {
-				if req.Body == nil {
-					break
-				}
-				body, err := io.ReadAll(req.Body)
-				if err != nil {
-					return out, metadata, fmt.Errorf("failed to read request body")
-				}
-				if int64(len(body)) < m.requestMinCompressSizeBytes {
-					req.Body = io.NopCloser(bytes.NewReader(body))
-					break
-				}
-				compressedBytes, err := compressFunc(bytes.NewReader(body))
-				if err != nil {
-					return out, metadata, fmt.Errorf("failed to compress request body, %v", err)
-				}
-
-				req.Body = io.NopCloser(bytes.NewReader(compressedBytes))
+				req.Header.Add("Content-Encoding", "gzip")
 			}
-
-			req.Header.Add("Content-Encoding", "gzip")
-
-			break
 		}
 	}
 
