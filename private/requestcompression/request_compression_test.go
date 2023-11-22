@@ -17,11 +17,9 @@ func TestRequestCompression(t *testing.T) {
 	cases := map[string]struct {
 		DisableRequestCompression   bool
 		RequestMinCompressSizeBytes int64
-		Body                        io.ReadCloser
 		ContentLength               int64
 		Header                      map[string][]string
 		Stream                      io.Reader
-		ExpectedBody                []byte
 		ExpectedStream              []byte
 		ExpectedHeader              map[string][]string
 	}{
@@ -32,55 +30,27 @@ func TestRequestCompression(t *testing.T) {
 				"Content-Encoding": {"gzip"},
 			},
 		},
-		"GZip request body": {
-			RequestMinCompressSizeBytes: 0,
-			Body:                        io.NopCloser(strings.NewReader("Hello, world!")),
-			ContentLength:               13,
-			ExpectedBody:                []byte("Hello, world!"),
-			ExpectedHeader: map[string][]string{
-				"Content-Encoding": {"gzip"},
-			},
-		},
-		"GZip request body with existing encoding header": {
-			RequestMinCompressSizeBytes: 0,
-			Body:                        io.NopCloser(strings.NewReader("Hello, world!")),
-			ContentLength:               13,
+		"GZip request stream with existing encoding header": {
+			Stream:         strings.NewReader("Hi, world!"),
+			ExpectedStream: []byte("Hi, world!"),
 			Header: map[string][]string{
 				"Content-Encoding": {"custom"},
 			},
-			ExpectedBody: []byte("Hello, world!"),
 			ExpectedHeader: map[string][]string{
 				"Content-Encoding": {"custom", "gzip"},
 			},
 		},
-		"GZip request stream ignoring min compress request size": {
+		"GZip request stream smaller than min compress request size": {
 			RequestMinCompressSizeBytes: 100,
 			Stream:                      strings.NewReader("Hi, world!"),
 			ExpectedStream:              []byte("Hi, world!"),
-			ExpectedHeader: map[string][]string{
-				"Content-Encoding": {"gzip"},
-			},
+			ExpectedHeader:              map[string][]string{},
 		},
 		"Disable GZip request stream": {
 			DisableRequestCompression: true,
 			Stream:                    strings.NewReader("Hi, world!"),
 			ExpectedStream:            []byte("Hi, world!"),
 			ExpectedHeader:            map[string][]string{},
-		},
-		"Disable GZip request body": {
-			DisableRequestCompression:   true,
-			RequestMinCompressSizeBytes: 0,
-			Body:                        io.NopCloser(strings.NewReader("Hello, world!")),
-			ContentLength:               13,
-			ExpectedBody:                []byte("Hello, world!"),
-			ExpectedHeader:              map[string][]string{},
-		},
-		"Disable Gzip request body due to size threshold": {
-			RequestMinCompressSizeBytes: 14,
-			Body:                        io.NopCloser(strings.NewReader("Hello, world!")),
-			ContentLength:               13,
-			ExpectedBody:                []byte("Hello, world!"),
-			ExpectedHeader:              map[string][]string{},
 		},
 	}
 
@@ -89,7 +59,6 @@ func TestRequestCompression(t *testing.T) {
 			var err error
 			req := http.NewStackRequest().(*http.Request)
 			req.ContentLength = c.ContentLength
-			req.Body = c.Body
 			req, _ = req.SetStream(c.Stream)
 			if c.Header != nil {
 				req.Header = c.Header
@@ -99,7 +68,7 @@ func TestRequestCompression(t *testing.T) {
 			m := requestCompression{
 				disableRequestCompression:   c.DisableRequestCompression,
 				requestMinCompressSizeBytes: c.RequestMinCompressSizeBytes,
-				compressAlgorithms:          []Algorithm{GZIP},
+				compressAlgorithms:          []string{GZIP},
 			}
 			_, _, err = m.HandleSerialize(context.Background(),
 				middleware.SerializeInput{Request: req},
@@ -114,22 +83,8 @@ func TestRequestCompression(t *testing.T) {
 			}
 
 			if stream := updatedRequest.GetStream(); stream != nil {
-				if err := testUnzipContent(stream, c.ExpectedStream, c.DisableRequestCompression); err != nil {
+				if err := testUnzipContent(stream, c.ExpectedStream, c.DisableRequestCompression, c.RequestMinCompressSizeBytes); err != nil {
 					t.Errorf("error while checking request stream: %q", err)
-				}
-			}
-
-			if body := updatedRequest.Body; body != nil {
-				if c.RequestMinCompressSizeBytes > c.ContentLength {
-					bodyBytes, err := io.ReadAll(body)
-					if err != nil {
-						t.Errorf("error while reading request body")
-					}
-					if e, a := c.ExpectedBody, bodyBytes; !bytes.Equal(e, a) {
-						t.Errorf("expect body to be %s, got %s", e, a)
-					}
-				} else if err := testUnzipContent(body, c.ExpectedBody, c.DisableRequestCompression); err != nil {
-					t.Errorf("error while checking request body: %q", err)
 				}
 			}
 
@@ -140,8 +95,8 @@ func TestRequestCompression(t *testing.T) {
 	}
 }
 
-func testUnzipContent(content io.Reader, expect []byte, disableRequestCompression bool) error {
-	if disableRequestCompression {
+func testUnzipContent(content io.Reader, expect []byte, disableRequestCompression bool, requestMinCompressionSizeBytes int64) error {
+	if disableRequestCompression || int64(len(expect)) < requestMinCompressionSizeBytes {
 		b, err := io.ReadAll(content)
 		if err != nil {
 			return fmt.Errorf("error while reading request")

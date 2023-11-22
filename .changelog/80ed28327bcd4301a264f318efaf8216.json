@@ -1,7 +1,7 @@
 {
     "id": "80ed2832-7bcd-4301-a264-f318efaf8216",
     "type": "feature",
-    "description": "Modify and Merge request compression codegen",
+    "description": "Support modeled request compression.",
     "modules": [
         "."
     ]

@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.requestcompression;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.List;
+import java.util.Set;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
@@ -57,7 +58,8 @@ public final class RequestCompression implements GoIntegration {
             return;
         }
 
-        goDelegator.useShapeWriter(service, writeMiddlewareHelper());
+        Set<String> algorithms = RequestCompressionTrait.SUPPORTED_COMPRESSION_ALGORITHMS;
+        goDelegator.useShapeWriter(service, writeMiddlewareHelper(algorithms));
     }
 
 
@@ -67,7 +69,7 @@ public final class RequestCompression implements GoIntegration {
                 .anyMatch(it -> it.hasTrait(RequestCompressionTrait.class));
     }
 
-    private GoWriter.Writable writeMiddlewareHelper() {
+    private GoWriter.Writable writeMiddlewareHelper(Set<String> algorithms) {
         var stackSymbol = SymbolUtils
                 .createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
@@ -77,13 +79,15 @@ public final class RequestCompression implements GoIntegration {
                 .build();
         return goTemplate("""
                 func $add:L(stack $stack:P, options Options) error {
-                    return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes)
+                    return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes,
+                    $algorithms:L)
                 }
                 """,
                 MapUtils.of(
-                        "add", ADD_REQUEST_COMPRESSION,
-                        "stack", stackSymbol,
-                        "addInternal", addInternalSymbol
+                "add", ADD_REQUEST_COMPRESSION,
+                "stack", stackSymbol,
+                "addInternal", addInternalSymbol,
+                "algorithms", String.format("\"%s\"", String.join(",", algorithms))
                 ));
     }
 

@@ -14,37 +14,35 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/transport/http"
 	"io"
+	"strings"
 )
-
-// Algorithm represents the request compression algorithms supported
-type Algorithm string
 
 const maxRequestMinCompressSizeBytes = 10485760
 
 // Enumeration values for supported compress Algorithms.
 const (
-	GZIP Algorithm = "gzip"
+	GZIP = "gzip"
 )
 
 type compressFunc func(io.Reader) ([]byte, error)
 
-var allowedAlgorithms = map[Algorithm]compressFunc{
+var allowedAlgorithms = map[string]compressFunc{
 	GZIP: gzipCompress,
 }
 
 // AddRequestCompression add requestCompression middleware to op stack
-func AddRequestCompression(stack *middleware.Stack, DisableRequestCompression bool, RequestMinCompressSizeBytes int64) error {
+func AddRequestCompression(stack *middleware.Stack, DisableRequestCompression bool, RequestMinCompressSizeBytes int64, algorithms string) error {
 	return stack.Serialize.Add(&requestCompression{
 		disableRequestCompression:   DisableRequestCompression,
 		requestMinCompressSizeBytes: RequestMinCompressSizeBytes,
-		compressAlgorithms:          []Algorithm{GZIP},
+		compressAlgorithms:          strings.Split(algorithms, ","),
 	}, middleware.After)
 }
 
 type requestCompression struct {
 	disableRequestCompression   bool
 	requestMinCompressSizeBytes int64
-	compressAlgorithms          []Algorithm
+	compressAlgorithms          []string
 }
 
 // ID returns the ID of the middleware
@@ -75,6 +73,13 @@ func (m requestCompression) HandleSerialize(
 		compressFunc := allowedAlgorithms[algorithm]
 		if compressFunc != nil {
 			if stream := req.GetStream(); stream != nil {
+				size, found, err := req.StreamLength()
+				if err != nil {
+					return out, metadata, fmt.Errorf("error while finding request stream length, %v", err)
+				} else if !found || size < m.requestMinCompressSizeBytes {
+					return next.HandleSerialize(ctx, in)
+				}
+
 				compressedBytes, err := compressFunc(stream)
 				if err != nil {
 					return out, metadata, fmt.Errorf("failed to compress request stream, %v", err)
@@ -85,8 +90,9 @@ func (m requestCompression) HandleSerialize(
 					return out, metadata, fmt.Errorf("failed to set request stream, %v", err)
 				}
 				*req = *newReq
-				req.Header.Add("Content-Encoding", "gzip")
+				req.Header.Add("Content-Encoding", algorithm)
 			}
+			break
 		}
 	}
 
