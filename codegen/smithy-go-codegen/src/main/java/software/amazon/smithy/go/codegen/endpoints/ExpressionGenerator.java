@@ -21,7 +21,6 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -132,8 +131,9 @@ final class ExpressionGenerator {
 
         @Override
         public GoWriter.Writable visitString(Template value) {
-            Stream<GoWriter.Writable> parts = value.accept(
-                    new TemplateGeneratorVisitor((expr) -> new ExpressionGenerator(scope, fnProvider).generate(expr)));
+            var parts = value.accept(
+                    new TemplateGeneratorVisitor((expr) -> new ExpressionGenerator(scope, fnProvider).generate(expr))
+            ).toList();
 
             return (GoWriter w) -> {
                 parts.forEach((p) -> w.write("$W", p));

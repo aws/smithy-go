@@ -247,6 +247,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 protocolGenerator.generateEndpointResolution(context);
             });
 
+            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                protocolGenerator.generateAuth(context);
+            });
+
             writers.useFileWriter("endpoints_test.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateEndpointResolutionTests(context);
@@ -315,6 +320,19 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
 
+        var protocol = protocolGenerator != null
+                ? protocolGenerator.getApplicationProtocol()
+                : ApplicationProtocol.createDefaultHttpApplicationProtocol();
+        var context = ProtocolGenerator.GenerationContext.builder()
+                .protocolName(protocol.getName())
+                .integrations(integrations)
+                .model(model)
+                .service(service)
+                .settings(settings)
+                .symbolProvider(symbolProvider)
+                .delegator(writers)
+                .build();
+
         // Write API client's package doc for the service.
         writers.useFileWriter("doc.go", settings.getModuleName(), (writer) -> {
             writer.writePackageDocs(String.format(
@@ -344,6 +362,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                                 protocolGenerator, runtimePlugins).run());
             }
         });
+
+        var clientOptions = new ClientOptions(context, protocol);
+        writers.useFileWriter("options.go", settings.getModuleName(), clientOptions);
         return null;
     }
 

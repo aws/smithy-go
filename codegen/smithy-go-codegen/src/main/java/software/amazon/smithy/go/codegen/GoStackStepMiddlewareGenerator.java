@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.function.BiConsumer;
 import software.amazon.smithy.codegen.core.Symbol;
 
@@ -66,6 +68,28 @@ public final class GoStackStepMiddlewareGenerator {
     }
 
     /**
+     * Create an inline Initialize func.
+     *
+     * @param body is the function body.
+     * @return the generated middleware func.
+     */
+    public static GoWriter.Writable generateInitializeMiddlewareFunc(GoWriter.Writable body) {
+        return goTemplate("""
+                func(ctx $T, in $T, next $T) (
+                    out $T, metadata $T, err error,
+                ) {
+                    $W
+                }
+                """,
+                GoStdlibTypes.Context.Context,
+                SmithyGoTypes.Middleware.InitializeInput,
+                SmithyGoTypes.Middleware.InitializeHandler,
+                SmithyGoTypes.Middleware.InitializeOutput,
+                SmithyGoTypes.Middleware.Metadata,
+                body);
+    }
+
+    /**
      * Create a new BuildStep middleware generator with the provided type name.
      *
      * @param name is the type name to identify the middleware.
@@ -95,6 +119,44 @@ public final class GoStackStepMiddlewareGenerator {
                 SymbolUtils.createValueSymbolBuilder("SerializeInput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("SerializeOutput", SmithyGoDependency.SMITHY_MIDDLEWARE).build(),
                 SymbolUtils.createValueSymbolBuilder("SerializeHandler", SmithyGoDependency.SMITHY_MIDDLEWARE).build());
+    }
+
+    /**
+     * Create a new FinalizeStep middleware generator with the provided type name.
+     *
+     * @param name is the type name to identify the middleware.
+     * @param id   the unique ID for the middleware.
+     * @return the middleware generator.
+     */
+    public static GoStackStepMiddlewareGenerator createFinalizeStepMiddleware(String name, MiddlewareIdentifier id) {
+        return createMiddleware(name,
+                id,
+                "HandleFinalize",
+                SmithyGoTypes.Middleware.FinalizeInput,
+                SmithyGoTypes.Middleware.FinalizeOutput,
+                SmithyGoTypes.Middleware.FinalizeHandler);
+    }
+
+    /**
+     * Create an inline Finalize func.
+     *
+     * @param body is the function body.
+     * @return the generated middleware func.
+     */
+    public static GoWriter.Writable generateFinalizeMiddlewareFunc(GoWriter.Writable body) {
+        return goTemplate("""
+                func(ctx $T, in $T, next $T) (
+                    out $T, metadata $T, err error,
+                ) {
+                    $W
+                }
+                """,
+                GoStdlibTypes.Context.Context,
+                SmithyGoTypes.Middleware.FinalizeInput,
+                SmithyGoTypes.Middleware.FinalizeHandler,
+                SmithyGoTypes.Middleware.FinalizeOutput,
+                SmithyGoTypes.Middleware.Metadata,
+                body);
     }
 
     /**
@@ -214,6 +276,20 @@ public final class GoStackStepMiddlewareGenerator {
                 () -> {
                     handlerBodyConsumer.accept(this, writer);
                 });
+    }
+
+    /**
+     * Creates a Writable which renders the middleware.
+     * @param body A Writable that renders the middleware body.
+     * @param fields A Writable that renders the middleware struct's fields.
+     * @return the writable.
+     */
+    public GoWriter.Writable asWritable(GoWriter.Writable body, GoWriter.Writable fields) {
+        return writer -> writeMiddleware(
+                writer,
+                (generator, bodyWriter) -> bodyWriter.write("$W", body),
+                (generator, fieldWriter) -> fieldWriter.write("$W", fields)
+        );
     }
 
     /**

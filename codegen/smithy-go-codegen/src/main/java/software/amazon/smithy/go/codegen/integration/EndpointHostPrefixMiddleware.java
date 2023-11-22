@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.pattern.SmithyPattern;
@@ -89,8 +90,8 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
                         middlewareHelperName,
                         () -> {
                             writer.write(
-                                    "return stack.Serialize.Insert(&$L{}, `OperationSerializer`, middleware.After)",
-                                    middlewareName);
+                                    "return stack.Finalize.Insert(&$L{}, $S, middleware.After)",
+                                    middlewareName, EndpointMiddlewareGenerator.MIDDLEWARE_ID);
                         });
             });
         });
@@ -104,7 +105,7 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
             SmithyPattern pattern
     ) {
         GoStackStepMiddlewareGenerator middlewareGenerator =
-                GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
+                GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware(
                         getMiddlewareName(operation),
                         MIDDLEWARE_ID
                 );
@@ -130,9 +131,10 @@ public class EndpointHostPrefixMiddleware implements GoIntegration {
                 writer.addUseImports(SmithyGoDependency.STRINGS);
                 writer.addUseImports(SmithyGoDependency.SMITHY);
                 StructureShape input = ProtocolUtils.expectInput(model, operation);
-                writer.write("input, ok := in.Parameters.($P)", symbolProvider.toSymbol(input));
+                writer.write("opaqueInput := getOperationInput(ctx)");
+                writer.write("input, ok := opaqueInput.($P)", symbolProvider.toSymbol(input));
                 w.openBlock("if !ok {", "}", () -> {
-                    writer.write("return out, metadata, fmt.Errorf(\"unknown input type %T\", in.Parameters)");
+                    writer.write("return out, metadata, fmt.Errorf(\"unknown input type %T\", opaqueInput)");
                 }).write("");
 
                 w.write("var prefix strings.Builder");

@@ -29,6 +29,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.Synthetic;
+import software.amazon.smithy.go.codegen.auth.AuthGenerator;
 import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
 import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
@@ -40,6 +41,8 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.Trait;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.CaseUtils;
 import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.StringUtils;
@@ -482,6 +485,15 @@ public interface ProtocolGenerator {
     }
 
     /**
+     * Generates smithy client auth components.
+     *
+     * @param context The generation context.
+     */
+    default void generateAuth(GenerationContext context) {
+        new AuthGenerator(context).generate();
+    }
+
+    /**
      * Context object used for service serialization and deserialization.
      */
     class GenerationContext {
@@ -531,6 +543,10 @@ public interface ProtocolGenerator {
 
         public ServiceShape getService() {
             return service;
+        }
+
+        public EndpointRuleSet getEndpointRules() {
+            return EndpointRuleSet.fromNode(service.expectTrait(EndpointRuleSetTrait.class).getRuleSet());
         }
 
         public SymbolProvider getSymbolProvider() {
