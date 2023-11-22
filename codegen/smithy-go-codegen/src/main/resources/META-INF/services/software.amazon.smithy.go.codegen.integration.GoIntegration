@@ -10,3 +10,7 @@ software.amazon.smithy.go.codegen.integration.Waiters
 software.amazon.smithy.go.codegen.integration.ClientLogger
 software.amazon.smithy.go.codegen.endpoints.EndpointClientPluginsGenerator
 software.amazon.smithy.go.codegen.requestcompression.RequestCompression
+
+# modeled auth schemes
+software.amazon.smithy.go.codegen.integration.auth.SigV4AuthScheme
+software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme
