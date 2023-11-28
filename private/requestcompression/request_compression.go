@@ -14,7 +14,6 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/transport/http"
 	"io"
-	"strings"
 )
 
 const maxRequestMinCompressSizeBytes = 10485760
@@ -31,11 +30,11 @@ var allowedAlgorithms = map[string]compressFunc{
 }
 
 // AddRequestCompression add requestCompression middleware to op stack
-func AddRequestCompression(stack *middleware.Stack, DisableRequestCompression bool, RequestMinCompressSizeBytes int64, algorithms string) error {
+func AddRequestCompression(stack *middleware.Stack, disabled bool, minBytes int64, algorithms []string) error {
 	return stack.Serialize.Add(&requestCompression{
-		disableRequestCompression:   DisableRequestCompression,
-		requestMinCompressSizeBytes: RequestMinCompressSizeBytes,
-		compressAlgorithms:          strings.Split(algorithms, ","),
+		disableRequestCompression:   disabled,
+		requestMinCompressSizeBytes: minBytes,
+		compressAlgorithms:          algorithms,
 	}, middleware.After)
 }
 
@@ -90,7 +89,12 @@ func (m requestCompression) HandleSerialize(
 					return out, metadata, fmt.Errorf("failed to set request stream, %v", err)
 				}
 				*req = *newReq
-				req.Header.Add("Content-Encoding", algorithm)
+
+				if val := req.Header.Get("Content-Encoding"); val != "" {
+					req.Header.Set("Content-Encoding", val+", "+algorithm)
+				} else {
+					req.Header.Set("Content-Encoding", algorithm)
+				}
 			}
 			break
 		}

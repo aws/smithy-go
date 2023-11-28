@@ -37,7 +37,7 @@ func TestRequestCompression(t *testing.T) {
 				"Content-Encoding": {"custom"},
 			},
 			ExpectedHeader: map[string][]string{
-				"Content-Encoding": {"custom", "gzip"},
+				"Content-Encoding": {"custom, gzip"},
 			},
 		},
 		"GZip request stream smaller than min compress request size": {

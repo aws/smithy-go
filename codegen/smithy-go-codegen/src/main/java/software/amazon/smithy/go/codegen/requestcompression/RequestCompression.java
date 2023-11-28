@@ -17,9 +17,10 @@ package software.amazon.smithy.go.codegen.requestcompression;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -31,20 +32,51 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.MapUtils;
 
 
 public final class RequestCompression implements GoIntegration {
-    private static final String ADD_REQUEST_COMPRESSION = "addRequestCompression";
-
     private static final String ADD_REQUEST_COMPRESSION_INTERNAL = "AddRequestCompression";
 
     private static final String DISABLE_REQUEST_COMPRESSION = "DisableRequestCompression";
 
     private static final String REQUEST_MIN_COMPRESSION_SIZE_BYTES = "RequestMinCompressSizeBytes";
+
+    private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
+
+    private static String getAddRequestCompressionMiddlewareFuncName(String operationName) {
+        return String.format("addOperation%sRequestCompressionMiddleware", operationName);
+    }
+
+    // Write operation plugin for request compression middleware
+    @Override
+    public void processFinalizedModel(GoSettings settings, Model model) {
+        ServiceShape service = settings.getService(model);
+        TopDownIndex.of(model)
+                .getContainedOperations(service).forEach(operation -> {
+                    if (!operation.hasTrait(RequestCompressionTrait.class)) {
+                        return;
+                    }
+                    SymbolProvider symbolProvider = GoCodegenPlugin.createSymbolProvider(model, settings);
+                    String funcName = getAddRequestCompressionMiddlewareFuncName(
+                            symbolProvider.toSymbol(operation).getName()
+                    );
+                    runtimeClientPlugins.add(RuntimeClientPlugin.builder().operationPredicate((m, s, o) -> {
+                        if (!o.hasTrait(RequestCompressionTrait.class)) {
+                            return false;
+                        }
+                        return o.equals(operation);
+                    }).registerMiddleware(MiddlewareRegistrar.builder()
+                        .resolvedFunction(SymbolUtils.createValueSymbolBuilder(funcName).build())
+                        .useClientOptions().build())
+                        .build());
+                });
+    }
 
     @Override
     public void writeAdditionalFiles(
@@ -54,12 +86,13 @@ public final class RequestCompression implements GoIntegration {
             GoDelegator goDelegator
     ) {
         ServiceShape service = settings.getService(model);
-        if (!isRequestCompressionService(model, service)) {
-            return;
+        for (ShapeId operationID : service.getAllOperations()) {
+            OperationShape operation = model.expectShape(operationID, OperationShape.class);
+            if (!operation.hasTrait(RequestCompressionTrait.class)) {
+                continue;
+            }
+            goDelegator.useShapeWriter(operation, writeMiddlewareHelper(symbolProvider, operation));
         }
-
-        Set<String> algorithms = RequestCompressionTrait.SUPPORTED_COMPRESSION_ALGORITHMS;
-        goDelegator.useShapeWriter(service, writeMiddlewareHelper(algorithms));
     }
 
 
@@ -69,7 +102,7 @@ public final class RequestCompression implements GoIntegration {
                 .anyMatch(it -> it.hasTrait(RequestCompressionTrait.class));
     }
 
-    private GoWriter.Writable writeMiddlewareHelper(Set<String> algorithms) {
+    private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
         var stackSymbol = SymbolUtils
                 .createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
@@ -77,6 +110,16 @@ public final class RequestCompression implements GoIntegration {
                 .createValueSymbolBuilder(ADD_REQUEST_COMPRESSION_INTERNAL,
                 SmithyGoDependency.SMITHY_REQUEST_COMPRESSION)
                 .build();
+        String operationName = symbolProvider.toSymbol(operation).getName();
+        RequestCompressionTrait trait = operation.expectTrait(RequestCompressionTrait.class);
+
+        // build encoding list symbol
+        StringBuilder algorithmList = new StringBuilder("[]string{");
+        for (String algo : trait.getEncodings()) {
+            algorithmList.append(String.format("\"%s\", ", algo));
+        }
+        String algorithms = algorithmList.substring(0, algorithmList.length() - 2) + "}";
+
         return goTemplate("""
                 func $add:L(stack $stack:P, options Options) error {
                     return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes,
@@ -84,24 +127,16 @@ public final class RequestCompression implements GoIntegration {
                 }
                 """,
                 MapUtils.of(
-                "add", ADD_REQUEST_COMPRESSION,
+                "add", getAddRequestCompressionMiddlewareFuncName(operationName),
                 "stack", stackSymbol,
                 "addInternal", addInternalSymbol,
-                "algorithms", String.format("\"%s\"", String.join(",", algorithms))
+                "algorithms", algorithms
                 ));
     }
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
-        return ListUtils.of(
-                RuntimeClientPlugin.builder()
-                        .operationPredicate((model, service, operation) ->
-                        operation.hasTrait(RequestCompressionTrait.class))
-                        .registerMiddleware(MiddlewareRegistrar.builder()
-                                .resolvedFunction(SymbolUtils.createValueSymbolBuilder(ADD_REQUEST_COMPRESSION).build())
-                                .useClientOptions()
-                                .build())
-                        .build(),
+       runtimeClientPlugins.add(
                 RuntimeClientPlugin.builder()
                         .servicePredicate(RequestCompression::isRequestCompressionService)
                         .configFields(ListUtils.of(
@@ -123,6 +158,8 @@ public final class RequestCompression implements GoIntegration {
                                         .build()
                         ))
                         .build()
-        );
+       );
+
+       return runtimeClientPlugins;
     }
 }
