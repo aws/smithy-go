@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
@@ -95,6 +96,7 @@ final class ServiceGenerator implements Runnable {
                 generateMetadata(),
                 generateClient(),
                 generateNew(),
+                generateGetOptions(),
                 generateInvokeOperation(),
                 generateInputContextFuncs(),
                 generateAddProtocolFinalizerMiddleware()
@@ -221,6 +223,20 @@ final class ServiceGenerator implements Runnable {
                                         .toList()
                         ).compose()
                 ));
+    }
+
+    private GoWriter.Writable generateGetOptions() {
+        var docs = autoDocTemplate("""
+                Options returns a copy of the client configuration.
+
+                Callers SHOULD NOT perform mutations on any inner structures within client config. Config overrides
+                should instead be made on a per-operation basis through functional options.""");
+        return goTemplate("""
+                $W
+                func (c $P) Options() $L {
+                    return c.options.Copy()
+                }
+                """, docs, symbolProvider.toSymbol(service), ClientOptions.NAME);
     }
 
     private GoWriter.Writable generateConfigFieldResolver(ConfigFieldResolver resolver) {
