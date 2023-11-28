@@ -25,6 +25,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
@@ -103,9 +104,6 @@ public final class RequestCompression implements GoIntegration {
     }
 
     private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
-        var stackSymbol = SymbolUtils
-                .createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                .build();
         var addInternalSymbol = SymbolUtils
                 .createValueSymbolBuilder(ADD_REQUEST_COMPRESSION_INTERNAL,
                 SmithyGoDependency.SMITHY_REQUEST_COMPRESSION)
@@ -128,7 +126,7 @@ public final class RequestCompression implements GoIntegration {
                 """,
                 MapUtils.of(
                 "add", getAddRequestCompressionMiddlewareFuncName(operationName),
-                "stack", stackSymbol,
+                "stack", SmithyGoTypes.Middleware.Stack,
                 "addInternal", addInternalSymbol,
                 "algorithms", algorithms
                 ));
