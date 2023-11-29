@@ -105,4 +105,10 @@ public final class SmithyGoTypes {
             public static final Symbol NewSignHTTPSMessage = SmithyGoDependency.SMITHY_AUTH_BEARER.valueSymbol("NewSignHTTPSMessage");
         }
     }
+
+    public static final class Private {
+        public static final class RequestCompression {
+            public static final Symbol AddRequestCompression = SmithyGoDependency.SMITHY_REQUEST_COMPRESSION.valueSymbol("AddRequestCompression");
+        }
+    }
 }

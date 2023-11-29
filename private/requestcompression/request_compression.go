@@ -8,7 +8,6 @@ package requestcompression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"github.com/aws/smithy-go/middleware"
@@ -91,7 +90,7 @@ func (m requestCompression) HandleSerialize(
 				*req = *newReq
 
 				if val := req.Header.Get("Content-Encoding"); val != "" {
-					req.Header.Set("Content-Encoding", val+", "+algorithm)
+					req.Header.Set("Content-Encoding", fmt.Sprintf("%s, %s", val, algorithm))
 				} else {
 					req.Header.Set("Content-Encoding", algorithm)
 				}
@@ -101,26 +100,4 @@ func (m requestCompression) HandleSerialize(
 	}
 
 	return next.HandleSerialize(ctx, in)
-}
-
-func gzipCompress(input io.Reader) ([]byte, error) {
-	var b bytes.Buffer
-	w, err := gzip.NewWriterLevel(&b, gzip.DefaultCompression)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gzip writer, %v", err)
-	}
-
-	inBytes, err := io.ReadAll(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed read payload to compress, %v", err)
-	}
-
-	if _, err = w.Write(inBytes); err != nil {
-		return nil, fmt.Errorf("failed to write payload to be compressed, %v", err)
-	}
-	if err = w.Close(); err != nil {
-		return nil, fmt.Errorf("failed to flush payload being compressed, %v", err)
-	}
-
-	return b.Bytes(), nil
 }

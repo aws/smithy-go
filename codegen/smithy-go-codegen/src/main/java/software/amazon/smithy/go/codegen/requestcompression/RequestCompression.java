@@ -23,8 +23,8 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -42,8 +42,6 @@ import software.amazon.smithy.utils.MapUtils;
 
 
 public final class RequestCompression implements GoIntegration {
-    private static final String ADD_REQUEST_COMPRESSION_INTERNAL = "AddRequestCompression";
-
     private static final String DISABLE_REQUEST_COMPRESSION = "DisableRequestCompression";
 
     private static final String REQUEST_MIN_COMPRESSION_SIZE_BYTES = "RequestMinCompressSizeBytes";
@@ -73,7 +71,7 @@ public final class RequestCompression implements GoIntegration {
                         }
                         return o.equals(operation);
                     }).registerMiddleware(MiddlewareRegistrar.builder()
-                        .resolvedFunction(SymbolUtils.createValueSymbolBuilder(funcName).build())
+                        .resolvedFunction(SymbolUtils.buildPackageSymbol(funcName))
                         .useClientOptions().build())
                         .build());
                 });
@@ -104,31 +102,20 @@ public final class RequestCompression implements GoIntegration {
     }
 
     private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
-        var addInternalSymbol = SymbolUtils
-                .createValueSymbolBuilder(ADD_REQUEST_COMPRESSION_INTERNAL,
-                SmithyGoDependency.SMITHY_REQUEST_COMPRESSION)
-                .build();
         String operationName = symbolProvider.toSymbol(operation).getName();
         RequestCompressionTrait trait = operation.expectTrait(RequestCompressionTrait.class);
-
-        // build encoding list symbol
-        StringBuilder algorithmList = new StringBuilder("[]string{");
-        for (String algo : trait.getEncodings()) {
-            algorithmList.append(String.format("\"%s\", ", algo));
-        }
-        String algorithms = algorithmList.substring(0, algorithmList.length() - 2) + "}";
 
         return goTemplate("""
                 func $add:L(stack $stack:P, options Options) error {
                     return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes,
-                    $algorithms:L)
+                    $algorithms:W)
                 }
                 """,
                 MapUtils.of(
                 "add", getAddRequestCompressionMiddlewareFuncName(operationName),
                 "stack", SmithyGoTypes.Middleware.Stack,
-                "addInternal", addInternalSymbol,
-                "algorithms", algorithms
+                "addInternal", SmithyGoTypes.Private.RequestCompression.AddRequestCompression,
+                "algorithms", generateAlgorithmList(trait.getEncodings())
                 ));
     }
 
@@ -140,17 +127,13 @@ public final class RequestCompression implements GoIntegration {
                         .configFields(ListUtils.of(
                                 ConfigField.builder()
                                         .name(DISABLE_REQUEST_COMPRESSION)
-                                        .type(SymbolUtils.createValueSymbolBuilder("bool")
-                                                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
-                                                .build())
+                                        .type(GoUniverseTypes.Bool)
                                         .documentation(
                                         "Whether to disable automatic request compression for supported operations.")
                                         .build(),
                                 ConfigField.builder()
                                         .name(REQUEST_MIN_COMPRESSION_SIZE_BYTES)
-                                        .type(SymbolUtils.createValueSymbolBuilder("int64")
-                                                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
-                                                .build())
+                                        .type(GoUniverseTypes.Int64)
                                         .documentation("The minimum request body size, in bytes, at which compression "
                                         + "should occur. The default value is 10 KiB. Values must fall within "
                                         + "[0, 1MiB].")
@@ -160,5 +143,18 @@ public final class RequestCompression implements GoIntegration {
        );
 
        return runtimeClientPlugins;
+    }
+
+    private GoWriter.Writable generateAlgorithmList(List<String> algorithms) {
+        return goTemplate("""
+        []string{
+            $W
+        }
+        """,
+                GoWriter.ChainWritable.of(
+                        algorithms.stream()
+                                .map(it -> goTemplate("$S,", it))
+                                .toList()
+                ).compose(false));
     }
 }
