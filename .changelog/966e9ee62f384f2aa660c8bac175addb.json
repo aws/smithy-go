@@ -1,8 +1,0 @@
-{
-    "id": "966e9ee6-2f38-4f2a-a660-c8bac175addb",
-    "type": "feature",
-    "description": "Expose Options() method on generated service clients.",
-    "modules": [
-        "."
-    ]
-}
