@@ -1,3 +1,7 @@
+# Release (2023-11-30)
+
+* No change notes available for this release.
+
 # Release (2023-11-29)
 
 ## Module Highlights
