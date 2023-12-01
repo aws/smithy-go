@@ -76,7 +76,7 @@ public class GetIdentityMiddlewareGenerator {
 
                 identity, err := resolver.GetIdentity(ctx, rscheme.IdentityProperties)
                 if err != nil {
-                    return out, metadata, $errorf:T("get identity: %v", err)
+                    return out, metadata, $errorf:T("get identity: %w", err)
                 }
 
                 ctx = setIdentity(ctx, identity)
