@@ -39,7 +39,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
     public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Add(&$L{operation: operation, options: options}, $T); err != nil {
-                    return $T("add $L: %v", err)
+                    return $T("add $L: %w", err)
                 }
                 """,
                 MIDDLEWARE_NAME,
@@ -69,7 +69,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 params := $1L(m.operation, getOperationInput(ctx), m.options)
                 options, err := m.options.AuthSchemeResolver.ResolveAuthSchemes(ctx, params)
                 if err != nil {
-                    return out, metadata, $2T("resolve auth scheme: %v", err)
+                    return out, metadata, $2T("resolve auth scheme: %w", err)
                 }
 
                 scheme, ok := m.selectScheme(options)

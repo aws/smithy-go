@@ -40,7 +40,7 @@ public class SignRequestMiddlewareGenerator {
     public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Insert(&$L{}, $S, $T); err != nil {
-                    return $T("add $L: %v", err)
+                    return $T("add $L: %w", err)
                 }
                 """,
                 MIDDLEWARE_NAME,
@@ -82,7 +82,7 @@ public class SignRequestMiddlewareGenerator {
                 }
 
                 if err := signer.SignRequest(ctx, req, identity, rscheme.SignerProperties); err != nil {
-                    return out, metadata, $errorf:T("sign request: %v", err)
+                    return out, metadata, $errorf:T("sign request: %w", err)
                 }
 
                 return next.HandleFinalize(ctx, in)
