@@ -152,6 +152,23 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         return goDocTemplate(contents, new HashMap<>());
     }
 
+    /**
+     * Auto-formats a multi-paragraph string as a doc writable (including line wrapping).
+     * @param contents The docs.
+     * @return writer for formatted docs.
+     */
+    public static Writable autoDocTemplate(String contents) {
+        return GoWriter.ChainWritable.of(
+                Arrays.stream(contents.split("\n\n"))
+                        .map(it -> docParagraphWriter(it.replace("\n", " ")))
+                        .toList()
+        ).compose(false);
+    }
+
+    private static GoWriter.Writable docParagraphWriter(String paragraph) {
+        return writer -> writer.writeDocs(paragraph).writeDocs("");
+    }
+
     @SafeVarargs
     public static Writable goDocTemplate(String contents, Map<String, Object>... args) {
         validateTemplateArgsNotNull(args);

@@ -8,6 +8,17 @@ import (
 	"io/ioutil"
 )
 
+// Enumeration values for supported compress Algorithms.
+const (
+	GZIP = "gzip"
+)
+
+type compareCompressFunc func([]byte, io.Reader) error
+
+var allowedAlgorithms = map[string]compareCompressFunc{
+	GZIP: GzipCompareCompressBytes,
+}
+
 // CompareReaderEmpty checks if the reader is nil, or contains no bytes.
 // Returns an error if not empty.
 func CompareReaderEmpty(r io.Reader) error {
@@ -92,5 +103,29 @@ func CompareURLFormReaderBytes(r io.Reader, expect []byte) error {
 	if err := URLFormEqual(expect, actual); err != nil {
 		return fmt.Errorf("URL query forms not equal, %v", err)
 	}
+	return nil
+}
+
+// CompareCompressedBytes compares the request stream before and after possible request compression
+func CompareCompressedBytes(expect *bytes.Buffer, actual io.Reader, disable bool, min int64, algorithm string) error {
+	expectBytes := expect.Bytes()
+	if disable || int64(len(expectBytes)) < min {
+		actualBytes, err := io.ReadAll(actual)
+		if err != nil {
+			return fmt.Errorf("error while reading request: %q", err)
+		}
+		if e, a := expectBytes, actualBytes; !bytes.Equal(e, a) {
+			return fmt.Errorf("expect content to be %s, got %s", e, a)
+		}
+	} else {
+		compareFn := allowedAlgorithms[algorithm]
+		if compareFn == nil {
+			return fmt.Errorf("compress algorithm %s is not allowed", algorithm)
+		}
+		if err := compareFn(expectBytes, actual); err != nil {
+			return fmt.Errorf("error while comparing unzipped content: %q", err)
+		}
+	}
+
 	return nil
 }

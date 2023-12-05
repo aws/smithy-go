@@ -17,19 +17,30 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoTypes.Private.RequestCompression.AddCaptureUncompressedRequest;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.model.traits.RequestCompressionTrait;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
  * Generates HTTP protocol unit tests for HTTP request test cases.
  */
 public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGenerator<HttpRequestTestCase> {
     private static final Logger LOGGER = Logger.getLogger(HttpProtocolUnitTestRequestGenerator.class.getName());
+
+    private static final Set<String> ALLOWED_ALGORITHMS = new HashSet<>(Arrays.asList("gzip"));
 
     /**
      * Initializes the protocol test generator.
@@ -198,6 +209,10 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
      */
     protected void generateTestBodySetup(GoWriter writer) {
         writer.write("actualReq := &http.Request{}");
+        if (operation.hasTrait(RequestCompressionTrait.class)) {
+            writer.addUseImports(SmithyGoDependency.BYTES);
+            writer.write("rawBodyBuf := &bytes.Buffer{}");
+        }
     }
 
     /**
@@ -227,8 +242,29 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                             writer.write("return $T(stack, actualReq)",
                             SymbolUtils.createValueSymbolBuilder("AddCaptureRequestMiddleware",
                             SmithyGoDependency.SMITHY_PRIVATE_PROTOCOL).build());
-            });
+                });
+                if (operation.hasTrait(RequestCompressionTrait.class)) {
+                    writer.write(goTemplate("""
+                                options.APIOptions = append(options.APIOptions, func(stack $stack:P) error {
+                                    return $captureRequest:T(stack, rawBodyBuf)
+                                })
+                                """,
+                            MapUtils.of(
+                                    "stack", SmithyGoTypes.Middleware.Stack,
+                                    "captureRequest", AddCaptureUncompressedRequest
+                            )));
+                }
         });
+
+        if (operation.hasTrait(RequestCompressionTrait.class)) {
+            writer.write(goTemplate("""
+                    disable := $client:L.Options().DisableRequestCompression
+                    min := $client:L.Options().RequestMinCompressSizeBytes
+                    """,
+                    MapUtils.of(
+                    "client", clientName
+                    )));
+        }
     }
 
     /**
@@ -259,6 +295,20 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                 writer.write("t.Errorf(\"expect body equal, got %v\", err)");
             });
         });
+
+        if (operation.hasTrait(RequestCompressionTrait.class)) {
+            String algorithm = operation.expectTrait(RequestCompressionTrait.class).getEncodings()
+                .stream().filter(it -> ALLOWED_ALGORITHMS.contains(it)).findFirst().get();
+            writer.write(goTemplate("""
+                if err := smithytesting.CompareCompressedBytes(rawBodyBuf, actualReq.Body,
+                disable, min, $algorithm:S); err != nil {
+                    t.Errorf("unzipped request body not match: %q", err)
+                }
+                """,
+                MapUtils.of(
+                    "algorithm", algorithm
+            )));
+        }
     }
 
     public static class Builder extends HttpProtocolUnitTestGenerator.Builder<HttpRequestTestCase> {

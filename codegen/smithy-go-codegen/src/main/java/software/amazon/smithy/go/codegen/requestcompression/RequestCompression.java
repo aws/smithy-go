@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -47,10 +47,6 @@ public final class RequestCompression implements GoIntegration {
     private static final String REQUEST_MIN_COMPRESSION_SIZE_BYTES = "RequestMinCompressSizeBytes";
 
     private final List<RuntimeClientPlugin> runtimeClientPlugins = new ArrayList<>();
-
-    private static String getAddRequestCompressionMiddlewareFuncName(String operationName) {
-        return String.format("addOperation%sRequestCompressionMiddleware", operationName);
-    }
 
     // Write operation plugin for request compression middleware
     @Override
@@ -101,24 +97,6 @@ public final class RequestCompression implements GoIntegration {
                 .anyMatch(it -> it.hasTrait(RequestCompressionTrait.class));
     }
 
-    private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
-        String operationName = symbolProvider.toSymbol(operation).getName();
-        RequestCompressionTrait trait = operation.expectTrait(RequestCompressionTrait.class);
-
-        return goTemplate("""
-                func $add:L(stack $stack:P, options Options) error {
-                    return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes,
-                    $algorithms:W)
-                }
-                """,
-                MapUtils.of(
-                "add", getAddRequestCompressionMiddlewareFuncName(operationName),
-                "stack", SmithyGoTypes.Middleware.Stack,
-                "addInternal", SmithyGoTypes.Private.RequestCompression.AddRequestCompression,
-                "algorithms", generateAlgorithmList(trait.getEncodings())
-                ));
-    }
-
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
        runtimeClientPlugins.add(
@@ -156,5 +134,27 @@ public final class RequestCompression implements GoIntegration {
                                 .map(it -> goTemplate("$S,", it))
                                 .toList()
                 ).compose(false));
+    }
+
+    private static String getAddRequestCompressionMiddlewareFuncName(String operationName) {
+        return String.format("addOperation%sRequestCompressionMiddleware", operationName);
+    }
+
+    private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
+        String operationName = symbolProvider.toSymbol(operation).getName();
+        RequestCompressionTrait trait = operation.expectTrait(RequestCompressionTrait.class);
+
+        return goTemplate("""
+                func $add:L(stack $stack:P, options Options) error {
+                    return $addInternal:T(stack, options.DisableRequestCompression, options.RequestMinCompressSizeBytes,
+                    $algorithms:W)
+                }
+                """,
+                MapUtils.of(
+                        "add", getAddRequestCompressionMiddlewareFuncName(operationName),
+                        "stack", SmithyGoTypes.Middleware.Stack,
+                        "addInternal", SmithyGoTypes.Private.RequestCompression.AddRequestCompression,
+                        "algorithms", generateAlgorithmList(trait.getEncodings())
+                ));
     }
 }

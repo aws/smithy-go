@@ -17,4 +17,13 @@ func TestProperties(t *testing.T) {
 			t.Errorf("expect key / value properties to be equivalent: %v / %v", k, v)
 		}
 	}
+
+	var n Properties
+	n.SetAll(&m)
+	for k, v := range original {
+		if n.Get(k) != v {
+			t.Errorf("expect key / value properties to be equivalent: %v / %v", k, v)
+		}
+	}
+
 }
