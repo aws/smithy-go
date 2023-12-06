@@ -15,7 +15,7 @@ import (
 	"io"
 )
 
-const maxRequestMinCompressSizeBytes = 10485760
+const MaxRequestMinCompressSizeBytes = 10485760
 
 // Enumeration values for supported compress Algorithms.
 const (
@@ -58,7 +58,7 @@ func (m requestCompression) HandleSerialize(
 		return next.HandleSerialize(ctx, in)
 	}
 	// still need to check requestMinCompressSizeBytes in case it is out of range after service client config
-	if m.requestMinCompressSizeBytes < 0 || m.requestMinCompressSizeBytes > maxRequestMinCompressSizeBytes {
+	if m.requestMinCompressSizeBytes < 0 || m.requestMinCompressSizeBytes > MaxRequestMinCompressSizeBytes {
 		return out, metadata, fmt.Errorf("invalid range for min request compression size bytes %d, must be within 0 and 10485760 inclusively", m.requestMinCompressSizeBytes)
 	}
 
