@@ -1,0 +1,8 @@
+{
+    "id": "80ed2832-7bcd-4301-a264-f318efaf8216",
+    "type": "feature",
+    "description": "Support modeled request compression.",
+    "modules": [
+        "."
+    ]
+}

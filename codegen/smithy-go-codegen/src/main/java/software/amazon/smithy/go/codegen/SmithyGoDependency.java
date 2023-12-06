@@ -53,6 +53,8 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
     public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
     public static final GoDependency SMITHY_PRIVATE_PROTOCOL = smithy("private/protocol", "smithyprivateprotocol");
+    public static final GoDependency SMITHY_REQUEST_COMPRESSION =
+        smithy("private/requestcompression", "smithyrequestcompression");
     public static final GoDependency SMITHY_TIME = smithy("time", "smithytime");
     public static final GoDependency SMITHY_HTTP_BINDING = smithy("encoding/httpbinding");
     public static final GoDependency SMITHY_JSON = smithy("encoding/json", "smithyjson");
