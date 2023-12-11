@@ -35,7 +35,6 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.MapUtils;
@@ -81,13 +80,12 @@ public final class RequestCompression implements GoIntegration {
             GoDelegator goDelegator
     ) {
         ServiceShape service = settings.getService(model);
-        for (ShapeId operationID : service.getAllOperations()) {
-            OperationShape operation = model.expectShape(operationID, OperationShape.class);
+        TopDownIndex.of(model).getContainedOperations(service).forEach(operation -> {
             if (!operation.hasTrait(RequestCompressionTrait.class)) {
-                continue;
+                return;
             }
             goDelegator.useShapeWriter(operation, writeMiddlewareHelper(symbolProvider, operation));
-        }
+        });
     }
 
 
