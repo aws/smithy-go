@@ -70,7 +70,7 @@ func decodeSlice(p []byte, inner MajorType) (Slice, int, error) {
 
 	p = p[off:]
 	if uint64(len(p)) < slen {
-		return nil, 0, fmt.Errorf("slice len %d greater than remaining buf len %d", slen, len(p))
+		return nil, 0, fmt.Errorf("slice len %d greater than remaining buf len", slen)
 	}
 
 	return Slice(p[:slen]), off + int(slen), nil
@@ -86,9 +86,9 @@ func decodeSliceIndefinite(p []byte, inner MajorType) (Slice, int, error) {
 		}
 
 		if major := peekMajor(p); major != inner {
-			return nil, 0, fmt.Errorf("unexpected major type %d in indefinite string/slice", major)
+			return nil, 0, fmt.Errorf("unexpected major type %d in indefinite slice", major)
 		}
-		if minor := peekMinor(p); minor == minorIndefinite {
+		if peekMinor(p) == minorIndefinite {
 			return nil, 0, fmt.Errorf("nested indefinite slice")
 		}
 
@@ -266,19 +266,19 @@ func decodeMajor7(p []byte) (Value, int, error) {
 		return &Major7Undefined{}, 1, nil
 	case major7Float16:
 		if len(p) < 3 {
-			return nil, 0, fmt.Errorf("encoded float16 at end of buffer")
+			return nil, 0, fmt.Errorf("incomplete float16 at end of buf")
 		}
 		b := binary.BigEndian.Uint16(p[1:])
 		return Major7Float32(math.Float32frombits(float16to32(b))), 3, nil
 	case major7Float32:
 		if len(p) < 5 {
-			return nil, 0, fmt.Errorf("encoded float32 at end of buffer")
+			return nil, 0, fmt.Errorf("incomplete float32 at end of buf")
 		}
 		b := binary.BigEndian.Uint32(p[1:])
 		return Major7Float32(math.Float32frombits(b)), 5, nil
 	case major7Float64:
 		if len(p) < 9 {
-			return nil, 0, fmt.Errorf("encoded float64 at end of buffer")
+			return nil, 0, fmt.Errorf("incomplete float64 at end of buf")
 		}
 		b := binary.BigEndian.Uint64(p[1:])
 		return Major7Float64(math.Float64frombits(b)), 9, nil
@@ -309,7 +309,7 @@ func decodeArgument(p []byte) (uint64, int, error) {
 	case 24, 25, 26, 27:
 		argLen := mtol(minor)
 		if len(p) < argLen+1 {
-			return 0, 0, fmt.Errorf("arg len %d greater than buf len %d", minor, len(p))
+			return 0, 0, fmt.Errorf("arg len %d greater than remaining buf len", argLen)
 		}
 		return readArgument(p[1:], argLen), argLen + 1, nil
 	default:
