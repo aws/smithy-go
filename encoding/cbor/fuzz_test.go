@@ -1,3 +1,6 @@
+//go:build fuzz
+// +build fuzz
+
 package cbor
 
 import (
