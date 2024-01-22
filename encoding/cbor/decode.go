@@ -8,9 +8,11 @@ import (
 
 const minorIndefinite = 31
 
+const maxAlloc = 0xff
+
 func decode(p []byte) (Value, int, error) {
 	if len(p) == 0 {
-		return nil, 0, fmt.Errorf("buffer is empty")
+		return nil, 0, fmt.Errorf("unexpected end of payload")
 	}
 
 	switch peekMajor(p) {
@@ -67,7 +69,7 @@ func decodeSlice(p []byte, inner MajorType) (Slice, int, error) {
 	}
 
 	p = p[off:]
-	if len(p) < int(slen) {
+	if uint64(len(p)) < slen {
 		return nil, 0, fmt.Errorf("slice len %d greater than remaining buf len %d", slen, len(p))
 	}
 
@@ -114,7 +116,7 @@ func decodeList(p []byte) (List, int, error) {
 	}
 	p = p[off:]
 
-	l := make(List, alen)
+	l := make(List, min(alen, maxAlloc))
 	for i := 0; i < int(alen); i++ {
 		item, n, err := decode(p)
 		if err != nil {
@@ -162,8 +164,12 @@ func decodeMap(p []byte) (Map, int, error) {
 	}
 	p = p[off:]
 
-	mp := make(Map, maplen)
+	mp := make(Map, min(maplen, maxAlloc))
 	for i := 0; i < int(maplen); i++ {
+		if len(p) == 0 {
+			return nil, 0, fmt.Errorf("unexpected end of payload")
+		}
+
 		if major := peekMajor(p); major != MajorTypeString {
 			return nil, 0, fmt.Errorf("unexpected major type %d for map key", major)
 		}
@@ -192,6 +198,10 @@ func decodeMapIndefinite(p []byte) (Map, int, error) {
 
 	mp := Map{}
 	for off := 0; len(p) > 0; {
+		if len(p) == 0 {
+			return nil, 0, fmt.Errorf("unexpected end of payload")
+		}
+
 		if p[0] == 0xff {
 			return mp, off + 2, nil
 		}
@@ -328,4 +338,11 @@ func readArgument(p []byte, len int) uint64 {
 		return uint64(binary.BigEndian.Uint32(p))
 	}
 	return uint64(binary.BigEndian.Uint64(p))
+}
+
+func min(i, j uint64) uint64 {
+	if i < j {
+		return i
+	}
+	return j
 }
