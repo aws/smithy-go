@@ -1,6 +1,7 @@
 package cbor
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -326,6 +327,123 @@ func TestDecode_InvalidTag(t *testing.T) {
 			}
 			if aerr := err.Error(); !strings.Contains(aerr, c.Err) {
 				t.Errorf("expect err %s, got %s", c.Err, aerr)
+			}
+		})
+	}
+}
+
+func TestDecode_Atomic(t *testing.T) {
+	for name, c := range map[string]struct {
+		In     []byte
+		Expect Value
+	}{
+		"uint/0/min": {
+			[]byte{0<<5 | 0},
+			Uint(0),
+		},
+		"uint/0/max": {
+			[]byte{0<<5 | 23},
+			Uint(23),
+		},
+		"uint/1/min": {
+			[]byte{0<<5 | 24, 0},
+			Uint(0),
+		},
+		"uint/1/max": {
+			[]byte{0<<5 | 24, 0xff},
+			Uint(0xff),
+		},
+		"uint/2/min": {
+			[]byte{0<<5 | 25, 0, 0},
+			Uint(0),
+		},
+		"uint/2/max": {
+			[]byte{0<<5 | 25, 0xff, 0xff},
+			Uint(0xffff),
+		},
+		"uint/4/min": {
+			[]byte{0<<5 | 26, 0, 0, 0, 0},
+			Uint(0),
+		},
+		"uint/4/max": {
+			[]byte{0<<5 | 26, 0xff, 0xff, 0xff, 0xff},
+			Uint(0xffffffff),
+		},
+		"uint/8/min": {
+			[]byte{0<<5 | 27, 0, 0, 0, 0, 0, 0, 0, 0},
+			Uint(0),
+		},
+		"uint/8/max": {
+			[]byte{0<<5 | 27, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			Uint(0xffffffff_ffffffff),
+		},
+		"negint/0/min": {
+			[]byte{1<<5 | 0},
+			NegInt(1),
+		},
+		"negint/0/max": {
+			[]byte{1<<5 | 23},
+			NegInt(24),
+		},
+		"negint/1/min": {
+			[]byte{1<<5 | 24, 0},
+			NegInt(1),
+		},
+		"negint/1/max": {
+			[]byte{1<<5 | 24, 0xff},
+			NegInt(0x100),
+		},
+		"negint/2/min": {
+			[]byte{1<<5 | 25, 0, 0},
+			NegInt(1),
+		},
+		"negint/2/max": {
+			[]byte{1<<5 | 25, 0xff, 0xff},
+			NegInt(0x10000),
+		},
+		"negint/4/min": {
+			[]byte{1<<5 | 26, 0, 0, 0, 0},
+			NegInt(1),
+		},
+		"negint/4/max": {
+			[]byte{1<<5 | 26, 0xff, 0xff, 0xff, 0xff},
+			NegInt(0x100000000),
+		},
+		"negint/8/min": {
+			[]byte{1<<5 | 27, 0, 0, 0, 0, 0, 0, 0, 0},
+			NegInt(1),
+		},
+		"negint/8/max": {
+			[]byte{1<<5 | 27, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe},
+			NegInt(0xffffffff_ffffffff),
+		},
+		"true": {
+			[]byte{7<<5 | major7True},
+			Major7Bool(true),
+		},
+		"false": {
+			[]byte{7<<5 | major7False},
+			Major7Bool(false),
+		},
+		"null": {
+			[]byte{7<<5 | major7Nil},
+			&Major7Nil{},
+		},
+		"undefined": {
+			[]byte{7<<5 | major7Undefined},
+			&Major7Undefined{},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			actual, n, err := decode(c.In)
+			if err != nil {
+				t.Errorf("expect no err, got %v", err)
+			}
+			if n != len(c.In) {
+				t.Errorf("didn't decode whole buffer")
+			}
+			if !reflect.DeepEqual(c.Expect, actual) {
+				t.Errorf("%v != %v", c.Expect, actual)
 			}
 		})
 	}
