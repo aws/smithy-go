@@ -198,10 +198,6 @@ func decodeMapIndefinite(p []byte) (Map, int, error) {
 
 	mp := Map{}
 	for off := 0; len(p) > 0; {
-		if len(p) == 0 {
-			return nil, 0, fmt.Errorf("unexpected end of payload")
-		}
-
 		if p[0] == 0xff {
 			return mp, off + 2, nil
 		}

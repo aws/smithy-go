@@ -298,5 +298,5 @@ func getLen(ln int) int {
 }
 
 func compose(major MajorType, minor byte) byte {
-	return byte(major) << 5 & minor
+	return byte(major)<<5 | minor
 }

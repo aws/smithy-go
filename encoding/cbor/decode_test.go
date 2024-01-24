@@ -225,7 +225,24 @@ func TestDecode_InvalidList(t *testing.T) {
 	for name, c := range map[string]struct {
 		In  []byte
 		Err string
-	}{} {
+	}{
+		"[] / eof after head": {
+			[]byte{4<<5 | 1},
+			"unexpected end of payload",
+		},
+		"[] / invalid item": {
+			[]byte{4<<5 | 1, 0<<5 | 24},
+			"arg len 1 greater than remaining buf len",
+		},
+		"[_ ] / no break": {
+			[]byte{4<<5 | 31},
+			"expected break marker",
+		},
+		"[_ ] / invalid item": {
+			[]byte{4<<5 | 31, 0<<5 | 24},
+			"arg len 1 greater than remaining buf len",
+		},
+	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := decode(c.In)
 			if err == nil {
@@ -242,7 +259,66 @@ func TestDecode_InvalidMap(t *testing.T) {
 	for name, c := range map[string]struct {
 		In  []byte
 		Err string
-	}{} {
+	}{
+		"{} / eof after head": {
+			[]byte{5<<5 | 1},
+			"unexpected end of payload",
+		},
+		"{} / non-string key": {
+			[]byte{5<<5 | 1, 0},
+			"unexpected major type 0 for map key",
+		},
+		"{} / invalid key": {
+			[]byte{5<<5 | 1, 3<<5 | 24, 1},
+			"slice len 1 greater than remaining buf len",
+		},
+		"{} / invalid value": {
+			[]byte{5<<5 | 1, 3<<5 | 3, 0x66, 0x6f, 0x6f, 0<<5 | 24},
+			"arg len 1 greater than remaining buf len",
+		},
+		"{_ } / no break": {
+			[]byte{5<<5 | 31},
+			"expected break marker",
+		},
+		"{_ } / non-string key": {
+			[]byte{5<<5 | 31, 0},
+			"unexpected major type 0 for map key",
+		},
+		"{_ } / invalid key": {
+			[]byte{5<<5 | 31, 3<<5 | 24, 1},
+			"slice len 1 greater than remaining buf len",
+		},
+		"{_ } / invalid value": {
+			[]byte{5<<5 | 31, 3<<5 | 3, 0x66, 0x6f, 0x6f, 0<<5 | 24},
+			"arg len 1 greater than remaining buf len",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := decode(c.In)
+			if err == nil {
+				t.Errorf("expect err %s", c.Err)
+			}
+			if aerr := err.Error(); !strings.Contains(aerr, c.Err) {
+				t.Errorf("expect err %s, got %s", c.Err, aerr)
+			}
+		})
+	}
+}
+
+func TestDecode_InvalidTag(t *testing.T) {
+	for name, c := range map[string]struct {
+		In  []byte
+		Err string
+	}{
+		"invalid value": {
+			[]byte{6<<5 | 1, 0<<5 | 24},
+			"arg len 1 greater than remaining buf len",
+		},
+		"eof": {
+			[]byte{6<<5 | 1},
+			"unexpected end of payload",
+		},
+	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := decode(c.In)
 			if err == nil {
