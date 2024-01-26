@@ -434,6 +434,30 @@ func TestDecode_Atomic(t *testing.T) {
 			[]byte{7<<5 | major7Undefined},
 			&Major7Undefined{},
 		},
+		"float16/+Inf": {
+			[]byte{7<<5 | major7Float16, 0x7c, 0},
+			Major7Float32(math.Float32frombits(0x7f800000)),
+		},
+		"float16/-Inf": {
+			[]byte{7<<5 | major7Float16, 0xfc, 0},
+			Major7Float32(math.Float32frombits(0xff800000)),
+		},
+		"float16/NaN/MSB": {
+			[]byte{7<<5 | major7Float16, 0x7e, 0},
+			Major7Float32(math.Float32frombits(0x7fc00000)),
+		},
+		"float16/NaN/LSB": {
+			[]byte{7<<5 | major7Float16, 0x7c, 1},
+			Major7Float32(math.Float32frombits(0x7f802000)),
+		},
+		"float32": {
+			[]byte{7<<5 | major7Float32, 0x7f, 0x80, 0, 0},
+			Major7Float32(math.Float32frombits(0x7f800000)),
+		},
+		"float64": {
+			[]byte{7<<5 | major7Float64, 0x7f, 0xf0, 0, 0, 0, 0, 0, 0},
+			Major7Float64(math.Float64frombits(0x7ff00000_00000000)),
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			actual, n, err := decode(c.In)
