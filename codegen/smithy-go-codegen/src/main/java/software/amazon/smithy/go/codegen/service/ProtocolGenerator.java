@@ -19,12 +19,33 @@ import software.amazon.smithy.go.codegen.GoWriter;
 
 public interface ProtocolGenerator {
     /**
-     * Generate the operation routing logic for this protocol.
+     * Generate all supporting source code required by this protocol.
      */
-    GoWriter.Writable generateHandler();
+    GoWriter.Writable generateSource();
 
     /**
-     * Generate the serializing logic for the builtin NotImplemented error.
+     * Generate transport fields.
+     * Called within the scope of the service's concrete struct declaration.
      */
-    GoWriter.Writable generateSerializeNotImplemented();
+    GoWriter.Writable generateTransportFields();
+
+    /**
+     * Generate transport options.
+     * Called within the scope of the service's concrete struct options declaration.
+     */
+    GoWriter.Writable generateTransportOptions();
+
+    /**
+     * Generate transport initialization.
+     * Called within the scope of the service's concrete struct New() method. The service is in scope.
+     */
+    GoWriter.Writable generateTransportInit();
+
+    /**
+     * Generate code to start serving traffic with the protocol transport.
+     * Called within the scope of the service's concrete struct Run() method.
+     */
+    GoWriter.Writable generateTransportRun();
+
+    // TODO generateTransportShutdown()
 }

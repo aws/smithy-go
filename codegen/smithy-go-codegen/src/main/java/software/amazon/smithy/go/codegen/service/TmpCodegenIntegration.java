@@ -20,6 +20,7 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.service.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 
 // TODO: setup invocation of codegen via cli, remove this
@@ -28,11 +29,16 @@ public class TmpCodegenIntegration implements GoIntegration {
     public void writeAdditionalFiles(
             GoSettings settings, Model model, SymbolProvider symbolProvider, GoDelegator goDelegator
     ) {
+        // TODO should be resolved from model
+        final var protocolGenerator = new AwsJson10ProtocolGenerator();
+
         final var service = settings.getService(model);
         goDelegator.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
+                protocolGenerator.generateSource(),
                 new ServiceInterface(model, service, symbolProvider),
                 new NoopServiceStruct(model, service, symbolProvider),
-                new NotImplementedError()
+                new NotImplementedError(),
+                new ServiceStruct(protocolGenerator)
         ).compose());
     }
 }

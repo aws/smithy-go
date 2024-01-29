@@ -38,6 +38,9 @@ public final class GoStdlibTypes {
         public static final class Http {
             public static final Symbol Request = SmithyGoDependency.NET_HTTP.pointableSymbol("Request");
             public static final Symbol Response = SmithyGoDependency.NET_HTTP.pointableSymbol("Response");
+            public static final Symbol Server = SmithyGoDependency.NET_HTTP.pointableSymbol("Server");
+            public static final Symbol Handler = SmithyGoDependency.NET_HTTP.valueSymbol("Handler");
+            public static final Symbol ResponseWriter = SmithyGoDependency.NET_HTTP.valueSymbol("ResponseWriter");
         }
     }
 
