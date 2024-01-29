@@ -19,18 +19,20 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates the concrete type that serves traffic using a provided service implementation.
  */
+@SmithyInternalApi
 public final class ServiceStruct implements GoWriter.Writable {
     // TODO: ???????? name
     public static final String NAME = "ConcreteServiceTodoIdkWhatToCallThis";
     public static final String OPTIONS_NAME = NAME + "Options";
 
-    private final ProtocolGenerator protocolGenerator;
+    private final ServerProtocolGenerator protocolGenerator;
 
-    public ServiceStruct(ProtocolGenerator protocolGenerator) {
+    public ServiceStruct(ServerProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 

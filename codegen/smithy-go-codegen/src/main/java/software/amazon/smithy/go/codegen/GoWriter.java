@@ -47,6 +47,7 @@ import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
 import software.amazon.smithy.utils.AbstractCodeWriter;
 import software.amazon.smithy.utils.ListUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -56,6 +57,7 @@ import software.amazon.smithy.utils.StringUtils;
  *
  * <p>Use the {@code $P} formatter to refer to {@link Symbol}s using pointers where appropriate.
  */
+@SmithyInternalApi
 public final class GoWriter extends AbstractCodeWriter<GoWriter> {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
@@ -781,7 +783,8 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param shape Shape to write the documentation of.
      * @return Returns true if docs were written.
      */
-    boolean writeShapeDocs(Shape shape) {
+    @SmithyInternalApi
+    public boolean writeShapeDocs(Shape shape) {
         return shape.getTrait(DocumentationTrait.class)
                 .map(DocumentationTrait::getValue)
                 .map(docs -> {
@@ -796,7 +799,7 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param shape Shape to write the documentation of.
      * @return Returns true if docs were written.
      */
-    boolean writePackageShapeDocs(Shape shape) {
+    public boolean writePackageShapeDocs(Shape shape) {
         return shape.getTrait(DocumentationTrait.class)
                 .map(DocumentationTrait::getValue)
                 .map(docs -> {

@@ -22,19 +22,21 @@ import java.util.Map;
 import java.util.logging.Logger;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates a go.mod file for the project.
  *
  * <p>See here for more information on the format: https://github.com/golang/go/wiki/Modules#gomod
  */
-final class GoModGenerator {
+@SmithyInternalApi
+public final class GoModGenerator {
 
     private static final Logger LOGGER = Logger.getLogger(GoModGenerator.class.getName());
 
     private GoModGenerator() {}
 
-    static void writeGoMod(
+    public static void writeGoMod(
             GoSettings settings,
             FileManifest manifest,
             GoModuleInfo goModuleInfo

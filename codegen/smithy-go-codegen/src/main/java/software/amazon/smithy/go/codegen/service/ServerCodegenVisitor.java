@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen;
+package software.amazon.smithy.go.codegen.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,9 +32,23 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.AddOperationShapes;
+import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.CodegenUtils;
+import software.amazon.smithy.go.codegen.EnumGenerator;
+import software.amazon.smithy.go.codegen.EventStreamGenerator;
+import software.amazon.smithy.go.codegen.GoDelegator;
+import software.amazon.smithy.go.codegen.GoModGenerator;
+import software.amazon.smithy.go.codegen.GoModuleInfo;
+import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
+import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.IntEnumGenerator;
+import software.amazon.smithy.go.codegen.ManifestWriter;
+import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
+import software.amazon.smithy.go.codegen.StructureGenerator;
+import software.amazon.smithy.go.codegen.UnionGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -58,9 +72,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Orchestrates Go client generation.
  */
 @SmithyInternalApi
-final class CodegenVisitor extends ShapeVisitor.Default<Void> {
+final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
 
-    private static final Logger LOGGER = Logger.getLogger(CodegenVisitor.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(ServerCodegenVisitor.class.getName());
 
     private final GoSettings settings;
     private final Model model;
@@ -69,25 +83,25 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final FileManifest fileManifest;
     private final SymbolProvider symbolProvider;
     private final GoDelegator writers;
-    private final List<GoIntegration> integrations = new ArrayList<>();
-    private final ProtocolGenerator protocolGenerator;
+    private final List<GoServerIntegration> integrations = new ArrayList<>();
+    private final ServerProtocolGenerator protocolGenerator;
     private final ApplicationProtocol applicationProtocol;
     private final List<RuntimeClientPlugin> runtimePlugins = new ArrayList<>();
     private final ProtocolDocumentGenerator protocolDocumentGenerator;
     private final EventStreamGenerator eventStreamGenerator;
 
-    CodegenVisitor(PluginContext context) {
+    ServerCodegenVisitor(PluginContext context) {
         // Load all integrations.
         ClassLoader loader = context.getPluginClassLoader().orElse(getClass().getClassLoader());
-        LOGGER.info("Attempting to discover GoIntegration from the classpath...");
+        LOGGER.info("Attempting to discover GoServerIntegration from the classpath...");
         ServiceLoader.load(GoIntegration.class, loader)
                 .forEach(integration -> {
-                    if (integration.getArtifactType().equals(ArtifactType.CLIENT)) {
+                    if (integration.getArtifactType().equals(ArtifactType.SERVER)) {
                         LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
-                        integrations.add(integration);
+                        integrations.add((GoServerIntegration) integration);
                     }
                 });
-        integrations.sort(Comparator.comparingInt(GoIntegration::getOrder));
+        integrations.sort(Comparator.comparingInt(GoServerIntegration::getOrder));
 
         settings = GoSettings.from(context.getSettings());
         fileManifest = context.getFileManifest();
@@ -114,7 +128,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 settings.getService(resolvedModel));
 
         LOGGER.info(() -> "Preprocessing smithy model");
-        for (GoIntegration goIntegration : integrations) {
+        for (GoServerIntegration goIntegration : integrations) {
             resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
         }
 
@@ -136,51 +150,48 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         modelWithoutTraitShapes = modelTransformer.getModelWithoutTraitShapes(model);
 
         service = settings.getService(model);
-        LOGGER.info(() -> "Generating Go client for service " + service.getId());
+        LOGGER.info(() -> "Generating Go server for service " + service.getId());
 
-        SymbolProvider resolvedProvider = GoCodegenPlugin.createSymbolProvider(model, settings);
-        for (GoIntegration integration : integrations) {
+        SymbolProvider resolvedProvider = GoServerCodegenPlugin.createSymbolProvider(model, settings);
+        for (GoServerIntegration integration : integrations) {
             resolvedProvider = integration.decorateSymbolProvider(settings, model, resolvedProvider);
         }
         symbolProvider = resolvedProvider;
 
-        protocolGenerator = resolveProtocolGenerator(integrations, model, service, settings);
-        applicationProtocol = protocolGenerator == null
-                ? ApplicationProtocol.createDefaultHttpApplicationProtocol()
-                : protocolGenerator.getApplicationProtocol();
+        protocolGenerator = resolveProtocolGenerator(integrations, model, service, settings, symbolProvider);
+        applicationProtocol = protocolGenerator.getApplicationProtocol();
 
         writers = new GoDelegator(fileManifest, symbolProvider);
 
+        // TODO(SSDK): do we need this?
         protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
 
+        // TODO(SSDK): do we need this?
         this.eventStreamGenerator = new EventStreamGenerator(settings, model, writers, symbolProvider, service);
     }
 
-    private static ProtocolGenerator resolveProtocolGenerator(
-            Collection<GoIntegration> integrations,
+    private static ServerProtocolGenerator resolveProtocolGenerator(
+            Collection<GoServerIntegration> integrations,
             Model model,
             ServiceShape service,
-            GoSettings settings) {
+            GoSettings settings,
+            SymbolProvider symbolProvider
+    ) {
         // Collect all the supported protocol generators.
-        Map<ShapeId, ProtocolGenerator> generators = new HashMap<>();
-        for (GoIntegration integration : integrations) {
-            for (ProtocolGenerator generator : integration.getProtocolGenerators()) {
+        Map<ShapeId, ServerProtocolGenerator> generators = new HashMap<>();
+        for (GoServerIntegration integration : integrations) {
+            List<ServerProtocolGenerator> protocolGenerators =
+                integration.getServerProtocolGenerators(model, service, symbolProvider);
+            for (ServerProtocolGenerator generator : protocolGenerators) {
                 generators.put(generator.getProtocol(), generator);
             }
         }
 
         ServiceIndex serviceIndex = ServiceIndex.of(model);
 
-        ShapeId protocolTrait;
-        try {
-            protocolTrait = settings.resolveServiceProtocol(serviceIndex, service, generators.keySet());
-            settings.setProtocol(protocolTrait);
-        } catch (UnresolvableProtocolException e) {
-            LOGGER.warning("Unable to find a protocol generator for " + service.getId() + ": " + e.getMessage());
-            protocolTrait = null;
-        }
-
-        return protocolTrait != null ? generators.get(protocolTrait) : null;
+        ShapeId protocolTrait = settings.resolveServiceProtocol(serviceIndex, service, generators.keySet());
+        settings.setProtocol(protocolTrait);
+        return generators.get(protocolTrait);
     }
 
     void execute() {
@@ -206,7 +217,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             });
         }
 
-        for (GoIntegration integration : integrations) {
+        for (GoServerIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
@@ -217,58 +228,14 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         if (protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
-            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
-                    .protocolName(protocolGenerator.getProtocolName())
-                    .integrations(integrations)
-                    .model(model)
-                    .service(service)
-                    .settings(settings)
-                    .symbolProvider(symbolProvider)
-                    .delegator(writers);
 
-            LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
-                    + " on " + service.getId());
-            writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateRequestSerializers(context);
-                protocolGenerator.generateSharedSerializerComponents(context);
-            });
-
-            writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateResponseDeserializers(context);
-                protocolGenerator.generateSharedDeserializerComponents(context);
-            });
-
-            if (eventStreamGenerator.hasEventStreamOperations()) {
-                eventStreamGenerator.writeEventStreamImplementation(writer -> {
-                    ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                    protocolGenerator.generateEventStreamComponents(context);
-                });
-            }
-
-            writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolution(context);
-            });
-
-            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateAuth(context);
-            });
-
-            writers.useFileWriter("endpoints_test.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolutionTests(context);
-            });
-
-            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                    + " unit tests for " + service.getId());
-            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
-                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
-            });
-
-            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
+            writers.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
+                protocolGenerator.generateSource(),
+                new ServiceInterface(model, service, symbolProvider),
+                new NoopServiceStruct(model, service, symbolProvider),
+                new NotImplementedError(),
+                new ServiceStruct(protocolGenerator)
+            ).compose());
         }
 
         LOGGER.fine("Flushing go writers");
@@ -298,7 +265,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
         writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+                model, symbolProvider, writer, service, shape, symbol, null).run());
         return null;
     }
 
@@ -325,23 +292,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
 
-        var protocol = protocolGenerator != null
-                ? protocolGenerator.getApplicationProtocol()
-                : ApplicationProtocol.createDefaultHttpApplicationProtocol();
-        var context = ProtocolGenerator.GenerationContext.builder()
-                .protocolName(protocol.getName())
-                .integrations(integrations)
-                .model(model)
-                .service(service)
-                .settings(settings)
-                .symbolProvider(symbolProvider)
-                .delegator(writers)
-                .build();
-
-        // Write API client's package doc for the service.
+        // Write API server's package doc for the service.
         writers.useFileWriter("doc.go", settings.getModuleName(), (writer) -> {
             writer.writePackageDocs(String.format(
-                    "Package %s provides the API client, operations, and parameter types for %s.",
+                    "Package %s provides the API server, operations, and parameter types for %s.",
                     CodegenUtils.getDefaultPackageImportName(settings.getModuleName()),
                     CodegenUtils.getServiceTitle(shape, "the API")));
             writer.writePackageDocs("");
@@ -350,26 +304,20 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         // Write API client type and utilities.
         writers.useShapeWriter(shape, serviceWriter -> {
-            new ServiceGenerator(settings, model, symbolProvider, serviceWriter, shape, integrations,
-                    runtimePlugins, applicationProtocol).run();
+            // TODO(SSDK): generate server stuff, like Client ServiceGenerator
 
-            // Generate each operation for the service. We do this here instead of via the
-            // operation visitor method to
-            // limit it to the operations bound to the service.
-            TopDownIndex topDownIndex = model.getKnowledge(TopDownIndex.class);
+            TopDownIndex topDownIndex = TopDownIndex.of(model);
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
             for (OperationShape operation : containedOperations) {
-                Symbol operationSymbol = symbolProvider.toSymbol(operation);
-
-                writers.useShapeWriter(
-                        operation, operationWriter -> new OperationGenerator(settings, model, symbolProvider,
-                                operationWriter, service, operation, operationSymbol, applicationProtocol,
-                                protocolGenerator, runtimePlugins).run());
+                new ServerOperationGenerator(
+                    model,
+                    symbolProvider,
+                    serviceWriter,
+                    service,
+                    operation
+                ).run();
             }
         });
-
-        var clientOptions = new ClientOptions(context, protocol);
-        writers.useFileWriter("options.go", settings.getModuleName(), clientOptions);
         return null;
     }
 

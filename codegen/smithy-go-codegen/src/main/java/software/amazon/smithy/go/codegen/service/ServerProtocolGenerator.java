@@ -15,9 +15,19 @@
 
 package software.amazon.smithy.go.codegen.service;
 
+import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
-public interface ProtocolGenerator {
+@SmithyInternalApi
+public interface ServerProtocolGenerator {
+    // Smithy
+    ApplicationProtocol getApplicationProtocol();
+
+    ShapeId getProtocol();
+
+    // Go
     /**
      * Generate all supporting source code required by this protocol.
      */

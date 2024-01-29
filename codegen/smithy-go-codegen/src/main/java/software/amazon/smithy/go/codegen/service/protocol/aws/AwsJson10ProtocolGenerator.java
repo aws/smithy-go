@@ -17,22 +17,26 @@ package software.amazon.smithy.go.codegen.service.protocol.aws;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
 import software.amazon.smithy.go.codegen.service.ServiceInterface;
-import software.amazon.smithy.go.codegen.service.protocol.HttpProtocolGenerator;
+import software.amazon.smithy.go.codegen.service.protocol.HttpServerProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Implements the aws.protocols#awsJson1_0 protocol.
  */
-public final class AwsJson10ProtocolGenerator extends HttpProtocolGenerator {
+@SmithyInternalApi
+public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerator {
     private final Model model;
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
@@ -42,6 +46,12 @@ public final class AwsJson10ProtocolGenerator extends HttpProtocolGenerator {
         this.service = service;
         this.symbolProvider = symbolProvider;
     }
+
+    @Override
+    public ShapeId getProtocol() {
+        return AwsJson1_0Trait.ID;
+    }
+
 
     @Override
     public GoWriter.Writable generateSource() {

@@ -34,11 +34,13 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.traits.UnstableTrait;
 import software.amazon.smithy.utils.SmithyBuilder;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates a manifest description of the generated code, minimum go version,
  * and minimum dependencies required.
  */
+@SmithyInternalApi
 public final class ManifestWriter {
 
     private static final Logger LOGGER = Logger.getLogger(ManifestWriter.class.getName());
