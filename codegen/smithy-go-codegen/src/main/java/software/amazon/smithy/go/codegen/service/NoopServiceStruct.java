@@ -27,16 +27,16 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
- * Generates the interface that describes the service API.
+ * Generates a no-op implementation of the service that returns 501 Not Implemented for every operation.
  */
-public final class ServiceInterface implements GoWriter.Writable {
-    public static final String NAME = "Service";
+public final class NoopServiceStruct implements GoWriter.Writable {
+    public static final String NAME = "NoopService";
 
     private final Model model;
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
 
-    public ServiceInterface(Model model, ServiceShape service, SymbolProvider symbolProvider) {
+    public NoopServiceStruct(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         this.model = model;
         this.service = service;
         this.symbolProvider = symbolProvider;
@@ -44,15 +44,22 @@ public final class ServiceInterface implements GoWriter.Writable {
 
     @Override
     public void accept(GoWriter writer) {
-        writer.write(generateInterface());
+        writer.write(generateStruct());
     }
 
-    private GoWriter.Writable generateInterface() {
+    private GoWriter.Writable generateStruct() {
         return goTemplate("""
-                type $L interface {
-                    $W
-                }
-                """, NAME, generateOperations());
+                type $struct:L struct{}
+
+                var _ $interface:L = (*$struct:L)(nil)
+
+                $operations:W
+                """,
+                MapUtils.of(
+                        "struct", NAME,
+                        "interface", ServiceInterface.NAME,
+                        "operations", generateOperations()
+                ));
     }
 
     private GoWriter.Writable generateOperations() {
@@ -60,17 +67,24 @@ public final class ServiceInterface implements GoWriter.Writable {
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .map(this::generateOperation)
                         .toList()
-        ).compose(false);
+        ).compose();
     }
 
     private GoWriter.Writable generateOperation(OperationShape operation) {
-        return goTemplate(
-                "$operation:T($context:T, $input:P) ($output:P, error)",
+        final var operationSymbol = symbolProvider.toSymbol(operation);
+        return goTemplate("""
+                func (*$struct:L) $operation:T($context:T, $input:P) ($output:P, error) {
+                    return nil, &$notImplemented:L{$operationName:S}
+                }
+                """,
                 MapUtils.of(
-                        "operation", symbolProvider.toSymbol(operation),
+                        "struct", NAME,
+                        "operation", operationSymbol,
                         "context", GoStdlibTypes.Context.Context,
                         "input", symbolProvider.toSymbol(model.expectShape(operation.getInputShape())),
-                        "output", symbolProvider.toSymbol(model.expectShape(operation.getOutputShape()))
+                        "output", symbolProvider.toSymbol(model.expectShape(operation.getOutputShape())),
+                        "notImplemented", NotImplementedError.NAME,
+                        "operationName", operationSymbol.getName()
                 )
         );
     }

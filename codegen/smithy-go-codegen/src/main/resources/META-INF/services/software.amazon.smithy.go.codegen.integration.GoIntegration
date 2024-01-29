@@ -14,3 +14,6 @@ software.amazon.smithy.go.codegen.integration.auth.SigV4AuthScheme
 software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme
 
 software.amazon.smithy.go.codegen.requestcompression.RequestCompression
+
+# TODO: remove this when we can call into service codegen directly
+software.amazon.smithy.go.codegen.service.TmpCodegenIntegration
