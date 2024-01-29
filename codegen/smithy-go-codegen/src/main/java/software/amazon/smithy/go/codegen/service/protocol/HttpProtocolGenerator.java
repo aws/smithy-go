@@ -47,7 +47,7 @@ public abstract class HttpProtocolGenerator implements ProtocolGenerator {
     public GoWriter.Writable generateTransportInit() {
         return goTemplate("""
                 sv.server = &$T{
-                    Handler: &httpHandler{},
+                    Handler: &httpHandler{svc},
                 }
                 """, GoStdlibTypes.Net.Http.Server);
     }
