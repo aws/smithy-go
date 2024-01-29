@@ -29,10 +29,11 @@ public class TmpCodegenIntegration implements GoIntegration {
     public void writeAdditionalFiles(
             GoSettings settings, Model model, SymbolProvider symbolProvider, GoDelegator goDelegator
     ) {
-        // TODO should be resolved from model
-        final var protocolGenerator = new AwsJson10ProtocolGenerator();
-
         final var service = settings.getService(model);
+
+        // TODO should be resolved from model
+        final var protocolGenerator = new AwsJson10ProtocolGenerator(model, service, symbolProvider);
+
         goDelegator.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
                 protocolGenerator.generateSource(),
                 new ServiceInterface(model, service, symbolProvider),
