@@ -25,10 +25,12 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Settings used by {@link GoCodegenPlugin}.
  */
+@SmithyInternalApi
 public final class GoSettings {
 
     private static final String SERVICE = "service";
@@ -45,6 +47,13 @@ public final class GoSettings {
     private Boolean generateGoMod = false;
     private String goDirective = GoModuleInfo.DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
+    private ArtifactType artifactType;
+
+    @SmithyInternalApi
+    public enum ArtifactType {
+        CLIENT,
+        SERVER;
+    }
 
     /**
      * Create a settings object from a configuration object node.
@@ -53,10 +62,15 @@ public final class GoSettings {
      * @return Returns the extracted settings.
      */
     public static GoSettings from(ObjectNode config) {
+        return from(config, ArtifactType.CLIENT);
+    }
+
+    @SmithyInternalApi
+    public static GoSettings from(ObjectNode config, ArtifactType artifactType) {
         GoSettings settings = new GoSettings();
         config.warnIfAdditionalProperties(
             Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, GO_DIRECTIVE));
-
+        settings.setArtifactType(artifactType);
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
         settings.setModuleDescription(config.getStringMemberOrDefault(
@@ -240,5 +254,15 @@ public final class GoSettings {
      */
     public void setProtocol(ShapeId protocol) {
         this.protocol = Objects.requireNonNull(protocol);
+    }
+
+    @SmithyInternalApi
+    public ArtifactType getArtifactType() {
+        return artifactType;
+    }
+
+    @SmithyInternalApi
+    public void setArtifactType(ArtifactType artifactType) {
+        this.artifactType = artifactType;
     }
 }

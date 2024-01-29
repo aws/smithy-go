@@ -21,17 +21,20 @@ import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.utils.SmithyUnstableApi;
 
 /**
  * Java SPI for customizing Go code generation, registering
  * new protocol code generators, renaming shapes, modifying the model,
  * adding custom code, etc.
  */
+@SmithyUnstableApi
 public interface GoIntegration {
     /**
      * Gets the sort order of the customization from -128 to 127.
@@ -47,6 +50,10 @@ public interface GoIntegration {
      */
     default byte getOrder() {
         return 0;
+    }
+
+    default ArtifactType getArtifactType() {
+        return ArtifactType.CLIENT;
     }
 
     /**

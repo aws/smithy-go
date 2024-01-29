@@ -28,11 +28,13 @@ import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Renders structures.
  */
-final class StructureGenerator implements Runnable {
+@SmithyInternalApi
+public final class StructureGenerator implements Runnable {
     private static final Map<String, String> STANDARD_ERROR_MEMBERS = MapUtils.of(
             "ErrorCode", "string",
             "ErrorMessage", "string",
@@ -48,7 +50,7 @@ final class StructureGenerator implements Runnable {
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
 
-    StructureGenerator(
+    public StructureGenerator(
             Model model,
             SymbolProvider symbolProvider,
             GoWriter writer,
