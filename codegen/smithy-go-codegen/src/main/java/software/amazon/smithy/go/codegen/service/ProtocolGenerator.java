@@ -20,7 +20,11 @@ import software.amazon.smithy.go.codegen.GoWriter;
 public interface ProtocolGenerator {
     /**
      * Generate the operation routing logic for this protocol.
-     * @return The writable operation handler.
      */
     GoWriter.Writable generateHandler();
+
+    /**
+     * Generate the serializing logic for the builtin NotImplemented error.
+     */
+    GoWriter.Writable generateSerializeNotImplemented();
 }

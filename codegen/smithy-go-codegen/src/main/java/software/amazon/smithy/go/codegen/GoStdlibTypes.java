@@ -30,6 +30,7 @@ public final class GoStdlibTypes {
 
     public static final class Fmt {
         public static final Symbol Errorf = SmithyGoDependency.FMT.valueSymbol("Errorf");
+        public static final Symbol Sprintf = SmithyGoDependency.FMT.valueSymbol("Sprintf");
     }
 
     public static final class Net {
