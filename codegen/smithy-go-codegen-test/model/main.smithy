@@ -8,6 +8,7 @@ use smithy.waiters#waitable
 /// Provides weather forecasts.
 @httpBearerAuth
 @fakeProtocol
+@aws.protocols#awsJson1_0
 @paginated(inputToken: "nextToken", outputToken: "nextToken", pageSize: "pageSize")
 service Weather {
     version: "2006-03-01",
