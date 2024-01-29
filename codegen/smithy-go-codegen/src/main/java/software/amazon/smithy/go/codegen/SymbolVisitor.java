@@ -62,6 +62,7 @@ import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -70,7 +71,8 @@ import software.amazon.smithy.utils.StringUtils;
  * <p>Reserved words for Go are automatically escaped so that they are
  * suffixed with "_". See "reserved-words.txt" for the list of words.
  */
-final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
+@SmithyInternalApi
+public final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private static final Logger LOGGER = Logger.getLogger(SymbolVisitor.class.getName());
 
     private final Model model;
@@ -82,7 +84,7 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private final GoPointableIndex pointableIndex;
     private final GoSettings settings;
 
-    SymbolVisitor(Model model, GoSettings settings) {
+    public SymbolVisitor(Model model, GoSettings settings) {
         this.model = model;
         this.settings = settings;
         this.rootModuleName = settings.getModuleName();

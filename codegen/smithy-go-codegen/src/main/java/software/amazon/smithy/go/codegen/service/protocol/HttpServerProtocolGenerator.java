@@ -18,14 +18,22 @@ package software.amazon.smithy.go.codegen.service.protocol;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.service.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.service.ServerProtocolGenerator;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Implements base transport codegen for HTTP protocols.
  */
-public abstract class HttpProtocolGenerator implements ProtocolGenerator {
+@SmithyInternalApi
+public abstract class HttpServerProtocolGenerator implements ServerProtocolGenerator {
+    @Override
+    public ApplicationProtocol getApplicationProtocol() {
+        return ApplicationProtocol.createDefaultHttpApplicationProtocol();
+    }
+
     @Override
     public GoWriter.Writable generateSource() {
         return generateHttpHandler();

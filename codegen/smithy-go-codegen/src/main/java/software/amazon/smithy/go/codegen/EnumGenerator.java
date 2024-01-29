@@ -24,19 +24,21 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.traits.EnumDefinition;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Renders enums and their constants.
  */
-final class EnumGenerator implements Runnable {
+@SmithyInternalApi
+public final class EnumGenerator implements Runnable {
     private static final Logger LOGGER = Logger.getLogger(EnumGenerator.class.getName());
 
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
     private final StringShape shape;
 
-    EnumGenerator(SymbolProvider symbolProvider, GoWriter writer, StringShape shape) {
+    public EnumGenerator(SymbolProvider symbolProvider, GoWriter writer, StringShape shape) {
         this.symbolProvider = symbolProvider;
         this.writer = writer;
         this.shape = shape;
