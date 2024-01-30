@@ -193,6 +193,10 @@ public final class SymbolUtils {
                 .orElse(false);
     }
 
+    public static boolean isPointable(Symbol symbol) {
+        return symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
+    }
+
     /**
      * Builds a symbol within the context of the package in which codegen is taking place.
      *

@@ -32,6 +32,10 @@ public final class SmithyGoTypes {
     public static final class Ptr {
         public static final Symbol String = SmithyGoDependency.SMITHY_PTR.valueSymbol("String");
         public static final Symbol Bool = SmithyGoDependency.SMITHY_PTR.valueSymbol("Bool");
+        public static final Symbol Int8 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int8");
+        public static final Symbol Int16 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int16");
+        public static final Symbol Int32 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int32");
+        public static final Symbol Int64 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int64");
     }
 
     public static final class Middleware {

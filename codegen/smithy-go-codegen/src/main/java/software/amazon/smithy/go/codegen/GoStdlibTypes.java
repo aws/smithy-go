@@ -28,6 +28,17 @@ public final class GoStdlibTypes {
         public static final Symbol Context = SmithyGoDependency.CONTEXT.valueSymbol("Context");
     }
 
+    public static final class Encoding {
+        public static final class Json {
+            public static final Symbol NewDecoder = SmithyGoDependency.JSON.valueSymbol("NewDecoder");
+            public static final Symbol Number = SmithyGoDependency.JSON.valueSymbol("Number");
+        }
+
+        public static final class Base64 {
+            public static final Symbol StdEncoding = SmithyGoDependency.BASE64.valueSymbol("StdEncoding");
+        }
+    }
+
     public static final class Fmt {
         public static final Symbol Errorf = SmithyGoDependency.FMT.valueSymbol("Errorf");
         public static final Symbol Sprintf = SmithyGoDependency.FMT.valueSymbol("Sprintf");
