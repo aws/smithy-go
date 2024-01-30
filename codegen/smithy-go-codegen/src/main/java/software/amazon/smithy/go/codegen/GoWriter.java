@@ -815,7 +815,7 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param member Shape to write the documentation of.
      * @return Returns true if docs were written.
      */
-    boolean writeMemberDocs(Model model, MemberShape member) {
+    public boolean writeMemberDocs(Model model, MemberShape member) {
         boolean hasDocs;
 
         hasDocs = member.getMemberTrait(model, DocumentationTrait.class)

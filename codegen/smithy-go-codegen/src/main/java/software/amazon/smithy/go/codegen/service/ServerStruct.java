@@ -25,14 +25,14 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Generates the concrete type that serves traffic using a provided service implementation.
  */
 @SmithyInternalApi
-public final class ServiceStruct implements GoWriter.Writable {
+public final class ServerStruct implements GoWriter.Writable {
     // TODO: ???????? name
     public static final String NAME = "ConcreteServiceTodoIdkWhatToCallThis";
     public static final String OPTIONS_NAME = NAME + "Options";
 
     private final ServerProtocolGenerator protocolGenerator;
 
-    public ServiceStruct(ServerProtocolGenerator protocolGenerator) {
+    public ServerStruct(ServerProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 
@@ -87,7 +87,7 @@ public final class ServiceStruct implements GoWriter.Writable {
                 }
                 """,
                 MapUtils.of(
-                        "interface", ServiceInterface.NAME,
+                        "interface", ServerInterface.NAME,
                         "struct", NAME,
                         "transportInit", protocolGenerator.generateTransportInit()
                 ));
