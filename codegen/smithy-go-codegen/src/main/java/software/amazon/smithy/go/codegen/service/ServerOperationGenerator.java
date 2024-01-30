@@ -15,22 +15,16 @@
 
 package software.amazon.smithy.go.codegen.service;
 
-import java.util.stream.Stream;
+import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.StructureGenerator;
-import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.DeprecatedTrait;
-import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
@@ -38,6 +32,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  */
 @SmithyInternalApi
 public final class ServerOperationGenerator implements Runnable {
+    private static final Logger LOGGER = Logger.getLogger(ServerOperationGenerator.class.getName());
 
     private final Model model;
     private final SymbolProvider symbolProvider;
@@ -78,58 +73,24 @@ public final class ServerOperationGenerator implements Runnable {
         StructureShape outputShape = operationIndex.getOutput(operation).get();
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
 
-        // Generate operation method
-        final boolean hasDocs = writer.writeShapeDocs(operation);
-        operation.getTrait(DeprecatedTrait.class)
-                .ifPresent(trait -> {
-                    if (hasDocs) {
-                        writer.writeDocs("");
-                    }
-                    final String defaultMessage = "This operation has been deprecated.";
-                    writer.writeDocs("Deprecated: " + trait.getMessage().map(s -> {
-                        if (s.length() == 0) {
-                            return defaultMessage;
-                        }
-                        return s;
-                    }).orElse(defaultMessage));
-                });
+        boolean hasEventStream = ServerCodegenUtils.operationHasEventStream(model, inputShape, outputShape);
+
+        if (hasEventStream) {
+            LOGGER.warning("Operation `" + operation + "` has event streams, but is not supported in Go Server "
+                + "Codegen currently. Skipping generating `" + operation + "`.");
+            return;
+        }
+
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, null)
+        new ServerStructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, null)
                 .renderStructure(() -> { }, true);
 
-        // The output structure gets a metadata member added.
-        Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                .build();
-
-        boolean hasEventStream = Stream.concat(inputShape.members().stream(),
-                        outputShape.members().stream())
-                .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
-
-        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, null)
+        new ServerStructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, null)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
                     }
-
-                    if (hasEventStream) {
-                        writer.write("eventStream $P",
-                                        EventStreamGenerator.getEventStreamOperationStructureSymbol(service, operation))
-                                .write("");
-                    }
-
-                    writer.writeDocs("Metadata pertaining to the operation's result.");
-                    writer.write("ResultMetadata $T", metadataSymbol);
                 });
-
-        if (hasEventStream) {
-            writer.write("""
-                         // GetStream returns the type to interact with the event stream.
-                         func (o $P) GetStream() $P {
-                             return o.eventStream
-                         }
-                         """, outputSymbol, EventStreamGenerator.getEventStreamOperationStructureSymbol(
-                    service, operation));
-        }
     }
 }

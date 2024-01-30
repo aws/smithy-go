@@ -21,6 +21,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -36,10 +37,14 @@ public final class NoopServiceStruct implements GoWriter.Writable {
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
 
+    private final OperationIndex operationIndex;
+
     public NoopServiceStruct(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         this.model = model;
         this.service = service;
         this.symbolProvider = symbolProvider;
+
+        this.operationIndex = OperationIndex.of(model);
     }
 
     @Override
@@ -57,7 +62,7 @@ public final class NoopServiceStruct implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "struct", NAME,
-                        "interface", ServiceInterface.NAME,
+                        "interface", ServerInterface.NAME,
                         "operations", generateOperations()
                 ));
     }
@@ -65,6 +70,8 @@ public final class NoopServiceStruct implements GoWriter.Writable {
     private GoWriter.Writable generateOperations() {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
+                        .filter(op -> !ServerCodegenUtils.operationHasEventStream(
+                            model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(this::generateOperation)
                         .toList()
         ).compose();
@@ -73,13 +80,13 @@ public final class NoopServiceStruct implements GoWriter.Writable {
     private GoWriter.Writable generateOperation(OperationShape operation) {
         final var operationSymbol = symbolProvider.toSymbol(operation);
         return goTemplate("""
-                func (*$struct:L) $operation:T($context:T, $input:P) ($output:P, error) {
+                func (*$struct:L) $operation:L($context:T, $input:P) ($output:P, error) {
                     return nil, &$notImplemented:L{$operationName:S}
                 }
                 """,
                 MapUtils.of(
                         "struct", NAME,
-                        "operation", operationSymbol,
+                        "operation", operationSymbol.getName(),
                         "context", GoStdlibTypes.Context.Context,
                         "input", symbolProvider.toSymbol(model.expectShape(operation.getInputShape())),
                         "output", symbolProvider.toSymbol(model.expectShape(operation.getOutputShape())),

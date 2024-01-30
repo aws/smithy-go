@@ -33,10 +33,8 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.AddOperationShapes;
-import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.EnumGenerator;
-import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoModGenerator;
 import software.amazon.smithy.go.codegen.GoModuleInfo;
@@ -45,11 +43,7 @@ import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.IntEnumGenerator;
 import software.amazon.smithy.go.codegen.ManifestWriter;
-import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
-import software.amazon.smithy.go.codegen.StructureGenerator;
-import software.amazon.smithy.go.codegen.UnionGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -85,10 +79,6 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
     private final GoDelegator writers;
     private final List<GoServerIntegration> integrations = new ArrayList<>();
     private final ServerProtocolGenerator protocolGenerator;
-    private final ApplicationProtocol applicationProtocol;
-    private final List<RuntimeClientPlugin> runtimePlugins = new ArrayList<>();
-    private final ProtocolDocumentGenerator protocolDocumentGenerator;
-    private final EventStreamGenerator eventStreamGenerator;
 
     ServerCodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -139,14 +129,6 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             integration.processFinalizedModel(settings, model);
         });
 
-        // fetch runtime plugins
-        integrations.forEach(integration -> {
-            integration.getClientPlugins().forEach(runtimePlugin -> {
-                LOGGER.info(() -> "Adding Go runtime plugin: " + runtimePlugin);
-                runtimePlugins.add(runtimePlugin);
-            });
-        });
-
         modelWithoutTraitShapes = modelTransformer.getModelWithoutTraitShapes(model);
 
         service = settings.getService(model);
@@ -159,15 +141,8 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
         symbolProvider = resolvedProvider;
 
         protocolGenerator = resolveProtocolGenerator(integrations, model, service, settings, symbolProvider);
-        applicationProtocol = protocolGenerator.getApplicationProtocol();
 
         writers = new GoDelegator(fileManifest, symbolProvider);
-
-        // TODO(SSDK): do we need this?
-        protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
-
-        // TODO(SSDK): do we need this?
-        this.eventStreamGenerator = new EventStreamGenerator(settings, model, writers, symbolProvider, service);
     }
 
     private static ServerProtocolGenerator resolveProtocolGenerator(
@@ -203,9 +178,6 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             shape.accept(this);
         }
 
-        // Generate any required types and functions need to support protocol documents.
-        protocolDocumentGenerator.generateDocumentSupport();
-
         // Generate a struct to handle unknown tags in unions
         List<UnionShape> unions = serviceShapes.stream()
                 .map(Shape::asUnionShape)
@@ -213,7 +185,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
                 .collect(Collectors.toList());
         if (!unions.isEmpty()) {
             writers.useShapeWriter(unions.get(0), writer -> {
-                UnionGenerator.generateUnknownUnion(writer, unions, symbolProvider);
+                ServerUnionGenerator.generateUnknownUnion(writer, unions, symbolProvider);
             });
         }
 
@@ -222,21 +194,15 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
 
-        eventStreamGenerator.generateEventStreamInterfaces();
-        TopDownIndex.of(model).getContainedOperations(service)
-                .forEach(eventStreamGenerator::generateOperationEventStreamStructure);
+        LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
 
-        if (protocolGenerator != null) {
-            LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
-
-            writers.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
-                protocolGenerator.generateSource(),
-                new ServiceInterface(model, service, symbolProvider),
-                new NoopServiceStruct(model, service, symbolProvider),
-                new NotImplementedError(),
-                new ServiceStruct(protocolGenerator)
-            ).compose());
-        }
+        writers.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
+            protocolGenerator.generateSource(),
+            new ServerInterface(model, service, symbolProvider),
+            new NoopServiceStruct(model, service, symbolProvider),
+            new NotImplementedError(),
+            new ServerStruct(protocolGenerator)
+        ).compose());
 
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();
@@ -264,7 +230,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
-        writers.useShapeWriter(shape, writer -> new StructureGenerator(
+        writers.useShapeWriter(shape, writer -> new ServerStructureGenerator(
                 model, symbolProvider, writer, service, shape, symbol, null).run());
         return null;
     }
@@ -279,7 +245,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void unionShape(UnionShape shape) {
-        UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
+        ServerUnionGenerator generator = new ServerUnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
         return null;
@@ -302,22 +268,20 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             writer.writePackageShapeDocs(shape);
         });
 
-        // Write API client type and utilities.
-        writers.useShapeWriter(shape, serviceWriter -> {
-            // TODO(SSDK): generate server stuff, like Client ServiceGenerator
-
-            TopDownIndex topDownIndex = TopDownIndex.of(model);
-            Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
-            for (OperationShape operation : containedOperations) {
+        // Write API server types and utilities.
+        TopDownIndex topDownIndex = TopDownIndex.of(model);
+        Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
+        for (OperationShape operation : containedOperations) {
+            writers.useShapeWriter(operation, operationWriter -> {
                 new ServerOperationGenerator(
                     model,
                     symbolProvider,
-                    serviceWriter,
+                    operationWriter,
                     service,
                     operation
                 ).run();
-            }
-        });
+            });
+        }
         return null;
     }
 

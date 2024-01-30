@@ -21,12 +21,11 @@ import software.amazon.smithy.build.SmithyBuildPlugin;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
-import software.amazon.smithy.go.codegen.SymbolVisitor;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
- * Plugin to trigger Go code generation.
+ * Plugin to trigger Go server code generation.
  */
 @SmithyInternalApi
 public final class GoServerCodegenPlugin implements SmithyBuildPlugin {
@@ -68,6 +67,6 @@ public final class GoServerCodegenPlugin implements SmithyBuildPlugin {
      * @return Returns the created provider.
      */
     public static SymbolProvider createSymbolProvider(Model model, GoSettings settings) {
-        return new SymbolVisitor(model, settings);
+        return new ServerSymbolVisitor(model, settings);
     }
 }

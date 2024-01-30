@@ -21,6 +21,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -29,17 +30,20 @@ import software.amazon.smithy.utils.MapUtils;
 /**
  * Generates the interface that describes the service API.
  */
-public final class ServiceInterface implements GoWriter.Writable {
+public final class ServerInterface implements GoWriter.Writable {
     public static final String NAME = "Service";
 
     private final Model model;
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
+    private final OperationIndex operationIndex;
 
-    public ServiceInterface(Model model, ServiceShape service, SymbolProvider symbolProvider) {
+    public ServerInterface(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         this.model = model;
         this.service = service;
         this.symbolProvider = symbolProvider;
+
+        this.operationIndex = OperationIndex.of(model);
     }
 
     @Override
@@ -58,6 +62,8 @@ public final class ServiceInterface implements GoWriter.Writable {
     private GoWriter.Writable generateOperations() {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
+                        .filter(op -> !ServerCodegenUtils.operationHasEventStream(
+                            model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(this::generateOperation)
                         .toList()
         ).compose(false);
@@ -65,9 +71,9 @@ public final class ServiceInterface implements GoWriter.Writable {
 
     private GoWriter.Writable generateOperation(OperationShape operation) {
         return goTemplate(
-                "$operation:T($context:T, $input:P) ($output:P, error)",
+                "$operation:L($context:T, $input:P) ($output:P, error)",
                 MapUtils.of(
-                        "operation", symbolProvider.toSymbol(operation),
+                        "operation", symbolProvider.toSymbol(operation).getName(),
                         "context", GoStdlibTypes.Context.Context,
                         "input", symbolProvider.toSymbol(model.expectShape(operation.getInputShape())),
                         "output", symbolProvider.toSymbol(model.expectShape(operation.getOutputShape()))

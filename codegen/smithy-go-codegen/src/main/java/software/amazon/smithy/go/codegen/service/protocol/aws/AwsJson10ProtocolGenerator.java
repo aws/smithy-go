@@ -22,9 +22,11 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
-import software.amazon.smithy.go.codegen.service.ServiceInterface;
+import software.amazon.smithy.go.codegen.service.ServerCodegenUtils;
+import software.amazon.smithy.go.codegen.service.ServerInterface;
 import software.amazon.smithy.go.codegen.service.protocol.HttpServerProtocolGenerator;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -41,10 +43,14 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
 
+    private final OperationIndex operationIndex;
+
     public AwsJson10ProtocolGenerator(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         this.model = model;
         this.service = service;
         this.symbolProvider = symbolProvider;
+
+        this.operationIndex = OperationIndex.of(model);
     }
 
     @Override
@@ -95,7 +101,7 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                 $serveHttp:W
                 """,
                 MapUtils.of(
-                        "interface", ServiceInterface.NAME,
+                        "interface", ServerInterface.NAME,
                         "handler", GoStdlibTypes.Net.Http.Handler,
                         "serveHttp", generateServeHttp()
                 ));
@@ -127,6 +133,8 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
     private GoWriter.Writable generateRouteRequest() {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
+                        .filter(op -> !ServerCodegenUtils.operationHasEventStream(
+                            model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(it -> goTemplate("""
                                 if target == $S {
                                     $W
@@ -143,7 +151,7 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
     private GoWriter.Writable generateHandleOperation(OperationShape operation) {
         return goTemplate("""
                 w.Header().Set("X-Amz-Target", $target:S)
-                _, err := h.service.$operation:T(r.Context(), nil)
+                _, err := h.service.$operation:L(r.Context(), nil)
                 if err != nil {
                     serializeError(w, err)
                     return
@@ -154,7 +162,7 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                 """,
                 MapUtils.of(
                         "target", getOperationTarget(operation),
-                        "operation", symbolProvider.toSymbol(operation)
+                        "operation", symbolProvider.toSymbol(operation).getName()
                 ));
     }
 }
