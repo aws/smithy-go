@@ -197,6 +197,10 @@ public final class SymbolUtils {
         return symbol.getProperty(SymbolUtils.POINTABLE, Boolean.class).orElse(false);
     }
 
+    public static Symbol getReference(Symbol symbol) {
+        return symbol.getProperty(SymbolUtils.GO_ELEMENT_TYPE, Symbol.class).orElse(null);
+    }
+
     /**
      * Builds a symbol within the context of the package in which codegen is taking place.
      *

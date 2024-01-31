@@ -17,12 +17,13 @@ package software.amazon.smithy.go.codegen.service.protocol.aws;
 
 import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SymbolUtils.getReference;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
 import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
+import static software.amazon.smithy.go.codegen.service.Util.normalize;
 
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -81,11 +82,11 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
     }
 
     private String getDeserializerName(Shape shape) {
-        return "awsJson10_deserialize" + symbolProvider.toSymbol(shape).getName();
+        return "awsJson10_deserialize" + shape.getId().getName();
     }
 
     private String getSerializerName(Shape shape) {
-        return "awsJson10_serialize" + symbolProvider.toSymbol(shape).getName();
+        return "awsJson10_serialize" + shape.getId().getName();
     }
 
     private GoWriter.Writable generateDeserializers() {
@@ -94,332 +95,211 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                         .map(it -> model.expectShape(it.getInputShape(), StructureShape.class))
                         .flatMap(it -> getShapesToSerde(model, it).stream())
                         .collect(toSet()).stream()
-                        .map(this::generateDeserializeFunc)
+                        .map(this::generateShapeDeserializer)
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable generateDeserializeFunc(StructureShape structure) {
-        var fields = GoWriter.ChainWritable.of(
-                structure.getAllMembers().entrySet().stream()
-                        .map(it -> goTemplate("""
-                                if k == $S {
-                                    $W
-                                }
-                                """, it.getKey(), generateDeserializeStructField(it.getValue())))
-                        .toList()
-        );
+    private GoWriter.Writable generateShapeDeserializer(Shape shape) {
         return goTemplate("""
-                func $name:L(jv map[string]interface{}) ($struct:P, error) {
-                    v := &$struct:T{}
-                    for k, jvv := range jv {
-                        $fields:W
+                func $name:L(v interface{}) ($shapeType:P, error) {
+                    av, ok := v.($assert:W)
+                    if !ok {
+                        return $zero:W, $error:T("invalid")
                     }
-                    return v, nil
+                    $deserialize:W
                 }
                 """,
                 MapUtils.of(
-                        "name", getDeserializerName(structure),
-                        "struct", symbolProvider.toSymbol(structure),
-                        "fields", fields.compose(false)
+                        "name", getDeserializerName(shape),
+                        "shapeType", symbolProvider.toSymbol(shape),
+                        "assert", generateOpaqueAssert(shape),
+                        "zero", generateZeroValue(shape),
+                        "error", GoStdlibTypes.Fmt.Errorf,
+                        "deserialize", generateDeserializeAssertedValue(shape, "av")
                 ));
     }
 
-    private GoWriter.Writable generateDeserializeStructField(MemberShape member) {
-        return switch (model.expectShape(member.getTarget()).getType()) {
-            case BOOLEAN -> generateDeserializePrimitive(member, SmithyGoTypes.Ptr.Bool, "bool");
-            case STRING -> generateDeserializePrimitive(member, SmithyGoTypes.Ptr.String, "string");
-            case BYTE -> generateDeserializeIntegral(member, SmithyGoTypes.Ptr.Int8, "int8",
-                    Byte.MIN_VALUE, Byte.MAX_VALUE);
-            case SHORT -> generateDeserializeIntegral(member, SmithyGoTypes.Ptr.Int16, "int16",
-                    Short.MIN_VALUE, Short.MAX_VALUE);
-            case INTEGER -> generateDeserializeIntegral(member, SmithyGoTypes.Ptr.Int32, "int32",
-                    Integer.MIN_VALUE, Integer.MAX_VALUE);
-            case LONG -> generateDeserializeIntegral(member, SmithyGoTypes.Ptr.Int64, "int64",
-                    Long.MIN_VALUE, Long.MAX_VALUE);
-            case STRUCTURE -> goTemplate("""
-                    av, ok := jvv.(map[string]interface{})
-                    if !ok {
-                        return nil, $errorf:T("invalid")
-                    }
+    private GoWriter.Writable generateOpaqueAssert(Shape shape) {
+        return switch (shape.getType()) {
+            case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, INT_ENUM ->
+                    goTemplate("$T", GoStdlibTypes.Encoding.Json.Number);
+            case STRING, BLOB, TIMESTAMP, ENUM, BIG_DECIMAL, BIG_INTEGER ->
+                    goTemplate("string");
+            case BOOLEAN ->
+                    goTemplate("bool");
+            case LIST, SET ->
+                    goTemplate("[]interface{}");
+            case MAP, STRUCTURE, UNION ->
+                    goTemplate("map[string]interface{}");
+            case DOCUMENT ->
+                    throw new CodegenException("TODO: document is special");
+            default ->
+                    throw new CodegenException("? " + shape.getType());
+        };
+    }
 
-                    var err error
-                    v.$field:L, err = $deserialize:L(av)
+    private GoWriter.Writable generateZeroValue(Shape shape) {
+        return switch (shape.getType()) {
+            case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE ->
+                    goTemplate("0");
+            case STRING ->
+                    goTemplate("\"\"");
+            case BOOLEAN ->
+                    goTemplate("false");
+            case BLOB, LIST, SET, MAP, STRUCTURE, UNION ->
+                    goTemplate("nil");
+            case ENUM ->
+                    goTemplate("$T(\"\")", symbolProvider.toSymbol(shape));
+            case INT_ENUM ->
+                    goTemplate("$T(0)", symbolProvider.toSymbol(shape));
+            case DOCUMENT ->
+                    throw new CodegenException("TODO: document is special");
+            default ->
+                    throw new CodegenException("? " + shape.getType());
+        };
+    }
+
+    private GoWriter.Writable generateDeserializeAssertedValue(Shape shape, String ident) {
+        return switch (shape.getType()) {
+            case BYTE -> generateDeserializeIntegral(ident, "int8", Byte.MIN_VALUE, Byte.MAX_VALUE);
+            case SHORT -> generateDeserializeIntegral(ident, "int16", Short.MIN_VALUE, Short.MAX_VALUE);
+            case INTEGER -> generateDeserializeIntegral(ident, "int32", Integer.MIN_VALUE, Integer.MAX_VALUE);
+            case LONG -> generateDeserializeIntegral(ident, "int64", Long.MIN_VALUE, Long.MAX_VALUE);
+            case STRING, BOOLEAN -> goTemplate("return $L, nil", ident);
+            case ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
+            case BLOB -> goTemplate("""
+                    p, err := $b64:T.DecodeString($ident:L)
                     if err != nil {
-                        return nil, $errorf:T("invalid")
+                        return nil, err
                     }
+                    return p, nil
                     """,
                     MapUtils.of(
-                            "errorf", GoStdlibTypes.Fmt.Errorf,
-                            "field", symbolProvider.toMemberName(member),
-                            "deserialize", getDeserializerName(model.expectShape(member.getTarget()))
+                            "ident", ident,
+                            "b64", GoStdlibTypes.Encoding.Base64.StdEncoding
                     ));
             case LIST, SET -> {
-                var list = model.expectShape(member.getTarget(), CollectionShape.class);
-                var listMemberTarget = model.expectShape(list.getMember().getTarget());
+                var target = normalize(model.expectShape(((CollectionShape) shape).getMember().getTarget()));
+                var symbol = symbolProvider.toSymbol(shape);
+                var targetSymbol = symbolProvider.toSymbol(target);
                 yield goTemplate("""
-                                jsonList, ok := jvv.([]interface{})
-                                if !ok {
-                                    return nil, $errorf:T("invalid")
-                                }
-                                deserializedList := []$item:T{}
-                                for _, jsonItem := range jsonList {
-                                    $deserialize:W
-                                }
-                                v.$field:L = deserializedList
-                                """,
+                        var deserializedList $type:T
+                        for _, serializedItem := range $ident:L {
+                            deserializedItem, err := $deserialize:L(serializedItem)
+                            if err != nil {
+                                return nil, err
+                            }
+                            deserializedList = append(deserializedList, $deref:L)
+                        }
+                        return deserializedList, nil
+                        """,
                         MapUtils.of(
-                                "errorf", GoStdlibTypes.Fmt.Errorf,
-                                "item", symbolProvider.toSymbol(listMemberTarget),
-                                "field", symbolProvider.toMemberName(member),
-                                "deserialize", generateDeserializeListItem(member, listMemberTarget)
+                                "type", symbol,
+                                "ident", ident,
+                                "deserialize", getDeserializerName(target),
+                                "deref", isPointable(getReference(symbol)) != isPointable(targetSymbol)
+                                        ? "*deserializedItem" : "deserializedItem"
                         ));
             }
             case MAP -> {
-                var map = model.expectShape(member.getTarget(), MapShape.class);
-                var mapValueTarget = model.expectShape(map.getValue().getTarget());
+                var value = normalize(model.expectShape(((MapShape) shape).getValue().getTarget()));
+                var symbol = symbolProvider.toSymbol(shape);
+                var valueSymbol = symbolProvider.toSymbol(value);
                 yield goTemplate("""
-                                jsonMap, ok := jvv.(map[string]interface{})
-                                if !ok {
-                                    return nil, $errorf:T("invalid")
-                                }
-                                deserializedMap := map[string]$item:T{}
-                                for jsonMapKey, jsonMapValue := range jsonMap {
-                                    $deserialize:W
-                                }
-                                v.$field:L = deserializedMap
-                                """,
+                        deserializedMap := $type:T{}
+                        for key, serializedValue := range $ident:L {
+                            deserializedValue, err := $deserialize:L(serializedValue)
+                            if err != nil {
+                                return nil, err
+                            }
+                            deserializedMap[key] = $deref:L
+                        }
+                        return deserializedMap, nil
+                        """,
                         MapUtils.of(
-                                "errorf", GoStdlibTypes.Fmt.Errorf,
-                                // TODO blind $P isn't reliable here, nullability of value target needs to correlate
-                                //      back to generated field
-                                "item", symbolProvider.toSymbol(mapValueTarget),
-                                "field", symbolProvider.toMemberName(member),
-                                "deserialize", generateDeserializeMapEntry(member, mapValueTarget)
+                                "type", symbol,
+                                "ident", ident,
+                                "deserialize", getDeserializerName(value),
+                                "deref", isPointable(getReference(symbol)) != isPointable(valueSymbol)
+                                        ? "*deserializedValue" : "deserializedValue"
                         ));
             }
-            case BLOB -> goTemplate("""
-                    av, ok := jvv.(string)
-                    if !ok {
-                        return nil, $errorf:T("invalid")
-                    }
-                    p, err := $b64:T.DecodeString(av)
-                    if err != nil {
-                        return nil, err
-                    }
-                    v.$field:L = p
-                    """,
-                    MapUtils.of(
-                            "errorf", GoStdlibTypes.Fmt.Errorf,
-                            "b64", GoStdlibTypes.Encoding.Base64.StdEncoding,
-                            "field", symbolProvider.toMemberName(member)
-                    ));
-          //case TIMESTAMP -> null;
-          //case FLOAT -> null;
-          //case DOCUMENT -> null;
-          //case DOUBLE -> null;
-          //case BIG_DECIMAL -> null;
-          //case BIG_INTEGER -> null;
-          //case ENUM -> null;
-          //case INT_ENUM -> null;
-          //case UNION -> null;
-            case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("cannot deserialize");
-            default -> goTemplate("// TODO");
-        };
-    }
-
-    private GoWriter.Writable generateDeserializeListItem(MemberShape member, Shape target) {
-        return switch (target.getType()) {
             case STRUCTURE -> goTemplate("""
-                    jsonStruct, ok := jsonItem.(map[string]interface{})
-                    if !ok {
-                        return nil, $errorf:T("invalid")
+                    deserializedStruct := &$type:T{}
+                    for key, serializedValue := range $ident:L {
+                        $deserializeFields:W
                     }
-                    deserializedStruct, err := $deserialize:L(jsonStruct)
-                    if err != nil {
-                        return nil, $errorf:T("invalid")
-                    }
-                    deserializedList = append(deserializedList, $expr:L)
+                    return deserializedStruct, nil
                     """,
                     MapUtils.of(
-                            "errorf", GoStdlibTypes.Fmt.Errorf,
-                            "deserialize", getDeserializerName(target),
-                            // TODO this needs to check if the list's member is ptr and dereference conditionally
-                            "expr", "*deserializedStruct"
+                            "type", symbolProvider.toSymbol(shape),
+                            "ident", ident,
+                            "deserializeFields", GoWriter.ChainWritable.of(
+                                    shape.getAllMembers().entrySet().stream()
+                                            .map(it -> {
+                                                var target = model.expectShape(it.getValue().getTarget());
+                                                return goTemplate("""
+                                                        if key == $field:S {
+                                                            fieldValue, err := $deserialize:L(serializedValue)
+                                                            if err != nil {
+                                                                return nil, err
+                                                            }
+                                                            deserializedStruct.$fieldName:L = $deref:W
+                                                        }
+                                                        """,
+                                                        MapUtils.of(
+                                                                "field", it.getKey(),
+                                                                "fieldName", symbolProvider.toMemberName(it.getValue()),
+                                                                "deserialize", getDeserializerName(normalize(target)),
+                                                                "deref", generateStructFieldDeref(
+                                                                        it.getValue(), "fieldValue")
+                                                        ));
+                                            })
+                                            .toList()
+                            ).compose(false)
                     ));
-            case STRING -> goTemplate("""
-                    av, ok := jsonItem.(string)
-                    if !ok {
-                        return nil, $T("invalid")
-                    }
-                    deserializedList = append(deserializedList, av)
-                    """, GoStdlibTypes.Fmt.Errorf);
-            case BLOB -> goTemplate("""
-                    av, ok := jsonItem.(string)
-                    if !ok {
-                        return nil, $errorf:T("invalid")
-                    }
-                    p, err := $b64:T.DecodeString(av)
-                    if err != nil {
-                        return nil, err
-                    }
-                    deserializedList = append(deserializedList, p)
-                    """,
-                    MapUtils.of(
-                            "errorf", GoStdlibTypes.Fmt.Errorf,
-                            "b64", GoStdlibTypes.Encoding.Base64.StdEncoding
-                    ));
-            case ENUM -> goTemplate("""
-                    av, ok := jsonItem.(string)
-                    if !ok {
-                        return nil, $T("invalid")
-                    }
-                    deserializedList = append(deserializedList, $T(av))
-                    """, GoStdlibTypes.Fmt.Errorf, symbolProvider.toSymbol(target));
-          //case BOOLEAN -> null;
-          //case TIMESTAMP -> null;
-          //case BYTE -> null;
-          //case SHORT -> null;
-          //case INTEGER -> null;
-          //case LONG -> null;
-          //case FLOAT -> null;
-          //case DOCUMENT -> null;
-          //case DOUBLE -> null;
-          //case BIG_DECIMAL -> null;
-          //case BIG_INTEGER -> null;
-          //case INT_ENUM -> null;
-          //case UNION -> null;
-            case LIST, SET ->
-                    throw new CodegenException("recursive list/set will not work right now, idents will overlap");
-            case MAP ->
-                    throw new CodegenException("recursive map will not work right now, idents will overlap");
-            case MEMBER, SERVICE, RESOURCE, OPERATION ->
-                    throw new CodegenException("cannot deserialize " + target.getType());
-            default -> goTemplate("// TODO " + target.getType());
+            case UNION -> goTemplate("// TODO (union)");
+            default ->
+                throw new CodegenException("? " + shape.getType());
         };
     }
 
-    private GoWriter.Writable generateDeserializeMapEntry(MemberShape member, Shape target) {
-        return switch (target.getType()) {
-            case STRUCTURE -> goTemplate("""
-                    mv, ok := jsonMapValue.(map[string]interface{})
-                    if !ok {
-                        return nil, $errorf:T("invalid")
-                    }
-                    deserializedStruct, err := $deserialize:L(mv)
-                    if err != nil {
-                        return nil, err
-                    }
-                    deserializedMap[jsonMapKey] = $expr:L
-                    """,
-                    MapUtils.of(
-                            "errorf", GoStdlibTypes.Fmt.Errorf,
-                            "deserialize", getDeserializerName(target),
-                            // TODO this needs to check if the map's value is ptr and dereference conditionally
-                            "expr", "*deserializedStruct"
-                    ));
-            case STRING -> goTemplate("""
-                            stringValue, ok := jsonMapValue.(string)
-                            if !ok {
-                                return nil, $T("invalid")
-                            }
-                            deserializedMap[jsonMapKey] = stringValue
-                            """, GoStdlibTypes.Fmt.Errorf);
-          //case BLOB -> null;
-          //case BOOLEAN -> null;
-          //case TIMESTAMP -> null;
-          //case BYTE -> null;
-          //case SHORT -> null;
-          //case INTEGER -> null;
-          //case LONG -> null;
-          //case FLOAT -> null;
-          //case DOCUMENT -> null;
-          //case DOUBLE -> null;
-          //case BIG_DECIMAL -> null;
-          //case BIG_INTEGER -> null;
-          //case ENUM -> null;
-          //case INT_ENUM -> null;
-          //case STRUCTURE -> null;
-          //case UNION -> null;
-            case LIST, SET ->
-                    throw new CodegenException("recursive list/set will not work right now, idents will overlap");
-            case MAP ->
-                    throw new CodegenException("recursive map will not work right now, idents will overlap");
-            case MEMBER, SERVICE, RESOURCE, OPERATION ->
-                    throw new CodegenException("cannot deserialize " + target.getType());
-            default -> goTemplate("// TODO " + target.getType());
-        };
-    }
-
-    private GoWriter.Writable generateDeserializePrimitive(MemberShape member, Symbol deref, String type) {
+    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, long min, long max) {
         return goTemplate("""
-                av, ok := jvv.($type:L)
-                if !ok {
-                    return nil, $errorf:T("invalid")
-                }
-                v.$field:L = $expr:W
-                """,
-                MapUtils.of(
-                        "type", type,
-                        "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "field", symbolProvider.toMemberName(member),
-                        "expr", generatePrimitiveExpr(symbolProvider.toSymbol(member), deref, "av")
-                ));
-    }
-
-    private GoWriter.Writable generateDeserializeIntegral(
-            MemberShape member, Symbol deref, String cast, long min, long max
-    ) {
-        return goTemplate("""
-                nv, ok := jvv.($number:T)
-                if !ok {
-                    return nil, $errorf:T("invalid")
-                }
-                av, err := nv.Int64()
+                $nextident:L, err := $ident:L.Int64()
                 if err != nil {
-                    return nil, $errorf:T("invalid")
+                    return 0, err
                 }
-                if av < $min:L || av > $max:L {
-                    return nil, $errorf:T("invalid")
+                if $nextident:L < $min:L || $nextident:L > $max:L {
+                    return 0, $errorf:T("invalid")
                 }
-
-                v.$field:L = $expr:W
+                return $cast:L($nextident:L), nil
                 """,
                 MapUtils.of(
-                        "number", GoStdlibTypes.Encoding.Json.Number,
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "field", symbolProvider.toMemberName(member),
-                        "expr", generatePrimitiveExpr(symbolProvider.toSymbol(member), deref, cast + "(av)"),
+                        "ident", ident,
+                        "nextident", ident + "_",
                         "min", min,
-                        "max", max
+                        "max", max,
+                        "cast", castTo
                 ));
     }
 
-    private GoWriter.Writable generatePrimitiveExpr(Symbol symbol, Symbol deref, String ident) {
-        return isPointable(symbol) ? goTemplate("$T($L)", deref, ident) : goTemplate(ident);
-    }
-
-    private GoWriter.Writable generateSerializers() {
-        return GoWriter.ChainWritable.of(
-                TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
-                        .flatMap(it -> getShapesToSerde(model, it).stream())
-                        .map(this::generateSerializeStructure)
-                        .collect(toSet())
-        ).compose();
-    }
-
-    private GoWriter.Writable generateSerializeStructure(StructureShape structure) {
-        return goTemplate("""
-                func $name:L(v $struct:P) map[string]interface{} {
-                    jv := map[string]interface{}{}
-                    return jv
-                }
-                """,
-                MapUtils.of(
-                        "name", getSerializerName(structure),
-                        "struct", symbolProvider.toSymbol(structure)
-                ));
+    private GoWriter.Writable generateStructFieldDeref(MemberShape member, String ident) {
+        var symbol = symbolProvider.toSymbol(member);
+        if (!isPointable(symbol)) {
+            return goTemplate(ident);
+        }
+        return switch (model.expectShape(member.getTarget()).getType()) {
+            case BYTE -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int8, ident);
+            case SHORT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int16, ident);
+            case INTEGER -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int32, ident);
+            case LONG -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int64, ident);
+            case STRING -> goTemplate("$T($L)", SmithyGoTypes.Ptr.String, ident);
+            case BOOLEAN -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Bool, ident);
+            default -> goTemplate(ident);
+        };
     }
 
     private GoWriter.Writable generateSerializeError() {
