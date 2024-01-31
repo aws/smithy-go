@@ -38,6 +38,9 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.HttpErrorTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -159,12 +162,15 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     private GoWriter.Writable generateSerializeError() {
+        var errorShapes = model.getStructureShapesWithTrait(ErrorTrait.class);
         return goTemplate("""
                 func serializeError(w $rw:T, err error) {
                     if _, ok := err.(*$notImplemented:L); ok {
                         writeEmpty(w, http.StatusNotImplemented)
                         return
                     }
+
+                    $serializeErrors:W
 
                     writeEmpty(w, http.StatusInternalServerError)
                 }
@@ -176,7 +182,34 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 """,
                 MapUtils.of(
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
-                        "notImplemented", NotImplementedError.NAME
+                        "notImplemented", NotImplementedError.NAME,
+                        "serializeErrors", generateSerializeErrors(errorShapes)
+                ));
+    }
+
+    private GoWriter.Writable generateSerializeErrors(Set<StructureShape> errorShapes) {
+        return GoWriter.ChainWritable.of(
+                errorShapes.stream()
+                        .map(this::generateSerializeError)
+                        .toList()
+        ).compose(false);
+    }
+
+    private GoWriter.Writable generateSerializeError(StructureShape errorShape) {
+        var httpStatus = errorShape.hasTrait(HttpErrorTrait.class)
+                ? errorShape.expectTrait(HttpErrorTrait.class).getCode()
+                : 400;
+        return goTemplate("""
+                if _, ok := err.($err:P); ok {
+                    w.WriteHeader($status:L)
+                    w.Write([]byte(`{"__type":$type:S}`))
+                    return
+                }
+                """,
+                MapUtils.of(
+                        "err", symbolProvider.toSymbol(errorShape),
+                        "status", httpStatus,
+                        "type", errorShape.getId().toString()
                 ));
     }
 
