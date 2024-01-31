@@ -15,62 +15,51 @@
 
 package software.amazon.smithy.go.codegen.service.protocol;
 
-import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.service.RequestHandler;
 import software.amazon.smithy.go.codegen.service.ServerProtocolGenerator;
+import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
- * Implements base transport codegen for HTTP protocols.
+ * Base class for HTTP protocol codegen.
+ * HTTP protocols serve requests by generating a net/http.Handler implementation onto the base RequestHandler struct.
  */
 @SmithyInternalApi
-public abstract class HttpServerProtocolGenerator implements ServerProtocolGenerator {
+public abstract class HttpHandlerProtocolGenerator implements ServerProtocolGenerator {
     @Override
     public ApplicationProtocol getApplicationProtocol() {
         return ApplicationProtocol.createDefaultHttpApplicationProtocol();
     }
 
     @Override
-    public GoWriter.Writable generateSource() {
-        return generateHttpHandler();
-    }
-
-    @Override
-    public GoWriter.Writable generateTransportFields() {
+    public GoWriter.Writable generateHandleRequest() {
         return goTemplate("""
-                server $P
-                """, GoStdlibTypes.Net.Http.Server);
+            var _ $httpHandler:T = (*$requestHandler:L)(nil)
+
+            $serveHttp:W
+            """,
+                MapUtils.of(
+                        "requestHandler", RequestHandler.NAME,
+                        "httpHandler", GoStdlibTypes.Net.Http.Handler,
+                        "serveHttp", generateServeHttp()
+                ));
     }
 
     @Override
-    public GoWriter.Writable generateTransportOptions() {
-        return emptyGoTemplate();
-    }
-
-    @Override
-    public GoWriter.Writable generateTransportInit() {
+    public GoWriter.Writable generateOptions() {
+        // TODO interceptors
         return goTemplate("""
-                sv.server = &$T{
-                    Handler: &httpHandler{svc},
-                }
-                """, GoStdlibTypes.Net.Http.Server);
-    }
-
-    @Override
-    public GoWriter.Writable generateTransportRun() {
-        return goTemplate("""
-                return sv.server.ListenAndServe()
+                // TODO: HTTP interceptors
                 """);
     }
 
     /**
-     * Generates the HTTP handler expected by this base class.
-     * The generated declaration MUST be `type httpHandler struct` and this struct MUST implement the net/http Handler
-     * interface.
+     * Generates the net/http.Handler's ServeHTTP implementation for this protocol.
      */
-    public abstract GoWriter.Writable generateHttpHandler();
+    public abstract GoWriter.Writable generateServeHttp();
 }

@@ -15,6 +15,9 @@
 
 package software.amazon.smithy.go.codegen.service;
 
+import static java.util.stream.Collectors.toSet;
+import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -196,13 +199,27 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
 
         LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
 
-        writers.useFileWriter("feat_svcgen.go", settings.getModuleName(), GoWriter.ChainWritable.of(
-            protocolGenerator.generateSource(),
-            new ServerInterface(model, service, symbolProvider),
-            new NoopServiceStruct(model, service, symbolProvider),
-            new NotImplementedError(),
-            new ServerStruct(protocolGenerator)
+        var shapesToDeserialize = TopDownIndex.of(model).getContainedOperations(service).stream()
+                .map(it -> model.expectShape(it.getInputShape(), StructureShape.class))
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .collect(toSet());
+        var shapesToSerialize = TopDownIndex.of(model).getContainedOperations(service).stream()
+                .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .collect(toSet());
+
+        writers.useFileWriter("service.go", settings.getModuleName(), GoWriter.ChainWritable.of(
+                new NotImplementedError(),
+                new ServerInterface(model, service, symbolProvider),
+                new NoopServiceStruct(model, service, symbolProvider),
+                new RequestHandler(protocolGenerator)
         ).compose());
+        writers.useFileWriter("options.go", settings.getModuleName(),
+                new OptionsStruct(protocolGenerator));
+        writers.useFileWriter("deserialize.go", settings.getModuleName(),
+                protocolGenerator.generateDeserializers(shapesToDeserialize));
+        writers.useFileWriter("serialize.go", settings.getModuleName(),
+                protocolGenerator.generateSerializers(shapesToSerialize));
 
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();

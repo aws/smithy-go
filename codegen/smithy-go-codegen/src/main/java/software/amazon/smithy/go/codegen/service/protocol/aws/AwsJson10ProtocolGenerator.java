@@ -15,21 +15,20 @@
 
 package software.amazon.smithy.go.codegen.service.protocol.aws;
 
-import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
 import static software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator.getDeserializerName;
 import static software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator.getSerializerName;
 
+import java.util.Set;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
+import software.amazon.smithy.go.codegen.service.RequestHandler;
 import software.amazon.smithy.go.codegen.service.ServerCodegenUtils;
-import software.amazon.smithy.go.codegen.service.ServerInterface;
-import software.amazon.smithy.go.codegen.service.protocol.HttpServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.service.protocol.HttpHandlerProtocolGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator;
 import software.amazon.smithy.model.Model;
@@ -37,8 +36,8 @@ import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -46,7 +45,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Implements the aws.protocols#awsJson1_0 protocol.
  */
 @SmithyInternalApi
-public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerator {
+public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerator {
     private final Model model;
     private final ServiceShape service;
     private final SymbolProvider symbolProvider;
@@ -66,76 +65,23 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
         return AwsJson1_0Trait.ID;
     }
 
+    @Override
+    public GoWriter.Writable generateDeserializers(Set<Shape> shapes) {
+        return new JsonDeserializerGenerator(model, symbolProvider).generate(shapes);
+    }
 
     @Override
-    public GoWriter.Writable generateSource() {
+    public GoWriter.Writable generateSerializers(Set<Shape> shapes) {
         return GoWriter.ChainWritable.of(
-                super.generateSource(),
-                generateDeserializers(),
-                generateSerializers(),
+                new JsonSerializerGenerator(model, symbolProvider).generate(shapes),
                 generateSerializeError()
         ).compose();
     }
 
-    private GoWriter.Writable generateDeserializers() {
-        var shapes = TopDownIndex.of(model).getContainedOperations(service).stream()
-                .map(it -> model.expectShape(it.getInputShape(), StructureShape.class))
-                .flatMap(it -> getShapesToSerde(model, it).stream())
-                .collect(toSet());
-        return new JsonDeserializerGenerator(model, symbolProvider).generate(shapes);
-    }
-
-    private GoWriter.Writable generateSerializers() {
-        var shapes = TopDownIndex.of(model).getContainedOperations(service).stream()
-                .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
-                .flatMap(it -> getShapesToSerde(model, it).stream())
-                .collect(toSet());
-        return new JsonSerializerGenerator(model, symbolProvider).generate(shapes);
-    }
-
-    private GoWriter.Writable generateSerializeError() {
-        return goTemplate("""
-                func serializeError(w $rw:T, err error) {
-                    if _, ok := err.(*$notImplemented:L); ok {
-                        writeEmpty(w, http.StatusNotImplemented)
-                        return
-                    }
-
-                    writeEmpty(w, http.StatusInternalServerError)
-                }
-
-                func writeEmpty(w $rw:T, status int) {
-                    w.WriteHeader(status)
-                    w.Write([]byte("{}"))
-                }
-                """,
-                MapUtils.of(
-                        "rw", GoStdlibTypes.Net.Http.ResponseWriter,
-                        "notImplemented", NotImplementedError.NAME
-                ));
-    }
-
     @Override
-    public GoWriter.Writable generateHttpHandler() {
+    public GoWriter.Writable generateServeHttp() {
         return goTemplate("""
-                type httpHandler struct{
-                    service $interface:L
-                }
-
-                var _ $handler:T = (*httpHandler)(nil)
-
-                $serveHttp:W
-                """,
-                MapUtils.of(
-                        "interface", ServerInterface.NAME,
-                        "handler", GoStdlibTypes.Net.Http.Handler,
-                        "serveHttp", generateServeHttp()
-                ));
-    }
-
-    private GoWriter.Writable generateServeHttp() {
-        return goTemplate("""
-                func (h *httpHandler) ServeHTTP(w $rw:T, r $r:P) {
+                func (h *$requestHandler:L) ServeHTTP(w $rw:T, r $r:P) {
                     w.Header().Set("Content-Type", "application/x-amz-json-1.0")
 
                     if r.Method != http.MethodPost {
@@ -150,6 +96,7 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                 }
                 """,
                 MapUtils.of(
+                        "requestHandler", RequestHandler.NAME,
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
                         "r", GoStdlibTypes.Net.Http.Request,
                         "route", generateRouteRequest()
@@ -168,10 +115,6 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                                 """, getOperationTarget(it), generateHandleOperation(it)))
                         .toList()
         ).compose(false);
-    }
-
-    private String getOperationTarget(OperationShape operation) {
-        return service.getId().getName(service) + "." + operation.getId().getName(service);
     }
 
     private GoWriter.Writable generateHandleOperation(OperationShape operation) {
@@ -213,5 +156,31 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
                         "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
                         "serialize", getSerializerName(model.expectShape(operation.getOutputShape()))
                 ));
+    }
+
+    private GoWriter.Writable generateSerializeError() {
+        return goTemplate("""
+                func serializeError(w $rw:T, err error) {
+                    if _, ok := err.(*$notImplemented:L); ok {
+                        writeEmpty(w, http.StatusNotImplemented)
+                        return
+                    }
+
+                    writeEmpty(w, http.StatusInternalServerError)
+                }
+
+                func writeEmpty(w $rw:T, status int) {
+                    w.WriteHeader(status)
+                    w.Write([]byte("{}"))
+                }
+                """,
+                MapUtils.of(
+                        "rw", GoStdlibTypes.Net.Http.ResponseWriter,
+                        "notImplemented", NotImplementedError.NAME
+                ));
+    }
+
+    private String getOperationTarget(OperationShape operation) {
+        return service.getId().getName(service) + "." + operation.getId().getName(service);
     }
 }

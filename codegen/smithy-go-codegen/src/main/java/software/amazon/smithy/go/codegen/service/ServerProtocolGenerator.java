@@ -15,8 +15,10 @@
 
 package software.amazon.smithy.go.codegen.service;
 
+import java.util.Set;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -28,34 +30,11 @@ public interface ServerProtocolGenerator {
     ShapeId getProtocol();
 
     // Go
-    /**
-     * Generate all supporting source code required by this protocol.
-     */
-    GoWriter.Writable generateSource();
+    GoWriter.Writable generateHandleRequest();
 
-    /**
-     * Generate transport fields.
-     * Called within the scope of the service's concrete struct declaration.
-     */
-    GoWriter.Writable generateTransportFields();
+    GoWriter.Writable generateOptions();
 
-    /**
-     * Generate transport options.
-     * Called within the scope of the service's concrete struct options declaration.
-     */
-    GoWriter.Writable generateTransportOptions();
+    GoWriter.Writable generateDeserializers(Set<Shape> shape);
 
-    /**
-     * Generate transport initialization.
-     * Called within the scope of the service's concrete struct New() method. The service is in scope.
-     */
-    GoWriter.Writable generateTransportInit();
-
-    /**
-     * Generate code to start serving traffic with the protocol transport.
-     * Called within the scope of the service's concrete struct Run() method.
-     */
-    GoWriter.Writable generateTransportRun();
-
-    // TODO generateTransportShutdown()
+    GoWriter.Writable generateSerializers(Set<Shape> shape);
 }

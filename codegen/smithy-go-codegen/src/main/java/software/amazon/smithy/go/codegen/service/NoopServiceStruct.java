@@ -31,7 +31,7 @@ import software.amazon.smithy.utils.MapUtils;
  * Generates a no-op implementation of the service that returns 501 Not Implemented for every operation.
  */
 public final class NoopServiceStruct implements GoWriter.Writable {
-    public static final String NAME = "NoopService";
+    public static final String NAME = "NoopFallbackService";
 
     private final Model model;
     private final ServiceShape service;
