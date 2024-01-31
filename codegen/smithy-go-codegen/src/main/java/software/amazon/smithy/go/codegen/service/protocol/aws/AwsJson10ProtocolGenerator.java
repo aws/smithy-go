@@ -15,22 +15,30 @@
 
 package software.amazon.smithy.go.codegen.service.protocol.aws;
 
+import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
+import static software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator.getDeserializerName;
+import static software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator.getSerializerName;
 
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
 import software.amazon.smithy.go.codegen.service.ServerCodegenUtils;
 import software.amazon.smithy.go.codegen.service.ServerInterface;
 import software.amazon.smithy.go.codegen.service.protocol.HttpServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator;
+import software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -63,8 +71,26 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
     public GoWriter.Writable generateSource() {
         return GoWriter.ChainWritable.of(
                 super.generateSource(),
+                generateDeserializers(),
+                generateSerializers(),
                 generateSerializeError()
         ).compose();
+    }
+
+    private GoWriter.Writable generateDeserializers() {
+        var shapes = TopDownIndex.of(model).getContainedOperations(service).stream()
+                .map(it -> model.expectShape(it.getInputShape(), StructureShape.class))
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .collect(toSet());
+        return new JsonDeserializerGenerator(model, symbolProvider).generate(shapes);
+    }
+
+    private GoWriter.Writable generateSerializers() {
+        var shapes = TopDownIndex.of(model).getContainedOperations(service).stream()
+                .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .collect(toSet());
+        return new JsonSerializerGenerator(model, symbolProvider).generate(shapes);
     }
 
     private GoWriter.Writable generateSerializeError() {
@@ -150,19 +176,42 @@ public final class AwsJson10ProtocolGenerator extends HttpServerProtocolGenerato
 
     private GoWriter.Writable generateHandleOperation(OperationShape operation) {
         return goTemplate("""
-                w.Header().Set("X-Amz-Target", $target:S)
-                _, err := h.service.$operation:L(r.Context(), nil)
+                d := $decoder:T(r.Body)
+                d.UseNumber()
+                var jv map[string]interface{}
+                if err := d.Decode(&jv); err != nil {
+                    serializeError(w, err)
+                    return
+                }
+
+                in, err := $deserialize:L(jv)
                 if err != nil {
                     serializeError(w, err)
                     return
                 }
 
-                writeEmpty(w, http.StatusOK)
+                out, err := h.service.$operation:L(r.Context(), in)
+                if err != nil {
+                    serializeError(w, err)
+                    return
+                }
+
+                e := $encoder:T()
+                if err := $serialize:L(out, e.Value); err != nil {
+                    serializeError(w, err)
+                    return
+                }
+
+                w.WriteHeader(http.StatusOK)
+                w.Write(e.Bytes())
                 return
                 """,
                 MapUtils.of(
-                        "target", getOperationTarget(operation),
-                        "operation", symbolProvider.toSymbol(operation).getName()
+                        "decoder", GoStdlibTypes.Encoding.Json.NewDecoder,
+                        "deserialize", getDeserializerName(model.expectShape(operation.getInputShape())),
+                        "operation", symbolProvider.toSymbol(operation).getName(),
+                        "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
+                        "serialize", getSerializerName(model.expectShape(operation.getOutputShape()))
                 ));
     }
 }

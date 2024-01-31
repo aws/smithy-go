@@ -1061,7 +1061,7 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
             return chain;
         }
 
-        public static ChainWritable of(List<GoWriter.Writable> writables) {
+        public static ChainWritable of(Collection<GoWriter.Writable> writables) {
             var chain = new ChainWritable();
             chain.writables.addAll(writables);
             return chain;
