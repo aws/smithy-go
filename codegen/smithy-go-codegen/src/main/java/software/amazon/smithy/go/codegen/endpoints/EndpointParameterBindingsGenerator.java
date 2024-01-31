@@ -56,7 +56,7 @@ public class EndpointParameterBindingsGenerator {
                     bindEndpointParams(*EndpointParameters)
                 }
 
-                func bindEndpointParams(input interface{}, options Options) *EndpointParameters {
+                func bindEndpointParams(input interface{}, options Options, ctx context.Context) *EndpointParameters {
                     params := &EndpointParameters{}
 
                     $builtinBindings:W

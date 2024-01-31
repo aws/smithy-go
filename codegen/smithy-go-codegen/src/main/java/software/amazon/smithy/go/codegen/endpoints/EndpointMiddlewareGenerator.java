@@ -126,7 +126,7 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
-                params := bindEndpointParams(getOperationInput(ctx), m.options)
+                params := bindEndpointParams(getOperationInput(ctx), m.options, ctx)
                 endpt, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
                 if err != nil {
                     return out, metadata, $1T("failed to resolve service endpoint, %w", err)

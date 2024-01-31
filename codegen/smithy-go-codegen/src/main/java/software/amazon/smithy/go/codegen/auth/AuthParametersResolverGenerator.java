@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.auth;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
+import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -42,7 +43,7 @@ public class AuthParametersResolverGenerator {
         loadResolvers();
 
         return goTemplate("""
-                func $name:L(operation string, input interface{}, options Options) $params:P {
+                func $name:L(operation string, input interface{}, options Options, ctx $context:T) $params:P {
                     params := &$params:T{
                         Operation: operation,
                     }
@@ -55,14 +56,15 @@ public class AuthParametersResolverGenerator {
                 MapUtils.of(
                         "name", FUNC_NAME,
                         "params", AuthParametersGenerator.STRUCT_SYMBOL,
-                        "bindings", generateResolvers()
+                        "bindings", generateResolvers(),
+                        "context", GoStdlibTypes.Context.Context
                 ));
     }
 
     private GoWriter.Writable generateResolvers() {
         return (writer) -> {
             for (var resolver: resolvers) {
-                writer.write("$T(params, input, options)", resolver.resolver());
+                writer.write("$T(params, input, options, ctx)", resolver.resolver());
             }
         };
     }
