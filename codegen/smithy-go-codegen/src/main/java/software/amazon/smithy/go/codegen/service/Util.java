@@ -23,12 +23,10 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.BlobShape;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.ByteShape;
-import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.DoubleShape;
 import software.amazon.smithy.model.shapes.FloatShape;
 import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.LongShape;
-import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShortShape;
 import software.amazon.smithy.model.shapes.StringShape;
@@ -46,17 +44,9 @@ public final class Util {
         ).filter(it -> !it.getId().toString().equals("smithy.api#Unit")).collect(toSet());
     }
 
-    public static Shape targetOrSelf(Model model, Shape shape) {
-        if (shape instanceof CollectionShape) {
-            return model.expectShape(((CollectionShape) shape).getMember().getTarget());
-        } else if (shape instanceof MapShape) {
-            return model.expectShape(((MapShape) shape).getValue().getTarget());
-        }
-        return shape;
-    }
-
     public static Shape normalize(Shape shape) {
         return switch (shape.getType()) {
+            // TODO should be marked synthetic and keyed into from there by caller to avoid shape name conflicts
             case BLOB -> BlobShape.builder().id("com.amazonaws.synthetic#Blob").build();
             case BOOLEAN -> BooleanShape.builder().id("com.amazonaws.synthetic#Bool").build();
             case STRING -> StringShape.builder().id("com.amazonaws.synthetic#String").build();

@@ -29,6 +29,13 @@ public final class SmithyGoTypes {
         public static final Symbol OperationError = SmithyGoDependency.SMITHY.pointableSymbol("OperationError");
     }
 
+    public static final class Encoding {
+        public static final class Json {
+            public static final Symbol NewEncoder = SmithyGoDependency.SMITHY_JSON.valueSymbol("NewEncoder");
+            public static final Symbol Value = SmithyGoDependency.SMITHY_JSON.valueSymbol("Value");
+        }
+    }
+
     public static final class Ptr {
         public static final Symbol String = SmithyGoDependency.SMITHY_PTR.valueSymbol("String");
         public static final Symbol Bool = SmithyGoDependency.SMITHY_PTR.valueSymbol("Bool");
