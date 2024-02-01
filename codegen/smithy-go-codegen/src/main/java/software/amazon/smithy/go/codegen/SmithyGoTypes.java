@@ -27,6 +27,7 @@ public final class SmithyGoTypes {
     public static final class Smithy {
         public static final Symbol Properties = SmithyGoDependency.SMITHY.pointableSymbol("Properties");
         public static final Symbol OperationError = SmithyGoDependency.SMITHY.pointableSymbol("OperationError");
+        public static final Symbol InvalidParamsError = SmithyGoDependency.SMITHY.pointableSymbol("InvalidParamsError");
     }
 
     public static final class Encoding {

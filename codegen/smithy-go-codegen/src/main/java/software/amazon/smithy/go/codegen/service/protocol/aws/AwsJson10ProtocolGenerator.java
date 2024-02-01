@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.service.protocol.aws;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator.getDeserializerName;
 import static software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator.getSerializerName;
@@ -25,9 +26,11 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
 import software.amazon.smithy.go.codegen.service.RequestHandler;
 import software.amazon.smithy.go.codegen.service.ServerCodegenUtils;
+import software.amazon.smithy.go.codegen.service.ServerValidationGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.HttpHandlerProtocolGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator;
@@ -54,6 +57,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     private final SymbolProvider symbolProvider;
 
     private final OperationIndex operationIndex;
+    private final GoValidationIndex validationIndex;
 
     public AwsJson10ProtocolGenerator(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         this.model = model;
@@ -61,6 +65,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         this.symbolProvider = symbolProvider;
 
         this.operationIndex = OperationIndex.of(model);
+        this.validationIndex = GoValidationIndex.of(model);
     }
 
     @Override
@@ -121,6 +126,32 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     private GoWriter.Writable generateHandleOperation(OperationShape operation) {
+        var input = model.expectShape(operation.getInputShape());
+        var output = model.expectShape(operation.getOutputShape());
+        return goTemplate("""
+                $deserialize:W
+
+                $validate:W
+
+                out, err := h.service.$operation:L(r.Context(), in)
+                if err != nil {
+                    serializeError(w, err)
+                    return
+                }
+
+                $serialize:W
+                """,
+                MapUtils.of(
+                        "deserialize", generateDeserialize(input),
+                        "validate", validationIndex.operationRequiresValidation(service, operation)
+                                ? generateValidateInput(input)
+                                : emptyGoTemplate(),
+                        "operation", symbolProvider.toSymbol(operation).getName(),
+                        "serialize", generateSerialize(output)
+                ));
+    }
+
+    private GoWriter.Writable generateDeserialize(Shape input) {
         return goTemplate("""
                 d := $decoder:T(r.Body)
                 d.UseNumber()
@@ -135,13 +166,24 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                     serializeError(w, err)
                     return
                 }
+                """,
+                MapUtils.of(
+                        "decoder", GoStdlibTypes.Encoding.Json.NewDecoder,
+                        "deserialize", getDeserializerName(input)
+                ));
+    }
 
-                out, err := h.service.$operation:L(r.Context(), in)
-                if err != nil {
+    private GoWriter.Writable generateValidateInput(Shape input) {
+        return goTemplate("""
+                if err := $L(in); err != nil {
                     serializeError(w, err)
                     return
                 }
+                """, ServerValidationGenerator.getShapeValidatorName(input));
+    }
 
+    private GoWriter.Writable generateSerialize(Shape output) {
+        return goTemplate("""
                 e := $encoder:T()
                 if err := $serialize:L(out, e.Value); err != nil {
                     serializeError(w, err)
@@ -153,11 +195,8 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 return
                 """,
                 MapUtils.of(
-                        "decoder", GoStdlibTypes.Encoding.Json.NewDecoder,
-                        "deserialize", getDeserializerName(model.expectShape(operation.getInputShape())),
-                        "operation", symbolProvider.toSymbol(operation).getName(),
                         "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
-                        "serialize", getSerializerName(model.expectShape(operation.getOutputShape()))
+                        "serialize", getSerializerName(output)
                 ));
     }
 
@@ -165,6 +204,11 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         var errorShapes = model.getStructureShapesWithTrait(ErrorTrait.class);
         return goTemplate("""
                 func serializeError(w $rw:T, err error) {
+                    if _, ok := err.($invalidParams:T); ok {
+                        w.WriteHeader(http.StatusBadRequest)
+                        w.Write([]byte(`{"__type":"InvalidRequest"}`))
+                        return
+                    }
                     if _, ok := err.(*$notImplemented:L); ok {
                         writeEmpty(w, http.StatusNotImplemented)
                         return
@@ -182,6 +226,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 """,
                 MapUtils.of(
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
+                        "invalidParams", SmithyGoTypes.Smithy.InvalidParamsError,
                         "notImplemented", NotImplementedError.NAME,
                         "serializeErrors", generateSerializeErrors(errorShapes)
                 ));

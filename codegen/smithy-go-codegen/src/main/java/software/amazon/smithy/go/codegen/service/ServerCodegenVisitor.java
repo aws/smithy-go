@@ -220,6 +220,8 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
                 protocolGenerator.generateDeserializers(shapesToDeserialize));
         writers.useFileWriter("serialize.go", settings.getModuleName(),
                 protocolGenerator.generateSerializers(shapesToSerialize));
+        writers.useFileWriter("validate.go", settings.getModuleName(),
+                new ServerValidationGenerator().generate(model, service, symbolProvider));
 
         LOGGER.fine("Flushing go writers");
         List<SymbolDependency> dependencies = writers.getDependencies();
