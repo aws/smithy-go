@@ -100,6 +100,12 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
 
                     w.Header().Set("Content-Type", "application/x-amz-json-1.0")
 
+                    // TODO shouldn't be here -- temporary for demo
+                    if r.Method == http.MethodGet {
+                        writeEmpty(w, http.StatusOK)
+                        return
+                    }
+
                     if r.Method != http.MethodPost {
                         writeEmpty(w, http.StatusNotFound)
                         return
