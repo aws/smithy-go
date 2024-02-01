@@ -86,10 +86,18 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         ).compose();
     }
 
+    // TODO this does too much, HTTP operation handling should be static apart from the protocol itself and receive
+    //      serde context
     @Override
     public GoWriter.Writable generateServeHttp() {
         return goTemplate("""
                 func (h *$requestHandler:L) ServeHTTP(w $rw:T, r $r:P) {
+                    id, err := $newUuid:T($rand:T).GetUUID()
+                    if err != nil {
+                        serializeError(w, err)
+                        return
+                    }
+
                     w.Header().Set("Content-Type", "application/x-amz-json-1.0")
 
                     if r.Method != http.MethodPost {
@@ -104,6 +112,8 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 }
                 """,
                 MapUtils.of(
+                        "newUuid", SmithyGoTypes.Rand.NewUUID,
+                        "rand", GoStdlibTypes.Crypto.Rand.Reader,
                         "requestHandler", RequestHandler.NAME,
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
                         "r", GoStdlibTypes.Net.Http.Request,
@@ -129,7 +139,9 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         var input = model.expectShape(operation.getInputShape());
         var output = model.expectShape(operation.getOutputShape());
         return goTemplate("""
+                $beforeDeserialize:W
                 $deserialize:W
+                $afterDeserialize:W
 
                 $validate:W
 
@@ -139,6 +151,8 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                     return
                 }
 
+                $beforeSerialize:W
+                $beforeWriteResponse:W
                 $serialize:W
                 """,
                 MapUtils.of(
@@ -147,8 +161,23 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                                 ? generateValidateInput(input)
                                 : emptyGoTemplate(),
                         "operation", symbolProvider.toSymbol(operation).getName(),
-                        "serialize", generateSerialize(output)
+                        "serialize", generateSerialize(output),
+                        "beforeDeserialize", generateInvokeInterceptor("BeforeDeserialize", "r"),
+                        "afterDeserialize", generateInvokeInterceptor("AfterDeserialize", "in"),
+                        "beforeSerialize", generateInvokeInterceptor("BeforeSerialize", "out"),
+                        "beforeWriteResponse", generateInvokeInterceptor("BeforeWriteResponse", "w")
                 ));
+    }
+
+    private GoWriter.Writable generateInvokeInterceptor(String type, String args) {
+        return goTemplate("""
+                for _, i := range h.options.Interceptors.$1L {
+                    if err := i.$1L(r.Context(), id, $2L); err != nil {
+                        serializeError(w, err)
+                        return
+                    }
+                }
+                """, type, args);
     }
 
     private GoWriter.Writable generateDeserialize(Shape input) {

@@ -40,6 +40,12 @@ public final class GoStdlibTypes {
         }
     }
 
+    public static final class Crypto {
+        public static final class Rand {
+            public static final Symbol Reader = SmithyGoDependency.CRYPTORAND.valueSymbol("Reader");
+        }
+    }
+
     public static final class Fmt {
         public static final Symbol Errorf = SmithyGoDependency.FMT.valueSymbol("Errorf");
         public static final Symbol Sprintf = SmithyGoDependency.FMT.valueSymbol("Sprintf");

@@ -37,6 +37,10 @@ public final class SmithyGoTypes {
         }
     }
 
+    public static final class Rand {
+        public static final Symbol NewUUID = SmithyGoDependency.SMITHY_RAND.valueSymbol("NewUUID");
+    }
+
     public static final class Ptr {
         public static final Symbol String = SmithyGoDependency.SMITHY_PTR.valueSymbol("String");
         public static final Symbol Bool = SmithyGoDependency.SMITHY_PTR.valueSymbol("Bool");

@@ -37,4 +37,6 @@ public interface ServerProtocolGenerator {
     GoWriter.Writable generateDeserializers(Set<Shape> shape);
 
     GoWriter.Writable generateSerializers(Set<Shape> shape);
+
+    GoWriter.Writable generateProtocolSource();
 }

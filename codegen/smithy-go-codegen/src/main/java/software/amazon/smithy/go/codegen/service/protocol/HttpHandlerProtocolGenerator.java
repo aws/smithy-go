@@ -52,10 +52,42 @@ public abstract class HttpHandlerProtocolGenerator implements ServerProtocolGene
 
     @Override
     public GoWriter.Writable generateOptions() {
-        // TODO interceptors
         return goTemplate("""
-                // TODO: HTTP interceptors
+                Interceptors HTTPInterceptors
                 """);
+    }
+
+    @Override
+    public GoWriter.Writable generateProtocolSource() {
+        return goTemplate("""
+                type InterceptBeforeDeserialize interface {
+                    BeforeDeserialize($ctx:T, string, $r:P) error
+                }
+
+                type InterceptAfterDeserialize interface {
+                    AfterDeserialize($ctx:T, string, interface{}) error
+                }
+
+                type InterceptBeforeSerialize interface {
+                    BeforeSerialize($ctx:T, string, interface{}) error
+                }
+
+                type InterceptBeforeWriteResponse interface {
+                    BeforeWriteResponse($ctx:T, string, $w:T) error
+                }
+
+                type HTTPInterceptors struct {
+                    BeforeDeserialize   []InterceptBeforeDeserialize
+                    AfterDeserialize    []InterceptAfterDeserialize
+                    BeforeSerialize     []InterceptBeforeSerialize
+                    BeforeWriteResponse []InterceptBeforeWriteResponse
+                }
+                """,
+                MapUtils.of(
+                        "ctx", GoStdlibTypes.Context.Context,
+                        "w", GoStdlibTypes.Net.Http.ResponseWriter,
+                        "r", GoStdlibTypes.Net.Http.Request
+                ));
     }
 
     /**
