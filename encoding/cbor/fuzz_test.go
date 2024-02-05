@@ -45,7 +45,7 @@ func dump(p []byte) {
 
 		major, minor := peekMajor(p), peekMinor(p)
 		switch major {
-		case MajorTypeUint, MajorTypeNegInt, MajorType7:
+		case majorTypeUint, majorTypeNegInt, majorType7:
 			if minor > 27 {
 				fmt.Printf("%d, %d (invalid)\n", major, minor)
 				return
@@ -58,7 +58,7 @@ func dump(p []byte) {
 
 			fmt.Printf("%d, %d\n", major, arg)
 			off = n
-		case MajorTypeSlice, MajorTypeString:
+		case majorTypeSlice, majorTypeString:
 			if minor == 31 {
 				panic("todo")
 			} else if minor > 27 {
@@ -73,7 +73,7 @@ func dump(p []byte) {
 
 			fmt.Printf("str(%d), len %d\n", major, arg)
 			off = n + int(arg)
-		case MajorTypeList, MajorTypeMap:
+		case majorTypeList, majorTypeMap:
 			if minor == 31 {
 				panic("todo")
 			} else if minor > 27 {
@@ -88,7 +88,7 @@ func dump(p []byte) {
 
 			fmt.Printf("container(%d), len %d\n", major, arg)
 			off = n
-		case MajorTypeTag:
+		case majorTypeTag:
 			if minor > 27 {
 				fmt.Printf("tag, %d (invalid)\n", minor)
 				return
