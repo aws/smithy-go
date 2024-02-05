@@ -39,7 +39,3 @@ const (
 	major7Float32   = minorArg4
 	major7Float64   = minorArg8
 )
-
-// we allocate for 256 items in containers to start at most to prevent huge
-// arguments from blowing up memory
-const maxAlloc = 0xff

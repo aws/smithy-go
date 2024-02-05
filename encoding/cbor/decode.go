@@ -112,7 +112,7 @@ func decodeList(p []byte) (List, int, error) {
 	}
 	p = p[off:]
 
-	l := make(List, min(alen, maxAlloc))
+	l := List{}
 	for i := 0; i < int(alen); i++ {
 		item, n, err := decode(p)
 		if err != nil {
@@ -120,7 +120,7 @@ func decodeList(p []byte) (List, int, error) {
 		}
 		p = p[n:]
 
-		l[i] = item
+		l = append(l, item)
 		off += n
 	}
 
@@ -160,7 +160,7 @@ func decodeMap(p []byte) (Map, int, error) {
 	}
 	p = p[off:]
 
-	mp := make(Map, min(maplen, maxAlloc))
+	mp := Map{}
 	for i := 0; i < int(maplen); i++ {
 		if len(p) == 0 {
 			return nil, 0, fmt.Errorf("unexpected end of payload")
@@ -280,12 +280,12 @@ func peekMinor(p []byte) byte {
 // need to check for the indefinite flag must do so externally
 func decodeArgument(p []byte) (uint64, int, error) {
 	minor := peekMinor(p)
-	if minor < 24 {
+	if minor < minorArg1 {
 		return uint64(minor), 1, nil
 	}
 
 	switch minor {
-	case 24, 25, 26, 27:
+	case minorArg1, minorArg2, minorArg4, minorArg8:
 		argLen := mtol(minor)
 		if len(p) < argLen+1 {
 			return 0, 0, fmt.Errorf("arg len %d greater than remaining buf len", argLen)
@@ -296,13 +296,13 @@ func decodeArgument(p []byte) (uint64, int, error) {
 	}
 }
 
-// minor value to arg len in bytes
+// minor value to arg len in bytes, assumes minor was checked to be in [24,27]
 func mtol(minor byte) int {
-	if minor == 24 {
+	if minor == minorArg1 {
 		return 1
-	} else if minor == 25 {
+	} else if minor == minorArg2 {
 		return 2
-	} else if minor == 26 {
+	} else if minor == minorArg4 {
 		return 4
 	}
 	return 8
@@ -317,11 +317,4 @@ func readArgument(p []byte, len int) uint64 {
 		return uint64(binary.BigEndian.Uint32(p))
 	}
 	return uint64(binary.BigEndian.Uint64(p))
-}
-
-func min(i, j uint64) uint64 {
-	if i < j {
-		return i
-	}
-	return j
 }
