@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -31,9 +30,8 @@ import java.util.regex.Pattern;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolContainer;
-import software.amazon.smithy.codegen.core.SymbolDependency;
-import software.amazon.smithy.codegen.core.SymbolDependencyContainer;
 import software.amazon.smithy.codegen.core.SymbolReference;
+import software.amazon.smithy.codegen.core.SymbolWriter;
 import software.amazon.smithy.go.codegen.knowledge.GoUsageIndex;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.loader.Prelude;
@@ -58,14 +56,12 @@ import software.amazon.smithy.utils.StringUtils;
  * <p>Use the {@code $P} formatter to refer to {@link Symbol}s using pointers where appropriate.
  */
 @SmithyInternalApi
-public final class GoWriter extends AbstractCodeWriter<GoWriter> {
+public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
     private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
     private static final Pattern ARGUMENT_NAME_PATTERN = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
     private final String fullPackageName;
-    private final ImportDeclarations imports = new ImportDeclarations();
-    private final List<SymbolDependency> dependencies = new ArrayList<>();
     private final boolean innerWriter;
     private final List<String> buildTags = new ArrayList<>();
 
@@ -78,12 +74,16 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @param fullPackageName package and filename to be written to.
      */
     public GoWriter(String fullPackageName) {
+        super(new ImportDeclarations(fullPackageName));
+
         this.fullPackageName = fullPackageName;
         this.innerWriter = false;
         init();
     }
 
     private GoWriter(String fullPackageName, boolean innerWriter) {
+        super(new ImportDeclarations(fullPackageName));
+
         this.fullPackageName = fullPackageName;
         this.innerWriter = innerWriter;
         init();
@@ -610,46 +610,12 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @return Returns the writer.
      */
     public GoWriter addUseImports(GoDependency goDependency) {
-        dependencies.addAll(goDependency.getDependencies());
+        addDependency(goDependency);
         return addImport(goDependency.getImportPath(), goDependency.getAlias());
     }
 
-    /**
-     * Imports a symbol if necessary using a package alias and list of context options.
-     *
-     * @param symbol       Symbol to optionally import.
-     * @param packageAlias The alias to refer to the symbol's package by.
-     * @param options      The list of context options (e.g., is it a USE or DECLARE symbol).
-     * @return Returns the writer.
-     */
-    public GoWriter addImport(Symbol symbol, String packageAlias, SymbolReference.ContextOption... options) {
-        LOGGER.finest(() -> {
-            StringJoiner stackTrace = new StringJoiner("\n");
-            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-                stackTrace.add(element.toString());
-            }
-            return String.format(
-                    "Adding Go import %s as `%s` (%s); Stack trace: %s",
-                    symbol.getNamespace(), packageAlias, Arrays.toString(options), stackTrace);
-        });
-
-        // Always add dependencies.
-        dependencies.addAll(symbol.getDependencies());
-
-        if (isExternalNamespace(symbol.getNamespace())) {
-            addImport(symbol.getNamespace(), packageAlias);
-        }
-
-        // Just because the direct symbol wasn't imported doesn't mean that the
-        // symbols it needs to be declared don't need to be imported.
-        addImportReferences(symbol, options);
-
-        return this;
-    }
-
-    private GoWriter addImports(GoWriter other) {
-        this.imports.addImports(other.imports);
-        return this;
+    private void addImports(GoWriter other) {
+        this.getImportContainer().addImports(other.getImportContainer());
     }
 
     private boolean isExternalNamespace(String namespace) {
@@ -675,31 +641,12 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @return Returns the writer.
      */
     public GoWriter addImport(String packageName, String as) {
-        imports.addImport(packageName, as);
+        getImportContainer().addImport(packageName, as);
         return this;
     }
 
-    /**
-     * Adds one or more dependencies to the generated code.
-     *
-     * <p>The dependencies of all writers created by the {@link GoDelegator}
-     * are merged together to eventually generate a go.mod file.
-     *
-     * @param dependencies Go dependency to add.
-     * @return Returns the writer.
-     */
-    public GoWriter addDependency(SymbolDependencyContainer dependencies) {
-        this.dependencies.addAll(dependencies.getDependencies());
-        return this;
-    }
-
-    private GoWriter addDependencies(GoWriter other) {
-        this.dependencies.addAll(other.getDependencies());
-        return this;
-    }
-
-    Collection<SymbolDependency> getDependencies() {
-        return dependencies;
+    private void addDependencies(GoWriter other) {
+        addDependency(other);
     }
 
     /**
@@ -923,7 +870,7 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
         String packageDocs = this.packageDocs.toString();
         String packageStatement = String.format("package %s%n%n", packageName);
 
-        String importString = imports.toString();
+        String importString = getImportContainer().toString();
         String strippedContents = StringUtils.stripStart(contents, null);
         String strippedImportString = StringUtils.strip(importString, null);
 

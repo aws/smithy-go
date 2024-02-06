@@ -18,16 +18,26 @@ package software.amazon.smithy.go.codegen;
 import java.util.Map;
 import java.util.TreeMap;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.ImportContainer;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Container and formatter for go imports.
  */
-final class ImportDeclarations {
-
+final class ImportDeclarations implements ImportContainer {
+    private final String packageName;
     private final Map<String, String> imports = new TreeMap<>();
 
-    ImportDeclarations addImport(String importPath, String alias) {
+    ImportDeclarations(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public void addImport(String importPath, String alias) {
+        if (importPath.isBlank() || importPath.equals(packageName)) {
+            return; // either a universe type or something from the local package
+        }
+
         String importAlias = CodegenUtils.getDefaultPackageImportName(importPath);
         if (!StringUtils.isBlank(alias)) {
             if (alias.equals(".")) {
@@ -42,14 +52,19 @@ final class ImportDeclarations {
                     + ". Previous: " + imports.get(importAlias) + "New: " + importPath);
         }
         imports.putIfAbsent(importAlias, importPath);
-        return this;
     }
 
-    ImportDeclarations addImports(ImportDeclarations other) {
+    public void addImports(ImportDeclarations other) {
         other.imports.forEach((importAlias, importPath) -> {
             addImport(importPath, importAlias);
         });
-        return this;
+    }
+
+    @Override
+    public void importSymbol(Symbol symbol, String alias) {
+        if (!symbol.getNamespace().isBlank()) { // e.g. a universe type like string
+            addImport(symbol.getNamespace(), alias);
+        }
     }
 
     @Override
