@@ -18,19 +18,19 @@ package software.amazon.smithy.go.codegen.service;
 import java.util.logging.Logger;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.build.SmithyBuildPlugin;
-import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.codegen.core.directed.CodegenDirector;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoSettings;
-import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
-import software.amazon.smithy.go.codegen.SymbolVisitor;
-import software.amazon.smithy.model.Model;
+import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Plugin to trigger Go server code generation.
  */
 @SmithyInternalApi
-public final class GoServiceCodegenPlugin implements SmithyBuildPlugin {
-    private static final Logger LOGGER = Logger.getLogger(GoServiceCodegenPlugin.class.getName());
+public final class ServiceCodegenPlugin implements SmithyBuildPlugin {
+    private static final Logger LOGGER = Logger.getLogger(ServiceCodegenPlugin.class.getName());
 
     @Override
     public String getName() {
@@ -42,7 +42,7 @@ public final class GoServiceCodegenPlugin implements SmithyBuildPlugin {
         String onlyBuild = System.getenv("SMITHY_GO_BUILD_API");
         if (onlyBuild != null && !onlyBuild.isEmpty()) {
             String targetServiceId =
-                GoSettings.from(context.getSettings(), ArtifactType.SERVER).getService().toString();
+                GoSettings.from(context.getSettings(), GoSettings.ArtifactType.SERVER).getService().toString();
 
             boolean found = false;
             for (String includeServiceId : onlyBuild.split(",")) {
@@ -57,17 +57,31 @@ public final class GoServiceCodegenPlugin implements SmithyBuildPlugin {
             }
         }
 
-        new ServiceCodegenVisitor(context).execute();
+        generate(context);
     }
 
-    /**
-     * Creates a Go symbol provider.
-     *
-     * @param model    The model to generate symbols for.
-     * @param settings The Gosettings to use to create symbol provider
-     * @return Returns the created provider.
-     */
-    public static SymbolProvider createSymbolProvider(Model model, GoSettings settings) {
-        return new SymbolVisitor(model, settings);
+    private void generate(PluginContext context) {
+        CodegenDirector<GoWriter,
+                GoIntegration,
+                GoCodegenContext,
+                GoSettings> runner = new CodegenDirector<>();
+
+        runner.model(context.getModel());
+        runner.directedCodegen(new ServiceDirectedCodegen());
+
+        runner.integrationClass(GoIntegration.class);
+
+        runner.fileManifest(context.getFileManifest());
+
+        GoSettings settings = runner.settings(GoSettings.class,
+                context.getSettings());
+
+        runner.service(settings.getService());
+
+        runner.performDefaultCodegenTransforms();
+        runner.createDedicatedInputsAndOutputs();
+        runner.changeStringEnumsToEnumShapes(false);
+
+        runner.run();
     }
 }

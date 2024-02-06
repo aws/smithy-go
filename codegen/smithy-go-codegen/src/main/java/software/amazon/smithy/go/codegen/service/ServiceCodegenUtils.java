@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.service;
 
 import static java.util.stream.Collectors.toSet;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 import software.amazon.smithy.model.Model;
@@ -28,11 +29,13 @@ import software.amazon.smithy.model.shapes.FloatShape;
 import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.LongShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShortShape;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.model.traits.UnitTypeTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
@@ -52,12 +55,16 @@ public final class ServiceCodegenUtils {
     }
 
     public static Set<Shape> getShapesToSerde(Model model, Shape shape) {
+        if (isUnit(shape.getId())) {
+            return new HashSet<>();
+        }
+
         return Stream.concat(
                 Stream.of(normalize(shape)),
                 shape.members().stream()
                         .map(it -> model.expectShape(it.getTarget()))
                         .flatMap(it -> getShapesToSerde(model, it).stream())
-        ).filter(it -> !it.getId().toString().equals("smithy.api#Unit")).collect(toSet());
+        ).collect(toSet());
     }
 
     public static Shape normalize(Shape shape) {
@@ -74,5 +81,20 @@ public final class ServiceCodegenUtils {
             case DOUBLE -> DoubleShape.builder().id("com.amazonaws.synthetic#Float64").build();
             default -> shape;
         };
+    }
+
+    public static boolean isUnit(ShapeId id) {
+        return id.toString().equals("smithy.api#Unit");
+    }
+
+    public static Model withUnit(Model model) {
+        return model.toBuilder()
+                .addShape(
+                        StructureShape.builder()
+                                .id("smithy.api#Unit")
+                                .addTrait(new UnitTypeTrait())
+                                .build()
+                )
+                .build();
     }
 }

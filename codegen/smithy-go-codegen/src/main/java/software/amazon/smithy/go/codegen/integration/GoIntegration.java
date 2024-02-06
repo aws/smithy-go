@@ -18,7 +18,9 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import software.amazon.smithy.codegen.core.SmithyIntegration;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
@@ -35,7 +37,7 @@ import software.amazon.smithy.utils.SmithyUnstableApi;
  * adding custom code, etc.
  */
 @SmithyUnstableApi
-public interface GoIntegration {
+public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, GoCodegenContext> {
     /**
      * Gets the sort order of the customization from -128 to 127.
      *

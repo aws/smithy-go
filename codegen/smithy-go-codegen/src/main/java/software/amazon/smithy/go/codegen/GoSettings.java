@@ -136,6 +136,15 @@ public final class GoSettings {
     }
 
     /**
+     * Sets the name of the module to generate.
+     *
+     * @param moduleName The name of the module to generate.
+     */
+    public void setModule(String moduleName) {
+        this.moduleName = Objects.requireNonNull(moduleName);
+    }
+
+    /**
      * Gets the optional module description for the module that will be generated.
      *
      * @return Returns the module description.

@@ -13,29 +13,21 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen;
 
-import java.util.Collections;
 import java.util.List;
+import software.amazon.smithy.build.FileManifest;
+import software.amazon.smithy.codegen.core.CodegenContext;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
+import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.utils.SmithyInternalApi;
 
-@SmithyInternalApi
-public interface GoServiceIntegration extends GoIntegration {
-    @Override
-    default ArtifactType getArtifactType() {
-        return ArtifactType.SERVER;
-    }
-
-    default List<ServiceProtocolGenerator> getServerProtocolGenerators(
+public record GoCodegenContext(
         Model model,
-        ServiceShape service,
-        SymbolProvider symbolProvider
-    ) {
-        return Collections.emptyList();
-    }
-}
+        GoSettings settings,
+        SymbolProvider symbolProvider,
+        FileManifest fileManifest,
+        WriterDelegator<GoWriter> writerDelegator,
+        List<GoIntegration> integrations
+) implements CodegenContext<GoSettings, GoWriter, GoIntegration> {}

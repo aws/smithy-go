@@ -86,8 +86,6 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         ).compose();
     }
 
-    // TODO this does too much, HTTP operation handling should be static apart from the protocol itself and receive
-    //      serde context
     @Override
     public GoWriter.Writable generateServeHttp() {
         return goTemplate("""

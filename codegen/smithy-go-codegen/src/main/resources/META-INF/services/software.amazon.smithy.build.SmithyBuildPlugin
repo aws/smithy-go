@@ -1,2 +1,2 @@
 software.amazon.smithy.go.codegen.GoCodegenPlugin
-software.amazon.smithy.go.codegen.service.GoServiceCodegenPlugin
+software.amazon.smithy.go.codegen.service.ServiceCodegenPlugin
