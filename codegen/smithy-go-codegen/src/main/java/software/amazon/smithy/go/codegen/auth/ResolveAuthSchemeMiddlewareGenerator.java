@@ -66,7 +66,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
 
     private GoWriter.Writable generateBody() {
         return goTemplate("""
-                params := $1L(m.operation, getOperationInput(ctx), m.options, ctx)
+                params := $1L(ctx, m.operation, getOperationInput(ctx), m.options)
                 options, err := m.options.AuthSchemeResolver.ResolveAuthSchemes(ctx, params)
                 if err != nil {
                     return out, metadata, $2T("resolve auth scheme: %w", err)

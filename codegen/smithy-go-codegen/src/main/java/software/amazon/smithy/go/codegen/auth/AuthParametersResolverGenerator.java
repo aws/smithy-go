@@ -43,7 +43,7 @@ public class AuthParametersResolverGenerator {
         loadResolvers();
 
         return goTemplate("""
-                func $name:L(operation string, input interface{}, options Options, ctx $context:T) $params:P {
+                func $name:L(ctx $context:T, operation string, input interface{}, options Options) $params:P {
                     params := &$params:T{
                         Operation: operation,
                     }
@@ -64,7 +64,7 @@ public class AuthParametersResolverGenerator {
     private GoWriter.Writable generateResolvers() {
         return (writer) -> {
             for (var resolver: resolvers) {
-                writer.write("$T(params, input, options, ctx)", resolver.resolver());
+                writer.write("$T(ctx, params, input, options)", resolver.resolver());
             }
         };
     }
