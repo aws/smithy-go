@@ -29,12 +29,12 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Plugin to trigger Go server code generation.
  */
 @SmithyInternalApi
-public final class GoServerCodegenPlugin implements SmithyBuildPlugin {
-    private static final Logger LOGGER = Logger.getLogger(GoServerCodegenPlugin.class.getName());
+public final class GoServiceCodegenPlugin implements SmithyBuildPlugin {
+    private static final Logger LOGGER = Logger.getLogger(GoServiceCodegenPlugin.class.getName());
 
     @Override
     public String getName() {
-        return "go-server-codegen";
+        return "go-service-codegen";
     }
 
     @Override
@@ -57,7 +57,7 @@ public final class GoServerCodegenPlugin implements SmithyBuildPlugin {
             }
         }
 
-        new ServerCodegenVisitor(context).execute();
+        new ServiceCodegenVisitor(context).execute();
     }
 
     /**

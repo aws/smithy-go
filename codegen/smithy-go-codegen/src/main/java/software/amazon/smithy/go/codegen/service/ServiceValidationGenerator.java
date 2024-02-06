@@ -58,10 +58,8 @@ import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
-// TODO this is largely a copy of the client's ValidationGenerator integration minus the middleware
-//      the per-shape validation codegen should be extracted and shared across artifacts
 @SmithyInternalApi
-public final class ServerValidationGenerator {
+public final class ServiceValidationGenerator {
     public GoWriter.Writable generate(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         return writer -> execute(writer, model, symbolProvider, service);
     }

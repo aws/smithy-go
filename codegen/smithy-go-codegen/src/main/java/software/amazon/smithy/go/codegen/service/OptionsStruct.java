@@ -25,9 +25,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public final class OptionsStruct implements GoWriter.Writable {
     public static final String NAME = "Options";
 
-    private final ServerProtocolGenerator protocolGenerator;
+    private final ServiceProtocolGenerator protocolGenerator;
 
-    public OptionsStruct(ServerProtocolGenerator protocolGenerator) {
+    public OptionsStruct(ServiceProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 

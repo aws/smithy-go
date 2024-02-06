@@ -62,7 +62,7 @@ public final class NoopServiceStruct implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "struct", NAME,
-                        "interface", ServerInterface.NAME,
+                        "interface", ServiceInterface.NAME,
                         "operations", generateOperations()
                 ));
     }
@@ -70,7 +70,7 @@ public final class NoopServiceStruct implements GoWriter.Writable {
     private GoWriter.Writable generateOperations() {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .filter(op -> !ServerCodegenUtils.operationHasEventStream(
+                        .filter(op -> !ServiceCodegenUtils.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(this::generateOperation)
                         .toList()

@@ -23,7 +23,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public interface ServerProtocolGenerator {
+public interface ServiceProtocolGenerator {
     // Smithy
     ApplicationProtocol getApplicationProtocol();
 

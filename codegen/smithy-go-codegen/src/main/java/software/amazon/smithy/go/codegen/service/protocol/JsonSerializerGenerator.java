@@ -18,7 +18,7 @@ package software.amazon.smithy.go.codegen.service.protocol;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SymbolUtils.getReference;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
-import static software.amazon.smithy.go.codegen.service.Util.normalize;
+import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.normalize;
 
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;

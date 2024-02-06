@@ -29,8 +29,8 @@ import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.go.codegen.service.NotImplementedError;
 import software.amazon.smithy.go.codegen.service.RequestHandler;
-import software.amazon.smithy.go.codegen.service.ServerCodegenUtils;
-import software.amazon.smithy.go.codegen.service.ServerValidationGenerator;
+import software.amazon.smithy.go.codegen.service.ServiceCodegenUtils;
+import software.amazon.smithy.go.codegen.service.ServiceValidationGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.HttpHandlerProtocolGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator;
@@ -100,12 +100,6 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
 
                     w.Header().Set("Content-Type", "application/x-amz-json-1.0")
 
-                    // TODO shouldn't be here -- temporary for demo
-                    if r.Method == http.MethodGet {
-                        writeEmpty(w, http.StatusOK)
-                        return
-                    }
-
                     if r.Method != http.MethodPost {
                         writeEmpty(w, http.StatusNotFound)
                         return
@@ -130,7 +124,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     private GoWriter.Writable generateRouteRequest() {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .filter(op -> !ServerCodegenUtils.operationHasEventStream(
+                        .filter(op -> !ServiceCodegenUtils.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(it -> goTemplate("""
                                 if target == $S {
@@ -214,7 +208,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                     serializeError(w, err)
                     return
                 }
-                """, ServerValidationGenerator.getShapeValidatorName(input));
+                """, ServiceValidationGenerator.getShapeValidatorName(input));
     }
 
     private GoWriter.Writable generateSerialize(Shape output) {

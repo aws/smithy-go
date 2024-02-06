@@ -21,7 +21,7 @@ import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.service.RequestHandler;
-import software.amazon.smithy.go.codegen.service.ServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.service.ServiceProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -30,7 +30,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * HTTP protocols serve requests by generating a net/http.Handler implementation onto the base RequestHandler struct.
  */
 @SmithyInternalApi
-public abstract class HttpHandlerProtocolGenerator implements ServerProtocolGenerator {
+public abstract class HttpHandlerProtocolGenerator implements ServiceProtocolGenerator {
     @Override
     public ApplicationProtocol getApplicationProtocol() {
         return ApplicationProtocol.createDefaultHttpApplicationProtocol();

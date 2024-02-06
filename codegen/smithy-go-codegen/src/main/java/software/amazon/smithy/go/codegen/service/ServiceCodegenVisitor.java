@@ -17,7 +17,7 @@ package software.amazon.smithy.go.codegen.service;
 
 import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
+import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.getShapesToSerde;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -73,9 +73,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Orchestrates Go client generation.
  */
 @SmithyInternalApi
-final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
+final class ServiceCodegenVisitor extends ShapeVisitor.Default<Void> {
 
-    private static final Logger LOGGER = Logger.getLogger(ServerCodegenVisitor.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(ServiceCodegenVisitor.class.getName());
 
     private final GoSettings settings;
     private final Model model;
@@ -84,10 +84,10 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
     private final FileManifest fileManifest;
     private final SymbolProvider symbolProvider;
     private final GoDelegator writers;
-    private final List<GoServerIntegration> integrations = new ArrayList<>();
-    private final ServerProtocolGenerator protocolGenerator;
+    private final List<GoServiceIntegration> integrations = new ArrayList<>();
+    private final ServiceProtocolGenerator protocolGenerator;
 
-    ServerCodegenVisitor(PluginContext context) {
+    ServiceCodegenVisitor(PluginContext context) {
         // Load all integrations.
         ClassLoader loader = context.getPluginClassLoader().orElse(getClass().getClassLoader());
         LOGGER.info("Attempting to discover GoServerIntegration from the classpath...");
@@ -95,10 +95,10 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
                 .forEach(integration -> {
                     if (integration.getArtifactType().equals(ArtifactType.SERVER)) {
                         LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
-                        integrations.add((GoServerIntegration) integration);
+                        integrations.add((GoServiceIntegration) integration);
                     }
                 });
-        integrations.sort(Comparator.comparingInt(GoServerIntegration::getOrder));
+        integrations.sort(Comparator.comparingInt(GoServiceIntegration::getOrder));
 
         settings = GoSettings.from(context.getSettings());
         fileManifest = context.getFileManifest();
@@ -125,7 +125,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
                 settings.getService(resolvedModel));
 
         LOGGER.info(() -> "Preprocessing smithy model");
-        for (GoServerIntegration goIntegration : integrations) {
+        for (GoServiceIntegration goIntegration : integrations) {
             resolvedModel = goIntegration.preprocessModel(resolvedModel, settings);
         }
 
@@ -141,8 +141,8 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
         service = settings.getService(model);
         LOGGER.info(() -> "Generating Go server for service " + service.getId());
 
-        SymbolProvider resolvedProvider = GoServerCodegenPlugin.createSymbolProvider(model, settings);
-        for (GoServerIntegration integration : integrations) {
+        SymbolProvider resolvedProvider = GoServiceCodegenPlugin.createSymbolProvider(model, settings);
+        for (GoServiceIntegration integration : integrations) {
             resolvedProvider = integration.decorateSymbolProvider(settings, model, resolvedProvider);
         }
         symbolProvider = resolvedProvider;
@@ -152,19 +152,19 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
         writers = new GoDelegator(fileManifest, symbolProvider);
     }
 
-    private static ServerProtocolGenerator resolveProtocolGenerator(
-            Collection<GoServerIntegration> integrations,
+    private static ServiceProtocolGenerator resolveProtocolGenerator(
+            Collection<GoServiceIntegration> integrations,
             Model model,
             ServiceShape service,
             GoSettings settings,
             SymbolProvider symbolProvider
     ) {
         // Collect all the supported protocol generators.
-        Map<ShapeId, ServerProtocolGenerator> generators = new HashMap<>();
-        for (GoServerIntegration integration : integrations) {
-            List<ServerProtocolGenerator> protocolGenerators =
+        Map<ShapeId, ServiceProtocolGenerator> generators = new HashMap<>();
+        for (GoServiceIntegration integration : integrations) {
+            List<ServiceProtocolGenerator> protocolGenerators =
                 integration.getServerProtocolGenerators(model, service, symbolProvider);
-            for (ServerProtocolGenerator generator : protocolGenerators) {
+            for (ServiceProtocolGenerator generator : protocolGenerators) {
                 generators.put(generator.getProtocol(), generator);
             }
         }
@@ -196,7 +196,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             });
         }
 
-        for (GoServerIntegration integration : integrations) {
+        for (GoServiceIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
         }
@@ -214,7 +214,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
 
         writers.useFileWriter("service.go", settings.getModuleName(), GoWriter.ChainWritable.of(
                 new NotImplementedError(),
-                new ServerInterface(model, service, symbolProvider),
+                new ServiceInterface(model, service, symbolProvider),
                 new NoopServiceStruct(model, service, symbolProvider),
                 new RequestHandler(protocolGenerator)
         ).compose());
@@ -225,7 +225,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.useFileWriter("serialize.go", settings.getModuleName(),
                 protocolGenerator.generateSerializers(shapesToSerialize));
         writers.useFileWriter("validate.go", settings.getModuleName(),
-                new ServerValidationGenerator().generate(model, service, symbolProvider));
+                new ServiceValidationGenerator().generate(model, service, symbolProvider));
         writers.useFileWriter("protocol.go", settings.getModuleName(),
                 protocolGenerator.generateProtocolSource());
 

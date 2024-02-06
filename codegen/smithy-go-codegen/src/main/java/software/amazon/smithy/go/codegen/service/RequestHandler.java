@@ -29,9 +29,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public final class RequestHandler implements GoWriter.Writable {
     public static final String NAME = "RequestHandler";
 
-    private final ServerProtocolGenerator protocolGenerator;
+    private final ServiceProtocolGenerator protocolGenerator;
 
-    public RequestHandler(ServerProtocolGenerator protocolGenerator) {
+    public RequestHandler(ServiceProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 
@@ -57,7 +57,7 @@ public final class RequestHandler implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "this", NAME,
-                        "service", ServerInterface.NAME,
+                        "service", ServiceInterface.NAME,
                         "options", OptionsStruct.NAME
                 ));
     }
@@ -80,7 +80,7 @@ public final class RequestHandler implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "this", NAME,
-                        "interface", ServerInterface.NAME,
+                        "interface", ServiceInterface.NAME,
                         "options", OptionsStruct.NAME
                 ));
     }

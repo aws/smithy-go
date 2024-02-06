@@ -30,23 +30,38 @@ import software.amazon.smithy.model.shapes.LongShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShortShape;
 import software.amazon.smithy.model.shapes.StringShape;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
+import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
-public final class Util {
-    private Util() {}
+@SmithyInternalApi
+public final class ServiceCodegenUtils {
+    private ServiceCodegenUtils() {}
+
+    public static boolean operationHasEventStream(
+        Model model,
+        StructureShape inputShape,
+        StructureShape outputShape
+    ) {
+        return Stream
+            .concat(
+                inputShape.members().stream(),
+                outputShape.members().stream())
+            .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
+    }
 
     public static Set<Shape> getShapesToSerde(Model model, Shape shape) {
         return Stream.concat(
                 Stream.of(normalize(shape)),
                 shape.members().stream()
-                    .map(it -> model.expectShape(it.getTarget()))
-                    .flatMap(it -> getShapesToSerde(model, it).stream())
+                        .map(it -> model.expectShape(it.getTarget()))
+                        .flatMap(it -> getShapesToSerde(model, it).stream())
         ).filter(it -> !it.getId().toString().equals("smithy.api#Unit")).collect(toSet());
     }
 
     public static Shape normalize(Shape shape) {
         return switch (shape.getType()) {
-            // TODO should be marked synthetic and keyed into from there by caller to avoid shape name conflicts
             case BLOB -> BlobShape.builder().id("com.amazonaws.synthetic#Blob").build();
             case BOOLEAN -> BooleanShape.builder().id("com.amazonaws.synthetic#Bool").build();
             case STRING -> StringShape.builder().id("com.amazonaws.synthetic#String").build();

@@ -16,4 +16,4 @@ software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme
 software.amazon.smithy.go.codegen.requestcompression.RequestCompression
 
 # Go SSDK
-software.amazon.smithy.go.codegen.service.protocol.aws.SupportServerAwsJson10Protocol
+software.amazon.smithy.go.codegen.service.protocol.aws.SupportServiceAwsJson10Protocol

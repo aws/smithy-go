@@ -13,24 +13,29 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service.protocol.aws;
+package software.amazon.smithy.go.codegen.service;
 
+import java.util.Collections;
 import java.util.List;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.service.GoServerIntegration;
-import software.amazon.smithy.go.codegen.service.ServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public class SupportServerAwsJson10Protocol implements GoServerIntegration {
+public interface GoServiceIntegration extends GoIntegration {
     @Override
-    public List<ServerProtocolGenerator> getServerProtocolGenerators(
+    default ArtifactType getArtifactType() {
+        return ArtifactType.SERVER;
+    }
+
+    default List<ServiceProtocolGenerator> getServerProtocolGenerators(
         Model model,
         ServiceShape service,
         SymbolProvider symbolProvider
     ) {
-        return List.of(new AwsJson10ProtocolGenerator(model, service, symbolProvider));
+        return Collections.emptyList();
     }
 }
