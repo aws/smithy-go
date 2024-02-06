@@ -31,6 +31,8 @@ import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.TimestampShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -84,17 +86,25 @@ public final class JsonSerializerGenerator {
             case BLOB -> goTemplate("jv.Base64EncodeBytes(v)");
             case ENUM -> goTemplate("jv.String(string(v))");
             case INT_ENUM -> goTemplate("jv.Integer(int32(v))");
-            case LIST, SET -> generateDeserializeList((CollectionShape) shape);
+            case TIMESTAMP -> generateSerializeTimestamp((TimestampShape) shape);
+            case LIST, SET -> generateSerializeList((CollectionShape) shape);
             case MAP -> generateSerializeMap((MapShape) shape);
             case STRUCTURE -> generateSerializeStruct((StructureShape) shape);
-            case TIMESTAMP -> goTemplate("// TODO timestamp");
-            case UNION -> goTemplate("// TODO union");
+            case UNION -> generateSerializeUnion((UnionShape) shape);
             default ->
-                    throw new CodegenException("? " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType());
         };
     }
 
-    private GoWriter.Writable generateDeserializeList(CollectionShape shape) {
+    private GoWriter.Writable generateSerializeTimestamp(TimestampShape shape) {
+        return goTemplate("""
+                if v != nil {
+                    jv.String($T(*v))
+                }
+                """, SmithyGoTypes.Time.FormatDateTime);
+    }
+
+    private GoWriter.Writable generateSerializeList(CollectionShape shape) {
             var target = normalize(model.expectShape(shape.getMember().getTarget()));
             var symbol = symbolProvider.toSymbol(shape);
             var targetSymbol = symbolProvider.toSymbol(target);
@@ -189,6 +199,34 @@ public final class JsonSerializerGenerator {
                         "field", symbolProvider.toMemberName(member),
                         "key", member.getMemberName(),
                         "serialize", getSerializerName(target)
+                ));
+    }
+
+    private GoWriter.Writable generateSerializeUnion(UnionShape shape) {
+        return goTemplate("""
+                mp := jv.Object()
+                defer mp.Close()
+                $W
+                """, GoWriter.ChainWritable.of(
+                shape.getAllMembers().values().stream()
+                        .map(this::generateSerializeVariant)
+                        .toList()
+        ).compose(false));
+    }
+
+    private GoWriter.Writable generateSerializeVariant(MemberShape member) {
+        var target = normalize(model.expectShape(member.getTarget()));
+        return goTemplate("""
+                if variant, ok := v.($variant:P); ok {
+                    if err := $serialize:L(variant, mp.Key($key:S)); err != nil {
+                        return err
+                    }
+                }
+                """,
+                MapUtils.of(
+                        "variant", symbolProvider.toSymbol(target),
+                        "serialize", getSerializerName(target),
+                        "key", member.getMemberName()
                 ));
     }
 }

@@ -21,6 +21,7 @@ import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.getS
 import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.withUnit;
 
 import java.util.List;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.WriterDelegator;
@@ -46,7 +47,6 @@ import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.StructureGenerator;
 import software.amazon.smithy.go.codegen.SymbolVisitor;
 import software.amazon.smithy.go.codegen.UnionGenerator;
-import software.amazon.smithy.go.codegen.service.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.StringShape;
@@ -77,9 +77,8 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
         var namespace = ((GoSettings) directive.settings()).getModuleName();
         var delegator = directive.context().writerDelegator();
         var settings = ((GoSettings) directive.settings());
-        var protocolGenerator = new AwsJson10ProtocolGenerator(
-                directive.model(), directive.service(), directive.symbolProvider()
-        );
+
+        var protocolGenerator = resolveProtocolGenerator(directive);
 
         var model = directive.model();
         var service = directive.service();
@@ -91,7 +90,6 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
                 .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
                 .flatMap(it -> getShapesToSerde(model, it).stream())
                 .collect(toSet());
-
 
         delegator.useFileWriter("service.go", namespace, GoWriter.ChainWritable.of(
                 new NotImplementedError(),
@@ -192,5 +190,23 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
                         (IntEnumShape) directive.shape()
                 ).run()
         );
+    }
+
+    private ServiceProtocolGenerator resolveProtocolGenerator(
+            GenerateServiceDirective<GoCodegenContext, GoSettings> directive
+    ) {
+        var model = directive.model();
+        var service = directive.service();
+        var symbolProvider = directive.symbolProvider();
+
+        var protocolGenerators = directive.context().integrations().stream()
+                .flatMap(it -> it.getProtocolGenerators(model, service, symbolProvider).stream())
+                .filter(it -> service.hasTrait(it.getProtocol()))
+                .toList();
+        if (protocolGenerators.isEmpty()) {
+            throw new CodegenException("could not resolve protocol generator");
+        }
+
+        return protocolGenerators.get(0);
     }
 }

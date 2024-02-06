@@ -88,10 +88,8 @@ public final class JsonDeserializerGenerator {
                     goTemplate("[]interface{}");
             case MAP, STRUCTURE, UNION ->
                     goTemplate("map[string]interface{}");
-            case DOCUMENT ->
-                    throw new CodegenException("TODO: document is special");
             default ->
-                    throw new CodegenException("? " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType());
         };
     }
 
@@ -109,10 +107,10 @@ public final class JsonDeserializerGenerator {
                     goTemplate("$T(\"\")", symbolProvider.toSymbol(shape));
             case INT_ENUM ->
                     goTemplate("$T(0)", symbolProvider.toSymbol(shape));
-            case DOCUMENT ->
-                    throw new CodegenException("TODO: document is special");
+            case TIMESTAMP ->
+                    goTemplate("$T{}", GoStdlibTypes.Time.Time);
             default ->
-                    throw new CodegenException("? " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType());
         };
     }
 
@@ -215,9 +213,44 @@ public final class JsonDeserializerGenerator {
                                             .toList()
                             ).compose(false)
                     ));
-            case UNION -> goTemplate("// TODO (union)");
+            case UNION -> goTemplate("""
+                    for key, serializedValue := range $ident:L {
+                        $deserializeVariant:W
+                    }
+                    """,
+                    MapUtils.of(
+                            "type", symbolProvider.toSymbol(shape),
+                            "ident", ident,
+                            "deserializeVariant", GoWriter.ChainWritable.of(
+                                    shape.getAllMembers().entrySet().stream()
+                                            .map(it -> {
+                                                var target = model.expectShape(it.getValue().getTarget());
+                                                return goTemplate("""
+                                                        if key == $variant:S {
+                                                            variant, err := $deserialize:L(serializedValue)
+                                                            if err != nil {
+                                                                return nil, err
+                                                            }
+                                                            return variant, nil
+                                                        }
+                                                        """,
+                                                        MapUtils.of(
+                                                                "variant", it.getKey(),
+                                                                "deserialize", getDeserializerName(normalize(target))
+                                                        ));
+                                            })
+                                            .toList()
+                            ).compose(false)
+                    ));
+            case TIMESTAMP -> goTemplate("""
+                    dts, err := $T(serializedValue)
+                    if err != nil {
+                        return nil, err
+                    }
+                    return dts, nil
+                    """, SmithyGoTypes.Time.ParseDateTime);
             default ->
-                    throw new CodegenException("? " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType());
         };
     }
 

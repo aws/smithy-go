@@ -29,6 +29,10 @@ public final class GoStdlibTypes {
         public static final Symbol Background = SmithyGoDependency.CONTEXT.valueSymbol("Background");
     }
 
+    public static final class Time {
+        public static final Symbol Time = SmithyGoDependency.TIME.pointableSymbol("Time");
+    }
+
     public static final class Encoding {
         public static final class Json {
             public static final Symbol NewDecoder = SmithyGoDependency.JSON.valueSymbol("NewDecoder");

@@ -34,6 +34,11 @@ public final class SmithyGoTypes {
         }
     }
 
+    public static final class Time {
+        public static final Symbol ParseDateTime = SmithyGoDependency.SMITHY_TIME.valueSymbol("ParseDateTime");
+        public static final Symbol FormatDateTime = SmithyGoDependency.SMITHY_TIME.valueSymbol("FormatDateTime");
+    }
+
     public static final class Encoding {
         public static final class Json {
             public static final Symbol NewEncoder = SmithyGoDependency.SMITHY_JSON.valueSymbol("NewEncoder");
