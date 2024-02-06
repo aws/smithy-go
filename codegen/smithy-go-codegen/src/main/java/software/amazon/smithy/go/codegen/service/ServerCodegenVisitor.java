@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen.service;
 
 import static java.util.stream.Collectors.toSet;
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.service.Util.getShapesToSerde;
 
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.IntEnumGenerator;
 import software.amazon.smithy.go.codegen.ManifestWriter;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.StructureGenerator;
+import software.amazon.smithy.go.codegen.UnionGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -188,7 +192,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
                 .collect(Collectors.toList());
         if (!unions.isEmpty()) {
             writers.useShapeWriter(unions.get(0), writer -> {
-                ServerUnionGenerator.generateUnknownUnion(writer, unions, symbolProvider);
+                UnionGenerator.generateUnknownUnion(writer, unions, symbolProvider);
             });
         }
 
@@ -251,7 +255,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
-        writers.useShapeWriter(shape, writer -> new ServerStructureGenerator(
+        writers.useShapeWriter(shape, writer -> new StructureGenerator(
                 model, symbolProvider, writer, service, shape, symbol, null).run());
         return null;
     }
@@ -266,7 +270,7 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void unionShape(UnionShape shape) {
-        ServerUnionGenerator generator = new ServerUnionGenerator(model, symbolProvider, shape);
+        var generator = new UnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
         return null;
@@ -279,7 +283,6 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
 
-        // Write API server's package doc for the service.
         writers.useFileWriter("doc.go", settings.getModuleName(), (writer) -> {
             writer.writePackageDocs(String.format(
                     "Package %s provides the API server, operations, and parameter types for %s.",
@@ -289,20 +292,23 @@ final class ServerCodegenVisitor extends ShapeVisitor.Default<Void> {
             writer.writePackageShapeDocs(shape);
         });
 
-        // Write API server types and utilities.
         TopDownIndex topDownIndex = TopDownIndex.of(model);
         Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
         for (OperationShape operation : containedOperations) {
+            var input = model.expectShape(operation.getInputShape(), StructureShape.class);
+            var output = model.expectShape(operation.getOutputShape(), StructureShape.class);
             writers.useShapeWriter(operation, operationWriter -> {
-                new ServerOperationGenerator(
-                    model,
-                    symbolProvider,
-                    operationWriter,
-                    service,
-                    operation
-                ).run();
+                new StructureGenerator(model, symbolProvider, operationWriter, service, input,
+                        symbolProvider.toSymbol(input), null).run();
+                new StructureGenerator(model, symbolProvider, operationWriter, service, output,
+                        symbolProvider.toSymbol(output), null).run();
             });
         }
+
+        var noDocSerde = goTemplate("type noSmithyDocumentSerde = $T", SmithyGoTypes.Smithy.Document.NoSerde);
+        writers.useFileWriter("document.go", settings.getModuleName(), noDocSerde);
+        writers.useFileWriter("types/document.go", "types", noDocSerde);
+
         return null;
     }
 

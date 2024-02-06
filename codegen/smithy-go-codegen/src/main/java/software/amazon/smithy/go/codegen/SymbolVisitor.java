@@ -29,6 +29,7 @@ import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.UnexportedMemberTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
+import software.amazon.smithy.model.knowledge.NullableIndex;
 import software.amazon.smithy.model.neighbor.NeighborProvider;
 import software.amazon.smithy.model.neighbor.Relationship;
 import software.amazon.smithy.model.neighbor.RelationshipType;
@@ -89,7 +90,9 @@ public final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol>
         this.settings = settings;
         this.rootModuleName = settings.getModuleName();
         this.typesPackageName = this.rootModuleName + "/types";
-        this.pointableIndex = GoPointableIndex.of(model);
+        this.pointableIndex = settings.getArtifactType() == GoSettings.ArtifactType.SERVER
+                ? GoPointableIndex.of(model, NullableIndex.CheckMode.SERVER)
+                : GoPointableIndex.of(model);
 
         // Reserve the generated names for union members, including the unknown case.
         ReservedWordsBuilder reservedNames = new ReservedWordsBuilder()
