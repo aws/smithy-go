@@ -20,7 +20,7 @@ import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.codegen.core.CodegenContext;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.WriterDelegator;
-import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.service.GoServiceIntegration;
 import software.amazon.smithy.model.Model;
 
 public record GoCodegenContext(
@@ -29,5 +29,5 @@ public record GoCodegenContext(
         SymbolProvider symbolProvider,
         FileManifest fileManifest,
         WriterDelegator<GoWriter> writerDelegator,
-        List<GoIntegration> integrations
-) implements CodegenContext<GoSettings, GoWriter, GoIntegration> {}
+        List<GoServiceIntegration> integrations
+) implements CodegenContext<GoSettings, GoWriter, GoServiceIntegration> {}

@@ -22,7 +22,6 @@ import software.amazon.smithy.codegen.core.directed.CodegenDirector;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
@@ -62,14 +61,14 @@ public final class ServiceCodegenPlugin implements SmithyBuildPlugin {
 
     private void generate(PluginContext context) {
         CodegenDirector<GoWriter,
-                GoIntegration,
+                GoServiceIntegration,
                 GoCodegenContext,
                 GoSettings> runner = new CodegenDirector<>();
 
         runner.model(context.getModel());
         runner.directedCodegen(new ServiceDirectedCodegen());
 
-        runner.integrationClass(GoIntegration.class);
+        runner.integrationClass(GoServiceIntegration.class);
 
         runner.fileManifest(context.getFileManifest());
 

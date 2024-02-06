@@ -46,7 +46,6 @@ import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.StructureGenerator;
 import software.amazon.smithy.go.codegen.SymbolVisitor;
 import software.amazon.smithy.go.codegen.UnionGenerator;
-import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.service.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.IntEnumShape;
@@ -54,7 +53,7 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 
-public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> {
+public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoServiceIntegration> {
     @Override
     public SymbolProvider createSymbolProvider(CreateSymbolProviderDirective directive) {
         return new SymbolVisitor(withUnit(directive.model()), (GoSettings) directive.settings());
@@ -112,6 +111,10 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
         delegator.useFileWriter("protocol.go", namespace,
                 protocolGenerator.generateProtocolSource());
 
+        var noDocSerde = goTemplate("type noSmithyDocumentSerde = $T", SmithyGoTypes.Smithy.Document.NoSerde);
+        delegator.useFileWriter("document.go", namespace, noDocSerde);
+        delegator.useFileWriter("types/document.go", "types", noDocSerde);
+
         List<SymbolDependency> dependencies = delegator.getDependencies();
         delegator.flushWriters();
 
@@ -144,15 +147,22 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
                         null
                 ).run()
         );
-
-        var noDocSerde = goTemplate("type noSmithyDocumentSerde = $T", SmithyGoTypes.Smithy.Document.NoSerde);
-        delegator.useFileWriter("document.go", ((GoSettings) directive.settings()).getModuleName(), noDocSerde);
-        delegator.useFileWriter("types/document.go", "types", noDocSerde);
     }
 
     @Override
     public void generateError(GenerateErrorDirective directive) {
-
+        var delegator = directive.context().writerDelegator();
+        delegator.useShapeWriter(directive.shape(), writer ->
+                new StructureGenerator(
+                        directive.model(),
+                        directive.symbolProvider(),
+                        (GoWriter) writer,
+                        directive.service(),
+                        (StructureShape) directive.shape(),
+                        directive.symbolProvider().toSymbol(directive.shape()),
+                        null
+                ).run()
+        );
     }
 
     @Override
