@@ -26,7 +26,6 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.utils.SmithyUnstableApi;
 
@@ -138,9 +137,7 @@ public interface GoServiceIntegration extends SmithyIntegration<GoSettings, GoWr
      *
      * @return Returns the list of protocol generators to register.
      */
-    default List<ServiceProtocolGenerator> getProtocolGenerators(
-            Model model, ServiceShape service, SymbolProvider symbolProvider
-    ) {
+    default List<ServiceProtocolGenerator> getProtocolGenerators(GoCodegenContext ctx) {
         return Collections.emptyList();
     }
 

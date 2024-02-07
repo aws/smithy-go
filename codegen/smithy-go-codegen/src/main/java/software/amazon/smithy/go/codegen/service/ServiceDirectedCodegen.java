@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.service;
 import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.getShapesToSerde;
+import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.isUnit;
 import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.withUnit;
 
 import java.util.List;
@@ -31,6 +32,7 @@ import software.amazon.smithy.codegen.core.directed.DirectedCodegen;
 import software.amazon.smithy.codegen.core.directed.GenerateEnumDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateErrorDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateIntEnumDirective;
+import software.amazon.smithy.codegen.core.directed.GenerateOperationDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateServiceDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateStructureDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateUnionDirective;
@@ -48,37 +50,36 @@ import software.amazon.smithy.go.codegen.StructureGenerator;
 import software.amazon.smithy.go.codegen.SymbolVisitor;
 import software.amazon.smithy.go.codegen.UnionGenerator;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.IntEnumShape;
-import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
 
 public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoServiceIntegration> {
     @Override
-    public SymbolProvider createSymbolProvider(CreateSymbolProviderDirective directive) {
-        return new SymbolVisitor(withUnit(directive.model()), (GoSettings) directive.settings());
+    public SymbolProvider createSymbolProvider(CreateSymbolProviderDirective<GoSettings> directive) {
+        return new SymbolVisitor(withUnit(directive.model()), directive.settings());
     }
 
     @Override
-    public GoCodegenContext createContext(CreateContextDirective directive) {
+    public GoCodegenContext createContext(CreateContextDirective<GoSettings, GoServiceIntegration> directive) {
         return new GoCodegenContext(
                 withUnit(directive.model()),
-                (GoSettings) directive.settings(),
+                directive.settings(),
                 directive.symbolProvider(),
                 directive.fileManifest(),
-                new WriterDelegator<>(directive.fileManifest(), directive.symbolProvider(), (filename, namespace) ->
-                        new GoWriter(namespace)),
+                new WriterDelegator<>(directive.fileManifest(), directive.symbolProvider(),
+                        (filename, namespace) -> new GoWriter(namespace)),
                 directive.integrations()
         );
     }
 
     @Override
-    public void generateService(GenerateServiceDirective directive) {
-        var namespace = ((GoSettings) directive.settings()).getModuleName();
+    public void generateService(GenerateServiceDirective<GoCodegenContext, GoSettings> directive) {
+        var namespace = directive.settings().getModuleName();
         var delegator = directive.context().writerDelegator();
-        var settings = ((GoSettings) directive.settings());
+        var settings = directive.settings();
 
-        var protocolGenerator = resolveProtocolGenerator(directive);
+        var protocolGenerator = resolveProtocolGenerator(directive.context());
 
         var model = directive.model();
         var service = directive.service();
@@ -125,11 +126,18 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
     }
 
     @Override
-    public void generateStructure(GenerateStructureDirective directive) {
+    public void generateOperation(GenerateOperationDirective<GoCodegenContext, GoSettings> directive) {
+        var protocolGenerator = resolveProtocolGenerator(directive.context());
+        directive.context().writerDelegator().useShapeWriter(directive.shape(),
+                protocolGenerator.generateHandleOperation(directive.shape()));
+    }
+
+    @Override
+    public void generateStructure(GenerateStructureDirective<GoCodegenContext, GoSettings> directive) {
         if (directive.shape().getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return;
         }
-        if (directive.shape().getId().toString().equals("smithy.api#Unit")) {
+        if (isUnit(directive.shape().getId())) {
             return;
         }
 
@@ -138,9 +146,9 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
                 new StructureGenerator(
                         directive.model(),
                         directive.symbolProvider(),
-                        (GoWriter) writer,
+                        writer,
                         directive.service(),
-                        (StructureShape) directive.shape(),
+                        directive.shape(),
                         directive.symbolProvider().toSymbol(directive.shape()),
                         null
                 ).run()
@@ -148,15 +156,15 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
     }
 
     @Override
-    public void generateError(GenerateErrorDirective directive) {
+    public void generateError(GenerateErrorDirective<GoCodegenContext, GoSettings> directive) {
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
                 new StructureGenerator(
                         directive.model(),
                         directive.symbolProvider(),
-                        (GoWriter) writer,
+                        writer,
                         directive.service(),
-                        (StructureShape) directive.shape(),
+                        directive.shape(),
                         directive.symbolProvider().toSymbol(directive.shape()),
                         null
                 ).run()
@@ -164,43 +172,35 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
     }
 
     @Override
-    public void generateUnion(GenerateUnionDirective directive) {
+    public void generateUnion(GenerateUnionDirective<GoCodegenContext, GoSettings> directive) {
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
-                new UnionGenerator(directive.model(), directive.symbolProvider(), (UnionShape) directive.shape())
-                        .generateUnion((GoWriter) writer)
+                new UnionGenerator(directive.model(), directive.symbolProvider(), directive.shape())
+                        .generateUnion(writer)
         );
     }
 
     @Override
-    public void generateEnumShape(GenerateEnumDirective directive) {
+    public void generateEnumShape(GenerateEnumDirective<GoCodegenContext, GoSettings> directive) {
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
-                new EnumGenerator(directive.symbolProvider(), (GoWriter) writer, (StringShape) directive.shape())
-                        .run()
+                new EnumGenerator(directive.symbolProvider(), writer, (EnumShape) directive.shape()).run()
         );
     }
 
     @Override
-    public void generateIntEnumShape(GenerateIntEnumDirective directive) {
+    public void generateIntEnumShape(GenerateIntEnumDirective<GoCodegenContext, GoSettings> directive) {
         directive.context().writerDelegator().useShapeWriter(directive.shape(), writer ->
-                new IntEnumGenerator(
-                        directive.symbolProvider(),
-                        (GoWriter) writer,
-                        (IntEnumShape) directive.shape()
-                ).run()
+                new IntEnumGenerator(directive.symbolProvider(), writer, (IntEnumShape) directive.shape()).run()
         );
     }
 
-    private ServiceProtocolGenerator resolveProtocolGenerator(
-            GenerateServiceDirective<GoCodegenContext, GoSettings> directive
-    ) {
-        var model = directive.model();
-        var service = directive.service();
-        var symbolProvider = directive.symbolProvider();
+    private ServiceProtocolGenerator resolveProtocolGenerator(GoCodegenContext ctx) {
+        var model = ctx.model();
+        var service = ctx.settings().getService(model);
 
-        var protocolGenerators = directive.context().integrations().stream()
-                .flatMap(it -> it.getProtocolGenerators(model, service, symbolProvider).stream())
+        var protocolGenerators = ctx.integrations().stream()
+                .flatMap(it -> it.getProtocolGenerators(ctx).stream())
                 .filter(it -> service.hasTrait(it.getProtocol()))
                 .toList();
         if (protocolGenerators.isEmpty()) {

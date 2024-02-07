@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.service;
 import java.util.Set;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -31,6 +32,8 @@ public interface ServiceProtocolGenerator {
 
     // Go
     GoWriter.Writable generateHandleRequest();
+
+    GoWriter.Writable generateHandleOperation(OperationShape operation);
 
     GoWriter.Writable generateOptions();
 
