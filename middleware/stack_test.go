@@ -1,10 +1,9 @@
 package middleware
 
 import (
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestStackList(t *testing.T) {
@@ -32,8 +31,8 @@ func TestStackList(t *testing.T) {
 		"fifth",
 	}
 
-	if diff := cmp.Diff(expect, actual); len(diff) != 0 {
-		t.Errorf("expect and actual stack list differ\n%s", diff)
+	if !reflect.DeepEqual(expect, actual) {
+		t.Errorf("expect and actual stack list differ: %v != %v", expect, actual)
 	}
 }
 
@@ -63,7 +62,7 @@ func TestStackString(t *testing.T) {
 		"",
 	}, "\n")
 
-	if diff := cmp.Diff(expect, actual); len(diff) != 0 {
-		t.Errorf("expect and actual stack list differ\n%s", diff)
+	if !reflect.DeepEqual(expect, actual) {
+		t.Errorf("expect and actual stack list differ: %v != %v", expect, actual)
 	}
 }

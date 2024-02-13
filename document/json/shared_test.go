@@ -426,7 +426,9 @@ var sharedNumberTestCases = map[string]testCase{
 			return &x
 		}(),
 		want: func() *big.Float {
-			return big.NewFloat(math.MaxFloat64)
+			// this is slightly different than big.NewFloat(math.MaxFloat64)
+			x, _ := (&big.Float{}).SetString(strconv.FormatFloat(math.MaxFloat64, 'e', -1, 64))
+			return x
 		}(),
 	},
 	"float64 to big.Float": {

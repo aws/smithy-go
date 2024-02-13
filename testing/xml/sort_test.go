@@ -3,8 +3,6 @@ package xml
 import (
 	"bytes"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestSortXML(t *testing.T) {
@@ -15,7 +13,7 @@ func TestSortXML(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if diff := cmp.Diff(sortedXML, expectedsortedXML); len(diff) != 0 {
-		t.Fatalf("found diff: %v", diff)
+	if expectedsortedXML != sortedXML {
+		t.Fatalf("found diff: %v != %v", expectedsortedXML, sortedXML)
 	}
 }

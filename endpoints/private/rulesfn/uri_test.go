@@ -2,7 +2,6 @@ package rulesfn
 
 import (
 	"testing"
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestURIEncode(t *testing.T) {
@@ -32,8 +31,8 @@ func TestURIEncode(t *testing.T) {
 
 func TestParseURL(t *testing.T) {
 	cases := map[string]struct {
-		input     string
-		expect    *URL
+		input  string
+		expect *URL
 	}{
 		"https hostname with no path": {
 			input: "https://example.com",
@@ -63,11 +62,11 @@ func TestParseURL(t *testing.T) {
 			},
 		},
 		"invalid port": {
-			input:     "https://example.com:abc",
+			input:  "https://example.com:abc",
 			expect: nil,
 		},
 		"with query": {
-			input:     "https://example.com:8443?foo=bar&faz=baz",
+			input:  "https://example.com:8443?foo=bar&faz=baz",
 			expect: nil,
 		},
 		"ip4 URL": {
@@ -146,8 +145,8 @@ func TestParseURL(t *testing.T) {
 				t.Fatalf("expect result, got none")
 			}
 
-			if diff := cmp.Diff(c.expect, actual); diff != "" {
-				t.Errorf("expect URL to match\n%s", diff)
+			if *c.expect != *actual {
+				t.Errorf("%v != %v", *c.expect, *actual)
 			}
 		})
 	}
@@ -169,7 +168,7 @@ func TestIsValidHostLabel(t *testing.T) {
 			expect:          true,
 		},
 		"multiple labels no split": {
-			input:     "abc.123-",
+			input:  "abc.123-",
 			expect: false,
 		},
 		"multiple labels with split": {
@@ -180,18 +179,18 @@ func TestIsValidHostLabel(t *testing.T) {
 		"multiple labels with split invalid label": {
 			input:           "abc.123-...",
 			allowSubDomains: true,
-			expect: false,
+			expect:          false,
 		},
 		"max length host label": {
 			input:  "012345678901234567890123456789012345678901234567890123456789123",
 			expect: true,
 		},
 		"too large host label": {
-			input:     "0123456789012345678901234567890123456789012345678901234567891234",
+			input:  "0123456789012345678901234567890123456789012345678901234567891234",
 			expect: false,
 		},
 		"too small host label": {
-			input:     "",
+			input:  "",
 			expect: false,
 		},
 	}

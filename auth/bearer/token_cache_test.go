@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 var _ TokenProvider = (*TokenCache)(nil)
@@ -33,8 +31,8 @@ func TestTokenCache_cache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 
 	for i := 0; i < 100; i++ {
@@ -42,8 +40,8 @@ func TestTokenCache_cache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expect no error, got %v", err)
 		}
-		if diff := cmp.Diff(expectToken, token); diff != "" {
-			t.Errorf("expect token match\n%s", diff)
+		if expectToken != token {
+			t.Errorf("expect token match: %v != %v", expectToken, token)
 		}
 	}
 }
@@ -66,8 +64,8 @@ func TestTokenCache_cacheConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 
 	for i := 0; i < 100; i++ {
@@ -78,8 +76,8 @@ func TestTokenCache_cacheConcurrent(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
-			if diff := cmp.Diff(expectToken, token); diff != "" {
-				t.Errorf("expect token match\n%s", diff)
+			if expectToken != token {
+				t.Errorf("expect token match: %v != %v", expectToken, token)
 			}
 		})
 	}
@@ -115,8 +113,8 @@ func TestTokenCache_expired(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expect no error, got %v", err)
 		}
-		if diff := cmp.Diff(expectToken, token); diff != "" {
-			t.Errorf("expect token match\n%s", diff)
+		if expectToken != token {
+			t.Errorf("expect token match: %v != %v", expectToken, token)
 		}
 	}
 	if e, a := 1, int(atomic.LoadInt32(retrievedCount)); e != a {
@@ -132,8 +130,8 @@ func TestTokenCache_expired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(refreshedToken, token); diff != "" {
-		t.Errorf("expect refreshed token match\n%s", diff)
+	if refreshedToken != token {
+		t.Errorf("expect refreshed token match: %v != %v", refreshedToken, token)
 	}
 	if e, a := 2, int(atomic.LoadInt32(retrievedCount)); e != a {
 		t.Errorf("expect %v provider calls, got %v", e, a)
@@ -192,8 +190,9 @@ func TestTokenCache_cancelled(t *testing.T) {
 		if err != nil {
 			t.Errorf("expect no error, got %v", err)
 		} else {
-			if diff := cmp.Diff(Token{Value: "abc123"}, token); diff != "" {
-				t.Errorf("expect token retrieve match\n%s", diff)
+			expect := Token{Value: "abc123"}
+			if expect != token {
+				t.Errorf("expect token retrieve match: %v != %v", expect, token)
 			}
 		}
 	}()
@@ -284,8 +283,8 @@ func TestTokenCache_asyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 
 	// 2-5: Offset time for subsequent calls to retrieve to trigger asynchronous
@@ -299,8 +298,8 @@ func TestTokenCache_asyncRefresh(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expect no error, got %v", err)
 		}
-		if diff := cmp.Diff(expectToken, token); diff != "" {
-			t.Errorf("expect token match\n%s", diff)
+		if expectToken != token {
+			t.Errorf("expect token match: %v != %v", expectToken, token)
 		}
 	}
 	// Wait for all async refreshes to complete
@@ -317,8 +316,8 @@ func TestTokenCache_asyncRefresh(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expect no error, got %v", err)
 		}
-		if diff := cmp.Diff(expectToken, token); diff != "" {
-			t.Errorf("expect token match\n%s", diff)
+		if expectToken != token {
+			t.Errorf("expect token match: %v != %v", expectToken, token)
 		}
 		testWaitAsyncRefreshDone(provider)
 	}
@@ -329,8 +328,8 @@ func TestTokenCache_asyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(refreshedToken, token); diff != "" {
-		t.Errorf("expect refreshed token match\n%s", diff)
+	if refreshedToken != token {
+		t.Errorf("expect refreshed token match: %v != %v", refreshedToken, token)
 	}
 }
 
@@ -374,8 +373,8 @@ func TestTokenCache_asyncRefreshWithMinDelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 
 	// 2-5: Offset time for subsequent calls to retrieve to trigger asynchronous
@@ -389,8 +388,8 @@ func TestTokenCache_asyncRefreshWithMinDelay(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expect no error, got %v", err)
 		}
-		if diff := cmp.Diff(expectToken, token); diff != "" {
-			t.Errorf("expect token match\n%s", diff)
+		if expectToken != token {
+			t.Errorf("expect token match: %v != %v", expectToken, token)
 		}
 		// Wait for all async refreshes to complete ensure not deduped
 		testWaitAsyncRefreshDone(provider)
@@ -411,8 +410,8 @@ func TestTokenCache_asyncRefreshWithMinDelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 	// Wait for all async refreshes to complete ensure not deduped
 	testWaitAsyncRefreshDone(provider)
@@ -423,8 +422,8 @@ func TestTokenCache_asyncRefreshWithMinDelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(refreshedToken, token); diff != "" {
-		t.Errorf("expect refreshed token match\n%s", diff)
+	if refreshedToken != token {
+		t.Errorf("expect refreshed token match: %v != %v", refreshedToken, token)
 	}
 }
 
@@ -468,8 +467,8 @@ func TestTokenCache_disableAsyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(expectToken, token); diff != "" {
-		t.Errorf("expect token match\n%s", diff)
+	if expectToken != token {
+		t.Errorf("expect token match: %v != %v", expectToken, token)
 	}
 
 	// Update time into refresh window before token expires
@@ -499,8 +498,8 @@ func TestTokenCache_disableAsyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
-	if diff := cmp.Diff(refreshedToken, token); diff != "" {
-		t.Errorf("expect refreshed token match\n%s", diff)
+	if refreshedToken != token {
+		t.Errorf("expect refreshed token match: %v != %v", refreshedToken, token)
 	}
 }
 

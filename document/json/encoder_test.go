@@ -1,12 +1,12 @@
 package json_test
 
 import (
-	"github.com/aws/smithy-go/document"
-	"github.com/aws/smithy-go/document/internal/serde"
-	"github.com/aws/smithy-go/document/json"
-	"github.com/google/go-cmp/cmp"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/document/json"
 )
 
 func TestEncoder_Encode(t *testing.T) {
@@ -79,15 +79,10 @@ func testEncode(t *testing.T, tt testCase) {
 		t.Errorf("Encode() error = %v, wantErr %v", err, tt.wantErr)
 	}
 
+	expect := MustJSONUnmarshal(tt.json, !tt.disableJSONNumber)
 	got := MustJSONUnmarshal(encodeBytes, !tt.disableJSONNumber)
 
-	if diff := cmp.Diff(
-		serde.PtrToValue(MustJSONUnmarshal(tt.json, !tt.disableJSONNumber)),
-		serde.PtrToValue(got),
-		cmp.AllowUnexported(StructA{}, StructB{}),
-		cmp.Comparer(cmpBigFloat()),
-		cmp.Comparer(cmpBigInt()),
-	); len(diff) > 0 {
-		t.Error(diff)
+	if !reflect.DeepEqual(expect, got) {
+		t.Errorf("%v != %v", expect, got)
 	}
 }

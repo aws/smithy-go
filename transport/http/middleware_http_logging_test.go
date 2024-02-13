@@ -13,7 +13,6 @@ import (
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/google/go-cmp/cmp"
 )
 
 type mockLogger struct {
@@ -154,8 +153,9 @@ func TestRequestResponseLogger(t *testing.T) {
 				t.Fatal("expect error, got nil")
 			}
 
-			if diff := cmp.Diff(tt.ExpectedLog, string(logger.Bytes())); len(diff) > 0 {
-				t.Error(diff)
+			actual := string(logger.Bytes())
+			if tt.ExpectedLog != actual {
+				t.Errorf("%v != %v", tt.ExpectedLog, actual)
 			}
 		})
 	}

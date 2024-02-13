@@ -1,10 +1,9 @@
 package http
 
 import (
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestSplitHeaderListValues(t *testing.T) {
@@ -100,8 +99,8 @@ func TestSplitHeaderListValues(t *testing.T) {
 				t.Fatalf("expect no error, %v", err)
 			}
 
-			if diff := cmp.Diff(c.Expect, actual); len(diff) != 0 {
-				t.Errorf("expect match\n%s", diff)
+			if !reflect.DeepEqual(c.Expect, actual) {
+				t.Errorf("%v != %v", c.Expect, actual)
 			}
 		})
 	}
@@ -180,8 +179,8 @@ func TestSplitHTTPDateTimestampHeaderListValues(t *testing.T) {
 				t.Fatalf("expect no error, got %v", err)
 			}
 
-			if diff := cmp.Diff(c.Expect, actual); len(diff) != 0 {
-				t.Errorf("expect values to match\n,%s", diff)
+			if !reflect.DeepEqual(c.Expect, actual) {
+				t.Errorf("%v != %v", c.Expect, actual)
 			}
 		})
 	}
