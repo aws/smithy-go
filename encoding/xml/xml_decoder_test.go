@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestXMLNodeDecoder_Token(t *testing.T) {
@@ -107,8 +106,8 @@ func TestXMLNodeDecoder_Token(t *testing.T) {
 				t.Fatalf("expected a valid end element token for the xml document, got none")
 			}
 
-			if diff := cmp.Diff(c.expectedStartElement, token); len(diff) != 0 {
-				t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+			if !reflect.DeepEqual(c.expectedStartElement, token) {
+				t.Fatalf("Found diff : %v != %v", c.expectedStartElement, token)
 			}
 		})
 	}
@@ -133,8 +132,10 @@ func TestXMLNodeDecoder_TokenExample(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 
 	}
-	if diff := cmp.Diff(token, xml.StartElement{Name: xml.Name{Local: "Response"}, Attr: []xml.Attr{}}); len(diff) != 0 {
-		t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+
+	expect := xml.StartElement{Name: xml.Name{Local: "Response"}, Attr: []xml.Attr{}}
+	if !reflect.DeepEqual(expect, token) {
+		t.Fatalf("Found diff : %v != %v", expect, token)
 	}
 	if done {
 		t.Fatalf("expected decoding to not be done yet")
@@ -149,8 +150,10 @@ func TestXMLNodeDecoder_TokenExample(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 
 	}
-	if diff := cmp.Diff(token, xml.StartElement{Name: xml.Name{Local: ""}, Attr: nil}); len(diff) != 0 {
-		t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+
+	expect = xml.StartElement{Name: xml.Name{Local: ""}, Attr: nil}
+	if !reflect.DeepEqual(expect, token) {
+		t.Fatalf("Found diff : %v != %v", expect, token)
 	}
 	if done {
 		t.Fatalf("expected decoding to not be done yet")
@@ -163,8 +166,9 @@ func TestXMLNodeDecoder_TokenExample(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 
 	}
-	if diff := cmp.Diff(token, xml.StartElement{Name: xml.Name{Local: ""}, Attr: nil}); len(diff) != 0 {
-		t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+
+	if !reflect.DeepEqual(expect, token) {
+		t.Fatalf("%v != %v", expect, token)
 	}
 	if !done {
 		t.Fatalf("expected decoding to be done as we fetched the end element </Struct>")
@@ -225,8 +229,8 @@ func TestXMLNodeDecoder_Value(t *testing.T) {
 				}
 			}
 
-			if diff := cmp.Diff(c.expectedValue, token); len(diff) != 0 {
-				t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+			if !reflect.DeepEqual(c.expectedValue, token) {
+				t.Fatalf("%v != %v", c.expectedValue, token)
 			}
 		})
 	}
@@ -321,8 +325,8 @@ func Test_FetchXMLRootElement(t *testing.T) {
 				}
 			}
 
-			if diff := cmp.Diff(c.expectedStartElement, st); len(diff) != 0 {
-				t.Fatalf("Found diff : (-expected,+actual), \n %v", diff)
+			if !reflect.DeepEqual(c.expectedStartElement, st) {
+				t.Fatalf("Found diff : %v != %v", c.expectedStartElement, st)
 			}
 		})
 	}

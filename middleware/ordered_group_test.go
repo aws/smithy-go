@@ -3,8 +3,6 @@ package middleware
 import (
 	"reflect"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestOrderedIDsAdd(t *testing.T) {
@@ -220,8 +218,9 @@ func TestRelativeOrder_insert(t *testing.T) {
 		t.Error("expect error, got nil")
 	}
 
-	if diff := cmp.Diff([]string{"foo", "fob", "bar", "bas", "bat", "baz"}, ro.order); len(diff) > 0 {
-		t.Error(diff)
+	expect := []string{"foo", "fob", "bar", "bas", "bat", "baz"}
+	if !reflect.DeepEqual(expect, ro.order) {
+		t.Errorf("%v != %v", expect, ro.order)
 	}
 }
 

@@ -2,13 +2,13 @@ package json_test
 
 import (
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/document/internal/serde"
 	"github.com/aws/smithy-go/document/json"
-	"github.com/google/go-cmp/cmp"
 )
 
 var decodeArrayTestCases = map[string]testCase{
@@ -153,14 +153,11 @@ func testDecodeJSONInterface(t *testing.T, tt testCase) {
 	if err := d.DecodeJSONInterface(MustJSONUnmarshal(tt.json, !tt.disableJSONNumber), tt.actual); (err != nil) != tt.wantErr {
 		t.Errorf("DecodeJSONInterface() error = %v, wantErr %v", err, tt.wantErr)
 	}
-	if diff := cmp.Diff(
-		serde.PtrToValue(tt.want),
-		serde.PtrToValue(tt.actual),
-		cmp.AllowUnexported(StructA{}, StructB{}),
-		cmp.Comparer(cmpBigFloat()),
-		cmp.Comparer(cmpBigInt()),
-	); len(diff) > 0 {
-		t.Error(diff)
+
+	expect := serde.PtrToValue(tt.want)
+	actual := serde.PtrToValue(tt.actual)
+	if !reflect.DeepEqual(expect, actual) {
+		t.Errorf("%v != %v", expect, actual)
 	}
 }
 

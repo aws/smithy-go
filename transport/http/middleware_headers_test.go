@@ -3,11 +3,11 @@ package http_test
 import (
 	"context"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestAddHeaderValue(t *testing.T) {
@@ -27,12 +27,15 @@ func TestAddHeaderValue(t *testing.T) {
 
 	handler := middleware.DecorateHandler(middleware.HandlerFunc(func(ctx context.Context, input interface{}) (output interface{}, metadata middleware.Metadata, err error) {
 		req := input.(*smithyhttp.Request)
-		if diff := cmp.Diff(req.Header, http.Header{
+
+		expect := http.Header{
 			"Foo": []string{"fooValue"},
 			"Bar": []string{"firstValue", "secondValue"},
-		}); len(diff) > 0 {
-			t.Errorf(diff)
 		}
+		if !reflect.DeepEqual(expect, req.Header) {
+			t.Errorf("%v != %v", expect, req.Header)
+		}
+
 		return output, metadata, err
 	}), stack)
 	_, _, err = handler.Handle(context.Background(), nil)
@@ -54,11 +57,14 @@ func TestSetHeaderValue(t *testing.T) {
 
 	handler := middleware.DecorateHandler(middleware.HandlerFunc(func(ctx context.Context, input interface{}) (output interface{}, metadata middleware.Metadata, err error) {
 		req := input.(*smithyhttp.Request)
-		if diff := cmp.Diff(req.Header, http.Header{
+
+		expect := http.Header{
 			"Foo": []string{"secondValue"},
-		}); len(diff) > 0 {
-			t.Errorf(diff)
 		}
+		if !reflect.DeepEqual(expect, req.Header) {
+			t.Errorf("%v != %v", expect, req.Header)
+		}
+
 		return output, metadata, err
 	}), stack)
 	_, _, err = handler.Handle(context.Background(), nil)

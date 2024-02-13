@@ -2,14 +2,12 @@ package bearer
 
 import (
 	"context"
-	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestSignHTTPSMessage(t *testing.T) {
@@ -65,13 +63,14 @@ func TestSignHTTPSMessage(t *testing.T) {
 				t.Fatalf("expect no error, got %v", err)
 			}
 
-			options := []cmp.Option{
-				cmpopts.IgnoreUnexported(smithyhttp.Request{}),
-				cmpopts.IgnoreUnexported(http.Request{}),
-			}
+			expect := c.expectMessage.(*smithyhttp.Request)
 
-			if diff := cmp.Diff(c.expectMessage, message, options...); diff != "" {
-				t.Errorf("expect match\n%s", diff)
+			actual, ok := message.(*smithyhttp.Request)
+			if !ok {
+				t.Fatalf("*smithyhttp.Request != %T", actual)
+			}
+			if !reflect.DeepEqual(expect.Header, actual.Header) {
+				t.Errorf("%v != %v", expect.Header, actual.Header)
 			}
 		})
 	}

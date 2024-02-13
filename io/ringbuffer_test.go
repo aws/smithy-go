@@ -2,7 +2,6 @@ package io
 
 import (
 	"bytes"
-	"github.com/google/go-cmp/cmp"
 	"io"
 	"io/ioutil"
 	"strconv"
@@ -456,8 +455,8 @@ func TestRingBufferWriteRead(t *testing.T) {
 				return
 			}
 
-			if diff := cmp.Diff(tt.Expected, actual); len(diff) > 0 {
-				t.Error(diff)
+			if string(tt.Expected) != string(actual) {
+				t.Errorf("%v != %v", string(tt.Expected), string(actual))
 				return
 			}
 		})
