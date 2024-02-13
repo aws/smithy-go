@@ -445,29 +445,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
             GoWriter writer, String expect, String actual, String[] ignoreTypes
     ) {
         writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
-        writer.addUseImports(SmithyGoDependency.GO_CMP);
-        writer.addUseImports(SmithyGoDependency.GO_CMP_OPTIONS);
-        writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
-        writer.addUseImports(SmithyGoDependency.MATH);
-
-        writer.openBlock("opts := cmp.Options{", "}", () -> {
-            writer.openBlock("cmpopts.IgnoreUnexported(", "),", () -> {
-                for (String ignoreType : ignoreTypes) {
-                    writer.write("$L,", ignoreType);
-                }
-            });
-            writer.write("cmp.FilterValues(func(x, y float64) bool {\n"
-                    + "\treturn math.IsNaN(x) && math.IsNaN(y)\n"
-                    + "},"
-                    + "cmp.Comparer(func(_, _ interface{}) bool { return true })),");
-            writer.write("cmp.FilterValues(func(x, y float32) bool {\n"
-                    + "\treturn math.IsNaN(float64(x)) && math.IsNaN(float64(y))\n"
-                    + "},"
-                    + "cmp.Comparer(func(_, _ interface{}) bool { return true })),");
-            writer.write("cmpopts.IgnoreTypes(smithydocument.NoSerde{}),");
-        });
-
-        writer.openBlock("if err := smithytesting.CompareValues($L, $L, opts...); err != nil {", "}",
+        writer.openBlock("if err := smithytesting.CompareValues($L, $L); err != nil {", "}",
                 expect, actual, () -> {
                     writer.write("t.Errorf(\"expect $L value match:\\n%v\", err)", expect);
                 });

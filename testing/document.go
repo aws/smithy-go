@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
 	"github.com/aws/smithy-go/testing/xml"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 // JSONEqual compares two JSON documents and identifies if the documents contain
@@ -25,8 +24,8 @@ func JSONEqual(expectBytes, actualBytes []byte) error {
 		return fmt.Errorf("failed to unmarshal actual bytes, %v", err)
 	}
 
-	if diff := cmp.Diff(expect, actual); len(diff) != 0 {
-		return fmt.Errorf("JSON mismatch (-expect +actual):\n%s", diff)
+	if !reflect.DeepEqual(expect, actual) {
+		return fmt.Errorf("JSON mismatch: %v != %v", expect, actual)
 	}
 
 	return nil
@@ -60,8 +59,8 @@ func XMLEqual(expectBytes, actualBytes []byte) error {
 		return err
 	}
 
-	if diff := cmp.Diff(actualString, expectedString); len(diff) != 0 {
-		return fmt.Errorf("XML mismatch (-expect +actual):\n%s", diff)
+	if expectedString != actualString {
+		return fmt.Errorf("XML mismatch: %v != %v", expectedString, actualString)
 	}
 
 	return nil
@@ -85,8 +84,10 @@ func AssertXMLEqual(t T, expect, actual []byte) bool {
 // contain the same values. Returns an error if the two documents are not
 // equal.
 func URLFormEqual(expectBytes, actualBytes []byte) error {
-	if diff := cmp.Diff(parseFormBody(expectBytes), parseFormBody(actualBytes)); len(diff) != 0 {
-		return fmt.Errorf("Query mismatch (-expect +actual):\n%s", diff)
+	expect := parseFormBody(expectBytes)
+	actual := parseFormBody(actualBytes)
+	if !reflect.DeepEqual(expect, actual) {
+		return fmt.Errorf("Query mismatch: %v != %v", expect, actual)
 	}
 	return nil
 }
