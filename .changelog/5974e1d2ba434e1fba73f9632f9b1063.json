@@ -1,8 +1,0 @@
-{
-    "id": "5974e1d2-ba43-4e1f-ba73-f9632f9b1063",
-    "type": "feature",
-    "description": "Bump minimum Go version to 1.20 per our language support policy.",
-    "modules": [
-        "."
-    ]
-}

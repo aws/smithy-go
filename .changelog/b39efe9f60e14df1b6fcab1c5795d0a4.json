@@ -1,8 +1,0 @@
-{
-    "id": "b39efe9f-60e1-4df1-b6fc-ab1c5795d0a4",
-    "type": "feature",
-    "description": "Add codegen definition for sigv4a trait.",
-    "modules": [
-        "."
-    ]
-}
