@@ -15,11 +15,15 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.Map;
 import java.util.Optional;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ClientOptions;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -139,15 +143,31 @@ public class Waiters implements GoIntegration {
                     writer.addUseImports(SmithyGoDependency.TIME);
 
                     writer.write("");
-                    writer.writeDocs(
-                            "Set of options to modify how an operation is invoked. These apply to all operations "
-                                    + "invoked for this client. Use functional options on operation call to modify "
-                                    + "this list for per operation behavior."
-                    );
+                    var apiOptionsDocs = autoDocTemplate("""
+                            Set of options to modify how an operation is invoked. These apply to all operations invoked
+                            for this client. Use functional options on operation call to modify this list for per
+                            operation behavior.
+
+                            Passing options here is functionally equivalent to passing values to this config's
+                            ClientOptions field that extend the inner client's APIOptions directly.""");
                     Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack",
                             SmithyGoDependency.SMITHY_MIDDLEWARE)
                             .build();
-                    writer.write("APIOptions []func($P) error", stackSymbol);
+                    writer.write(goTemplate("""
+                            $W
+                            APIOptions []func($P) error
+                            """, apiOptionsDocs, stackSymbol));
+
+                    var clientOptionsDocs = autoDocTemplate("""
+                            Functional options to be passed to all operations invoked by this client.
+
+                            Function values that modify the inner APIOptions are applied after the waiter config's own
+                            APIOptions modifiers.""");
+                    writer.write("");
+                    writer.write(goTemplate("""
+                            $W
+                            ClientOptions []func(*$L)
+                            """, clientOptionsDocs, ClientOptions.NAME));
 
                     writer.write("");
                     writer.writeDocs(
@@ -423,6 +443,10 @@ public class Waiters implements GoIntegration {
                         writer.openBlock("out, err := w.client.$T(ctx, params, func (o *Options) { ", "})",
                                 operationSymbol, () -> {
                                     writer.write("o.APIOptions = append(o.APIOptions, apiOptions...)");
+                                    writer.write("""
+                                            for _, opt := range options.ClientOptions {
+                                                opt(o)
+                                            }""");
                                 });
                         writer.write("");
 

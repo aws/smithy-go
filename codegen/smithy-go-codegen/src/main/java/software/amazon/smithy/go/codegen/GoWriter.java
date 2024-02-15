@@ -158,15 +158,21 @@ public final class GoWriter extends AbstractCodeWriter<GoWriter> {
      * @return writer for formatted docs.
      */
     public static Writable autoDocTemplate(String contents) {
-        return GoWriter.ChainWritable.of(
-                Arrays.stream(contents.split("\n\n"))
-                        .map(it -> docParagraphWriter(it.replace("\n", " ")))
-                        .toList()
-        ).compose(false);
+        var paragraphs = contents.split("\n\n");
+        var chain = new GoWriter.ChainWritable();
+        for (int i = 0; i < paragraphs.length; ++i) {
+            chain.add(docParagraphWriter(paragraphs[i], i < paragraphs.length - 1));
+        }
+        return chain.compose(false);
     }
 
-    private static GoWriter.Writable docParagraphWriter(String paragraph) {
-        return writer -> writer.writeDocs(paragraph).writeDocs("");
+    private static GoWriter.Writable docParagraphWriter(String paragraph, boolean writeNewline) {
+        return writer -> {
+            writer.writeDocs(paragraph);
+            if (writeNewline) {
+                writer.writeDocs("");
+            }
+        };
     }
 
     @SafeVarargs
