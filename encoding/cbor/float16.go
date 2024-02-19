@@ -29,7 +29,7 @@ func splitf16(f uint16) (sign, exp, mantissa uint32) {
 // float32 where the hidden bit is 1, e.g.
 //
 // f16: 0    00000              0001010000 = 0.000101 * 2^(-14), which is equal to
-// f32: 0 00000000 00100000000000000000000 =     1.01 * 2^(-18)
+// f32: 0 01101101 01000000000000000000000 =     1.01 * 2^(-18)
 //
 // this is achieved by shifting the mantissa to the right until the leading bit
 // that == 1 reaches position 24, then the number of positions shifted over is
