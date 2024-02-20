@@ -1,0 +1,8 @@
+{
+    "id": "5faed853-2633-4a93-a9b0-a96284389287",
+    "type": "bugfix",
+    "description": "Remove runtime dependency on go-cmp.",
+    "modules": [
+        "."
+    ]
+}
