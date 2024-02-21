@@ -37,6 +37,7 @@ public final class SmithyGoDependency {
     public static final GoDependency JSON = stdlib("encoding/json");
     public static final GoDependency IO = stdlib("io");
     public static final GoDependency IOUTIL = stdlib("io/ioutil");
+    public static final GoDependency FS = stdlib("io/fs");
     public static final GoDependency CRYPTORAND = stdlib("crypto/rand", "cryptorand");
     public static final GoDependency TESTING = stdlib("testing");
     public static final GoDependency ERRORS = stdlib("errors");

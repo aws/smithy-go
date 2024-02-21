@@ -26,6 +26,7 @@ public final class GoStdlibTypes {
 
     public static final class Context {
         public static final Symbol Context = SmithyGoDependency.CONTEXT.valueSymbol("Context");
+        public static final Symbol Background = SmithyGoDependency.CONTEXT.valueSymbol("Background");
     }
 
     public static final class Fmt {
@@ -41,5 +42,9 @@ public final class GoStdlibTypes {
 
     public static final class Path {
         public static final Symbol Join = SmithyGoDependency.PATH.valueSymbol("Join");
+    }
+
+    public static final class Testing {
+        public static final Symbol T = SmithyGoDependency.TESTING.pointableSymbol("T");
     }
 }
