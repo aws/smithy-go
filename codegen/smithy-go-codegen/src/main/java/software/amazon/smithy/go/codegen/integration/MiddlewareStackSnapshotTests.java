@@ -35,16 +35,11 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
     public void writeAdditionalFiles(
             GoSettings settings, Model model, SymbolProvider symbolProvider, GoDelegator goDelegator
     ) {
-        goDelegator.useFileWriter("snapshot_common_test.go", settings.getModuleName(), commonTestSource());
         goDelegator.useFileWriter("snapshot_test.go", settings.getModuleName(), writer -> {
-            writer
-                    .addBuildTag("checksnapshot")
-                    .write(snapshotTests(model, settings.getService(model), symbolProvider));
-        });
-        goDelegator.useFileWriter("snapshot_update_test.go", settings.getModuleName(), writer -> {
-            writer
-                    .addBuildTag("updatesnapshot")
-                    .write(snapshotUpdaters(model, settings.getService(model), symbolProvider));
+            writer.addBuildTag("snapshot");
+            writer.write(commonTestSource());
+            writer.write(snapshotTests(model, settings.getService(model), symbolProvider));
+            writer.write(snapshotUpdaters(model, settings.getService(model), symbolProvider));
         });
     }
 
@@ -110,7 +105,7 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
     private GoWriter.Writable snapshotUpdaters(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .map(it -> snapshotUpdater(it, symbolProvider))
+                        .map(it -> testUpdateSnapshot(it, symbolProvider))
                         .toList()
         ).compose();
     }
@@ -118,14 +113,14 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
     private GoWriter.Writable snapshotTests(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .map(it -> snapshotTest(it, symbolProvider))
+                        .map(it -> testCheckSnapshot(it, symbolProvider))
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable snapshotUpdater(OperationShape operation, SymbolProvider symbolProvider) {
+    private GoWriter.Writable testUpdateSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
         return goTemplate("""
-                func Test_$operation:L_UpdateMiddlewareSnapshot(t $testingT:P) {
+                func TestUpdateSnapshot_$operation:L(t $testingT:P) {
                     svc := New(Options{})
                     _, err := svc.$operation:L($contextBackground:T(), nil, func(o *Options) {
                         o.APIOptions = append(o.APIOptions, func(stack $middlewareStack:P) error {
@@ -145,9 +140,9 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
                 ));
     }
 
-    private GoWriter.Writable snapshotTest(OperationShape operation, SymbolProvider symbolProvider) {
+    private GoWriter.Writable testCheckSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
         return goTemplate("""
-                func Test_$operation:L_MiddlewareSnapshot(t $testingT:P) {
+                func TestCheckSnapshot_$operation:L(t $testingT:P) {
                     svc := New(Options{})
                     _, err := svc.$operation:L($contextBackground:T(), nil, func(o *Options) {
                         o.APIOptions = append(o.APIOptions, func(stack $middlewareStack:P) error {
