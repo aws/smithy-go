@@ -26,7 +26,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
-import software.amazon.smithy.go.codegen.service.ServiceProtocolGenerator;
+import software.amazon.smithy.go.codegen.server.ServerProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -167,7 +167,7 @@ public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, G
      * Gets a list of server protocol generators to register. Protocol generators should generally be written to accept
      * the codegen context at construction time, such that all the model information necessary for codegen is available.
      */
-    default List<ServiceProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
+    default List<ServerProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
         return Collections.emptyList();
     }
 

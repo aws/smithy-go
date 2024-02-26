@@ -28,7 +28,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +59,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 @SmithyInternalApi
-public final class ServiceValidationGenerator {
+public final class ServerValidationgenerator {
     public GoWriter.Writable generate(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         return writer -> execute(writer, model, symbolProvider, service);
     }

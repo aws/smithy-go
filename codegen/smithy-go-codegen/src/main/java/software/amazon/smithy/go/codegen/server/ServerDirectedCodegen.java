@@ -13,13 +13,13 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import static java.util.stream.Collectors.toSet;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.getShapesToSerde;
-import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.isUnit;
-import static software.amazon.smithy.go.codegen.service.ServiceCodegenUtils.withUnit;
+import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.getShapesToSerde;
+import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.isUnit;
+import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.withUnit;
 
 import java.util.List;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -57,7 +57,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> {
+public class ServerDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> {
     @Override
     public SymbolProvider createSymbolProvider(CreateSymbolProviderDirective<GoSettings> directive) {
         return new SymbolVisitor(withUnit(directive.model()), directive.settings());
@@ -97,7 +97,7 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
 
         delegator.useFileWriter("service.go", namespace, GoWriter.ChainWritable.of(
                 new NotImplementedError(),
-                new ServiceInterface(directive.model(), directive.service(), directive.symbolProvider()),
+                new ServerInterface(directive.model(), directive.service(), directive.symbolProvider()),
                 new NoopServiceStruct(directive.model(), directive.service(), directive.symbolProvider()),
                 new RequestHandler(protocolGenerator)
         ).compose());
@@ -109,7 +109,7 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
         delegator.useFileWriter("serialize.go", namespace,
                 protocolGenerator.generateSerializers(shapesToSerialize));
         delegator.useFileWriter("validate.go", namespace,
-                new ServiceValidationGenerator().generate(model, service, directive.symbolProvider()));
+                new ServerValidationgenerator().generate(model, service, directive.symbolProvider()));
         delegator.useFileWriter("protocol.go", namespace,
                 protocolGenerator.generateProtocolSource());
 
@@ -198,7 +198,7 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
         );
     }
 
-    private ServiceProtocolGenerator resolveProtocolGenerator(GoCodegenContext ctx) {
+    private ServerProtocolGenerator resolveProtocolGenerator(GoCodegenContext ctx) {
         var model = ctx.model();
         var service = ctx.settings().getService(model);
 

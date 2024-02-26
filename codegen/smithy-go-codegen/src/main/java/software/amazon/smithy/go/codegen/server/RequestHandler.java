@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
@@ -29,9 +29,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public final class RequestHandler implements GoWriter.Writable {
     public static final String NAME = "RequestHandler";
 
-    private final ServiceProtocolGenerator protocolGenerator;
+    private final ServerProtocolGenerator protocolGenerator;
 
-    public RequestHandler(ServiceProtocolGenerator protocolGenerator) {
+    public RequestHandler(ServerProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 
@@ -57,7 +57,7 @@ public final class RequestHandler implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "this", NAME,
-                        "service", ServiceInterface.NAME,
+                        "service", ServerInterface.NAME,
                         "options", OptionsStruct.NAME
                 ));
     }
@@ -80,7 +80,7 @@ public final class RequestHandler implements GoWriter.Writable {
                 """,
                 MapUtils.of(
                         "this", NAME,
-                        "interface", ServiceInterface.NAME,
+                        "interface", ServerInterface.NAME,
                         "options", OptionsStruct.NAME
                 ));
     }

@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import java.util.logging.Logger;
 import software.amazon.smithy.build.PluginContext;
@@ -29,8 +29,8 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Plugin to trigger Go server code generation.
  */
 @SmithyInternalApi
-public final class ServiceCodegenPlugin implements SmithyBuildPlugin {
-    private static final Logger LOGGER = Logger.getLogger(ServiceCodegenPlugin.class.getName());
+public final class ServerCodegenPlugin implements SmithyBuildPlugin {
+    private static final Logger LOGGER = Logger.getLogger(ServerCodegenPlugin.class.getName());
 
     @Override
     public String getName() {
@@ -67,7 +67,7 @@ public final class ServiceCodegenPlugin implements SmithyBuildPlugin {
                 GoSettings> runner = new CodegenDirector<>();
 
         runner.model(context.getModel());
-        runner.directedCodegen(new ServiceDirectedCodegen());
+        runner.directedCodegen(new ServerDirectedCodegen());
 
         runner.integrationClass(GoIntegration.class);
 

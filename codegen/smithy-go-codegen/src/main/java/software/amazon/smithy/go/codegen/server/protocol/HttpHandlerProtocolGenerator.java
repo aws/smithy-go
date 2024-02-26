@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service.protocol;
+package software.amazon.smithy.go.codegen.server.protocol;
 
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
@@ -24,9 +24,9 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
-import software.amazon.smithy.go.codegen.service.RequestHandler;
-import software.amazon.smithy.go.codegen.service.ServiceProtocolGenerator;
-import software.amazon.smithy.go.codegen.service.ServiceValidationGenerator;
+import software.amazon.smithy.go.codegen.server.RequestHandler;
+import software.amazon.smithy.go.codegen.server.ServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.server.ServerValidationgenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.utils.MapUtils;
@@ -37,7 +37,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * HTTP protocols serve requests by generating a net/http.Handler implementation onto the base RequestHandler struct.
  */
 @SmithyInternalApi
-public abstract class HttpHandlerProtocolGenerator implements ServiceProtocolGenerator {
+public abstract class HttpHandlerProtocolGenerator implements ServerProtocolGenerator {
     protected final GoCodegenContext ctx;
 
     private final GoValidationIndex validationIndex;
@@ -185,7 +185,7 @@ public abstract class HttpHandlerProtocolGenerator implements ServiceProtocolGen
                     serializeError(w, err)
                     return
                 }
-                """, ServiceValidationGenerator.getShapeValidatorName(input));
+                """, ServerValidationgenerator.getShapeValidatorName(input));
     }
 
     private GoWriter.Writable generateInvokeInterceptor(String type, String args) {

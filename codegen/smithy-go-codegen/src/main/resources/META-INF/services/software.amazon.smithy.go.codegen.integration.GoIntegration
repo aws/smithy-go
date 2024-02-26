@@ -16,4 +16,4 @@ software.amazon.smithy.go.codegen.integration.auth.AnonymousAuthScheme
 software.amazon.smithy.go.codegen.requestcompression.RequestCompression
 
 # server
-software.amazon.smithy.go.codegen.service.integration.DefaultProtocols
+software.amazon.smithy.go.codegen.server.integration.DefaultProtocols

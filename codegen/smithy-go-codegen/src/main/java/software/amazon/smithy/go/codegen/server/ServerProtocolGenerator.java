@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import java.util.Set;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
@@ -24,7 +24,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public interface ServiceProtocolGenerator {
+public interface ServerProtocolGenerator {
     // Smithy
     ApplicationProtocol getApplicationProtocol();
 

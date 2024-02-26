@@ -13,11 +13,11 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service.protocol.aws;
+package software.amazon.smithy.go.codegen.server.protocol.aws;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-import static software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator.getDeserializerName;
-import static software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator.getSerializerName;
+import static software.amazon.smithy.go.codegen.server.protocol.JsonDeserializerGenerator.getDeserializerName;
+import static software.amazon.smithy.go.codegen.server.protocol.JsonSerializerGenerator.getSerializerName;
 
 import java.util.Set;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
@@ -25,12 +25,12 @@ import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
-import software.amazon.smithy.go.codegen.service.NotImplementedError;
-import software.amazon.smithy.go.codegen.service.RequestHandler;
-import software.amazon.smithy.go.codegen.service.ServiceCodegenUtils;
-import software.amazon.smithy.go.codegen.service.protocol.HttpHandlerProtocolGenerator;
-import software.amazon.smithy.go.codegen.service.protocol.JsonDeserializerGenerator;
-import software.amazon.smithy.go.codegen.service.protocol.JsonSerializerGenerator;
+import software.amazon.smithy.go.codegen.server.NotImplementedError;
+import software.amazon.smithy.go.codegen.server.RequestHandler;
+import software.amazon.smithy.go.codegen.server.ServerCodegenUtil;
+import software.amazon.smithy.go.codegen.server.protocol.HttpHandlerProtocolGenerator;
+import software.amazon.smithy.go.codegen.server.protocol.JsonDeserializerGenerator;
+import software.amazon.smithy.go.codegen.server.protocol.JsonSerializerGenerator;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -105,7 +105,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
         var service = ctx.settings().getService(ctx.model());
         return GoWriter.ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
-                        .filter(op -> !ServiceCodegenUtils.operationHasEventStream(
+                        .filter(op -> !ServerCodegenUtil.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
                         .map(it -> goTemplate("""
                                 if target == $S {

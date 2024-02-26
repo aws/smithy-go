@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
@@ -25,9 +25,9 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public final class OptionsStruct implements GoWriter.Writable {
     public static final String NAME = "Options";
 
-    private final ServiceProtocolGenerator protocolGenerator;
+    private final ServerProtocolGenerator protocolGenerator;
 
-    public OptionsStruct(ServiceProtocolGenerator protocolGenerator) {
+    public OptionsStruct(ServerProtocolGenerator protocolGenerator) {
         this.protocolGenerator = protocolGenerator;
     }
 

@@ -13,14 +13,14 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service.integration;
+package software.amazon.smithy.go.codegen.server.integration;
 
 import java.util.List;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.service.ServiceProtocolGenerator;
-import software.amazon.smithy.go.codegen.service.protocol.aws.AwsJson10ProtocolGenerator;
+import software.amazon.smithy.go.codegen.server.ServerProtocolGenerator;
+import software.amazon.smithy.go.codegen.server.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -32,7 +32,7 @@ public class DefaultProtocols implements GoIntegration {
     }
 
     @Override
-    public List<ServiceProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
+    public List<ServerProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
         return ListUtils.of(
                 new AwsJson10ProtocolGenerator(ctx)
         );

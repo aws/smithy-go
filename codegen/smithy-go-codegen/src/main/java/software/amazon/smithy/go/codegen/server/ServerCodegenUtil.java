@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 
-package software.amazon.smithy.go.codegen.service;
+package software.amazon.smithy.go.codegen.server;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -39,8 +39,8 @@ import software.amazon.smithy.model.traits.UnitTypeTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public final class ServiceCodegenUtils {
-    private ServiceCodegenUtils() {}
+public final class ServerCodegenUtil {
+    private ServerCodegenUtil() {}
 
     public static boolean operationHasEventStream(
         Model model,
