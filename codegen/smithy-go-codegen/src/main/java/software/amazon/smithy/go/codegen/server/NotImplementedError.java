@@ -20,10 +20,12 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates the NotImplemented error sentinel to be returned when a service doesn't support a specific action.
  */
+@SmithyInternalApi
 public final class NotImplementedError implements GoWriter.Writable {
     public static final String NAME = "NotImplemented";
 

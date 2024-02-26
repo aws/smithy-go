@@ -26,10 +26,12 @@ import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates a no-op implementation of the service that returns 501 Not Implemented for every operation.
  */
+@SmithyInternalApi
 public final class NoopServiceStruct implements GoWriter.Writable {
     public static final String NAME = "NoopFallbackService";
 

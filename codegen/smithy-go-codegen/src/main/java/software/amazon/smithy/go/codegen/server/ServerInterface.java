@@ -26,10 +26,12 @@ import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Generates the interface that describes the service API.
  */
+@SmithyInternalApi
 public final class ServerInterface implements GoWriter.Writable {
     public static final String NAME = "Service";
 
