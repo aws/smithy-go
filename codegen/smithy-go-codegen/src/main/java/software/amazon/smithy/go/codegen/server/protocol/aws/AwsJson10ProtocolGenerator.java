@@ -191,6 +191,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 ));
     }
 
+    // FUTURE only generate errors that apply to an operation
     private GoWriter.Writable generateSerializeErrors(Set<StructureShape> errorShapes) {
         return GoWriter.ChainWritable.of(
                 errorShapes.stream()

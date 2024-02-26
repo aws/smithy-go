@@ -137,6 +137,7 @@ public class ServerDirectedCodegen implements DirectedCodegen<GoCodegenContext, 
 
     @Override
     public void generateStructure(GenerateStructureDirective<GoCodegenContext, GoSettings> directive) {
+        // FUTURE is this necessary? it was taken from the client routine
         if (directive.shape().getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return;
         }
