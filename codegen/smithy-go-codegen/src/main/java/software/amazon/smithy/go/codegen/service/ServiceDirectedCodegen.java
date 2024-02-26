@@ -49,19 +49,22 @@ import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.StructureGenerator;
 import software.amazon.smithy.go.codegen.SymbolVisitor;
 import software.amazon.smithy.go.codegen.UnionGenerator;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
-public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoServiceIntegration> {
+@SmithyInternalApi
+public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> {
     @Override
     public SymbolProvider createSymbolProvider(CreateSymbolProviderDirective<GoSettings> directive) {
         return new SymbolVisitor(withUnit(directive.model()), directive.settings());
     }
 
     @Override
-    public GoCodegenContext createContext(CreateContextDirective<GoSettings, GoServiceIntegration> directive) {
+    public GoCodegenContext createContext(CreateContextDirective<GoSettings, GoIntegration> directive) {
         return new GoCodegenContext(
                 withUnit(directive.model()),
                 directive.settings(),
@@ -200,7 +203,7 @@ public class ServiceDirectedCodegen implements DirectedCodegen<GoCodegenContext,
         var service = ctx.settings().getService(model);
 
         var protocolGenerators = ctx.integrations().stream()
-                .flatMap(it -> it.getProtocolGenerators(ctx).stream())
+                .flatMap(it -> it.getServerProtocolGenerators(ctx).stream())
                 .filter(it -> service.hasTrait(it.getProtocol()))
                 .toList();
         if (protocolGenerators.isEmpty()) {

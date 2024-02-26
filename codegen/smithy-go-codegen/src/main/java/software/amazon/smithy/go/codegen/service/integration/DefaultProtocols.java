@@ -17,14 +17,22 @@ package software.amazon.smithy.go.codegen.service.integration;
 
 import java.util.List;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
-import software.amazon.smithy.go.codegen.service.GoServiceIntegration;
+import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.service.ServiceProtocolGenerator;
 import software.amazon.smithy.go.codegen.service.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
-public class DefaultProtocols implements GoServiceIntegration {
+@SmithyInternalApi
+public class DefaultProtocols implements GoIntegration {
     @Override
-    public List<ServiceProtocolGenerator> getProtocolGenerators(GoCodegenContext ctx) {
+    public GoSettings.ArtifactType getArtifactType() {
+        return GoSettings.ArtifactType.SERVER;
+    }
+
+    @Override
+    public List<ServiceProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
         return ListUtils.of(
                 new AwsJson10ProtocolGenerator(ctx)
         );

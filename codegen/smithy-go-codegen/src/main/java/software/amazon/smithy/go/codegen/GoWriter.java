@@ -16,7 +16,6 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
