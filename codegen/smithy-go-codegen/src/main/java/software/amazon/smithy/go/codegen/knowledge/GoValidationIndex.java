@@ -127,6 +127,16 @@ public class GoValidationIndex implements KnowledgeIndex {
     }
 
     /**
+     * Get whether an operation requires validation.
+     *
+     * @param operation the operation
+     * @return whether the operation requires validation
+     */
+    public boolean operationRequiresValidation(ToShapeId service, ToShapeId operation) {
+        return getOperationsRequiringValidation(service).contains(operation.toShapeId());
+    }
+
+    /**
      * Get a set of shapes that require validation helpers.
      *
      * @param service service to find operations for

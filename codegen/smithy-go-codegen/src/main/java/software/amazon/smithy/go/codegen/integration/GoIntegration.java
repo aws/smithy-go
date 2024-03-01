@@ -18,21 +18,27 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import software.amazon.smithy.codegen.core.SmithyIntegration;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
+import software.amazon.smithy.go.codegen.server.ServerProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.utils.SmithyUnstableApi;
 
 /**
  * Java SPI for customizing Go code generation, registering
  * new protocol code generators, renaming shapes, modifying the model,
  * adding custom code, etc.
  */
-public interface GoIntegration {
+@SmithyUnstableApi
+public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, GoCodegenContext> {
     /**
      * Gets the sort order of the customization from -128 to 127.
      *
@@ -47,6 +53,10 @@ public interface GoIntegration {
      */
     default byte getOrder() {
         return 0;
+    }
+
+    default ArtifactType getArtifactType() {
+        return ArtifactType.CLIENT;
     }
 
     /**
@@ -153,6 +163,13 @@ public interface GoIntegration {
         return Collections.emptyList();
     }
 
+    /**
+     * Gets a list of server protocol generators to register. Protocol generators should generally be written to accept
+     * the codegen context at construction time, such that all the model information necessary for codegen is available.
+     */
+    default List<ServerProtocolGenerator> getServerProtocolGenerators(GoCodegenContext ctx) {
+        return Collections.emptyList();
+    }
 
     /**
      * Processes the finalized model before runtime plugins are consumed and

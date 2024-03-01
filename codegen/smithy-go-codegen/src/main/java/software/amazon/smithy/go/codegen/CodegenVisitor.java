@@ -32,6 +32,7 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
@@ -51,10 +52,12 @@ import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Orchestrates Go client generation.
  */
+@SmithyInternalApi
 final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     private static final Logger LOGGER = Logger.getLogger(CodegenVisitor.class.getName());
@@ -79,8 +82,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         LOGGER.info("Attempting to discover GoIntegration from the classpath...");
         ServiceLoader.load(GoIntegration.class, loader)
                 .forEach(integration -> {
-                    LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
-                    integrations.add(integration);
+                    if (integration.getArtifactType().equals(ArtifactType.CLIENT)) {
+                        LOGGER.info(() -> "Adding GoIntegration: " + integration.getClass().getName());
+                        integrations.add(integration);
+                    }
                 });
         integrations.sort(Comparator.comparingInt(GoIntegration::getOrder));
 

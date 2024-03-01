@@ -42,6 +42,12 @@ import software.amazon.smithy.utils.SetUtils;
  * Extends the rules of smithy's NullableIndex for Go's translation of the smithy shapes to Go types.
  */
 public class GoPointableIndex implements KnowledgeIndex {
+    // we default to this IDL1 checkMode for API stability of the downstream aws-sdk-go-v2
+    // FUTURE: refactor that downstream codegen to decorate/wrap over this to supply its own checkmode and default to
+    //         IDL2 here instead
+    public static final NullableIndex.CheckMode DEFAULT_CHECKMODE =
+            NullableIndex.CheckMode.CLIENT_ZERO_VALUE_V1_NO_INPUT;
+
     private static final Logger LOGGER = Logger.getLogger(GoPointableIndex.class.getName());
 
     // All types that are Go value types
@@ -98,13 +104,15 @@ public class GoPointableIndex implements KnowledgeIndex {
 
     private final Model model;
     private final NullableIndex nullableIndex;
+    private final NullableIndex.CheckMode checkMode;
     private final Set<ShapeId> pointableShapes = new HashSet<>();
     private final Set<ShapeId> nillableShapes = new HashSet<>();
     private final Set<ShapeId> dereferencableShapes = new HashSet<>();
 
-    public GoPointableIndex(Model model) {
+    public GoPointableIndex(Model model, NullableIndex.CheckMode checkMode) {
         this.model = model;
         this.nullableIndex = NullableIndex.of(model);
+        this.checkMode = checkMode;
 
         for (Shape shape : model.toSet()) {
             if (shape.asMemberShape().isPresent()) {
@@ -135,8 +143,16 @@ public class GoPointableIndex implements KnowledgeIndex {
         }
     }
 
+    public GoPointableIndex(Model model) {
+        this(model, DEFAULT_CHECKMODE);
+    }
+
     public static GoPointableIndex of(Model model) {
         return model.getKnowledge(GoPointableIndex.class, GoPointableIndex::new);
+    }
+
+    public static GoPointableIndex of(Model model, NullableIndex.CheckMode checkMode) {
+        return model.getKnowledge(GoPointableIndex.class, (model1) -> new GoPointableIndex(model1, checkMode));
     }
 
     private boolean isMemberDereferencable(MemberShape member, Shape targetShape) {
@@ -158,7 +174,7 @@ public class GoPointableIndex implements KnowledgeIndex {
             return false;
         }
 
-        return nullableIndex.isMemberNullable(member, NullableIndex.CheckMode.CLIENT_ZERO_VALUE_V1_NO_INPUT);
+        return nullableIndex.isMemberNullable(member, checkMode);
     }
 
     private boolean isShapeDereferencable(Shape shape) {

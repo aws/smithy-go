@@ -21,15 +21,17 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.SymbolReference;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Manages writers for Go files.Based off of GoWriterDelegator adding support
  * for getting shape specific GoWriters.
  */
+@SmithyInternalApi
 public final class GoDelegator extends GoWriterDelegator {
     private final SymbolProvider symbolProvider;
 
-    GoDelegator(FileManifest fileManifest, SymbolProvider symbolProvider) {
+    public GoDelegator(FileManifest fileManifest, SymbolProvider symbolProvider) {
         super(fileManifest);
 
         this.symbolProvider = symbolProvider;

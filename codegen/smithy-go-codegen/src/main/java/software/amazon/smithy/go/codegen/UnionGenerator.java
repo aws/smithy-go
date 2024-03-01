@@ -29,10 +29,12 @@ import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
  * Renders unions and type aliases for all their members.
  */
+@SmithyInternalApi
 public class UnionGenerator {
     public static final String UNKNOWN_MEMBER_NAME = "UnknownUnionMember";
 
@@ -41,7 +43,7 @@ public class UnionGenerator {
     private final UnionShape shape;
     private final boolean isEventStream;
 
-    UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
+    public UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.shape = shape;

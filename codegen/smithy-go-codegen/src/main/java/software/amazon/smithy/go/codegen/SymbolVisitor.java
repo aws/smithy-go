@@ -29,6 +29,7 @@ import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.trait.UnexportedMemberTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
+import software.amazon.smithy.model.knowledge.NullableIndex;
 import software.amazon.smithy.model.neighbor.NeighborProvider;
 import software.amazon.smithy.model.neighbor.Relationship;
 import software.amazon.smithy.model.neighbor.RelationshipType;
@@ -62,6 +63,7 @@ import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -70,7 +72,8 @@ import software.amazon.smithy.utils.StringUtils;
  * <p>Reserved words for Go are automatically escaped so that they are
  * suffixed with "_". See "reserved-words.txt" for the list of words.
  */
-final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
+@SmithyInternalApi
+public final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private static final Logger LOGGER = Logger.getLogger(SymbolVisitor.class.getName());
 
     private final Model model;
@@ -82,12 +85,14 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
     private final GoPointableIndex pointableIndex;
     private final GoSettings settings;
 
-    SymbolVisitor(Model model, GoSettings settings) {
+    public SymbolVisitor(Model model, GoSettings settings) {
         this.model = model;
         this.settings = settings;
         this.rootModuleName = settings.getModuleName();
         this.typesPackageName = this.rootModuleName + "/types";
-        this.pointableIndex = GoPointableIndex.of(model);
+        this.pointableIndex = settings.getArtifactType() == GoSettings.ArtifactType.SERVER
+                ? GoPointableIndex.of(model, NullableIndex.CheckMode.SERVER)
+                : GoPointableIndex.of(model);
 
         // Reserve the generated names for union members, including the unknown case.
         ReservedWordsBuilder reservedNames = new ReservedWordsBuilder()
