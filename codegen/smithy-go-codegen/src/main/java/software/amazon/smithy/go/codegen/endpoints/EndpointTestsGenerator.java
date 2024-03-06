@@ -212,7 +212,6 @@ public final class EndpointTestsGenerator {
                 commonCodegenArgs,
                 MapUtils.of(
                         "urlParse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL).build(),
-                        "cmpDiff", SymbolUtils.createPointableSymbolBuilder("Diff", SmithyGoDependency.GO_CMP).build(),
                         "expectURL", endpoint.getUrl(),
                         "headers", generateHeaders(endpoint.getHeaders()),
                         "properties", generateProperties(endpoint.getProperties()),
@@ -256,14 +255,10 @@ public final class EndpointTestsGenerator {
 
     GoWriter.Writable generateAssertFields() {
         return goTemplate("""
-                if diff := $cmpDiff:T(expectEndpoint.Headers, result.Headers); diff != "" {
-                    t.Errorf("expect headers to match\\n%s", diff)
+                if !$T(expectEndpoint.Headers, result.Headers) {
+                    t.Errorf("expect headers to match\\n%v != %v", expectEndpoint.Headers, result.Headers)
                 }
-                """,
-                MapUtils.of(
-                        "cmpDiff", SymbolUtils.createPointableSymbolBuilder("Diff", SmithyGoDependency.GO_CMP).build(),
-                        "cmpAllowUnexported", SymbolUtils.createPointableSymbolBuilder("AllowUnexported",
-                                SmithyGoDependency.GO_CMP).build()));
+                """, SmithyGoDependency.REFLECT.valueSymbol("DeepEqual"));
     }
 
     GoWriter.Writable generateProperties(Map<String, Node> properties) {
@@ -357,16 +352,12 @@ public final class EndpointTestsGenerator {
 
     GoWriter.Writable generateAssertProperties() {
         return goTemplate("""
-                if diff := $cmpDiff:T(expectEndpoint.Properties, result.Properties,
-                    $cmpAllowUnexported:T($propertiesType:T{}),
-                ); diff != "" {
-                    t.Errorf("expect properties to match\\n%s", diff)
+                if !$reflectDeepEqual:T(expectEndpoint.Properties, result.Properties) {
+                    t.Errorf("expect properties to match\\n%v != %v", expectEndpoint.Properties, result.Properties)
                 }
                 """,
                 MapUtils.of(
-                        "cmpDiff", SymbolUtils.createPointableSymbolBuilder("Diff", SmithyGoDependency.GO_CMP).build(),
-                        "cmpAllowUnexported", SymbolUtils.createPointableSymbolBuilder("AllowUnexported",
-                                SmithyGoDependency.GO_CMP).build(),
+                        "reflectDeepEqual", SmithyGoDependency.REFLECT.valueSymbol("DeepEqual"),
                         "propertiesType", SymbolUtils.createValueSymbolBuilder("Properties",
                                 SmithyGoDependency.SMITHY).build()));
 
