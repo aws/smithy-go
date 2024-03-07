@@ -1,0 +1,8 @@
+{
+    "id": "df65633a-5ad4-4d44-824a-df6b784199e7",
+    "type": "feature",
+    "description": "add ctx into endpoint param binding func as input",
+    "modules": [
+        "."
+    ]
+}

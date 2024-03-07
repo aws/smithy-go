@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
@@ -56,7 +57,7 @@ public class EndpointParameterBindingsGenerator {
                     bindEndpointParams(*EndpointParameters)
                 }
 
-                func bindEndpointParams(input interface{}, options Options) *EndpointParameters {
+                func bindEndpointParams(ctx $context:T, input interface{}, options Options) *EndpointParameters {
                     params := &EndpointParameters{}
 
                     $builtinBindings:W
@@ -71,6 +72,7 @@ public class EndpointParameterBindingsGenerator {
                 }
                 """,
                 MapUtils.of(
+                        "context", GoStdlibTypes.Context.Context,
                         "builtinBindings", generateBuiltinBindings(),
                         "clientContextBindings", generateClientContextBindings()
                 ));
