@@ -131,7 +131,7 @@ func (f Float64) len() int {
 func (f Float64) encode(p []byte) int {
 	p[0] = compose(majorType7, major7Float64)
 	binary.BigEndian.PutUint64(p[1:], math.Float64bits(float64(f)))
-	return 5
+	return 9
 }
 
 func compose(major majorType, minor byte) byte {
@@ -171,5 +171,46 @@ func encodeArg[I int | uint64](t majorType, arg I, p []byte) int {
 
 	p[0] = compose(t, minorArg8)
 	binary.BigEndian.PutUint64(p[1:], uint64(arg))
+	return 9
+}
+
+// EncodeRaw encodes opaque CBOR data.
+//
+// This is used by the encoder for the purpose of embedding document shapes.
+// Decode will never return values of this type.
+type EncodeRaw []byte
+
+func (v EncodeRaw) len() int { return len(v) }
+
+func (v EncodeRaw) encode(p []byte) int {
+	copy(p, v)
+	return len(v)
+}
+
+// FixedUint encodes fixed-width Uint values.
+//
+// This is used by the encoder for the purpose of embedding integrals in
+// document shapes. Decode will never return values of this type.
+type EncodeFixedUint uint64
+
+func (EncodeFixedUint) len() int { return 9 }
+
+func (v EncodeFixedUint) encode(p []byte) int {
+	p[0] = compose(majorTypeUint, minorArg8)
+	binary.BigEndian.PutUint64(p[1:], uint64(v))
+	return 9
+}
+
+// FixedUint encodes fixed-width NegInt values.
+//
+// This is used by the encoder for the purpose of embedding integrals in
+// document shapes. Decode will never return values of this type.
+type EncodeFixedNegInt uint64
+
+func (EncodeFixedNegInt) len() int { return 9 }
+
+func (v EncodeFixedNegInt) encode(p []byte) int {
+	p[0] = compose(majorTypeNegInt, minorArg8)
+	binary.BigEndian.PutUint64(p[1:], uint64(v-1))
 	return 9
 }

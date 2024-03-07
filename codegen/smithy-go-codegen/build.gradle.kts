@@ -27,4 +27,5 @@ dependencies {
     api("org.jsoup:jsoup:1.14.1")
     api("software.amazon.smithy:smithy-rules-engine:$smithyVersion")
     implementation("software.amazon.smithy:smithy-protocol-test-traits:$smithyVersion")
+    api("software.amazon.smithy:smithy-protocol-traits:1.42.0") // TODO(rpc2cbor) match smithy version when merged
 }
