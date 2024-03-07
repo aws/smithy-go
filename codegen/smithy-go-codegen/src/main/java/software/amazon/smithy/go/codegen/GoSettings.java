@@ -19,12 +19,20 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
+import software.amazon.smithy.aws.traits.protocols.Ec2QueryTrait;
+import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
+import software.amazon.smithy.aws.traits.protocols.RestXmlTrait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
@@ -32,6 +40,15 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  */
 @SmithyInternalApi
 public final class GoSettings {
+    public static final Set<ShapeId> PROTOCOLS_BY_PRIORITY = Set.of(
+            Rpcv2CborTrait.ID,
+            AwsJson1_0Trait.ID,
+            AwsJson1_1Trait.ID,
+            RestJson1Trait.ID,
+            RestXmlTrait.ID,
+            AwsQueryTrait.ID,
+            Ec2QueryTrait.ID
+    );
 
     private static final String SERVICE = "service";
     private static final String MODULE_NAME = "module";
@@ -247,7 +264,10 @@ public final class GoSettings {
 
         Set<ShapeId> resolvedProtocols = serviceIndex.getProtocols(service).keySet();
 
-        return resolvedProtocols.stream()
+        var byPriority = PROTOCOLS_BY_PRIORITY.stream()
+                .filter(resolvedProtocols::contains)
+                .toList();
+        return byPriority.stream()
                 .filter(supportedProtocolTraits::contains)
                 .findFirst()
                 .orElseThrow(() -> new UnresolvableProtocolException(String.format(
