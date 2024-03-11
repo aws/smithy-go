@@ -122,8 +122,16 @@ func cmpF32(e cbor.Float32, a cbor.Value, path string) error {
 		return fmt.Errorf("%s: %T != %T", path, e, a)
 	}
 
-	if math.Float32bits(float32(e)) != math.Float32bits(float32(av)) {
-		return fmt.Errorf("%s: float32(%x) != float32(%x)", path, e, av)
+	ebits, abits := math.Float32bits(float32(e)), math.Float32bits(float32(av))
+	if enan, anan := isNaN32(ebits), isNaN32(abits); enan || anan {
+		if enan != anan {
+			return fmt.Errorf("%s: NaN: float32(%x) != float32(%x)", path, ebits, abits)
+		}
+		return nil
+	}
+
+	if ebits != abits {
+		return fmt.Errorf("%s: float32(%x) != float32(%x)", path, ebits, abits)
 	}
 	return nil
 }
@@ -134,8 +142,28 @@ func cmpF64(e cbor.Float64, a cbor.Value, path string) error {
 		return fmt.Errorf("%s: %T != %T", path, e, a)
 	}
 
+	ebits, abits := math.Float64bits(float64(e)), math.Float64bits(float64(av))
+	if enan, anan := isNaN64(ebits), isNaN64(abits); enan || anan {
+		if enan != anan {
+			return fmt.Errorf("%s: NaN: float64(%x) != float64(%x)", path, ebits, abits)
+		}
+		return nil
+	}
+
 	if math.Float64bits(float64(e)) != math.Float64bits(float64(av)) {
-		return fmt.Errorf("float64(%x) != float64(%x)", e, av)
+		return fmt.Errorf("%s: float64(%x) != float64(%x)", path, ebits, abits)
 	}
 	return nil
+}
+
+func isNaN32(f uint32) bool {
+	const infmask = 0x7f800000
+
+	return f&infmask == infmask && f != infmask && f != (1<<31)|infmask
+}
+
+func isNaN64(f uint64) bool {
+	const infmask = 0x7ff00000_00000000
+
+	return f&infmask == infmask && f != infmask && f != (1<<63)|infmask
 }

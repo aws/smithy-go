@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;

@@ -135,7 +135,7 @@ func TestCompareValues(t *testing.T) {
 				Foo: math.Float64frombits(float64NaN - 1),
 				Bar: 123,
 			},
-			ExpectErr: "<root>.Foo: float 0x7fffffffffffffff != 0x7ffffffffffffffe",
+			ExpectErr: "<root>.Foo: float64(0x7fffffffffffffff) != float64(0x7ffffffffffffffe)",
 		},
 		"document equal": {
 			A: &mockDocumentMarshaler{[]byte("123"), nil},
