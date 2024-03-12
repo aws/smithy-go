@@ -56,12 +56,12 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
         return goTemplate("""
                 cv, err := $serialize:L(input)
                 if err != nil {
-                    return out, metadata, &$error:T{err}
+                    return out, metadata, &$error:T{Err: err}
                 }
 
                 payload := $reader:T($encode:T(cv))
                 if req, err = req.SetStream(payload); err != nil {
-                    return out, metadata, &$error:T{err}
+                    return out, metadata, &$error:T{Err: err}
                 }
 
                 in.Request = req
