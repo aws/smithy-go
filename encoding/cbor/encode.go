@@ -139,13 +139,14 @@ func compose(major majorType, minor byte) byte {
 }
 
 func itoarglen[I int | uint64](v I) int {
-	if v < 24 {
+	vv := uint64(v)
+	if vv < 24 {
 		return 1 // type and len in single byte
-	} else if v < 0x100 {
+	} else if vv < 0x100 {
 		return 2 // type + 1-byte len
-	} else if v < 0x10000 {
+	} else if vv < 0x10000 {
 		return 3 // type + 2-byte len
-	} else if v < 0x100000000 {
+	} else if vv < 0x100000000 {
 		return 5 // type + 4-byte len
 	}
 	return 9 // type + 8-byte len
