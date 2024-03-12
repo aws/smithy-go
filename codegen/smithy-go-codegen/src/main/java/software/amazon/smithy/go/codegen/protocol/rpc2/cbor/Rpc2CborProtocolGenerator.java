@@ -71,11 +71,13 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         var outputShapes = operations.stream()
                 .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
                 .filter(it -> !it.members().isEmpty())
-                .flatMap(it -> getShapesToSerde(model, it).stream());
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .sorted();
         var errorShapes = operations.stream()
                 .flatMap(it -> it.getErrors().stream())
                 .map(model::expectShape)
-                .flatMap(it -> getShapesToSerde(model, it).stream());
+                .flatMap(it -> getShapesToSerde(model, it).stream())
+                .sorted();
 
         var generator = new CborDeserializerGenerator(context);
         var writer = context.getWriter().get();

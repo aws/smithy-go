@@ -35,6 +35,7 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
     protected final OperationShape operation;
 
     protected final StructureShape input;
+    protected final StructureShape output;
 
     public SerializeRequestMiddleware(
             ProtocolGenerator generator, ProtocolGenerator.GenerationContext ctx, OperationShape operation
@@ -44,6 +45,7 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
         this.operation = operation;
 
         this.input = ctx.getModel().expectShape(operation.getInputShape(), StructureShape.class);
+        this.output = ctx.getModel().expectShape(operation.getOutputShape(), StructureShape.class);
     }
 
     @Override

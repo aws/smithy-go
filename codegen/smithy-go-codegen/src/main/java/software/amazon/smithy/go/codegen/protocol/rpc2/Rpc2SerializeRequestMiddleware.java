@@ -15,11 +15,13 @@
 
 package software.amazon.smithy.go.codegen.protocol.rpc2;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Synthetic;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.SerializeRequestMiddleware;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
@@ -50,26 +52,44 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
                 req.URL.Path = "/service/$service:L/operation/$operation:L"
                 req.Header.Set("smithy-protocol", $protocol:S)
 
-                $typeHeaders:W
+                $contentTypeHeader:W
+                $acceptHeader:W
                 """,
                 MapUtils.of(
                         "methodPost", GoStdlibTypes.Net.Http.MethodPost,
                         "service", ctx.getService().getId().getName(),
                         "operation", operation.getId().getName(),
                         "protocol", getProtocolName(),
-                        "typeHeaders", generateTypeHeaders()
+                        "contentTypeHeader", setContentTypeHeader(),
+                        "acceptHeader", acceptHeader()
                 ));
     }
 
-    private GoWriter.Writable generateTypeHeaders() {
+    private GoWriter.Writable setContentTypeHeader() {
+        if (input.hasTrait(Synthetic.class) && input.members().isEmpty()) {
+            return emptyGoTemplate();
+        }
+
         return goTemplate("""
-                req.Header.Set("Content-Type", $1S)
-                req.Header.Set("Accept", $1S)
-                """, isEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
+                req.Header.Set("Content-Type", $S)
+                """, isInputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
     }
 
-    private boolean isEventStream() {
-        return eventStreamIndex.getInputInfo(operation).isPresent()
-                || eventStreamIndex.getOutputInfo(operation).isPresent();
+    private GoWriter.Writable acceptHeader() {
+        if (output.hasTrait(Synthetic.class) && output.members().isEmpty()) {
+            return emptyGoTemplate();
+        }
+
+        return goTemplate("""
+                req.Header.Set("Accept", $S)
+                """, isOutputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
+    }
+
+    private boolean isInputEventStream() {
+        return eventStreamIndex.getInputInfo(operation).isPresent();
+    }
+
+    private boolean isOutputEventStream() {
+        return eventStreamIndex.getOutputInfo(operation).isPresent();
     }
 }

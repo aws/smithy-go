@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.protocol.rpc2.cbor;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenerator.CONTENT_TYPE;
 import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenerator.SMITHY_PROTOCOL_NAME;
@@ -23,6 +24,7 @@ import static software.amazon.smithy.go.codegen.serde.cbor.CborSerializerGenerat
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Synthetic;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2SerializeRequestMiddleware;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -47,6 +49,10 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
 
     @Override
     public GoWriter.Writable generateSerialize() {
+        if (input.hasTrait(Synthetic.class) && input.members().isEmpty()) {
+            return emptyGoTemplate();
+        }
+
         return goTemplate("""
                 cv, err := $serialize:L(input)
                 if err != nil {
