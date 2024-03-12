@@ -21,9 +21,9 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.Synthetic;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.SerializeRequestMiddleware;
+import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -66,7 +66,7 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
     }
 
     private GoWriter.Writable setContentTypeHeader() {
-        if (input.hasTrait(Synthetic.class) && input.members().isEmpty()) {
+        if (input.hasTrait(BackfilledInputOutputTrait.class)) {
             return emptyGoTemplate();
         }
 
@@ -76,10 +76,6 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
     }
 
     private GoWriter.Writable acceptHeader() {
-        if (output.hasTrait(Synthetic.class) && output.members().isEmpty()) {
-            return emptyGoTemplate();
-        }
-
         return goTemplate("""
                 req.Header.Set("Accept", $S)
                 """, isOutputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());

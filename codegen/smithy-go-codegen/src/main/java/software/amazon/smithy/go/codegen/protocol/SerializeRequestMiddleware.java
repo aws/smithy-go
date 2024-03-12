@@ -67,6 +67,7 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
                 if !ok {
                     return out, metadata, $errorf:T("unexpected input type %T", in.Parameters)
                 }
+                _ = input
 
                 req, ok := in.Request.($request:P)
                 if !ok {

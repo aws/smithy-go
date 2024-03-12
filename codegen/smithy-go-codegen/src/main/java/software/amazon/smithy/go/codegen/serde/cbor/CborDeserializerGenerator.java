@@ -31,6 +31,7 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
@@ -310,8 +311,10 @@ public final class CborDeserializerGenerator {
             return emptyGoTemplate(); // event stream, not an actual field
         }
 
+        var memberSymbol = symbolProvider.toSymbol(member);
         return goTemplate("""
                 if key == $field:S {
+                    $nilable:W
                     dv, err := $deserialize:L(sv)
                     if err != nil {
                         return nil, err
@@ -323,8 +326,16 @@ public final class CborDeserializerGenerator {
                         "field", member.getMemberName(),
                         "fieldName", symbolProvider.toMemberName(member),
                         "deserialize", getDeserializerName(normalize(target)),
-                        "deref", generateStructFieldDeref(member, "dv")
+                        "deref", generateStructFieldDeref(member, "dv"),
+                        "nilable", isNilable(memberSymbol) ? handleSparseField() : emptyGoTemplate()
                 ));
+    }
+
+    private GoWriter.Writable handleSparseField() {
+        return goTemplate("""
+                if _, ok := sv.($P); ok {
+                    continue
+                }""", SmithyGoTypes.Encoding.Cbor.Nil);
     }
 
     private GoWriter.Writable generateStructFieldDeref(MemberShape member, String ident) {
@@ -371,6 +382,9 @@ public final class CborDeserializerGenerator {
         var variantSymbol = buildSymbol(symbolProvider.toMemberName(member), symbol.getNamespace());
         return goTemplate("""
                 if key == $variantName:S {
+                    if _, ok := $ident:L.($cborNil:P); ok {
+                        continue
+                    }
                     dv, err := $deserialize:L($ident:L)
                     if err != nil {
                         return nil, err
@@ -379,6 +393,7 @@ public final class CborDeserializerGenerator {
                 }
                 """,
                 MapUtils.of(
+                        "cborNil", SmithyGoDependency.SMITHY_CBOR.struct("Nil"),
                         "variantName", member.getMemberName(),
                         "deserialize", getDeserializerName(target),
                         "ident", ident,
