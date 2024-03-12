@@ -153,25 +153,26 @@ func itoarglen[I int | uint64](v I) int {
 }
 
 func encodeArg[I int | uint64](t majorType, arg I, p []byte) int {
-	if arg < 24 {
-		p[0] = byte(t)<<5 | byte(arg)
+	aarg := uint64(arg)
+	if aarg < 24 {
+		p[0] = byte(t)<<5 | byte(aarg)
 		return 1
-	} else if arg < 0x100 {
+	} else if aarg < 0x100 {
 		p[0] = compose(t, minorArg1)
-		p[1] = byte(arg)
+		p[1] = byte(aarg)
 		return 2
-	} else if arg < 0x10000 {
+	} else if aarg < 0x10000 {
 		p[0] = compose(t, minorArg2)
-		binary.BigEndian.PutUint16(p[1:], uint16(arg))
+		binary.BigEndian.PutUint16(p[1:], uint16(aarg))
 		return 3
-	} else if arg < 0x100000000 {
+	} else if aarg < 0x100000000 {
 		p[0] = compose(t, minorArg4)
-		binary.BigEndian.PutUint32(p[1:], uint32(arg))
+		binary.BigEndian.PutUint32(p[1:], uint32(aarg))
 		return 5
 	}
 
 	p[0] = compose(t, minorArg8)
-	binary.BigEndian.PutUint64(p[1:], uint64(arg))
+	binary.BigEndian.PutUint64(p[1:], uint64(aarg))
 	return 9
 }
 
