@@ -111,6 +111,7 @@ func deepEqual(expect, actual reflect.Value, path string) error {
 			if enan != anan {
 				return fmt.Errorf("%s: NaN: float64(0x%x) != float64(0x%x)", path, ebits, abits)
 			}
+			return nil
 		}
 		if ebits != abits {
 			return fmt.Errorf("%s: float64(0x%x) != float64(0x%x)", path, ebits, abits)
