@@ -15,7 +15,7 @@
 
 package software.amazon.smithy.go.codegen.protocol.rpc2.cbor;
 
-import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toCollection;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.protocol.ProtocolUtil.GET_AWS_QUERY_ERROR_CODE;
@@ -23,6 +23,7 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.cbor.ProtocolUtil.
 import static software.amazon.smithy.go.codegen.serde.SerdeUtil.getShapesToSerde;
 import static software.amazon.smithy.go.codegen.serde.cbor.CborDeserializerGenerator.getDeserializerName;
 
+import java.util.LinkedHashSet;
 import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
@@ -57,7 +58,8 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         var shapes = TopDownIndex.of(model).getContainedOperations(service).stream()
                 .map(it -> model.expectShape(it.getInputShape(), StructureShape.class))
                 .flatMap(it -> getShapesToSerde(model, it).stream())
-                .collect(toSet());
+                .sorted()
+                .collect(toCollection(LinkedHashSet::new));
         var generator = new CborSerializerGenerator(context);
         context.getWriter().get().write(generator.generate(shapes));
     }
@@ -71,21 +73,22 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         var outputShapes = operations.stream()
                 .map(it -> model.expectShape(it.getOutputShape(), StructureShape.class))
                 .filter(it -> !it.members().isEmpty())
-                .flatMap(it -> getShapesToSerde(model, it).stream())
-                .sorted();
+                .flatMap(it -> getShapesToSerde(model, it).stream());
         var errorShapes = operations.stream()
                 .flatMap(it -> it.getErrors().stream())
                 .map(model::expectShape)
-                .flatMap(it -> getShapesToSerde(model, it).stream())
-                .sorted();
+                .flatMap(it -> getShapesToSerde(model, it).stream());
 
         var generator = new CborDeserializerGenerator(context);
         var writer = context.getWriter().get();
         writer.write(generator.generate(
-                Stream.concat(outputShapes, errorShapes).collect(toSet())) // in case of overlap
+                Stream.concat(outputShapes, errorShapes)
+                        .sorted()
+                        .collect(toCollection(LinkedHashSet::new))) // in case of overlap
         );
         writer.write(GoWriter.ChainWritable.of(
                 operations.stream()
+                        .sorted()
                         .map(it -> deserializeOperationError(context, it))
                         .toList()
         ).compose());
