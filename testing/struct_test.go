@@ -120,7 +120,7 @@ func TestCompareValues(t *testing.T) {
 				Bar: 123,
 			},
 		},
-		"float diff": {
+		"float diff NaN": {
 			A: struct {
 				Foo float64
 				Bar int
@@ -135,8 +135,25 @@ func TestCompareValues(t *testing.T) {
 				Foo: math.Float64frombits(float64NaN - 1),
 				Bar: 123,
 			},
-			ExpectErr: "<root>.Foo: float64(0x7fffffffffffffff) != float64(0x7ffffffffffffffe)",
 		},
+		"float diff": {
+			A: struct {
+				Foo float64
+				Bar int
+			}{
+				Foo: math.Float64frombits(0x100),
+				Bar: 123,
+			},
+			B: struct {
+				Foo float64
+				Bar int
+			}{
+				Foo: math.Float64frombits(0x101),
+				Bar: 123,
+			},
+			ExpectErr: "<root>.Foo: float64(0x100) != float64(0x101)",
+		},
+
 		"document equal": {
 			A: &mockDocumentMarshaler{[]byte("123"), nil},
 			B: &mockDocumentMarshaler{[]byte("123"), nil},
