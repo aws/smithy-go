@@ -190,6 +190,11 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                                 "return smithytesting.CompareURLFormReaderBytes(actual, []byte(`%s`))",
                                 body);
                         break;
+                    case "application/cbor":
+                        compareFunc = String.format(
+                                "return smithytesting.CompareCBOR(actual, `%s`)",
+                                body);
+                        break;
                     default:
                         compareFunc = String.format(
                                 "return smithytesting.CompareReaderBytes(actual, []byte(`%s`))",

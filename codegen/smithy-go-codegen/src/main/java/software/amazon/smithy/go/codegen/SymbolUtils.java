@@ -210,4 +210,17 @@ public final class SymbolUtils {
     public static Symbol buildPackageSymbol(String name) {
         return Symbol.builder().name(name).build();
     }
+
+    public static Symbol buildSymbol(String name, String namespace) {
+        return Symbol.builder()
+                .name(name)
+                .namespace(namespace, ".")
+                .build();
+    }
+
+    public static boolean isNilable(Symbol symbol) {
+        return isPointable(symbol)
+                || symbol.getProperty(SymbolUtils.GO_SLICE).isPresent()
+                || symbol.getProperty(SymbolUtils.GO_MAP).isPresent();
+    }
 }

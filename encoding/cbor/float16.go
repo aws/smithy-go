@@ -35,8 +35,8 @@ func splitf16(f uint16) (sign, exp, mantissa uint32) {
 // that == 1 reaches position 24, then the number of positions shifted over is
 // equal to the offset from the subnormal exponent
 func normalize(sign, mant uint32) uint32 {
-	exp := (uint32(-14 + 127)) // f16 subnormal exp, with f32 bias
-	for mant&0x800000 == 0 {   // repeat until bit 24 ("hidden" mantissa) is 1
+	exp := uint32(-14 + 127) // f16 subnormal exp, with f32 bias
+	for mant&0x800000 == 0 { // repeat until bit 24 ("hidden" mantissa) is 1
 		mant <<= 1
 		exp-- // tracking the offset
 	}

@@ -60,6 +60,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_HTTP_BINDING = smithy("encoding/httpbinding");
     public static final GoDependency SMITHY_JSON = smithy("encoding/json", "smithyjson");
     public static final GoDependency SMITHY_XML = smithy("encoding/xml", "smithyxml");
+    public static final GoDependency SMITHY_CBOR = smithy("encoding/cbor", "smithycbor");
     public static final GoDependency SMITHY_IO = smithy("io", "smithyio");
     public static final GoDependency SMITHY_LOGGING = smithy("logging");
     public static final GoDependency SMITHY_PTR = smithy("ptr");
@@ -68,6 +69,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
     public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
+    public static final GoDependency SMITHY_DOCUMENT_CBOR = smithy("document/cbor", "smithydocumentcbor");
     public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");
     public static final GoDependency SMITHY_AUTH = smithy("auth", "smithyauth");
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");

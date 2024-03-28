@@ -131,7 +131,7 @@ func (f Float64) len() int {
 func (f Float64) encode(p []byte) int {
 	p[0] = compose(majorType7, major7Float64)
 	binary.BigEndian.PutUint64(p[1:], math.Float64bits(float64(f)))
-	return 5
+	return 9
 }
 
 func compose(major majorType, minor byte) byte {
@@ -139,37 +139,80 @@ func compose(major majorType, minor byte) byte {
 }
 
 func itoarglen[I int | uint64](v I) int {
-	if v < 24 {
+	vv := uint64(v)
+	if vv < 24 {
 		return 1 // type and len in single byte
-	} else if v < 0x100 {
+	} else if vv < 0x100 {
 		return 2 // type + 1-byte len
-	} else if v < 0x10000 {
+	} else if vv < 0x10000 {
 		return 3 // type + 2-byte len
-	} else if v < 0x100000000 {
+	} else if vv < 0x100000000 {
 		return 5 // type + 4-byte len
 	}
 	return 9 // type + 8-byte len
 }
 
 func encodeArg[I int | uint64](t majorType, arg I, p []byte) int {
-	if arg < 24 {
-		p[0] = byte(t)<<5 | byte(arg)
+	aarg := uint64(arg)
+	if aarg < 24 {
+		p[0] = byte(t)<<5 | byte(aarg)
 		return 1
-	} else if arg < 0x100 {
+	} else if aarg < 0x100 {
 		p[0] = compose(t, minorArg1)
-		p[1] = byte(arg)
+		p[1] = byte(aarg)
 		return 2
-	} else if arg < 0x10000 {
+	} else if aarg < 0x10000 {
 		p[0] = compose(t, minorArg2)
-		binary.BigEndian.PutUint16(p[1:], uint16(arg))
+		binary.BigEndian.PutUint16(p[1:], uint16(aarg))
 		return 3
-	} else if arg < 0x100000000 {
+	} else if aarg < 0x100000000 {
 		p[0] = compose(t, minorArg4)
-		binary.BigEndian.PutUint32(p[1:], uint32(arg))
+		binary.BigEndian.PutUint32(p[1:], uint32(aarg))
 		return 5
 	}
 
 	p[0] = compose(t, minorArg8)
-	binary.BigEndian.PutUint64(p[1:], uint64(arg))
+	binary.BigEndian.PutUint64(p[1:], uint64(aarg))
+	return 9
+}
+
+// EncodeRaw encodes opaque CBOR data.
+//
+// This is used by the encoder for the purpose of embedding document shapes.
+// Decode will never return values of this type.
+type EncodeRaw []byte
+
+func (v EncodeRaw) len() int { return len(v) }
+
+func (v EncodeRaw) encode(p []byte) int {
+	copy(p, v)
+	return len(v)
+}
+
+// FixedUint encodes fixed-width Uint values.
+//
+// This is used by the encoder for the purpose of embedding integrals in
+// document shapes. Decode will never return values of this type.
+type EncodeFixedUint uint64
+
+func (EncodeFixedUint) len() int { return 9 }
+
+func (v EncodeFixedUint) encode(p []byte) int {
+	p[0] = compose(majorTypeUint, minorArg8)
+	binary.BigEndian.PutUint64(p[1:], uint64(v))
+	return 9
+}
+
+// FixedUint encodes fixed-width NegInt values.
+//
+// This is used by the encoder for the purpose of embedding integrals in
+// document shapes. Decode will never return values of this type.
+type EncodeFixedNegInt uint64
+
+func (EncodeFixedNegInt) len() int { return 9 }
+
+func (v EncodeFixedNegInt) encode(p []byte) int {
+	p[0] = compose(majorTypeNegInt, minorArg8)
+	binary.BigEndian.PutUint64(p[1:], uint64(v-1))
 	return 9
 }

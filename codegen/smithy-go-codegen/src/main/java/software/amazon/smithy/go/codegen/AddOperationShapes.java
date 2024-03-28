@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.TreeSet;
 import java.util.logging.Logger;
+import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.AbstractShapeBuilder;
@@ -83,6 +84,7 @@ public final class AddOperationShapes {
         return StructureShape.builder()
                 .id(ShapeId.fromParts(CodegenUtils.getSyntheticTypeNamespace(), opShapeId.getName(service) + suffix))
                 .addTrait(Synthetic.builder().build())
+                .addTrait(new BackfilledInputOutputTrait())
                 .build();
     }
 

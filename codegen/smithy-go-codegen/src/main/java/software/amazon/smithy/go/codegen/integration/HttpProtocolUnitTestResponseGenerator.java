@@ -97,7 +97,20 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
             writeStructField(writer, "BodyMediaType", "$S", mediaType);
         });
         testCase.getBody().ifPresent(body -> {
-            writeStructField(writer, "Body", "[]byte(`$L`)", body);
+            var mediaType = testCase.getBodyMediaType().orElse("");
+            if (mediaType.equalsIgnoreCase("application/cbor")) {
+                writeStructField(writer, "Body", """
+                        func() []byte {
+                            p, err := $T.DecodeString(`$L`)
+                            if err != nil {
+                                panic(err)
+                            }
+
+                            return p
+                        }()""", SmithyGoDependency.BASE64.func("StdEncoding"), body);
+            } else {
+                writeStructField(writer, "Body", "[]byte(`$L`)", body);
+            }
         });
 
         writeStructField(writer, "ExpectResult", outputShape, testCase.getParams());

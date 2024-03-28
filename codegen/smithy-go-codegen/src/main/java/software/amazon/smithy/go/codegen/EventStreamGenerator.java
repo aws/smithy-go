@@ -31,6 +31,8 @@ import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.utils.StringUtils;
 
 public final class EventStreamGenerator {
+    public static final String AMZ_CONTENT_TYPE = "application/vnd.amazon.eventstream";
+
     private static final String EVENT_STREAM_FILE = "eventstream.go";
 
     private final GoSettings settings;
