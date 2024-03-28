@@ -157,6 +157,42 @@ public final class GoDependency implements SymbolDependencyContainer, Comparable
     }
 
     /**
+     * Creates a Symbol for a `const` exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol constSymbol(String name) {
+        return SymbolUtils.createValueSymbolBuilder(name, this).build();
+    }
+
+    /**
+     * Creates a Symbol for a `func` exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol func(String name) {
+        return SymbolUtils.createValueSymbolBuilder(name, this).build();
+    }
+
+    /**
+     * Creates a Symbol for a `struct` exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol struct(String name) {
+        return SymbolUtils.createPointableSymbolBuilder(name, this).build();
+    }
+
+    /**
+     * Creates a Symbol for a `Value` exported by this package.
+     * @param name The name.
+     * @return The symbol.
+     */
+    public Symbol interfaceSymbol(String name) {
+        return SymbolUtils.createValueSymbolBuilder(name, this).build();
+    }
+
+    /**
      * Creates a pointable Symbol for a name exported by this package.
      * @param name The name.
      * @return The symbol.

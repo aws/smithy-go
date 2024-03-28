@@ -28,6 +28,7 @@ public final class SmithyGoTypes {
         public static final Symbol Properties = SmithyGoDependency.SMITHY.pointableSymbol("Properties");
         public static final Symbol OperationError = SmithyGoDependency.SMITHY.pointableSymbol("OperationError");
         public static final Symbol InvalidParamsError = SmithyGoDependency.SMITHY.pointableSymbol("InvalidParamsError");
+        public static final Symbol SerializationError = SmithyGoDependency.SMITHY.pointableSymbol("SerializationError");
 
         public static final class Document {
             public static final Symbol NoSerde = SmithyGoDependency.SMITHY_DOCUMENT.pointableSymbol("NoSerde");
@@ -39,15 +40,47 @@ public final class SmithyGoTypes {
         public static final Symbol FormatDateTime = SmithyGoDependency.SMITHY_TIME.valueSymbol("FormatDateTime");
     }
 
+    public static final class Rand {
+        public static final Symbol NewUUID = SmithyGoDependency.SMITHY_RAND.valueSymbol("NewUUID");
+    }
+
     public static final class Encoding {
         public static final class Json {
             public static final Symbol NewEncoder = SmithyGoDependency.SMITHY_JSON.valueSymbol("NewEncoder");
             public static final Symbol Value = SmithyGoDependency.SMITHY_JSON.valueSymbol("Value");
         }
+
+        public static final class Cbor {
+            public static final Symbol Encode = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Encode");
+            public static final Symbol Decode = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Decode");
+            public static final Symbol Value = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Value");
+            public static final Symbol Uint = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Uint");
+            public static final Symbol NegInt = SmithyGoDependency.SMITHY_CBOR.valueSymbol("NegInt");
+            public static final Symbol Slice = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Slice");
+            public static final Symbol String = SmithyGoDependency.SMITHY_CBOR.valueSymbol("String");
+            public static final Symbol List = SmithyGoDependency.SMITHY_CBOR.valueSymbol("List");
+            public static final Symbol Map = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Map");
+            public static final Symbol Tag = SmithyGoDependency.SMITHY_CBOR.pointableSymbol("Tag");
+            public static final Symbol Bool = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Bool");
+            public static final Symbol Nil = SmithyGoDependency.SMITHY_CBOR.pointableSymbol("Nil");
+            public static final Symbol Undefined = SmithyGoDependency.SMITHY_CBOR.pointableSymbol("Undefined");
+            public static final Symbol Float32 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Float32");
+            public static final Symbol Float64 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("Float64");
+            public static final Symbol EncodeRaw = SmithyGoDependency.SMITHY_CBOR.valueSymbol("EncodeRaw");
+            public static final Symbol AsInt8 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsInt8");
+            public static final Symbol AsInt16 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsInt16");
+            public static final Symbol AsInt32 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsInt32");
+            public static final Symbol AsInt64 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsInt64");
+            public static final Symbol AsFloat32 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsFloat32");
+            public static final Symbol AsFloat64 = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsFloat64");
+            public static final Symbol AsTime = SmithyGoDependency.SMITHY_CBOR.valueSymbol("AsTime");
+        }
     }
 
-    public static final class Rand {
-        public static final Symbol NewUUID = SmithyGoDependency.SMITHY_RAND.valueSymbol("NewUUID");
+    public static final class Document {
+        public static final class Cbor {
+            public static final Symbol NewEncoder = SmithyGoDependency.SMITHY_DOCUMENT_CBOR.valueSymbol("NewEncoder");
+        }
     }
 
     public static final class Ptr {
@@ -57,6 +90,9 @@ public final class SmithyGoTypes {
         public static final Symbol Int16 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int16");
         public static final Symbol Int32 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int32");
         public static final Symbol Int64 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Int64");
+        public static final Symbol Float32 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Float32");
+        public static final Symbol Float64 = SmithyGoDependency.SMITHY_PTR.valueSymbol("Float64");
+        public static final Symbol Time = SmithyGoDependency.SMITHY_PTR.valueSymbol("Time");
     }
 
     public static final class Middleware {
@@ -84,6 +120,7 @@ public final class SmithyGoTypes {
     public static final class Transport {
         public static final class Http {
             public static final Symbol Request = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("Request");
+            public static final Symbol Response = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("Response");
             public static final Symbol NewStackRequest = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewStackRequest");
             public static final Symbol NewClientHandler = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("NewClientHandler");
 

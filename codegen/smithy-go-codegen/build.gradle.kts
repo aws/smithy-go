@@ -27,4 +27,5 @@ dependencies {
     api("org.jsoup:jsoup:1.14.1")
     api("software.amazon.smithy:smithy-rules-engine:$smithyVersion")
     implementation("software.amazon.smithy:smithy-protocol-test-traits:$smithyVersion")
+    api("software.amazon.smithy:smithy-protocol-traits:$smithyVersion")
 }
