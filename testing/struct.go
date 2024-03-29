@@ -105,10 +105,16 @@ func deepEqual(expect, actual reflect.Value, path string) error {
 		}
 		return nil
 	case reflect.Float32, reflect.Float64:
-		// NaN != NaN by definition but we just care about bitwise equality
-		ef, af := math.Float64bits(expect.Float()), math.Float64bits(actual.Float())
-		if ef != af {
-			return fmt.Errorf("%s: float 0x%x != 0x%x", path, ef, af)
+		ef, af := expect.Float(), actual.Float()
+		ebits, abits := math.Float64bits(ef), math.Float64bits(af)
+		if enan, anan := math.IsNaN(ef), math.IsNaN(af); enan || anan {
+			if enan != anan {
+				return fmt.Errorf("%s: NaN: float64(0x%x) != float64(0x%x)", path, ebits, abits)
+			}
+			return nil
+		}
+		if ebits != abits {
+			return fmt.Errorf("%s: float64(0x%x) != float64(0x%x)", path, ebits, abits)
 		}
 		return nil
 	default:
