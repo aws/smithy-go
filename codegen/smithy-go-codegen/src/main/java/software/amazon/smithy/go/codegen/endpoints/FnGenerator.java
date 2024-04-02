@@ -52,6 +52,13 @@ public class FnGenerator {
             writableFnArgs.add(new ExpressionGenerator(scope, this.fnProvider).generate(expr));
         });
 
+        // Wrap split() in stringSlice() for safe .Get() index access
+        if (fnDef.getId().equals("split")) {
+            return goTemplate("stringSlice($fn:T($args:W))", MapUtils.of(
+                    "fn", goFn,
+                    "args", joinWritables(writableFnArgs, ", ")));
+        }
+
         return goTemplate("$fn:T($args:W)", MapUtils.of(
                 "fn", goFn,
                 "args", joinWritables(writableFnArgs, ", ")));
@@ -70,6 +77,8 @@ public class FnGenerator {
                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
                 case "uriEncode" -> SymbolUtils.createValueSymbolBuilder("URIEncode",
                         SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+                case "split" -> SymbolUtils.createValueSymbolBuilder("Split",
+                        SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
 
                 default -> null;
             };
@@ -82,6 +91,7 @@ public class FnGenerator {
             case "parseURL" -> true;
             case "substring" -> true;
             case "uriEncode" -> false;
+            case "split" -> false;
 
             default -> false;
         };

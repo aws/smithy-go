@@ -26,6 +26,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceLocation;
+import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
@@ -119,6 +120,69 @@ final class ExpressionGenerator {
         @Override
         public Writable visitLibraryFunction(FunctionDefinition fnDef, List<Expression> args) {
             return new FnGenerator(scope, fnProvider).generate(fnDef, args);
+        }
+
+        @Override
+        public Writable visitIte(Expression condition, Expression trueValue, Expression falseValue) {
+            var generator = new ExpressionGenerator(scope, fnProvider);
+            var resultType = trueValue.type();
+            if (resultType instanceof OptionalType opt) {
+                resultType = opt.inner();
+            }
+            var goType = goTypeNameForType(resultType);
+            return goTemplate("""
+                    func() $goType:L {
+                        if $cond:W {
+                            return $trueVal:W
+                        }
+                        return $falseVal:W
+                    }()""",
+                    MapUtils.of(
+                            "goType", goType,
+                            "cond", generator.generate(condition),
+                            "trueVal", generator.generate(trueValue),
+                            "falseVal", generator.generate(falseValue)));
+        }
+
+        @Override
+        public Writable visitCoalesce(List<Expression> expressions) {
+            // coalesce(a, b) → if a is non-nil use *a, else use b
+            // The first expression is optional (pointer), the second is the default value.
+            if (expressions.size() == 2) {
+                var first = expressions.get(0);
+                var second = expressions.get(1);
+                var resultType = second.type();
+                if (resultType instanceof OptionalType opt) {
+                    resultType = opt.inner();
+                }
+                var goType = goTypeNameForType(resultType);
+
+                // For the first arg, we need the pointer form (no dereference) to nil-check.
+                // Strip leading "*" if the scope added one.
+                var generator = new ExpressionGenerator(scope, fnProvider);
+                var firstWritable = generator.generate(first);
+                var optIdent = scope.getIdent(first);
+                if (optIdent.isPresent() && optIdent.get().startsWith("*")) {
+                    // Use the pointer form (without the leading *)
+                    var ptrIdent = optIdent.get().substring(1);
+                    firstWritable = goTemplate(ptrIdent);
+                }
+
+                var finalFirst = firstWritable;
+                return goTemplate("""
+                        func() $goType:L {
+                            if v := $first:W; v != nil {
+                                return *v
+                            }
+                            return $second:W
+                        }()""",
+                        MapUtils.of(
+                                "goType", goType,
+                                "first", finalFirst,
+                                "second", generator.generate(second)));
+            }
+            // Fallback: just generate the first expression
+            return new ExpressionGenerator(scope, fnProvider).generate(expressions.get(0));
         }
     }
 
@@ -215,5 +279,16 @@ final class ExpressionGenerator {
 
     private static String getBuiltinMemberName(Identifier ident) {
         return StringUtils.capitalize(ident.getName().toString());
+    }
+
+    static String goTypeNameForType(
+            software.amazon.smithy.rulesengine.language.evaluation.type.Type type) {
+        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.StringType) {
+            return "string";
+        }
+        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
+            return "bool";
+        }
+        return "any";
     }
 }
