@@ -15,7 +15,10 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.commonmark.node.BlockQuote;
 import org.commonmark.node.FencedCodeBlock;
 import org.commonmark.node.Heading;
@@ -25,6 +28,7 @@ import org.commonmark.node.ThematicBreak;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.safety.Safelist;
@@ -42,9 +46,9 @@ public final class DocumentationConverter {
     // This allowlist strips out anything we can't reasonably convert, vastly simplifying the
     // node tree we end up having to crawl through.
     private static final Safelist GODOC_ALLOWLIST = new Safelist()
-            .addTags("code", "pre", "ul", "ol", "li", "a", "br", "h1", "h2", "h3", "h4", "h5", "h6")
+            .addTags("code", "pre", "ul", "ol", "li", "a", "br", "h1", "h2", "h3", "h4", "h5", "h6", "p")
             .addAttributes("a", "href")
-            .addProtocols("a", "href", "http", "https", "mailto");
+            .addProtocols("a", "href", "http", "https");
 
     // Construct a markdown parser that specifically ignores parsing indented code blocks. This
     // is because HTML blocks can have really wonky formatting that can be mis-attributed to an
@@ -85,6 +89,8 @@ public final class DocumentationConverter {
         private static final Set<String> LIST_BLOCK_NODES = SetUtils.of("ul", "ol");
         private static final Set<String> CODE_BLOCK_NODES = SetUtils.of("pre", "code");
         private final CodeWriter writer;
+        // Godoc links are added at the end as `[text]: http://example.com` so keeping a collection to add them later
+        private final Map<String, String> links;
 
         private boolean needsListPrefix = false;
         private boolean shouldStripPrefixWhitespace = false;
@@ -100,6 +106,7 @@ public final class DocumentationConverter {
             writer.trimBlankLines();
             writer.insertTrailingNewline(false);
             this.docWrapLength = docWrapLength;
+            this.links = new HashMap<>();
             this.lastLineString = "";
         }
 
@@ -110,9 +117,31 @@ public final class DocumentationConverter {
                 writer.indent();
             }
 
+            if (node.nodeName().equals("a")) {
+                // Logic to format anchors as Go Links https://tip.golang.org/doc/comment#links
+                Element element = (Element) node;
+                String text = element.text();
+                String url = element.absUrl("href");
+                if (url.isEmpty()) {
+                    // an empty anchor won't have a reference at the end, so just
+                    // output it directly to the output
+                    writer.writeInlineWithNoFormatting(text);
+                    return;
+                }
+                String wrappedAnchorText = "[" + text + "]";
+                writer.writeInlineWithNoFormatting(wrappedAnchorText);
+                links.put(text, url);
+            }
+
+            Node parentNode = node.parentNode();
+            if (parentNode != null && parentNode.nodeName().equals("a") && node instanceof TextNode) {
+                // anchor tags get processed twice: once as anchor tags and another one as
+                // textNodes. Since this was already processed as anchor, no need to do anything else
+                return;
+            }
             if (node instanceof TextNode) {
                 writeText((TextNode) node);
-            } else if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)) {
+            } else if (isTopLevelCodeBlock(node, depth)) {
                 writeNewline();
                 writeIndent();
             } else if (LIST_BLOCK_NODES.contains(name)) {
@@ -279,18 +308,15 @@ public final class DocumentationConverter {
             }
 
             if (TEXT_BLOCK_NODES.contains(name) || isTopLevelCodeBlock(node, depth)) {
+                // A single newline is just treated as a line break, but gets
+                // rendered as the same block.
+                // Two ensure the text gets treated as a separate text block
+                writeNewline();
                 writeNewline();
             } else if (LIST_BLOCK_NODES.contains(name)) {
                 listDepth--;
                 if (listDepth == 0) {
                     writeNewline();
-                }
-            } else if (name.equals("a")) {
-                String url = node.absUrl("href");
-                if (!url.isEmpty()) {
-                    // godoc can't render links with text bodies, so we simply append the link.
-                    // Full links do get rendered.
-                    writeInline(" ($L)", url);
                 }
             } else if (name.equals("li")) {
                 // Clear out the expectation of a list element if the element's body is empty.
@@ -313,8 +339,22 @@ public final class DocumentationConverter {
             }
             result = String.join("\n", lines);
 
+            // iterate over every link found and append it at the end
+            String allLinks = links.entrySet().stream()
+                    .map(link -> formatLink(link))
+                    .collect(Collectors.joining("\n"));
+            if (!allLinks.isEmpty()) {
+                result += "\n\n" + allLinks;
+            }
+
             // Strip out leading and trailing newlines.
             return StringUtils.strip(result, "\n");
+        }
+
+        private String formatLink(Map.Entry<String, String> link) {
+            String anchor = link.getKey();
+            String destination = link.getValue();
+            return "[%s]: %s".formatted(anchor, destination);
         }
     }
 }

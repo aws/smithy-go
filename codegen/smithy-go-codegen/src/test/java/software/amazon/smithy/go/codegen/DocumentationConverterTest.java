@@ -25,11 +25,7 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<a href=\"https://example.com\">a link</a>",
-                        "a link (https://example.com)"
-                ),
-                Arguments.of(
-                        "<a href=\" https://example.com\">a link</a>",
-                        "a link (https://example.com)"
+                        "[a link]\n\n[a link]: https://example.com"
                 ),
                 Arguments.of(
                         "<a>empty link</a>",
@@ -49,7 +45,7 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<ul> <li> <p>Testing 1 2 3</p> </li><li> <p>FooBar</p></li></ul>",
-                        "  - Testing 1 2 3\n  - FooBar"
+                        "  - Testing 1 2 3\n\n  - FooBar"
                 ),
                 Arguments.of(
                         "<ul> <li><code>Testing</code>: 1 2 3</li> <li>FooBar</li> </ul>",
@@ -57,7 +53,7 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "<ul> <li><p><code>FOO</code> Bar</p></li><li><p><code>Xyz</code> ABC</p></li></ul>",
-                        "  - FOO Bar\n  - Xyz ABC"
+                        "  - FOO Bar\n\n  - Xyz ABC"
                 ),
                 Arguments.of(
                         "<ul><li>        foo</li><li>\tbar</li><li>\nbaz</li></ul>",
@@ -90,9 +86,9 @@ public class DocumentationConverterTest {
                                 + " configuration, see "
                                 + "<a href=\" https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html\">"
                                 + "Cross-Region Replication (CRR)</a> in the <i>Amazon S3 Developer Guide</i>. </p>",
-                        "Deletes the replication configuration from the bucket. For information about\n" +
-                                "replication configuration, see Cross-Region Replication (CRR) (https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html)\n" +
-                                "in the Amazon S3 Developer Guide."
+                        " Deletes the replication configuration from the bucket. For information about\n" +
+                                "replication configuration, see [Cross-Region Replication (CRR)]in the Amazon S3 Developer Guide.\n\n" +
+                                "[Cross-Region Replication (CRR)]: https://docs.aws.amazon.com/AmazonS3/latest/dev/crr.html"
                 ),
                 Arguments.of(
                         "* foo\n* bar",
@@ -100,27 +96,29 @@ public class DocumentationConverterTest {
                 ),
                 Arguments.of(
                         "[a link](https://example.com)",
-                        "a link (https://example.com)"
+                        "[a link]\n\n[a link]: https://example.com"
                 ),
                 Arguments.of("", ""),
                 Arguments.of("<!-- foo bar -->", ""),
-                Arguments.of("# Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h1>Foo</h1>bar", "Foo\nbar"),
-                Arguments.of("## Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h2>Foo</h2>bar", "Foo\nbar"),
-                Arguments.of("### Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h3>Foo</h3>bar", "Foo\nbar"),
-                Arguments.of("#### Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h4>Foo</h4>bar", "Foo\nbar"),
-                Arguments.of("##### Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h5>Foo</h5>bar", "Foo\nbar"),
-                Arguments.of("###### Foo\nbar", "Foo\nbar"),
-                Arguments.of("<h6>Foo</h6>bar", "Foo\nbar"),
+                Arguments.of("# Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h1>Foo</h1>bar", "Foo\n\nbar"),
+                Arguments.of("## Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h2>Foo</h2>bar", "Foo\n\nbar"),
+                Arguments.of("### Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h3>Foo</h3>bar", "Foo\n\nbar"),
+                Arguments.of("#### Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h4>Foo</h4>bar", "Foo\n\nbar"),
+                Arguments.of("##### Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h5>Foo</h5>bar", "Foo\n\nbar"),
+                Arguments.of("###### Foo\nbar", "Foo\n\nbar"),
+                Arguments.of("<h6>Foo</h6>bar", "Foo\n\nbar"),
                 Arguments.of("Inline `code`", "Inline code"),
                 Arguments.of("```\ncode block\n ```", "    code block"),
                 Arguments.of("```java\ncode block\n ```", "    code block"),
                 Arguments.of("foo<br/>bar", "foo\n\nbar"),
-                Arguments.of("         <p>foo</p>", "foo")
+                Arguments.of("         <p>foo</p>", "foo"),
+                Arguments.of("<p>paragraph one</p><p>paragraph two</p>", "paragraph one\n\nparagraph two"),
+                Arguments.of("<a href=\"mailto:someone@example.com\">someone</a>", "someone")
         );
     }
 }
