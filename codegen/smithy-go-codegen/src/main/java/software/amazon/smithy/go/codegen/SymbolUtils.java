@@ -223,4 +223,8 @@ public final class SymbolUtils {
                 || symbol.getProperty(SymbolUtils.GO_SLICE).isPresent()
                 || symbol.getProperty(SymbolUtils.GO_MAP).isPresent();
     }
+
+    public static Symbol pointerTo(Symbol symbol) {
+        return symbol.toBuilder().putProperty(POINTABLE, true).build();
+    }
 }

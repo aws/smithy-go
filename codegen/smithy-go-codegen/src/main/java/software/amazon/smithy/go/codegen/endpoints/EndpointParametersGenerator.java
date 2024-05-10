@@ -19,6 +19,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goBlockTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SymbolUtils.pointerTo;
 
 import java.io.Serializable;
 import java.util.Comparator;
@@ -27,7 +28,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -149,12 +152,11 @@ public final class EndpointParametersGenerator {
 
     private GoWriter.Writable generateDefaultValue(Parameter parameter, Value defaultValue) {
         return switch (parameter.getType()) {
-            case STRING -> goTemplate("$ptrString:T($value:S)", MapUtils.of(
-                    "ptrString", SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build(),
-                    "value", defaultValue.expectStringValue()));
-            case BOOLEAN -> goTemplate("$ptrBool:T($value:L)", MapUtils.of(
-                    "ptrBool", SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build(),
-                    "value", defaultValue.expectBooleanValue()));
+            case STRING -> goTemplate("$T($S)",
+                    SmithyGoDependency.SMITHY_PTR.func("String"), defaultValue.expectStringValue());
+            case BOOLEAN -> goTemplate("$T($L)",
+                    SmithyGoDependency.SMITHY_PTR.func("Bool"), defaultValue.expectBooleanValue());
+            case STRING_ARRAY -> throw new CodegenException("unsupported endpoint parameter type stringArray");
         };
     }
 
@@ -197,11 +199,9 @@ public final class EndpointParametersGenerator {
 
     public static Symbol parameterAsSymbol(Parameter parameter) {
         return switch (parameter.getType()) {
-            case STRING -> SymbolUtils.createPointableSymbolBuilder("string")
-                    .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true).build();
-
-            case BOOLEAN -> SymbolUtils.createPointableSymbolBuilder("bool")
-                    .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true).build();
+            case STRING -> pointerTo(GoUniverseTypes.String);
+            case BOOLEAN -> pointerTo(GoUniverseTypes.Bool);
+            case STRING_ARRAY -> throw new CodegenException("unsupported endpoint parameter type stringArray");
         };
     }
 

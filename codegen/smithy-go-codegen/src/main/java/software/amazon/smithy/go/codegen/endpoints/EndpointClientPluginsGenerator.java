@@ -15,9 +15,10 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.endpoints.EndpointParametersGenerator.parameterAsSymbol;
+
 import java.util.ArrayList;
 import java.util.List;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
@@ -42,16 +43,6 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
 
     private static String getExportedParameterName(Parameter parameter) {
         return StringUtils.capitalize(parameter.getName().getName().getValue());
-    }
-
-    private static Symbol parameterAsSymbol(Parameter parameter) {
-        return switch (parameter.getType()) {
-            case STRING -> SymbolUtils.createPointableSymbolBuilder("string")
-                    .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true).build();
-
-            case BOOLEAN -> SymbolUtils.createPointableSymbolBuilder("bool")
-                    .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true).build();
-        };
     }
 
     @Override
