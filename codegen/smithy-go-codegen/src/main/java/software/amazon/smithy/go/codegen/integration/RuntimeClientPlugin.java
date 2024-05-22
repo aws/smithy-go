@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.auth.AuthParameter;
 import software.amazon.smithy.go.codegen.auth.AuthParametersResolver;
@@ -54,6 +55,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final MiddlewareRegistrar registerMiddleware;
     private final Map<String, GoWriter.Writable> endpointBuiltinBindings;
     private final Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions;
+    private final Map<ShapeId, Symbol> shapeDeserializers;
 
     private RuntimeClientPlugin(Builder builder) {
         operationPredicate = builder.operationPredicate;
@@ -67,6 +69,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         configFieldResolvers = builder.configFieldResolvers;
         endpointBuiltinBindings = builder.endpointBuiltinBindings;
         authSchemeDefinitions = builder.authSchemeDefinitions;
+        shapeDeserializers = builder.shapeDeserializers;
     }
 
     @FunctionalInterface
@@ -128,6 +131,14 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Map<ShapeId, AuthSchemeDefinition> getAuthSchemeDefinitions() {
         return authSchemeDefinitions;
+    }
+
+    /**
+     * Gets the registered shape deserializers.
+     * @return the deserializers.
+     */
+    public Map<ShapeId, Symbol> getShapeDeserializers() {
+        return shapeDeserializers;
     }
 
     /**
@@ -242,6 +253,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Map<String, GoWriter.Writable> endpointBuiltinBindings = new HashMap<>();
         private MiddlewareRegistrar registerMiddleware;
         private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
+        private Map<ShapeId, Symbol> shapeDeserializers = new HashMap<>();
 
         @Override
         public RuntimeClientPlugin build() {
@@ -494,6 +506,19 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addAuthSchemeDefinition(ShapeId schemeId, AuthSchemeDefinition definition) {
             this.authSchemeDefinitions.put(schemeId, definition);
+            return this;
+        }
+
+        /**
+         * Registers a codegen definition for a custom shape deserializer. This feature is currently only supported for
+         * overriding deserialization in HTTP bindings.
+         * @param id The shape id.
+         * @param deserializer The deserializer symbol. The written code MUST be a function which accepts the
+         *                     corresponding type for the shape and returns (*type, error) accordingly.
+         * @return Returns the builder.
+         */
+        public Builder addShapeDeserializer(ShapeId id, Symbol deserializer) {
+            this.shapeDeserializers.put(id, deserializer);
             return this;
         }
     }
