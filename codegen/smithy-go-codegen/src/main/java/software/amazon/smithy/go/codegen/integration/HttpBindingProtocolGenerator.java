@@ -19,7 +19,9 @@ import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requir
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -75,6 +77,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private final Set<Shape> serializeDocumentBindingShapes = new TreeSet<>();
     private final Set<Shape> deserializeDocumentBindingShapes = new TreeSet<>();
     private final Set<StructureShape> deserializingErrorShapes = new TreeSet<>();
+    private final Map<ShapeId, Symbol> deserializerOverrides = new HashMap<>();
 
     /**
      * Creates a Http binding protocol generator.
@@ -1082,6 +1085,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
+        deserializerOverrides.putAll(
+                context.getIntegrations().stream()
+                        .flatMap(it -> it.getClientPlugins(context.getModel(), context.getService()).stream())
+                        .flatMap(it -> it.getShapeDeserializers().entrySet().stream())
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+        );
+
         EventStreamIndex streamIndex = EventStreamIndex.of(context.getModel());
 
         for (OperationShape operation : getHttpBindingOperations(context)) {
@@ -1347,13 +1357,24 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     ) {
         writer.openBlock("if headerValues := response.Header.Values($S); len(headerValues) != 0 {", "}",
                 binding.getLocationName(), () -> {
-                    Shape targetShape = context.getModel().expectShape(memberShape.getTarget());
+                    var target = memberShape.getTarget();
+                    Shape targetShape = context.getModel().expectShape(target);
 
                     String operand = "headerValues";
                     operand = writeHeaderValueAccessor(context, writer, targetShape, binding, operand);
 
-                    String value = generateHttpHeaderValue(context, writer, memberShape, binding,
-                            operand);
+                    if (deserializerOverrides.containsKey(target)) {
+                        writer.write("""
+                            deserOverride, err := $T($L)
+                            if err != nil {
+                                return err
+                            }
+                            v.$L = deserOverride
+                            """, deserializerOverrides.get(target), operand, memberName);
+                        return;
+                    }
+
+                    var value = generateHttpHeaderValue(context, writer, memberShape, binding, operand);
                     writer.write("v.$L = $L", memberName,
                             CodegenUtils.getAsPointerIfPointable(context.getModel(), writer,
                                     GoPointableIndex.of(context.getModel()), memberShape, value));
