@@ -143,7 +143,7 @@ func TestAsInt32(t *testing.T) {
 		},
 		"uint oob": {
 			In:  Uint(maxv + 1),
-			Err: fmt.Sprintf("cbor uint %d exceeds", maxv+1),
+			Err: fmt.Sprintf("cbor uint %d exceeds", Uint(maxv+1)),
 		},
 		"negint oob": {
 			In:  NegInt(maxv + 2),
@@ -330,7 +330,7 @@ func TestAsFloat64(t *testing.T) {
 		},
 		"uint oob": {
 			In:  Uint(maxv + 1),
-			Err: fmt.Sprintf("cbor uint %d exceeds", maxv+1),
+			Err: fmt.Sprintf("cbor uint %d exceeds", Uint(maxv+1)),
 		},
 		"negint oob": {
 			In:  NegInt(maxv + 2),
