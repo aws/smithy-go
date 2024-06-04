@@ -35,6 +35,7 @@ public final class GoStdlibTypes {
 
     public static final class Time {
         public static final Symbol Time = SmithyGoDependency.TIME.pointableSymbol("Time");
+        public static final Symbol Duration = SmithyGoDependency.TIME.valueSymbol("Duration");
     }
 
     public static final class Encoding {
