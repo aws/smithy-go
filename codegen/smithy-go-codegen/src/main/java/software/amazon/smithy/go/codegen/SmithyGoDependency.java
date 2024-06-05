@@ -43,6 +43,7 @@ public final class SmithyGoDependency {
     public static final GoDependency ERRORS = stdlib("errors");
     public static final GoDependency XML = stdlib("encoding/xml");
     public static final GoDependency SYNC = stdlib("sync");
+    public static final GoDependency ATOMIC = stdlib("sync/atomic");
     public static final GoDependency PATH = stdlib("path");
     public static final GoDependency LOG = stdlib("log");
     public static final GoDependency OS = stdlib("os");
