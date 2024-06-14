@@ -15,7 +15,11 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static java.util.Collections.emptySet;
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -42,6 +46,10 @@ import software.amazon.smithy.model.traits.DocumentationTrait;
  * Implements support for PaginatedTrait.
  */
 public class Paginators implements GoIntegration {
+    public Set<Symbol> getAdditionalClientOptions() {
+        return emptySet();
+    }
+
     @Override
     public void writeAdditionalFiles(
             GoSettings settings,
@@ -217,13 +225,21 @@ public class Paginators implements GoIntegration {
                         }
                     });
 
+                    var optFns = GoWriter.ChainWritable.of(
+                            getAdditionalClientOptions().stream()
+                                    .map(it -> goTemplate("$T,", it))
+                                    .toList()
+                    ).compose(false);
                     writer.write("""
+                                 optFns = append([]func(*Options) {
+                                     $W
+                                 }, optFns...)
                                  result, err := p.client.$L(ctx, &params, optFns...)
                                  if err != nil {
                                      return nil, err
                                  }
                                  p.firstPage = false
-                                 """, operationSymbol.getName());
+                                 """, optFns, operationSymbol.getName());
 
                     var outputMemberPath = paginationInfo.getOutputTokenMemberPath();
                     var tokenMember = outputMemberPath.get(outputMemberPath.size() - 1);
