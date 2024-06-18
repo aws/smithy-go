@@ -15,11 +15,13 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static java.util.Collections.emptySet;
 import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -52,6 +54,10 @@ import software.amazon.smithy.waiters.Waiter;
 public class Waiters implements GoIntegration {
     private static final String WAITER_INVOKER_FUNCTION_NAME = "Wait";
     private static final String WAITER_INVOKER_WITH_OUTPUT_FUNCTION_NAME = "WaitForOutput";
+
+    public Set<Symbol> getAdditionalClientOptions() {
+        return emptySet();
+    }
 
     @Override
     public void writeAdditionalFiles(
@@ -440,10 +446,22 @@ public class Waiters implements GoIntegration {
                         }).write("");
 
                         // make a request
+                        var baseOpts = GoWriter.ChainWritable.of(
+                                getAdditionalClientOptions().stream()
+                                        .map(it -> goTemplate("$T,", it))
+                                        .toList()
+                        ).compose(false);
                         writer.openBlock("out, err := w.client.$T(ctx, params, func (o *Options) { ", "})",
                                 operationSymbol, () -> {
+                                    writer.write("""
+                                            baseOpts := []func(*Options) {
+                                                $W
+                                            }""", baseOpts);
                                     writer.write("o.APIOptions = append(o.APIOptions, apiOptions...)");
                                     writer.write("""
+                                            for _, opt := range baseOpts {
+                                                opt(o)
+                                            }
                                             for _, opt := range options.ClientOptions {
                                                 opt(o)
                                             }""");
