@@ -60,14 +60,14 @@ public class GoJmespathExpressionGenerator {
     }
 
     private Result visit(JmespathExpression expr, Shape current) {
-        if (expr instanceof FunctionExpression) {
-            return visitFunction((FunctionExpression) expr, current);
-        } else if (expr instanceof FieldExpression) {
-            return visitField((FieldExpression) expr, current);
-        } else if (expr instanceof Subexpression) {
-            return visitSub((Subexpression) expr, current);
-        } else if (expr instanceof ProjectionExpression) {
-            return visitProjection((ProjectionExpression) expr, current);
+        if (expr instanceof FunctionExpression tExpr) {
+            return visitFunction(tExpr, current);
+        } else if (expr instanceof FieldExpression tExpr) {
+            return visitField(tExpr, current);
+        } else if (expr instanceof Subexpression tExpr) {
+            return visitSub(tExpr, current);
+        } else if (expr instanceof ProjectionExpression tExpr) {
+            return visitProjection(tExpr, current);
         } else {
             throw new CodegenException("unhandled jmespath expression " + expr.getClass().getSimpleName());
         }
