@@ -227,4 +227,11 @@ public final class SymbolUtils {
     public static Symbol pointerTo(Symbol symbol) {
         return symbol.toBuilder().putProperty(POINTABLE, true).build();
     }
+
+    public static Symbol sliceOf(Symbol symbol) {
+        return symbol.toBuilder()
+                .putProperty(GO_SLICE, true)
+                .putProperty(GO_ELEMENT_TYPE, symbol)
+                .build();
+    }
 }

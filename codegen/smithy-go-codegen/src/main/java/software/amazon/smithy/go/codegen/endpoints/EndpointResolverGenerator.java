@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.logging.Logger;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -107,6 +108,8 @@ public final class EndpointResolverGenerator {
 
     private GoWriter.Writable generateResolverType(GoWriter.Writable resolveMethodBody) {
         return goTemplate("""
+                $stringSlice:W
+
                 // $resolverInterfaceType:T provides the interface for resolving service endpoints.
                 type $resolverInterfaceType:T interface {
                     $resolveEndpointMethodDocs:W
@@ -134,6 +137,7 @@ public final class EndpointResolverGenerator {
                 commonCodegenArgs,
                 MapUtils.of(
                         "context", SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build(),
+                        "stringSlice", generateStringSliceHelper(),
                         "resolverTypeDocs", generateResolverTypeDocs(),
                         "resolveEndpointMethodDocs", generateResolveEndpointMethodDocs(),
                         "resolveMethodBody", resolveMethodBody));
@@ -181,7 +185,16 @@ public final class EndpointResolverGenerator {
                                 if (!param.isRequired()) {
                                     continue;
                                 }
-                                w.write("$L := *$L", getLocalVarParameterName(param), getMemberParameterName(param));
+                                switch (param.getType()) {
+                                    case STRING, BOOLEAN ->
+                                        w.write("$L := *$L",
+                                                getLocalVarParameterName(param), getMemberParameterName(param));
+                                    case STRING_ARRAY -> {
+                                        w.write("$L := stringSlice($L)",
+                                                getLocalVarParameterName(param), getMemberParameterName(param));
+                                    }
+                                    default -> throw new CodegenException("unrecognized parameter type");
+                                }
                             }
                         },
                         "rules", generateRulesList(ruleset.getRules(), scope)));
@@ -573,5 +586,19 @@ public final class EndpointResolverGenerator {
         public EndpointResolverGenerator build() {
             return new EndpointResolverGenerator(this);
         }
+    }
+
+    private GoWriter.Writable generateStringSliceHelper() {
+        return goTemplate("""
+                type stringSlice []string
+
+                func (s stringSlice) Get(i int) *string {
+                    if i < 0 || i >= len(s) {
+                        return nil
+                    }
+
+                    v := s[i]
+                    return &v
+                }""");
     }
 }

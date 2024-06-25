@@ -32,6 +32,7 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -75,6 +76,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final List<RuntimeClientPlugin> runtimePlugins = new ArrayList<>();
     private final ProtocolDocumentGenerator protocolDocumentGenerator;
     private final EventStreamGenerator eventStreamGenerator;
+    private final GoCodegenContext ctx;
 
     CodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -154,6 +156,15 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
 
         this.eventStreamGenerator = new EventStreamGenerator(settings, model, writers, symbolProvider, service);
+
+        this.ctx = new GoCodegenContext(
+                model,
+                settings,
+                symbolProvider,
+                fileManifest,
+                // FUTURE: GoDelegator should satisfy this interface
+                new WriterDelegator<>(fileManifest, symbolProvider, (filename, namespace) -> new GoWriter(namespace)),
+                integrations);
     }
 
     private static ProtocolGenerator resolveProtocolGenerator(
@@ -359,12 +370,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             TopDownIndex topDownIndex = model.getKnowledge(TopDownIndex.class);
             Set<OperationShape> containedOperations = new TreeSet<>(topDownIndex.getContainedOperations(service));
             for (OperationShape operation : containedOperations) {
-                Symbol operationSymbol = symbolProvider.toSymbol(operation);
-
-                writers.useShapeWriter(
-                        operation, operationWriter -> new OperationGenerator(settings, model, symbolProvider,
-                                operationWriter, service, operation, operationSymbol, applicationProtocol,
-                                protocolGenerator, runtimePlugins).run());
+                writers.useShapeWriter(operation, operationWriter ->
+                        new OperationGenerator(ctx, operationWriter, operation, protocolGenerator, runtimePlugins)
+                                .run());
             }
         });
 

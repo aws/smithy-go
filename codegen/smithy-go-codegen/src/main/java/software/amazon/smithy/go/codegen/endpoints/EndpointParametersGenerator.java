@@ -20,6 +20,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goBlockTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SymbolUtils.pointerTo;
+import static software.amazon.smithy.go.codegen.SymbolUtils.sliceOf;
 
 import java.io.Serializable;
 import java.util.Comparator;
@@ -28,7 +29,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -156,7 +156,11 @@ public final class EndpointParametersGenerator {
                     SmithyGoDependency.SMITHY_PTR.func("String"), defaultValue.expectStringValue());
             case BOOLEAN -> goTemplate("$T($L)",
                     SmithyGoDependency.SMITHY_PTR.func("Bool"), defaultValue.expectBooleanValue());
-            case STRING_ARRAY -> throw new CodegenException("unsupported endpoint parameter type stringArray");
+            case STRING_ARRAY -> goTemplate("[]string{$W}", GoWriter.ChainWritable.of(
+                    defaultValue.expectArrayValue().getValues().stream()
+                            .map(it -> goTemplate("$S,", it.expectStringValue()))
+                            .toList()
+            ).compose(false));
         };
     }
 
@@ -201,7 +205,7 @@ public final class EndpointParametersGenerator {
         return switch (parameter.getType()) {
             case STRING -> pointerTo(GoUniverseTypes.String);
             case BOOLEAN -> pointerTo(GoUniverseTypes.Bool);
-            case STRING_ARRAY -> throw new CodegenException("unsupported endpoint parameter type stringArray");
+            case STRING_ARRAY -> sliceOf(GoUniverseTypes.String);
         };
     }
 

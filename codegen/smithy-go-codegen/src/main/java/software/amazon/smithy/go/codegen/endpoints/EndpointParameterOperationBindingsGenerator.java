@@ -15,42 +15,60 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.utils.StringUtils.capitalize;
 
-import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
+import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.language.syntax.Identifier;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.ParameterType;
 import software.amazon.smithy.rulesengine.traits.ContextParamTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
+import software.amazon.smithy.rulesengine.traits.OperationContextParamDefinition;
+import software.amazon.smithy.rulesengine.traits.OperationContextParamsTrait;
 import software.amazon.smithy.rulesengine.traits.StaticContextParamDefinition;
 import software.amazon.smithy.rulesengine.traits.StaticContextParamsTrait;
 
 /**
- * Generates operation-specific bindings (@contextParam + @staticContextParam) as a receiver method on the operation's
- * input structure.
+ * Generates operation-specific bindings (@operationContextParam, @contextParam, @staticContextParam) as a receiver
+ * method on the operation's input structure.
  */
 public class EndpointParameterOperationBindingsGenerator {
+    private final GoCodegenContext ctx;
     private final OperationShape operation;
     private final StructureShape input;
-    private final Symbol inputSymbol;
+
+    private final EndpointRuleSet rules;
 
     public EndpointParameterOperationBindingsGenerator(
+            GoCodegenContext ctx,
             OperationShape operation,
-            StructureShape input,
-            Symbol inputSymbol
+            StructureShape input
     ) {
+        this.ctx = ctx;
         this.operation = operation;
         this.input = input;
-        this.inputSymbol = inputSymbol;
+
+        this.rules = ctx.settings().getService(ctx.model())
+                .expectTrait(EndpointRuleSetTrait.class)
+                .getEndpointRuleSet();
     }
 
     private boolean hasBindings() {
         var hasContextBindings = input.getAllMembers().values().stream().anyMatch(it ->
                 it.hasTrait(ContextParamTrait.class));
-        return hasContextBindings || operation.hasTrait(StaticContextParamsTrait.class);
+        return hasContextBindings
+                || operation.hasTrait(StaticContextParamsTrait.class)
+                || operation.hasTrait(OperationContextParamsTrait.class);
     }
 
     public GoWriter.Writable generate() {
@@ -62,11 +80,58 @@ public class EndpointParameterOperationBindingsGenerator {
                 func (in $P) bindEndpointParams(p *EndpointParameters) {
                     $W
                     $W
+                    $W
                 }
                 """,
-                inputSymbol,
+                ctx.symbolProvider().toSymbol(input),
+                generateOperationContextParamBindings(),
                 generateContextParamBindings(),
                 generateStaticContextParamBindings());
+    }
+
+    private GoWriter.Writable generateOperationContextParamBindings() {
+        if (!operation.hasTrait(OperationContextParamsTrait.class)) {
+            return emptyGoTemplate();
+        }
+
+        var params = operation.expectTrait(OperationContextParamsTrait.class);
+        return GoWriter.ChainWritable.of(
+                params.getParameters().entrySet().stream()
+                        .map(it -> generateOpContextParamBinding(it.getKey(), it.getValue()))
+                        .toList()
+        ).compose(false);
+    }
+
+    private GoWriter.Writable generateOpContextParamBinding(String paramName, OperationContextParamDefinition def) {
+        var param = rules.getParameters().get(Identifier.of(paramName)).get();
+        var expr = JmespathExpression.parse(def.getPath());
+
+        return writer -> {
+            var generator = new GoJmespathExpressionGenerator(ctx, writer, input, expr);
+
+            writer.write("func() {"); // contain the scope for each binding
+            var result = generator.generate("in");
+
+            if (param.getType().equals(ParameterType.STRING_ARRAY)) {
+                // projections can result in either []string OR []*string -- if the latter, we have to unwrap
+                var target = result.shape().asListShape().get().getMember().getTarget();
+                if (GoPointableIndex.of(ctx.model()).isPointable(target)) {
+                    writer.write("""
+                            deref := []string{}
+                            for _, v := range $L {
+                                if v != nil {
+                                    deref = append(deref, *v)
+                                }
+                            }
+                            p.$L = deref""", result.ident(), capitalize(paramName));
+                } else {
+                    writer.write("p.$L = $L", capitalize(paramName), result.ident());
+                }
+            } else {
+                writer.write("p.$L = $L", capitalize(paramName), result.ident());
+            }
+            writer.write("}()");
+        };
     }
 
     private GoWriter.Writable generateContextParamBindings() {
@@ -90,7 +155,7 @@ public class EndpointParameterOperationBindingsGenerator {
         StaticContextParamsTrait params = operation.expectTrait(StaticContextParamsTrait.class);
         return writer -> {
             params.getParameters().forEach((k, v) -> {
-                writer.write("p.$L = $W", k, generateStaticLiteral(v));
+                writer.write("p.$L = $W", capitalize(k), generateStaticLiteral(v));
             });
         };
     }
@@ -103,7 +168,11 @@ public class EndpointParameterOperationBindingsGenerator {
             } else if (value.isBooleanNode()) {
                 writer.writeInline("$T($L)", SmithyGoTypes.Ptr.Bool, value.expectBooleanNode().getValue());
             } else {
-                throw new CodegenException("unrecognized static context param value type");
+                writer.writeInline("[]string{$W}", GoWriter.ChainWritable.of(
+                        value.expectArrayNode().getElements().stream()
+                                .map(it -> goTemplate("$S,", it.expectStringNode().getValue()))
+                                .toList()
+                ).compose(false));
             }
         };
     }

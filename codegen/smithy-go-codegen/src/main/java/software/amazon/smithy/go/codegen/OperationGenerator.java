@@ -33,43 +33,37 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 
 /**
  * Generates a client operation and associated custom shapes.
  */
 public final class OperationGenerator implements Runnable {
 
-    private final GoSettings settings;
+    private final GoCodegenContext ctx;
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
     private final ServiceShape service;
     private final OperationShape operation;
     private final Symbol operationSymbol;
-    private final ApplicationProtocol applicationProtocol;
     private final ProtocolGenerator protocolGenerator;
     private final List<RuntimeClientPlugin> runtimeClientPlugins;
 
     OperationGenerator(
-            GoSettings settings,
-            Model model,
-            SymbolProvider symbolProvider,
+            GoCodegenContext ctx,
             GoWriter writer,
-            ServiceShape service,
             OperationShape operation,
-            Symbol operationSymbol,
-            ApplicationProtocol applicationProtocol,
             ProtocolGenerator protocolGenerator,
             List<RuntimeClientPlugin> runtimeClientPlugins
     ) {
-        this.settings = settings;
-        this.model = model;
-        this.symbolProvider = symbolProvider;
+        this.ctx = ctx;
+        this.model = ctx.model();
+        this.symbolProvider = ctx.symbolProvider();
         this.writer = writer;
-        this.service = service;
+        this.service = ctx.settings().getService(ctx.model());
         this.operation = operation;
-        this.operationSymbol = operationSymbol;
-        this.applicationProtocol = applicationProtocol;
+        this.operationSymbol = ctx.symbolProvider().toSymbol(operation);
         this.protocolGenerator = protocolGenerator;
         this.runtimeClientPlugins = runtimeClientPlugins;
     }
@@ -131,11 +125,11 @@ public final class OperationGenerator implements Runnable {
                 .renderStructure(() -> {
                 }, true);
 
-        writer.write("""
-                $W
-                """,
-                new EndpointParameterOperationBindingsGenerator(operation, inputShape, inputSymbol).generate()
-        );
+        var rulesTrait = service.getTrait(EndpointRuleSetTrait.class);
+        if (rulesTrait.isPresent()) {
+            writer.write(new EndpointParameterOperationBindingsGenerator(ctx, operation, inputShape)
+                    .generate());
+        }
 
         // The output structure gets a metadata member added.
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
