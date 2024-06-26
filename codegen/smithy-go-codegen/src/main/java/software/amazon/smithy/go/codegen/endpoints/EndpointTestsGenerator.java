@@ -21,6 +21,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
 import static software.amazon.smithy.go.codegen.endpoints.EndpointParametersGenerator.getExportedParameterName;
+import static software.amazon.smithy.go.codegen.util.NodeUtil.writableStringSlice;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -148,16 +149,12 @@ public final class EndpointTestsGenerator {
 
     private GoWriter.Writable generateParameterValue(Node value) {
         return switch (value.getType()) {
-            case STRING -> (GoWriter w) -> {
-                w.write("$T($S)",
-                        SymbolUtils.createValueSymbolBuilder("String", SmithyGoDependency.SMITHY_PTR).build(),
-                        value.expectStringNode().getValue());
-            };
-            case BOOLEAN -> (GoWriter w) -> {
-                w.write("$T($L)",
-                        SymbolUtils.createValueSymbolBuilder("Bool", SmithyGoDependency.SMITHY_PTR).build(),
-                        value.expectBooleanNode().getValue());
-            };
+            case STRING -> goTemplate("$T($S)",
+                    SmithyGoDependency.SMITHY_PTR.func("String"), value.expectStringNode().getValue());
+            case BOOLEAN -> goTemplate("$T($L)",
+                    SmithyGoDependency.SMITHY_PTR.func("Bool"), value.expectBooleanNode().getValue());
+            // only array parameter type is STRING_ARRAY
+            case ARRAY -> writableStringSlice(value.expectArrayNode());
             default -> throw new CodegenException("Unhandled member type: " + value.getType());
         };
     }

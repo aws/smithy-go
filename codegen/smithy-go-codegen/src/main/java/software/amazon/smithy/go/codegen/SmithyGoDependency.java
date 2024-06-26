@@ -116,7 +116,7 @@ public final class SmithyGoDependency {
     }
 
     private static GoDependency goJmespath(String relativePath) {
-        return relativePackage(GO_JMESPATH_SOURCE_PATH, relativePath, Versions.GO_JMESPATH, null);
+        return relativePackage(GO_JMESPATH_SOURCE_PATH, relativePath, Versions.GO_JMESPATH, "jmespath");
     }
 
     private static GoDependency relativePackage(
