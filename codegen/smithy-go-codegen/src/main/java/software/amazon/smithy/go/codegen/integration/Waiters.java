@@ -26,8 +26,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ClientOptions;
-import software.amazon.smithy.go.codegen.GoDelegator;
-import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -60,26 +59,17 @@ public class Waiters implements GoIntegration {
     }
 
     @Override
-    public void writeAdditionalFiles(
-            GoSettings settings,
-            Model model,
-            SymbolProvider symbolProvider,
-            GoDelegator goDelegator
-    ) {
-        ServiceShape serviceShape = settings.getService(model);
-        TopDownIndex topDownIndex = TopDownIndex.of(model);
+    public void writeAdditionalFiles(GoCodegenContext ctx) {
+        var service = ctx.settings().getService(ctx.model());
 
-        topDownIndex.getContainedOperations(serviceShape).stream()
+        TopDownIndex.of(ctx.model()).getContainedOperations(service).stream()
                 .forEach(operation -> {
                     if (!operation.hasTrait(WaitableTrait.ID)) {
                         return;
                     }
 
                     Map<String, Waiter> waiters = operation.expectTrait(WaitableTrait.class).getWaiters();
-
-                    goDelegator.useShapeWriter(operation, writer -> {
-                        generateOperationWaiter(model, symbolProvider, writer, serviceShape, operation, waiters);
-                    });
+                    generateOperationWaiter(ctx, operation, waiters);
                 });
     }
 
@@ -87,31 +77,18 @@ public class Waiters implements GoIntegration {
     /**
      * Generates all waiter components used for the operation.
      */
-    private void generateOperationWaiter(
-            Model model,
-            SymbolProvider symbolProvider,
-            GoWriter writer,
-            ServiceShape service,
-            OperationShape operation,
-            Map<String, Waiter> waiters
-    ) {
-        // generate waiter function
-        waiters.forEach((name, waiter) -> {
-            // write waiter options
-            generateWaiterOptions(model, symbolProvider, writer, operation, name, waiter);
-
-            // write waiter client
-            generateWaiterClient(model, symbolProvider, writer, operation, name, waiter);
-
-            // write waiter specific invoker
-            generateWaiterInvoker(model, symbolProvider, writer, operation, name, waiter);
-
-            // write waiter specific invoker with output
-            generateWaiterInvokerWithOutput(model, symbolProvider, writer, operation, name, waiter);
-
-            // write waiter state mutator for each waiter
-            generateRetryable(model, symbolProvider, writer, service, operation, name, waiter);
-
+    private void generateOperationWaiter(GoCodegenContext ctx, OperationShape operation, Map<String, Waiter> waiters) {
+        var model = ctx.model();
+        var symbolProvider = ctx.symbolProvider();
+        var service = ctx.settings().getService(model);
+        ctx.writerDelegator().useShapeWriter(operation, writer -> {
+            waiters.forEach((name, waiter) -> {
+                generateWaiterOptions(model, symbolProvider, writer, operation, name, waiter);
+                generateWaiterClient(model, symbolProvider, writer, operation, name, waiter);
+                generateWaiterInvoker(model, symbolProvider, writer, operation, name, waiter);
+                generateWaiterInvokerWithOutput(model, symbolProvider, writer, operation, name, waiter);
+                generateRetryable(model, symbolProvider, writer, service, operation, name, waiter);
+            });
         });
     }
 

@@ -127,6 +127,7 @@ public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, G
      * @param writerFactory A factory function that takes the name of a file
      *   to write and a {@code Consumer} that receives a
      *   {@link GoSettings} to perform the actual writing to the file.
+     * @deprecated use {@link #writeAdditionalFiles(GoCodegenContext)}.
      */
     default void writeAdditionalFiles(
             GoSettings settings,
@@ -144,6 +145,7 @@ public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, G
      * @param model Model to generate from.
      * @param symbolProvider Symbol provider used for codegen.
      * @param goDelegator GoDelegator used to manage writer for the file.
+     * @deprecated use {@link #writeAdditionalFiles(GoCodegenContext)}.
      */
     default void writeAdditionalFiles(
             GoSettings settings,
@@ -151,6 +153,14 @@ public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, G
             SymbolProvider symbolProvider,
             GoDelegator goDelegator
     ) {
+        // pass
+    }
+
+    /**
+     * Writes additional files.
+     * @param ctx The codegen context.
+     */
+    default void writeAdditionalFiles(GoCodegenContext ctx) {
         // pass
     }
 
