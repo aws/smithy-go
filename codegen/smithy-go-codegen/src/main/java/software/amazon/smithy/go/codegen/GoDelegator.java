@@ -17,9 +17,8 @@ package software.amazon.smithy.go.codegen;
 
 import java.util.function.Consumer;
 import software.amazon.smithy.build.FileManifest;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.codegen.core.SymbolReference;
+import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -28,85 +27,43 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * for getting shape specific GoWriters.
  */
 @SmithyInternalApi
-public final class GoDelegator extends GoWriterDelegator {
+public final class GoDelegator extends WriterDelegator<GoWriter> {
     private final SymbolProvider symbolProvider;
 
     public GoDelegator(FileManifest fileManifest, SymbolProvider symbolProvider) {
-        super(fileManifest);
+        super(fileManifest, symbolProvider, (filename, namespace) -> new GoWriter(namespace));
 
         this.symbolProvider = symbolProvider;
     }
 
     /**
-     * Gets a previously created writer or creates a new one if needed.
-     *
-     * @param shape          Shape to create the writer for.
-     * @param writerConsumer Consumer that accepts and works with the file.
-     */
-    public void useShapeWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        useShapeWriter(symbol, writerConsumer);
-    }
-
-    /**
-     * Gets a previously created writer or creates a new one for the a Go test file for the associated shape.
+     * Gets a previously created writer or creates a new one for the Go test file for the associated shape.
      *
      * @param shape          Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     public void useShapeTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        String filename = symbol.getDefinitionFile();
-
-        StringBuilder b = new StringBuilder(filename);
-        b.insert(filename.lastIndexOf(".go"), "_test");
-        filename = b.toString();
-
-        symbol = symbol.toBuilder()
-                .definitionFile(filename)
-                .build();
-
-        useShapeWriter(symbol, writerConsumer);
+        var symbol = symbolProvider.toSymbol(shape);
+        var filename = symbol.getDefinitionFile();
+        var testFilename = new StringBuilder(filename)
+                .insert(filename.lastIndexOf(".go"), "_test")
+                .toString();
+        useFileWriter(testFilename, symbol.getNamespace(), writerConsumer);
     }
 
     /**
-     * Gets a previously created writer or creates a new one for the a Go public package test file for the associated
+     * Gets a previously created writer or creates a new one for the Go public package test file for the associated
      * shape.
      *
      * @param shape          Shape to create the writer for.
      * @param writerConsumer Consumer that accepts and works with the file.
      */
     public void useShapeExportedTestWriter(Shape shape, Consumer<GoWriter> writerConsumer) {
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        String filename = symbol.getDefinitionFile();
-
-        StringBuilder b = new StringBuilder(filename);
-        b.insert(filename.lastIndexOf(".go"), "_exported_test");
-        filename = b.toString();
-
-        symbol = symbol.toBuilder()
-                .definitionFile(filename)
-                .namespace(symbol.getNamespace() + "_test", symbol.getNamespaceDelimiter())
-                .build();
-
-        useShapeWriter(symbol, writerConsumer);
-    }
-
-    /**
-     * Gets a previously created writer or creates a new one if needed.
-     *
-     * @param symbol         symbol to create the writer for.
-     * @param writerConsumer Consumer that accepts and works with the file.
-     */
-    private void useShapeWriter(Symbol symbol, Consumer<GoWriter> writerConsumer) {
-        GoWriter writer = checkoutWriter(symbol.getDefinitionFile(), symbol.getNamespace());
-
-        // Add any needed DECLARE symbols.
-        writer.addImportReferences(symbol, SymbolReference.ContextOption.DECLARE);
-        symbol.getDependencies().forEach(writer::addDependency);
-
-        writer.pushState();
-        writerConsumer.accept(writer);
-        writer.popState();
+        var symbol = symbolProvider.toSymbol(shape);
+        var filename = symbol.getDefinitionFile();
+        var testFilename = new StringBuilder(filename)
+                .insert(filename.lastIndexOf(".go"), "_exported_test")
+                .toString();
+        useFileWriter(testFilename, symbol.getNamespace() + "_test", writerConsumer);
     }
 }

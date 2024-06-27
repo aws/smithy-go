@@ -32,7 +32,6 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -157,14 +156,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         this.eventStreamGenerator = new EventStreamGenerator(settings, model, writers, symbolProvider, service);
 
-        this.ctx = new GoCodegenContext(
-                model,
-                settings,
-                symbolProvider,
-                fileManifest,
-                // FUTURE: GoDelegator should satisfy this interface
-                new WriterDelegator<>(fileManifest, symbolProvider, (filename, namespace) -> new GoWriter(namespace)),
-                integrations);
+        this.ctx = new GoCodegenContext(model, settings, symbolProvider, fileManifest, writers, integrations);
     }
 
     private static ProtocolGenerator resolveProtocolGenerator(
@@ -220,6 +212,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         for (GoIntegration integration : integrations) {
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers::useFileWriter);
             integration.writeAdditionalFiles(settings, model, symbolProvider, writers);
+            integration.writeAdditionalFiles(ctx);
         }
 
         eventStreamGenerator.generateEventStreamInterfaces();

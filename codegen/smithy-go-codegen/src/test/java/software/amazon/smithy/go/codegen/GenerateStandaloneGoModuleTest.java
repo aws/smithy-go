@@ -25,8 +25,9 @@ public class GenerateStandaloneGoModuleTest {
         var testPath = Files.createTempDirectory(getClass().getName());
         LOGGER.warning("generating test suites into " + testPath);
 
+        // symbol provider not needed here since only useFileWriter is called
         var fileManifest = FileManifest.create(testPath);
-        var writers = new GoWriterDelegator(fileManifest);
+        var writers = new GoDelegator(fileManifest, null);
 
         writers.useFileWriter("test-directory/package-name/gofile.go",
                 "github.com/aws/smithy-go/internal/testmodule/packagename",
