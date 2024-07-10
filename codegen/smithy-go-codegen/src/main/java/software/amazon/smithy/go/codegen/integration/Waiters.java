@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.integration;
 import static java.util.Collections.emptySet;
 import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
 
 import java.util.Map;
 import java.util.Optional;
@@ -27,18 +28,16 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ClientOptions;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
+import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
-import software.amazon.smithy.model.shapes.ListShape;
-import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
-import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.StringUtils;
 import software.amazon.smithy.waiters.Acceptor;
@@ -80,14 +79,13 @@ public class Waiters implements GoIntegration {
     private void generateOperationWaiter(GoCodegenContext ctx, OperationShape operation, Map<String, Waiter> waiters) {
         var model = ctx.model();
         var symbolProvider = ctx.symbolProvider();
-        var service = ctx.settings().getService(model);
         ctx.writerDelegator().useShapeWriter(operation, writer -> {
             waiters.forEach((name, waiter) -> {
                 generateWaiterOptions(model, symbolProvider, writer, operation, name, waiter);
                 generateWaiterClient(model, symbolProvider, writer, operation, name, waiter);
                 generateWaiterInvoker(model, symbolProvider, writer, operation, name, waiter);
                 generateWaiterInvokerWithOutput(model, symbolProvider, writer, operation, name, waiter);
-                generateRetryable(model, symbolProvider, writer, service, operation, name, waiter);
+                generateRetryable(ctx, writer, operation, name, waiter);
             });
         });
     }
@@ -495,23 +493,22 @@ public class Waiters implements GoIntegration {
      * Generates a waiter state mutator function which is used by the waiter retrier Middleware to mutate
      * waiter state as per the defined logic and returned operation response.
      *
-     * @param model          the smithy model
-     * @param symbolProvider symbol provider
+     * @param ctx            the GoCodegenContext
      * @param writer         the Gowriter
-     * @param serviceShape   service shape for which operation waiter is modeled
      * @param operationShape operation shape on which the waiter is modeled
      * @param waiterName     the waiter name
      * @param waiter         the waiter structure that contains info on modeled waiter
      */
     private void generateRetryable(
-            Model model,
-            SymbolProvider symbolProvider,
+            GoCodegenContext ctx,
             GoWriter writer,
-            ServiceShape serviceShape,
             OperationShape operationShape,
             String waiterName,
             Waiter waiter
     ) {
+        var model = ctx.model();
+        var symbolProvider = ctx.symbolProvider();
+        var serviceShape = ctx.settings().getService(model);
         StructureShape inputShape = model.expectShape(
                 operationShape.getInput().get(), StructureShape.class
         );
@@ -531,7 +528,6 @@ public class Waiters implements GoIntegration {
                         Matcher matcher = acceptor.getMatcher();
                         switch (matcher.getMemberName()) {
                             case "output":
-                                writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
                                 writer.addUseImports(SmithyGoDependency.FMT);
 
                                 Matcher.OutputMember outputMember = (Matcher.OutputMember) matcher;
@@ -539,39 +535,12 @@ public class Waiters implements GoIntegration {
                                 String expectedValue = outputMember.getValue().getExpected();
                                 PathComparator comparator = outputMember.getValue().getComparator();
                                 writer.openBlock("if err == nil {", "}", () -> {
-                                    writer.write("pathValue, err :=  jmespath.Search($S, output)", path);
-                                    writer.openBlock("if err != nil {", "}", () -> {
-                                        writer.write(
-                                                "return false, "
-                                                        + "fmt.Errorf(\"error evaluating waiter state: %w\", err)");
-                                    }).write("");
+                                    var pathInput = new GoJmespathExpressionGenerator.Variable(outputShape, "output");
+                                    var searchResult = new GoJmespathExpressionGenerator(ctx, writer)
+                                            .generate(JmespathExpression.parse(path), pathInput);
+
                                     writer.write("expectedValue := $S", expectedValue);
-
-                                    if (comparator == PathComparator.BOOLEAN_EQUALS) {
-                                        writeWaiterComparator(writer, acceptor, comparator, null, "pathValue",
-                                                "expectedValue");
-                                    } else {
-                                        String[] pathMembers = path.split("\\.");
-                                        Shape targetShape = outputShape;
-                                        for (int i = 0; i < pathMembers.length; i++) {
-                                            MemberShape member = getComparedMember(model, targetShape, pathMembers[i]);
-                                            if (member == null) {
-                                                targetShape = null;
-                                                break;
-                                            }
-                                            targetShape = model.expectShape(member.getTarget());
-                                        }
-
-                                        if (targetShape == null) {
-                                            writeWaiterComparator(writer, acceptor, comparator, null, "pathValue",
-                                                    "expectedValue");
-                                        } else {
-                                            Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
-                                            writeWaiterComparator(writer, acceptor, comparator, targetSymbol,
-                                                    "pathValue",
-                                                    "expectedValue");
-                                        }
-                                    }
+                                    writeWaiterComparator(writer, acceptor, comparator, searchResult);
                                 });
                                 break;
 
@@ -583,22 +552,32 @@ public class Waiters implements GoIntegration {
                                 path = ioMember.getValue().getPath();
                                 expectedValue = ioMember.getValue().getExpected();
                                 comparator = ioMember.getValue().getComparator();
+
+                                // inputOutput matchers operate on a synthetic structure with operation input and output
+                                // as top-level fields - we set that up here both in codegen for jmespathing and for
+                                // the actual generated code to work
+                                var inputOutputShape = StructureShape.builder()
+                                        .addMember("input", inputShape.toShapeId())
+                                        .addMember("output", outputShape.toShapeId())
+                                        .build();
+                                writer.write("""
+                                        inputOutput := struct{
+                                            Input  $P
+                                            Output $P
+                                        }{
+                                            Input:  input,
+                                            Output: output,
+                                        }
+                                        """);
+
                                 writer.openBlock("if err == nil {", "}", () -> {
-                                    writer.openBlock("pathValue, err :=  jmespath.Search($S, &struct{",
-                                            "})", path, () -> {
-                                                writer.write("Input $P \n Output $P \n }{", inputSymbol,
-                                                        outputSymbol);
-                                                writer.write("Input: input, \n Output: output, \n");
-                                            });
-                                    writer.openBlock("if err != nil {", "}", () -> {
-                                        writer.write(
-                                                "return false, "
-                                                        + "fmt.Errorf(\"error evaluating waiter state: %w\", err)");
-                                    });
-                                    writer.write("");
+                                    var pathInput = new GoJmespathExpressionGenerator.Variable(
+                                            inputOutputShape, "inputOutput");
+                                    var searchResult = new GoJmespathExpressionGenerator(ctx, writer)
+                                            .generate(JmespathExpression.parse(path), pathInput);
+
                                     writer.write("expectedValue := $S", expectedValue);
-                                    writeWaiterComparator(writer, acceptor, comparator, outputSymbol, "pathValue",
-                                            "expectedValue");
+                                    writeWaiterComparator(writer, acceptor, comparator, searchResult);
                                 });
                                 break;
 
@@ -666,87 +645,44 @@ public class Waiters implements GoIntegration {
                 });
     }
 
-    /**
-     * writes comparators for a given waiter. The comparators are defined within the waiter acceptor.
-     *
-     * @param writer       the Gowriter
-     * @param acceptor     the waiter acceptor that defines the comparator and acceptor states
-     * @param comparator   the comparator
-     * @param targetSymbol the shape symbol of the compared type.
-     * @param actual       the variable carrying the actual value obtained.
-     *                     This may be computed via a jmespath expression or operation response status (success/failure)
-     * @param expected     the variable carrying the expected value. This value is as per the modeled waiter.
-     */
-    private void writeWaiterComparator(
-            GoWriter writer,
-            Acceptor acceptor,
-            PathComparator comparator,
-            Symbol targetSymbol,
-            String actual,
-            String expected
-    ) {
-        if (targetSymbol == null) {
-            targetSymbol = SymbolUtils.createValueSymbolBuilder("string").build();
-        }
-
-        String valueAccessor = "string(value)";
-        Optional<Boolean> isPointable = targetSymbol.getProperty(SymbolUtils.POINTABLE, Boolean.class);
-        if (isPointable.isPresent() && isPointable.get().booleanValue()) {
-            valueAccessor = "string(*value)";
-        }
-
+    private void writeWaiterComparator(GoWriter writer, Acceptor acceptor, PathComparator comparator,
+                                       GoJmespathExpressionGenerator.Variable searchResult) {
         switch (comparator) {
             case STRING_EQUALS:
-                writer.write("value, ok := $L.($P)", actual, targetSymbol);
-                writer.write("if !ok {");
-                writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
-                        targetSymbol, actual);
-                writer.write("");
-
-                writer.openBlock("if $L == $L {", "}", valueAccessor, expected, () -> {
+                writer.write("var pathValue string");
+                if (!isPointable(searchResult.type())) {
+                    writer.write("pathValue = string($L)", searchResult.ident());
+                } else {
+                    writer.write("""
+                            if $1L != nil {
+                                pathValue = string(*$1L)
+                            }""", searchResult.ident());
+                }
+                writer.openBlock("if pathValue == expectedValue {", "}", () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
 
             case BOOLEAN_EQUALS:
                 writer.addUseImports(SmithyGoDependency.STRCONV);
-                writer.write("bv, err := strconv.ParseBool($L)", expected);
+                writer.write("bv, err := strconv.ParseBool($L)", "expectedValue");
                 writer.write(
                         "if err != nil { return false, "
                                 + "fmt.Errorf(\"error parsing boolean from string %w\", err)}");
 
-                writer.write("value, ok := $L.(bool)", actual);
-                writer.openBlock(" if !ok {", "}", () -> {
-                    writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected bool value got %T\", $L)", actual);
-                });
-                writer.write("");
-
-                writer.openBlock("if value == bv {", "}", () -> {
+                writer.openBlock("if $L == bv {", "}", searchResult.ident(), () -> {
                     writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
 
             case ALL_STRING_EQUALS:
-                writer.write("var match = true");
-                writer.write("listOfValues, ok := $L.([]interface{})", actual);
-                writer.openBlock(" if !ok {", "}", () -> {
-                    writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected list got %T\", $L)", actual);
-                });
-                writer.write("");
-
-                writer.write("if len(listOfValues) == 0 { match = false }");
-
-                String allStringValueAccessor = valueAccessor;
-                Symbol allStringTargetSymbol = targetSymbol;
-                writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.write("value, ok := v.($P)", allStringTargetSymbol);
-                    writer.write("if !ok {");
-                    writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
-                            allStringTargetSymbol, actual);
-                    writer.write("");
-                    writer.write("if $L != $L { match = false }", allStringValueAccessor, expected);
+                writer.write("match := len($L) > 0", searchResult.ident());
+                writer.openBlock("for _, v := range $L {", "}", searchResult.ident(), () -> {
+                    writer.write("""
+                        if string(v) != expectedValue {
+                            match = false
+                            break
+                        }""");
                 });
                 writer.write("");
 
@@ -756,24 +692,18 @@ public class Waiters implements GoIntegration {
                 break;
 
             case ANY_STRING_EQUALS:
-                writer.write("listOfValues, ok := $L.([]interface{})", actual);
-                writer.openBlock(" if !ok {", "}", () -> {
-                    writer.write("return false, "
-                            + "fmt.Errorf(\"waiter comparator expected list got %T\", $L)", actual);
+                writer.write("var match bool");
+                writer.openBlock("for _, v := range $L {", "}", searchResult.ident(), () -> {
+                    writer.write("""
+                        if string(v) == expectedValue {
+                            match = true
+                            break
+                        }""");
                 });
                 writer.write("");
 
-                String anyStringValueAccessor = valueAccessor;
-                Symbol anyStringTargetSymbol = targetSymbol;
-                writer.openBlock("for _, v := range listOfValues {", "}", () -> {
-                    writer.write("value, ok := v.($P)", anyStringTargetSymbol);
-                    writer.write("if !ok {");
-                    writer.write("return false, fmt.Errorf(\"waiter comparator expected $P value, got %T\", $L)}",
-                            anyStringTargetSymbol, actual);
-                    writer.write("");
-                    writer.openBlock("if $L == $L {", "}", anyStringValueAccessor, expected, () -> {
-                        writeMatchedAcceptorReturn(writer, acceptor);
-                    });
+                writer.openBlock("if match {", "}", () -> {
+                    writeMatchedAcceptorReturn(writer, acceptor);
                 });
                 break;
 
@@ -829,51 +759,5 @@ public class Waiters implements GoIntegration {
     ) {
         waiterName = StringUtils.uncapitalize(waiterName);
         return String.format("%sStateRetryable", waiterName);
-    }
-
-
-    /**
-     * Returns the MemberShape wrt to the provided Shape and name.
-     * For eg, If shape `A` has MemberShape `B`, and the name provided is `B` as string.
-     * We return the MemberShape `B`.
-     *
-     * @param model the generation model.
-     * @param shape the shape that is walked to retreive the shape matching provided name.
-     * @param name  name is a single scope path string, and should only match to one or less shapes.
-     * @return MemberShape matching the name.
-     */
-    private MemberShape getComparedMember(Model model, Shape shape, String name) {
-
-        name = name.replaceAll("\\[\\]", "");
-
-        // if shape is a simple shape, just return shape as member shape
-        if (shape instanceof SimpleShape) {
-            return shape.asMemberShape().get();
-        }
-
-        switch (shape.getType()) {
-            case STRUCTURE:
-                StructureShape st = shape.asStructureShape().get();
-                for (MemberShape memberShape : st.getAllMembers().values()) {
-                    if (name.equalsIgnoreCase(memberShape.getMemberName())) {
-                        return memberShape;
-                    }
-                }
-                break;
-
-            case LIST:
-                ListShape listShape = shape.asListShape().get();
-                MemberShape listMember = listShape.getMember();
-                Shape listTarget = model.expectShape(listMember.getTarget());
-                return getComparedMember(model, listTarget, name);
-
-            default:
-                // TODO: add support for * usage with jmespath expression.
-                return null;
-        }
-
-        // TODO: add support for * usage with jmespath expression.
-        // return null if no shape type matched (this would happen in case of * usage with jmespath expression).
-        return null;
     }
 }
