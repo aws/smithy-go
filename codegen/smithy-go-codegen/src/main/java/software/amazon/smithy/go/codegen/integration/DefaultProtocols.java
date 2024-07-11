@@ -16,12 +16,17 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
+
+import software.amazon.smithy.go.codegen.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.cbor.Rpc2CborProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;
 
 public class DefaultProtocols implements GoIntegration {
     @Override
     public List<ProtocolGenerator> getProtocolGenerators() {
-        return ListUtils.of(new Rpc2CborProtocolGenerator());
+        return ListUtils.of(
+                new Rpc2CborProtocolGenerator(),
+                new AwsJson10ProtocolGenerator()
+        );
     }
 }
