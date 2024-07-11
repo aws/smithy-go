@@ -2,11 +2,13 @@
 
 [![Go Build Status](https://github.com/aws/smithy-go/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/aws/smithy-go/actions/workflows/go.yml)[![Codegen Build Status](https://github.com/aws/smithy-go/actions/workflows/codegen.yml/badge.svg?branch=main)](https://github.com/aws/smithy-go/actions/workflows/codegen.yml)
 
-[Smithy](https://smithy.io/) code generators for Go.
+[Smithy](https://smithy.io/) code generators for Go and the accompanying smithy-go runtime.
+
+The smithy-go runtime requires a minimum version of Go 1.20.
 
 **WARNING: All interfaces are subject to change.**
 
-## Can I use this?
+## Can I use the code generators?
 
 In order to generate a usable smithy client you must provide a [protocol definition](https://github.com/aws/smithy-go/blob/main/codegen/smithy-go-codegen/src/main/java/software/amazon/smithy/go/codegen/integration/ProtocolGenerator.java),
 such as [AWS restJson1](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html),
@@ -41,12 +43,12 @@ contains all of the settings enabled from `smithy-build.json` and helper
 methods and types. The up-to-date list of top-level properties enabled for
 `go-client-codegen` can be found in `GoSettings::from()`.
 
-|Setting|Required|Description|
-|---|---|---|
-|`service`|Yes|The Shape ID of the service to generate a client for.|
-|`module`|Yes|Name of the module in `generated.json` (and `go.mod` if `generateGoMod` is enabled) and `doc.go`.|
-|`generateGoMod`|No|Whether to generate a default `go.mod` file. The default value is `false`.|
-|`goDirective`|No|[Go directive](https://go.dev/ref/mod#go-mod-file-go) of the module. The default value is can be found in [`GoModuleInfo.DEFAULT_GO_DIRECTIVE`](codegen/smithy-go-codegen/src/main/java/software/amazon/smithy/go/codegen/GoModuleInfo.java), which should be the minimum supported Go version.|
+| Setting         | Type    | Required | Description                                                                                                                 |
+|-----------------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------|
+| `service`       | string  | yes      | The Shape ID of the service for which to generate the client.                                                               |
+| `module`        | string  | yes      | Name of the module in `generated.json` (and `go.mod` if `generateGoMod` is enabled) and `doc.go`.                           |
+| `generateGoMod` | boolean |          | Whether to generate a default `go.mod` file. The default value is `false`.                                                  |
+| `goDirective`   | string  |          | [Go directive](https://go.dev/ref/mod#go-mod-file-go) of the module. The default value is the minimum supported Go version. |
 
 ### Supported protocols
 
