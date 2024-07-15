@@ -130,7 +130,7 @@ public class GoJmespathExpressionGenerator {
     private Variable visitFilterProjection(FilterProjectionExpression expr, Variable current) {
         var unfiltered = visitProjection(new ProjectionExpression(expr.getLeft(), expr.getRight()), current);
         if (!(unfiltered.shape instanceof CollectionShape unfilteredCol)) {
-            throw new CodegenException("projection did not create a list");
+            throw new CodegenException("projection did not create a list: " + expr);
         }
 
         var member = expectMember(unfilteredCol);
@@ -197,7 +197,7 @@ public class GoJmespathExpressionGenerator {
 
         // inner HAS to be a list by spec, otherwise something is wrong
         if (!(inner.shape instanceof CollectionShape innerList)) {
-            throw new CodegenException("left side of projection did not create a list");
+            throw new CodegenException("projection did not create a list: " + tExpr);
         }
 
         // inner expression may not be a list-of-list - if so, we're done, the result is passed up as-is
@@ -229,7 +229,7 @@ public class GoJmespathExpressionGenerator {
             leftMember = expectMember(map);
         } else {
             // left of projection HAS to be an array/map by spec, otherwise something is wrong
-            throw new CodegenException("left side of projection did not create a list");
+            throw new CodegenException("projection did not create a list: " + expr);
         }
 
         var leftSymbol = ctx.symbolProvider().toSymbol(leftMember);
@@ -240,8 +240,6 @@ public class GoJmespathExpressionGenerator {
                 .generate(expr.getRight(), new Variable(leftMember, "v", leftSymbol));
 
         var ident = nextIdent();
-        // projections implicitly filter out nil evaluations of RHS
-        var needsDeref = isPointable(lookahead.type);
         writer.write("""
                 var $L []$T
                 for _, v := range $L {""", ident, ctx.symbolProvider().toSymbol(lookahead.shape), left.ident);
@@ -249,7 +247,7 @@ public class GoJmespathExpressionGenerator {
         writer.indent();
         // projected.shape is the _member_ of the resulting list
         var projected = visit(expr.getRight(), new Variable(leftMember, "v", leftSymbol));
-        if (needsDeref) {
+        if (isPointable(lookahead.type)) { // projections implicitly filter out nil evaluations of RHS
             writer.write("""
                     if $2L != nil {
                         $1L = append($1L, *$2L)
@@ -269,12 +267,9 @@ public class GoJmespathExpressionGenerator {
     }
 
     private Variable visitField(FieldExpression expr, Variable current) {
-        var optMember = current.shape.getMember(expr.getName());
-        if (optMember.isEmpty()) {
-            throw new CodegenException("expected member " + expr.getName() + " in shape " + current.shape);
-        }
+        var member = current.shape.getMember(expr.getName()).orElseThrow(() ->
+                new CodegenException("field expression referenced nonexistent member: " + expr.getName()));
 
-        var member = optMember.get();
         var target = ctx.model().expectShape(member.getTarget());
         var ident = nextIdent();
         writer.write("$L := $L.$L", ident, current.ident, capitalize(expr.getName()));

@@ -275,7 +275,7 @@ public class GoJmespathExpressionGeneratorTest {
 
     @Test
     public void testComparatorInt() {
-        var expr = "length(objectList) > `0`";
+        var expr = "length(objectList) > `99`";
 
         var writer = testWriter();
         var generator = new GoJmespathExpressionGenerator(testContext(), writer);
@@ -288,7 +288,7 @@ public class GoJmespathExpressionGeneratorTest {
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := input.ObjectList
                 v2 := len(v1)
-                v3 := 0
+                v3 := 99 
                 v4 := int64(v2) > int64(v3)
                 """));
     }
