@@ -496,7 +496,7 @@ public interface ProtocolGenerator {
     /**
      * Context object used for service serialization and deserialization.
      */
-    class GenerationContext {
+    final class GenerationContext {
         private final GoSettings settings;
         private final Model model;
         private final ServiceShape service;
