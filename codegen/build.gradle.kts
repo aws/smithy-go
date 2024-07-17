@@ -205,6 +205,10 @@ subprojects {
 
         tasks["checkstyleTest"].enabled = false
 
+        checkstyle {
+            toolVersion = "10.17.0"
+        }
+
         /*
          * Tests
          * ====================================================

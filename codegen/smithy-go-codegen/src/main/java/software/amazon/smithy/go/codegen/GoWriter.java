@@ -932,7 +932,7 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
      * Implements Go symbol formatting for the {@code $P} formatter. This is identical to the $T
      * formatter, except that it will add a * to symbols that can be pointers.
      */
-    private class PointableGoSymbolFormatter extends GoSymbolFormatter {
+    private final class PointableGoSymbolFormatter extends GoSymbolFormatter {
         @Override
         public String apply(Object type, String indent) {
             String formatted = super.apply(type, indent);
@@ -957,7 +957,7 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
         }
     }
 
-    class GoWritableInjector extends GoSymbolFormatter {
+    private final class GoWritableInjector extends GoSymbolFormatter {
         @Override
         public String apply(Object type, String indent) {
             if (!(type instanceof Writable)) {
@@ -975,7 +975,7 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
     /**
      * Implements Go symbol formatting for the {@code $D} formatter.
      */
-    private class GoDependencyFormatter implements BiFunction<Object, String, String> {
+    private final class GoDependencyFormatter implements BiFunction<Object, String, String> {
         @Override
         public String apply(Object type, String indent) {
             if (type instanceof GoDependency) {
