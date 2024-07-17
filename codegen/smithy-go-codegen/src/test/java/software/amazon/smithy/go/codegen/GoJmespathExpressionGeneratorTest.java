@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static software.amazon.smithy.go.codegen.util.ShapeUtil.listOf;
 
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
@@ -33,8 +34,12 @@ public class GoJmespathExpressionGeneratorTest {
 
             namespace smithy.go.test
 
+            service Test {
+            }
+
             structure Struct {
                 simpleShape: String
+                simpleShape2: String
                 objectList: ObjectList
                 objectMap: ObjectMap
                 nested: NestedStruct
@@ -42,6 +47,11 @@ public class GoJmespathExpressionGeneratorTest {
 
             structure Object {
                 key: String
+                innerObjectList: InnerObjectList
+            }
+
+            structure InnerObject {
+                innerKey: String
             }
 
             structure NestedStruct {
@@ -50,6 +60,10 @@ public class GoJmespathExpressionGeneratorTest {
 
             list ObjectList {
                 member: Object
+            }
+
+            list InnerObjectList {
+                member: InnerObject
             }
 
             map ObjectMap {
@@ -63,9 +77,13 @@ public class GoJmespathExpressionGeneratorTest {
             .assemble().unwrap();
 
     private static final GoSettings TEST_SETTINGS = GoSettings.from(ObjectNode.fromStringMap(Map.of(
-            "service", "smithy.go.test#foo",
+            "service", "smithy.go.test#Test",
             "module", "github.com/aws/aws-sdk-go-v2/test"
     )));
+
+    private static GoWriter testWriter() {
+        return new GoWriter("test").setIndentText("    "); // for ease of string comparison
+    }
 
     private static GoCodegenContext testContext() {
         return new GoCodegenContext(
@@ -79,17 +97,16 @@ public class GoJmespathExpressionGeneratorTest {
     public void testFieldExpression() {
         var expr = "simpleShape";
 
-        var writer = new GoWriter("test");
-        var generator = new GoJmespathExpressionGenerator(testContext(), writer,
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
                 TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
-                JmespathExpression.parse(expr)
-        );
-        var actual = generator.generate("input");
+                "input"
+        ));
         assertThat(actual.shape(), Matchers.equalTo(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String"))));
-        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(actual.ident(), Matchers.equalTo("v1"));
         assertThat(writer.toString(), Matchers.containsString("""
-                v1 := input
-                v2 := v1.SimpleShape
+                v1 := input.SimpleShape
                 """));
     }
 
@@ -97,18 +114,17 @@ public class GoJmespathExpressionGeneratorTest {
     public void testSubexpression() {
         var expr = "nested.nestedField";
 
-        var writer = new GoWriter("test");
-        var generator = new GoJmespathExpressionGenerator(testContext(), writer,
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
                 TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
-                JmespathExpression.parse(expr)
-        );
-        var actual = generator.generate("input");
+                "input"
+        ));
         assertThat(actual.shape(), Matchers.equalTo(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String"))));
-        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
         assertThat(writer.toString(), Matchers.containsString("""
-                v1 := input
-                v2 := v1.Nested
-                v3 := v2.NestedField
+                v1 := input.Nested
+                v2 := v1.NestedField
                 """));
     }
 
@@ -116,20 +132,19 @@ public class GoJmespathExpressionGeneratorTest {
     public void testKeysFunctionExpression() {
         var expr = "keys(objectMap)";
 
-        var writer = new GoWriter("test");
-        var generator = new GoJmespathExpressionGenerator(testContext(), writer,
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
                 TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
-                JmespathExpression.parse(expr)
-        );
-        var actual = generator.generate("input");
-        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.listOf(ShapeUtil.STRING_SHAPE)));
-        assertThat(actual.ident(), Matchers.equalTo("v3"));
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(listOf(ShapeUtil.STRING_SHAPE)));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
         assertThat(writer.toString(), Matchers.containsString("""
-                v1 := input
-                v2 := v1.ObjectMap
-                var v3 []string
-                for k := range v2 {
-                    v3 = append(v3, k)
+                v1 := input.ObjectMap
+                var v2 []string
+                for k := range v1 {
+                    v2 = append(v2, k)
                 }
                 """));
     }
@@ -138,24 +153,343 @@ public class GoJmespathExpressionGeneratorTest {
     public void testProjectionExpression() {
         var expr = "objectList[*].key";
 
-        var writer = new GoWriter("test");
-        var generator = new GoJmespathExpressionGenerator(testContext(), writer,
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
                 TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
-                JmespathExpression.parse(expr)
-        );
-        var actual = generator.generate("input");
+                "input"
+        ));
         assertThat(actual.shape(), Matchers.equalTo(
-                ShapeUtil.listOf(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String")))));
+                listOf(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String")))));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 []string
+                for _, v := range v1 {
+                    v3 := v.Key
+                    if v3 != nil {
+                        v2 = append(v2, *v3)
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testNopFlattenExpression() {
+        var expr = "objectList[].key";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(
+                listOf(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String")))));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 []string
+                for _, v := range v1 {
+                    v3 := v.Key
+                    if v3 != nil {
+                        v2 = append(v2, *v3)
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testActualFlattenExpression() {
+        var expr = "objectList[].innerObjectList[].innerKey";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(
+                listOf(TEST_MODEL.expectShape(ShapeId.from("smithy.api#String")))));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 [][]types.InnerObject
+                for _, v := range v1 {
+                    v3 := v.InnerObjectList
+                    v2 = append(v2, v3)
+                }
+                var v4 []types.InnerObject
+                for _, v := range v2 {
+                    v4 = append(v4, v...)
+                }
+                var v5 []string
+                for _, v := range v4 {
+                    v6 := v.InnerKey
+                    if v6 != nil {
+                        v5 = append(v5, *v6)
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testLengthFunctionExpression() {
+        var expr = "length(objectList)";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.INT_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                v2 := len(v1)
+                """));
+    }
+
+    @Test
+    public void testLengthFunctionStringPtr() {
+        var expr = "length(simpleShape)";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.INT_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.SimpleShape
+                var _v1 string
+                if v1 != nil {
+                    _v1 = *v1
+                }
+                v2 := len(_v1)
+                """));
+    }
+
+    @Test
+    public void testComparatorInt() {
+        var expr = "length(objectList) > `99`";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                v2 := len(v1)
+                v3 := 99 
+                v4 := int64(v2) > int64(v3)
+                """));
+    }
+
+    @Test
+    public void testComparatorStringLHSNil() {
+        var expr = "nested.nestedField == 'foo'";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.Nested
+                v2 := v1.NestedField
+                v3 := "foo"
+                var v4 bool
+                if v2 != nil   {
+                    v4 = string(*v2) == string(v3)
+                }
+                """));
+    }
+
+    @Test
+    public void testComparatorStringRHSNil() {
+        var expr = "'foo' == nested.nestedField";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := "foo"
+                v2 := input.Nested
+                v3 := v2.NestedField
+                var v4 bool
+                if   v3 != nil {
+                    v4 = string(v1) == string(*v3)
+                }
+                """));
+    }
+
+    @Test
+    public void testComparatorStringBothNil() {
+        var expr = "nested.nestedField == simpleShape";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.Nested
+                v2 := v1.NestedField
+                v3 := input.SimpleShape
+                var v4 bool
+                if v2 != nil && v3 != nil {
+                    v4 = string(*v2) == string(*v3)
+                }
+                """));
+    }
+
+    @Test
+    public void testContainsFunctionExpression() {
+        var expr = "contains(objectList[].key, 'foo')";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 []string
+                for _, v := range v1 {
+                    v3 := v.Key
+                    if v3 != nil {
+                        v2 = append(v2, *v3)
+                    }
+                }
+                v4 := "foo"
+                var v5 bool
+                for _, v := range v2 {
+                    if v == v4 {
+                        v5 = true
+                        break
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testAndExpression() {
+        var expr = "length(objectList) > `0` && length(objectList) <= `10`";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
+        assertThat(actual.ident(), Matchers.equalTo("v9"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                v2 := len(v1)
+                v3 := 0
+                v4 := int64(v2) > int64(v3)
+                v5 := input.ObjectList
+                v6 := len(v5)
+                v7 := 10
+                v8 := int64(v6) <= int64(v7)
+                v9 := v4 && v8
+                """));
+    }
+
+    @Test
+    public void testFilterExpression() {
+        var expr = "objectList[?length(innerObjectList) > `0`]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#ObjectList"))));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 []types.Object
+                for _, v := range v1 {
+                    v3 := v.InnerObjectList
+                    v4 := len(v3)
+                    v5 := 0
+                    v6 := int64(v4) > int64(v5)
+                    if v6 {
+                        v2 = append(v2, v)
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testNot() {
+        var expr = "objectList[?!(length(innerObjectList) > `0`)]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#ObjectList"))));
+        assertThat(actual.ident(), Matchers.equalTo("v2"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 []types.Object
+                for _, v := range v1 {
+                    v3 := v.InnerObjectList
+                    v4 := len(v3)
+                    v5 := 0
+                    v6 := int64(v4) > int64(v5)
+                    v7 := !v6
+                    if v7 {
+                        v2 = append(v2, v)
+                    }
+                }
+                """));
+    }
+
+    @Test
+    public void testMultiSelect() {
+        var expr = "[simpleShape, simpleShape2]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.go.synthetic#StringList"));
         assertThat(actual.ident(), Matchers.equalTo("v3"));
         assertThat(writer.toString(), Matchers.containsString("""
-                v1 := input
-                v2 := v1.ObjectList
-                var v3 []*string
-                for _, v := range v2 {
-                v1 := v
-                v2 := v1.Key
-                v3 = append(v3, v2)
-                }
+                v1 := input.SimpleShape
+                v2 := input.SimpleShape2
+                v3 := []*string{v1,v2}
                 """));
     }
 }
