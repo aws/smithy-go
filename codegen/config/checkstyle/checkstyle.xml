@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  ~ Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+  ~ Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License").
   ~ You may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@
     <!-- Files must contain a copyright header. -->
     <module name="RegexpHeader">
         <property name="header"
-                  value="/\*\n \* Copyright 202\d Amazon\.com, Inc\. or its affiliates\. All Rights Reserved\.\n"/>
+                  value="/\*\n \* Copyright Amazon\.com, Inc\. or its affiliates\. All Rights Reserved\.\n"/>
         <property name="fileExtensions" value="java"/>
     </module>
 
