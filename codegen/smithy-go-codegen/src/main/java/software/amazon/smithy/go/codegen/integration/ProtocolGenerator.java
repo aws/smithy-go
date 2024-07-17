@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -496,7 +496,7 @@ public interface ProtocolGenerator {
     /**
      * Context object used for service serialization and deserialization.
      */
-    class GenerationContext {
+    final class GenerationContext {
         private final GoSettings settings;
         private final Model model;
         private final ServiceShape service;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -107,10 +107,10 @@ public class EndpointParameterOperationBindingsGenerator {
         var expr = JmespathExpression.parse(def.getPath());
 
         return writer -> {
-            var generator = new GoJmespathExpressionGenerator(ctx, writer, input, expr);
+            var generator = new GoJmespathExpressionGenerator(ctx, writer);
 
             writer.write("func() {"); // contain the scope for each binding
-            var result = generator.generate("in");
+            var result = generator.generate(expr, new GoJmespathExpressionGenerator.Variable(input, "in"));
 
             if (param.getType().equals(ParameterType.STRING_ARRAY)) {
                 // projections can result in either []string OR []*string -- if the latter, we have to unwrap

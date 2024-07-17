@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,14 +17,25 @@ package software.amazon.smithy.go.codegen.util;
 
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.CollectionShape;
+import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StringShape;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
             .id("smithy.go.synthetic#String")
+            .build();
+
+    public static final IntegerShape INT_SHAPE = IntegerShape.builder()
+            .id("smithy.api#Integer")
+            .build();
+
+    public static final BooleanShape BOOL_SHAPE = BooleanShape.builder()
+            .id("smithy.api#Boolean")
             .build();
 
     private ShapeUtil() {}
@@ -48,5 +59,9 @@ public final class ShapeUtil {
 
     public static Shape expectMember(Model model, CollectionShape shape) {
         return model.expectShape(shape.getMember().getTarget());
+    }
+
+    public static Shape expectMember(Model model, MapShape shape) {
+        return model.expectShape(shape.getValue().getTarget());
     }
 }
