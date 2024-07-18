@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import static software.amazon.smithy.go.codegen.ApplicationProtocol.createDefaul
 
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
+//import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.ShapeId;
 //import software.amazon.smithy.model.shapes.StructureShape;
@@ -45,24 +47,29 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
             var opName = op.toShapeId().getName();
 
             //Struct Definition
-            var structName = "type " + "awsAwsjson10_serializeOp" + opName + " struct {\n}\n";
-            writer.write(structName);
+            var structName = "awsAwsjson10_serializeOp" + opName;
+            writer.write("type " + structName + " struct{\n}\n");
 
             //ID Function
-//            var opID = opName + "Serializer"; //an id for the operation's serializer, that includes the specific op name
+//            var opID = opName + "Serializer";
+// an id for the operation's serializer, that includes the specific op name
             var opID = "OperationSerializer";
             var idFunction = "func (op *$L) ID() string {\n return \"$L\" \n}\n";
-            writer.write(idFunction, opName, opID);
+            writer.write(idFunction, structName, opID);
 
             //Handle Serialize Function
             var handleFunction = """
-                    func (op *$L) HandleSerialize
-                    (ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler)
-                     (out middleware.SerializeOutput, metadata middleware.Metadata, err error) {
+                    func (op *$L) HandleSerialize (
+                    ctx $T, in $T, next $T,
+                    )(out $T, metadata $T, err error) {
                         return next.HandleSerialize(ctx, in)
                     }
                     \n""";
-            writer.write(handleFunction, opName);
+            writer.write(handleFunction, structName, SmithyGoDependency.CONTEXT.interfaceSymbol("Context"),
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("SerializeInput"),
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("SerializeHandler"),
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("SerializeOutput"),
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"));
 
             //Code for if ID were to be contained in
 //            writer.write("\"ID\": $L", opID); //body of struct
