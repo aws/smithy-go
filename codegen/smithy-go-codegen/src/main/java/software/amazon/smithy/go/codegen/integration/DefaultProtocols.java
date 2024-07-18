@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
+
 import software.amazon.smithy.go.codegen.protocol.aws.AwsJson10ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.cbor.Rpc2CborProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;

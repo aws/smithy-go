@@ -240,5 +240,21 @@ subprojects {
             }
         }
 
+        /*
+         * Spotbugs
+         * ====================================================
+         */
+        apply(plugin = "com.github.spotbugs")
+
+        // We don't need to lint tests.
+        tasks["spotbugsTest"].enabled = false
+
+        // Configure the bug filter for spotbugs.
+        tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
+            effort.set(com.github.spotbugs.snom.Effort.MAX)
+            excludeFilter.set(file("${project.rootDir}/config/spotbugs/filter.xml"))
+            reports.maybeCreate("xml").isEnabled = false
+            reports.maybeCreate("html").isEnabled = true
+        }
     }
 }
