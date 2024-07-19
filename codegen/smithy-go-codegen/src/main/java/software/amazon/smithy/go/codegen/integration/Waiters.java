@@ -58,8 +58,16 @@ public class Waiters implements GoIntegration {
         return emptySet();
     }
 
+    public boolean enabledForService(Model model, ShapeId service) {
+        return true;
+    }
+
     @Override
     public void writeAdditionalFiles(GoCodegenContext ctx) {
+        if (!enabledForService(ctx.model(), ctx.settings().getService())) {
+            return;
+        }
+
         var service = ctx.settings().getService(ctx.model());
 
         TopDownIndex.of(ctx.model()).getContainedOperations(service).stream()
