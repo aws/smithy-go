@@ -21,7 +21,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.cogitdegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 //import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -56,7 +56,12 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
-        context.getWriter().get().write("// TODO");
+        var writer = context.getWriter().get();
+        var model = context.getModel();
+        var ops = model.getOperationShapes();
+        for (var op : ops) {
+            responseDeserializerCode(op, writer);
+        }
     }
 
     @Override
@@ -80,28 +85,27 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
     }
 
     private void requestSerializerCode(OperationShape op, GoWriter writer) {
-        var opName = op.toShapeId().getName();
-        var structName = "awsAwsjson10_serializeOp" + opName;
+        var opName = "awsAwsjson10_serializeOp" + op.toShapeId().getName();;
 
-        //Struct Definition
+        /*Struct Definition*/
         var struct = goTemplate("""
                 type $L struct{
                 }
-                """, structName
+                """, opName
         );
         writer.write(struct);
 
 
-        //ID Function
+        /* ID Function */
         var idFunction = goTemplate("""
                 func (op *$L) ID() string {
                     return "OperationSerializer"
-                    }
-                """, structName
+                }
+                """, opName
         );
         writer.write(idFunction);
 
-        //Handle Serialize Function
+        /* Handle Serialize Function */
         var handleFunction = goTemplate(
                     """
                     func (op *$structName:L) HandleSerialize (ctx $context:T, in $input:T, next $handler:T) (
@@ -114,14 +118,52 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                         "handler", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("SerializeHandler"),
                         "output", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("SerializeOutput"),
                         "metadata", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"),
-                        "structName", structName
+                        "structName", opName
                 ));
         writer.write(handleFunction);
-        //Code for if ID were to be contained in
-//            writer.write("\"ID\": $L", opID); //body of struct
-//            writer.write("}"); //close body of struct
 
-        //Ending Operation
+        /* Operation End */
+        writer.write("\n");
+    }
+
+    private void responseDeserializerCode(OperationShape op, GoWriter writer) {
+        var opName = "awsAwsjson10_deserializeOp" + op.toShapeId().getName();
+
+        /* Struct Definition */
+        var struct = goTemplate("""
+                type $L struct{
+                }
+                """, opName
+        );
+        writer.write(struct);
+
+
+        //ID Function
+        var idFunction = goTemplate("""
+                func (op *$L) ID() string {
+                    return "OperationDeserializer"
+                }
+                """, opName
+        );
+        writer.write(idFunction);
+
+        //Handle Serialize Function
+        var handleFunction = goTemplate(
+                """
+                func (op *$structName:L) HandleDeserialize (ctx $context:T, in $input:T, next $handler:T) (
+                out $output:T, metadata $metadata:T, err error) {
+                    return out, metadata, err
+                }
+                """, Map.of(
+                        "context", SmithyGoDependency.CONTEXT.interfaceSymbol("Context"),
+                        "input", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("DeserializeInput"),
+                        "handler", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("DeserializeHandler"),
+                        "output", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("DeserializeOutput"),
+                        "metadata", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"),
+                        "structName", opName
+                ));
+        writer.write(handleFunction);
+        /* Operation End */
         writer.write("\n");
     }
 }
