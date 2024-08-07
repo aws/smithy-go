@@ -32,10 +32,6 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
-
-
-
-
 @SmithyInternalApi
 public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
 
@@ -52,13 +48,18 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
     @Override
     public void generateRequestSerializers(GenerationContext context) {
         var writer = context.getWriter().get();
-        var model = context.getModel();
-        var ops = model.getOperationShapes();
+        var ops = context.getModel().getOperationShapes();
+        for (var op : ops) {
+            var middle = new SerializeMiddleware(context, op, writer);
+            writer.write(middle.generate());
+            writer.write("\n");
+        }
+        generateSharedSerializers(context, writer, ops);
+    }
+
+    public void generateSharedSerializers(GenerationContext context, GoWriter writer, Set<OperationShape> ops) {
         Set<Shape> shared = new java.util.HashSet<>(Set.of());
         for (var op : ops) {
-            var middle = new SerializeMiddleware(this, context, op, writer);
-            writer.write(middle.generateOperationStubs());
-            writer.write("\n");
             Set<Shape> shapes = getShapesToSerde(context.getModel(), context.getModel().expectShape(
                     op.getInputShape()));
             shared.addAll(shapes);
