@@ -19,6 +19,7 @@ import static software.amazon.smithy.go.codegen.ApplicationProtocol.createDefaul
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.serde.SerdeUtil.getShapesToSerde;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
@@ -58,7 +59,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
     }
 
     public void generateSharedSerializers(GenerationContext context, GoWriter writer, Set<OperationShape> ops) {
-        Set<Shape> shared = new java.util.HashSet<>(Set.of());
+        Set<Shape> shared = new HashSet<>();
         for (var op : ops) {
             Set<Shape> shapes = getShapesToSerde(context.getModel(), context.getModel().expectShape(
                     op.getInputShape()));

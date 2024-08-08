@@ -132,7 +132,7 @@ public class SerializeMiddleware {
                 "request", SMITHY_HTTP_TRANSPORT.pointableSymbol("Request"),
                 "methodPost", GoStdlibTypes.Net.Http.MethodPost,
                 "contentType", contentType,
-                "target", ctx.getService().getId().getName() + operation.getId().getName(),
+                "target", ctx.getService().getId().getName() + '.' + operation.getId().getName(),
                 "errorf", GoStdlibTypes.Fmt.Errorf
                 ));
     }
