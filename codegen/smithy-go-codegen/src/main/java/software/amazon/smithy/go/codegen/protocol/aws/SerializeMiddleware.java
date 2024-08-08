@@ -29,6 +29,8 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
 
 public class SerializeMiddleware {
+    public static final String CONTENT_TYPE = "application/x-amz-json-1.0";
+
     protected final ProtocolGenerator.GenerationContext ctx;
     protected final OperationShape operation;
     protected final GoWriter writer;
@@ -37,7 +39,6 @@ public class SerializeMiddleware {
     protected final StructureShape output;
 
     private String serialName;
-    public static final String CONTENT_TYPE = "application/x-amz-json-1.0";
 
     public SerializeMiddleware(
             ProtocolGenerator.GenerationContext ctx, OperationShape operation, GoWriter writer
@@ -50,12 +51,12 @@ public class SerializeMiddleware {
         this.output = ctx.getModel().expectShape(operation.getOutputShape(), StructureShape.class);
     }
 
-    public static String getSerializerName(OperationShape operation) {
+    public static String getMiddlewareName(OperationShape operation) {
         return "awsAwsjson10_serializeOp" + operation.toShapeId().getName();
     }
 
     public GoWriter.Writable generate() {
-        serialName = getSerializerName(operation);
+        serialName = getMiddlewareName(operation);
 
         return goTemplate("""
 
