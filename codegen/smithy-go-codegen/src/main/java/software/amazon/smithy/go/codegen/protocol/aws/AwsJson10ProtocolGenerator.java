@@ -71,7 +71,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
 
     @Override
     public void generateResponseDeserializers(GenerationContext context) {
-        GoWriter writer = context.getWriter().get();
+        var writer = context.getWriter().get();
         var model = context.getModel();
         var ops = model.getOperationShapes();
         for (var op : ops) {
