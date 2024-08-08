@@ -37,6 +37,7 @@ public class SerializeMiddleware {
     protected final StructureShape output;
 
     private String serialName;
+    public static final String CONTENT_TYPE = "application/x-amz-json-1.0";
 
     public SerializeMiddleware(
             ProtocolGenerator.GenerationContext ctx, OperationShape operation, GoWriter writer
@@ -49,24 +50,28 @@ public class SerializeMiddleware {
         this.output = ctx.getModel().expectShape(operation.getOutputShape(), StructureShape.class);
     }
 
+    public static String getSerializerName(OperationShape operation) {
+        return "awsAwsjson10_serializeOp" + operation.toShapeId().getName();
+    }
+
     public GoWriter.Writable generate() {
-        serialName = "awsAwsjson10_serializeOp" + operation.toShapeId().getName();
+        serialName = getSerializerName(operation);
 
         return goTemplate("""
 
-                type $opName:L struct{
-                }
+            type $opName:L struct{
+            }
 
-                func (op *$opName:L) ID() string {
-                    return "OperationSerializer"
-                }
+            func (op *$opName:L) ID() string {
+                return "OperationSerializer"
+            }
 
-                $handleSerialize:W
+            $handleSerialize:W
 
-                """,
-                MapUtils.of(
-                    "opName", serialName,
-                    "handleSerialize", generateHandleSerialize()
+            """,
+            MapUtils.of(
+                "opName", serialName,
+                "handleSerialize", generateHandleSerialize()
         ));
     }
 
@@ -95,43 +100,42 @@ public class SerializeMiddleware {
 
     private GoWriter.Writable generateHandleSerializeBody() {
         return goTemplate("""
-                    $route:W
+                $route:W
 
-                    $serialize:W
+                $serialize:W
 
-                """,
-                MapUtils.of(
-                        "route", handleHttp(),
-                        "serialize", handlePayload()
-                ));
+            """,
+            MapUtils.of(
+                    "route", handleProtocolSetup(),
+                    "serialize", handlePayload()
+            ));
     }
 
-    private GoWriter.Writable handleHttp() {
-        String contentType = "application/x-amz-json-1.0";
+    private GoWriter.Writable handleProtocolSetup() {
 
         return goTemplate("""
-                    input, ok := in.Parameters.($input:P)
-                    if !ok {
-                        return out, metadata, $errorf:T("unexpected input type %T", in.Parameters)
-                    }
-                    _ = input
+                input, ok := in.Parameters.($input:P)
+                if !ok {
+                    return out, metadata, $errorf:T("unexpected input type %T", in.Parameters)
+                }
+                _ = input
 
-                    req, ok := in.Request.($request:P)
-                    if !ok {
-                        return out, metadata, $errorf:T("unexpected transport type %T", in.Request)
-                    }
+                req, ok := in.Request.($request:P)
+                if !ok {
+                    return out, metadata, $errorf:T("unexpected transport type %T", in.Request)
+                }
 
-                    req.Method = $methodPost:T
-                    req.URL.Path = "/"
-                    req.Header.Set("Content-Type", $contentType:S)
-                    req.Header.Set("X-Amz-Target", $target:S)
+                req.Method = $methodPost:T
+                req.URL.Path = "/"
+                req.Header.Set("Content-Type", $contentType:S)
+                req.Header.Set("X-Amz-Target", $target:S)
 
-                """,
-        MapUtils.of(
+            """,
+            MapUtils.of(
                 "input", ctx.getSymbolProvider().toSymbol(input),
                 "request", SMITHY_HTTP_TRANSPORT.pointableSymbol("Request"),
                 "methodPost", GoStdlibTypes.Net.Http.MethodPost,
-                "contentType", contentType,
+                "contentType", CONTENT_TYPE,
                 "target", ctx.getService().getId().getName() + '.' + operation.getId().getName(),
                 "errorf", GoStdlibTypes.Fmt.Errorf
                 ));
@@ -155,11 +159,11 @@ public class SerializeMiddleware {
 
                 in.Request = req
             """,
-    MapUtils.of(
-            "serialize", getSerializerName(input),
-            "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
-            "reader", GoStdlibTypes.Bytes.NewReader,
-            "error", SmithyGoTypes.Smithy.SerializationError
-    ));
+            MapUtils.of(
+                "serialize", getSerializerName(input),
+                "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
+                "reader", GoStdlibTypes.Bytes.NewReader,
+                "error", SmithyGoTypes.Smithy.SerializationError
+        ));
     }
 }
