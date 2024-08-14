@@ -1,8 +1,0 @@
-{
-    "id": "df65633a-5ad4-4d44-824a-df6b784199e7",
-    "type": "feature",
-    "description": "Add ctx into endpoint param binding to support accountID-based endpoint routing downstream",
-    "modules": [
-        "."
-    ]
-}
