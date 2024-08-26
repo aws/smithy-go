@@ -89,7 +89,7 @@ public final class JsonDeserializerGenerator {
             case MAP, STRUCTURE, UNION ->
                     goTemplate("map[string]interface{}");
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
@@ -110,18 +110,21 @@ public final class JsonDeserializerGenerator {
             case TIMESTAMP ->
                     goTemplate("$T{}", GoStdlibTypes.Time.Time);
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
     private GoWriter.Writable generateDeserializeAssertedValue(Shape shape, String ident) {
         return switch (shape.getType()) {
-            case BYTE -> generateDeserializeIntegral(ident, "int8", Byte.MIN_VALUE, Byte.MAX_VALUE);
-            case SHORT -> generateDeserializeIntegral(ident, "int16", Short.MIN_VALUE, Short.MAX_VALUE);
-            case INTEGER -> generateDeserializeIntegral(ident, "int32", Integer.MIN_VALUE, Integer.MAX_VALUE);
-            case LONG -> generateDeserializeIntegral(ident, "int64", Long.MIN_VALUE, Long.MAX_VALUE);
+            case BYTE -> generateDeserializeIntegral(ident, "int8", "Int64", Byte.MIN_VALUE, Byte.MAX_VALUE);
+            case SHORT -> generateDeserializeIntegral(ident, "int16", "Int64", Short.MIN_VALUE, Short.MAX_VALUE);
+            case INTEGER -> generateDeserializeIntegral(ident, "int32", "Int64", Integer.MIN_VALUE, Integer.MAX_VALUE);
+            case LONG -> generateDeserializeIntegral(ident, "int64", "Int64", Long.MIN_VALUE, Long.MAX_VALUE);
             case STRING, BOOLEAN -> goTemplate("return $L, nil", ident);
-            case ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
+            //Int_Enum implementation needs to be tested
+            case ENUM, INT_ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
+            case FLOAT -> generateDeserializeIntegral(ident, "float32", "Float64",
+                    (long) Float.MIN_VALUE, (long) Float.MAX_VALUE);
             case BLOB -> goTemplate("""
                     p, err := $b64:T.DecodeString($ident:L)
                     if err != nil {
@@ -243,20 +246,21 @@ public final class JsonDeserializerGenerator {
                             ).compose(false)
                     ));
             case TIMESTAMP -> goTemplate("""
-                    dts, err := $T(serializedValue)
+                    dts, err := $T(av)
                     if err != nil {
-                        return nil, err
+                        return time.Time{}, err
                     }
                     return dts, nil
                     """, SmithyGoTypes.Time.ParseDateTime);
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
-    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, long min, long max) {
+    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, String typecast,
+                                                          long min, long max) {
         return goTemplate("""
-                $nextident:L, err := $ident:L.Int64()
+                $nextident:L, err := $ident:L.$typecast:L()
                 if err != nil {
                     return 0, err
                 }
@@ -271,7 +275,8 @@ public final class JsonDeserializerGenerator {
                         "nextident", ident + "_",
                         "min", min,
                         "max", max,
-                        "cast", castTo
+                        "cast", castTo,
+                        "typecast", typecast
                 ));
     }
 
@@ -287,6 +292,8 @@ public final class JsonDeserializerGenerator {
             case LONG -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int64, ident);
             case STRING -> goTemplate("$T($L)", SmithyGoTypes.Ptr.String, ident);
             case BOOLEAN -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Bool, ident);
+            case FLOAT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Float32, ident);
+            case TIMESTAMP -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Time, ident);
             default -> goTemplate(ident);
         };
     }
