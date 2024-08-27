@@ -30,7 +30,6 @@ import software.amazon.smithy.utils.MapUtils;
 
 public class DeserializeMiddleware {
 
-    public static final String SMITHY_PROTOCOL_NAME = "awsJson10";
     protected final ProtocolGenerator.GenerationContext ctx;
     protected final OperationShape operation;
     protected final GoWriter writer;
@@ -49,6 +48,8 @@ public class DeserializeMiddleware {
 
         this.input = ctx.getModel().expectShape(operation.getInputShape(), StructureShape.class);
         this.output = ctx.getModel().expectShape(operation.getOutputShape(), StructureShape.class);
+
+        deserialName = getMiddlewareName(operation);
     }
 
     public static String getMiddlewareName(OperationShape operation) {
@@ -56,8 +57,6 @@ public class DeserializeMiddleware {
     }
 
     public GoWriter.Writable generate() {
-        deserialName = getMiddlewareName(operation);
-
         return goTemplate("""
 
             type $opName:L struct{
@@ -125,17 +124,7 @@ public class DeserializeMiddleware {
                     return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
                 }
 
-                if resp.Header.Get("smithy-protocol") != $protocol:S {
-                    return out, metadata, &$deserError:T{
-                        Err: $errorf:T(
-                            "unexpected smithy-protocol response header '%s' (HTTP status: %s)",
-                            resp.Header.Get("smithy-protocol"),
-                            resp.Status,
-                        ),
-                    }
-                }
-
-                if resp.StatusCode != 200 {
+                if resp.StatusCode < 200 || resp.StatusCode >= 300 {
                     return out, metadata, &$deserError:T{}
                 }
 
@@ -143,8 +132,7 @@ public class DeserializeMiddleware {
                 MapUtils.of(
                         "response", SMITHY_HTTP_TRANSPORT.pointableSymbol("Response"),
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "deserError", SmithyGoDependency.SMITHY.struct("DeserializationError"),
-                        "protocol", SMITHY_PROTOCOL_NAME
+                        "deserError", SmithyGoDependency.SMITHY.struct("DeserializationError")
                 ));
     }
 
@@ -170,16 +158,16 @@ public class DeserializeMiddleware {
                 }
 
                 decoder := $decoder:T(resp.Body)
-                var cv map[string]interface{}
-                err = decoder.Decode(&cv)
+                var jv map[string]interface{}
+                err = decoder.Decode(&jv)
                 if err!= nil {
                     return out, metadata, err
                 }
 
-                output, err := $deserialize:L(cv)
-                    if err != nil {
-                        return out, metadata, err
-                    }
+                output, err := $deserialize:L(jv)
+                if err != nil {
+                    return out, metadata, err
+                }
 
                     out.Result = output
                 """,

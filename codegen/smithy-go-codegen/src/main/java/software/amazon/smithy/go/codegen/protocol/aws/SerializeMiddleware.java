@@ -49,6 +49,8 @@ public class SerializeMiddleware {
 
         this.input = ctx.getModel().expectShape(operation.getInputShape(), StructureShape.class);
         this.output = ctx.getModel().expectShape(operation.getOutputShape(), StructureShape.class);
+
+        serialName = getMiddlewareName(operation);
     }
 
     public static String getMiddlewareName(OperationShape operation) {
@@ -56,8 +58,6 @@ public class SerializeMiddleware {
     }
 
     public GoWriter.Writable generate() {
-        serialName = getMiddlewareName(operation);
-
         return goTemplate("""
 
             type $opName:L struct{

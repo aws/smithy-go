@@ -116,14 +116,13 @@ public final class JsonDeserializerGenerator {
 
     private GoWriter.Writable generateDeserializeAssertedValue(Shape shape, String ident) {
         return switch (shape.getType()) {
-            case BYTE -> generateDeserializeIntegral(ident, "int8", "Int64", Byte.MIN_VALUE, Byte.MAX_VALUE);
-            case SHORT -> generateDeserializeIntegral(ident, "int16", "Int64", Short.MIN_VALUE, Short.MAX_VALUE);
-            case INTEGER -> generateDeserializeIntegral(ident, "int32", "Int64", Integer.MIN_VALUE, Integer.MAX_VALUE);
-            case LONG -> generateDeserializeIntegral(ident, "int64", "Int64", Long.MIN_VALUE, Long.MAX_VALUE);
+            case BYTE -> generateDeserializeIntegral(ident, "int8", Byte.MIN_VALUE, Byte.MAX_VALUE);
+            case SHORT -> generateDeserializeIntegral(ident, "int16", Short.MIN_VALUE, Short.MAX_VALUE);
+            case INTEGER -> generateDeserializeIntegral(ident, "int32", Integer.MIN_VALUE, Integer.MAX_VALUE);
+            case LONG -> generateDeserializeIntegral(ident, "int64",  Long.MIN_VALUE, Long.MAX_VALUE);
             case STRING, BOOLEAN -> goTemplate("return $L, nil", ident);
-            //Int_Enum implementation needs to be tested
             case ENUM, INT_ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
-            case FLOAT -> generateDeserializeIntegral(ident, "float32", "Float64",
+            case FLOAT -> generateDeserializeFloat(ident, "float32",
                     (long) Float.MIN_VALUE, (long) Float.MAX_VALUE);
             case BLOB -> goTemplate("""
                     p, err := $b64:T.DecodeString($ident:L)
@@ -257,10 +256,9 @@ public final class JsonDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, String typecast,
-                                                          long min, long max) {
+    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, long min, long max) {
         return goTemplate("""
-                $nextident:L, err := $ident:L.$typecast:L()
+                $nextident:L, err := $ident:L.Int64()
                 if err != nil {
                     return 0, err
                 }
@@ -275,8 +273,28 @@ public final class JsonDeserializerGenerator {
                         "nextident", ident + "_",
                         "min", min,
                         "max", max,
-                        "cast", castTo,
-                        "typecast", typecast
+                        "cast", castTo
+                ));
+    }
+
+    private GoWriter.Writable generateDeserializeFloat(String ident, String castTo, long min, long max) {
+        return goTemplate("""
+                $nextident:L, err := $ident:L.Float64()
+                if err != nil {
+                    return 0, err
+                }
+                if $nextident:L < $min:L || $nextident:L > $max:L {
+                    return 0, $errorf:T("invalid")
+                }
+                return $cast:L($nextident:L), nil
+                """,
+                MapUtils.of(
+                        "errorf", GoStdlibTypes.Fmt.Errorf,
+                        "ident", ident,
+                        "nextident", ident + "_",
+                        "min", min,
+                        "max", max,
+                        "cast", castTo
                 ));
     }
 
