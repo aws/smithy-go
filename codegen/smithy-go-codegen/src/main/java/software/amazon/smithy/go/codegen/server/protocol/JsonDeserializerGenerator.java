@@ -122,8 +122,7 @@ public final class JsonDeserializerGenerator {
             case LONG -> generateDeserializeIntegral(ident, "int64",  Long.MIN_VALUE, Long.MAX_VALUE);
             case STRING, BOOLEAN -> goTemplate("return $L, nil", ident);
             case ENUM, INT_ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
-            case FLOAT -> generateDeserializeFloat(ident, "float32",
-                    (long) Float.MIN_VALUE, (long) Float.MAX_VALUE);
+            case FLOAT -> generateDeserializeFloat(ident);
             case BLOB -> goTemplate("""
                     p, err := $b64:T.DecodeString($ident:L)
                     if err != nil {
@@ -277,7 +276,7 @@ public final class JsonDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateDeserializeFloat(String ident, String castTo, long min, long max) {
+    private GoWriter.Writable generateDeserializeFloat(String ident) {
         return goTemplate("""
                 $nextident:L, err := $ident:L.Float64()
                 if err != nil {
@@ -286,15 +285,14 @@ public final class JsonDeserializerGenerator {
                 if $nextident:L < $min:L || $nextident:L > $max:L {
                     return 0, $errorf:T("invalid")
                 }
-                return $cast:L($nextident:L), nil
+                return float32($nextident:L), nil
                 """,
                 MapUtils.of(
                         "errorf", GoStdlibTypes.Fmt.Errorf,
                         "ident", ident,
                         "nextident", ident + "_",
-                        "min", min,
-                        "max", max,
-                        "cast", castTo
+                        "min", Float.MIN_VALUE,
+                        "max", Float.MAX_VALUE
                 ));
     }
 
