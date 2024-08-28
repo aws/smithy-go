@@ -89,7 +89,7 @@ public final class JsonDeserializerGenerator {
             case MAP, STRUCTURE, UNION ->
                     goTemplate("map[string]interface{}");
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
@@ -110,7 +110,7 @@ public final class JsonDeserializerGenerator {
             case TIMESTAMP ->
                     goTemplate("$T{}", GoStdlibTypes.Time.Time);
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
@@ -119,9 +119,10 @@ public final class JsonDeserializerGenerator {
             case BYTE -> generateDeserializeIntegral(ident, "int8", Byte.MIN_VALUE, Byte.MAX_VALUE);
             case SHORT -> generateDeserializeIntegral(ident, "int16", Short.MIN_VALUE, Short.MAX_VALUE);
             case INTEGER -> generateDeserializeIntegral(ident, "int32", Integer.MIN_VALUE, Integer.MAX_VALUE);
-            case LONG -> generateDeserializeIntegral(ident, "int64", Long.MIN_VALUE, Long.MAX_VALUE);
+            case LONG -> generateDeserializeIntegral(ident, "int64",  Long.MIN_VALUE, Long.MAX_VALUE);
             case STRING, BOOLEAN -> goTemplate("return $L, nil", ident);
-            case ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
+            case ENUM, INT_ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
+            case FLOAT -> generateDeserializeFloat(ident);
             case BLOB -> goTemplate("""
                     p, err := $b64:T.DecodeString($ident:L)
                     if err != nil {
@@ -243,14 +244,14 @@ public final class JsonDeserializerGenerator {
                             ).compose(false)
                     ));
             case TIMESTAMP -> goTemplate("""
-                    dts, err := $T(serializedValue)
+                    dts, err := $T(av)
                     if err != nil {
-                        return nil, err
+                        return time.Time{}, err
                     }
                     return dts, nil
                     """, SmithyGoTypes.Time.ParseDateTime);
             default ->
-                    throw new CodegenException("Unsupported: " + shape.getType());
+                    throw new CodegenException("Unsupported: " + shape.getType() + " ShapeID: " + shape.getId());
         };
     }
 
@@ -275,6 +276,26 @@ public final class JsonDeserializerGenerator {
                 ));
     }
 
+    private GoWriter.Writable generateDeserializeFloat(String ident) {
+        return goTemplate("""
+                $nextident:L, err := $ident:L.Float64()
+                if err != nil {
+                    return 0, err
+                }
+                if $nextident:L < $min:L || $nextident:L > $max:L {
+                    return 0, $errorf:T("invalid")
+                }
+                return float32($nextident:L), nil
+                """,
+                MapUtils.of(
+                        "errorf", GoStdlibTypes.Fmt.Errorf,
+                        "ident", ident,
+                        "nextident", ident + "_",
+                        "min", Float.MIN_VALUE,
+                        "max", Float.MAX_VALUE
+                ));
+    }
+
     private GoWriter.Writable generateStructFieldDeref(MemberShape member, String ident) {
         var symbol = symbolProvider.toSymbol(member);
         if (!isPointable(symbol)) {
@@ -287,6 +308,8 @@ public final class JsonDeserializerGenerator {
             case LONG -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int64, ident);
             case STRING -> goTemplate("$T($L)", SmithyGoTypes.Ptr.String, ident);
             case BOOLEAN -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Bool, ident);
+            case FLOAT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Float32, ident);
+            case TIMESTAMP -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Time, ident);
             default -> goTemplate(ident);
         };
     }
