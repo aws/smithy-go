@@ -15,6 +15,9 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
+
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -144,6 +147,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
 
+            writer.write(goTemplate("""
+                    _, span := $T(ctx, "OperationSerializer")
+                    defer span.End()
+                    """, SMITHY_TRACING.func("StartSpan")));
+
             // TODO: refactor the http binding encoder to be split up into its component parts
             // This would allow most of this shared code to be split off into its own function
             // to reduce duplication, and potentially allowing it to be a static function.
@@ -212,6 +220,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("in.Request = request");
 
             writer.write("");
+            writer.write("span.End()");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
 
@@ -330,6 +339,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
+            writer.write(goTemplate("""
+                    _, span := $T(ctx, "OperationDeserializer")
+                    defer span.End()
+                    """, SMITHY_TRACING.func("StartSpan")));
+
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
                 writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
@@ -364,6 +378,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             }
             writer.write("");
 
+            writer.write("span.End()");
             writer.write("return out, metadata, err");
         });
         writer.write("");

@@ -59,7 +59,7 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
 
     private static final Logger LOGGER = Logger.getLogger(GoWriter.class.getName());
     private static final int DEFAULT_DOC_WRAP_LENGTH = 80;
-    private static final Pattern ARGUMENT_NAME_PATTERN = Pattern.compile("\\$([a-z][a-zA-Z_0-9]+)(:\\w)?");
+    private static final Pattern ARGUMENT_NAME_PATTERN = Pattern.compile("\\$([a-z][a-zA-Z_0-9]\\.+)(:\\w)?");
     private final String fullPackageName;
     private final boolean innerWriter;
     private final List<String> buildTags = new ArrayList<>();
@@ -96,6 +96,11 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
         putFormatter('P', new PointableGoSymbolFormatter());
         putFormatter('W', new GoWritableInjector());
         putFormatter('D', new GoDependencyFormatter());
+
+        putContext("fmt.Sprintf", SmithyGoDependency.FMT.func("Sprintf"));
+        putContext("fmt.Errorf", SmithyGoDependency.FMT.func("Errorf"));
+        putContext("errors.As", SmithyGoDependency.ERRORS.func("As"));
+        putContext("context.Context", SmithyGoDependency.CONTEXT.func("Context"));
 
         if (!innerWriter) {
             packageDocs = new GoWriter(this.fullPackageName, true);

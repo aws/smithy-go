@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -72,6 +73,9 @@ public final class EndpointMiddlewareGenerator {
         }
 
         return goTemplate("""
+                _, span := $startSpan:T(ctx, "ResolveEndpoint")
+                defer span.End()
+
                 $pre:W
 
                 $assertRequest:W
@@ -84,9 +88,11 @@ public final class EndpointMiddlewareGenerator {
 
                 $post:W
 
+                span.End()
                 return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
+                        "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "pre", generatePreResolutionHooks(),
                         "assertRequest", generateAssertRequest(),
                         "assertResolver", generateAssertResolver(),
@@ -131,6 +137,8 @@ public final class EndpointMiddlewareGenerator {
                 if err != nil {
                     return out, metadata, $1T("failed to resolve service endpoint, %w", err)
                 }
+
+                span.SetProperty("operation.resolved_endpoint", endpt.URI.String())
 
                 if endpt.URI.RawPath == "" && req.URL.RawPath != "" {
                     endpt.URI.RawPath = endpt.URI.Path
