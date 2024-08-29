@@ -15,7 +15,11 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SymbolUtils.buildPackageSymbol;
+
 import java.util.List;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 
 /**
@@ -26,6 +30,12 @@ public class ObservabilityOptions implements GoIntegration {
             .name("TracerProvider")
             .type(SmithyGoDependency.SMITHY_TRACING.interfaceSymbol("TracerProvider"))
             .documentation("The client tracer provider.")
+            .build();
+
+    private static final ConfigFieldResolver RESOLVE_TRACER_PROVIDER = ConfigFieldResolver.builder()
+            .resolver(buildPackageSymbol("resolveTracerProvider"))
+            .location(ConfigFieldResolver.Location.CLIENT)
+            .target(ConfigFieldResolver.Target.INITIALIZATION)
             .build();
 
     // TODO
@@ -40,7 +50,19 @@ public class ObservabilityOptions implements GoIntegration {
         return List.of(
                 RuntimeClientPlugin.builder()
                         .addConfigField(TRACER_PROVIDER)
+                        .addConfigFieldResolver(RESOLVE_TRACER_PROVIDER)
                         .build()
         );
+    }
+
+    @Override
+    public void writeAdditionalFiles(GoCodegenContext ctx) {
+        ctx.writerDelegator().useFileWriter("api_client.go", ctx.settings().getModuleName(), goTemplate("""
+                func resolveTracerProvider(options *Options) {
+                    if options.TracerProvider == nil {
+                        options.TracerProvider = &$T{}
+                    }
+                }
+                """, SmithyGoDependency.SMITHY_TRACING.struct("NopTracerProvider")));
     }
 }
