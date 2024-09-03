@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -72,6 +73,9 @@ public final class EndpointMiddlewareGenerator {
         }
 
         return goTemplate("""
+                _, span := $startSpan:T(ctx, "ResolveEndpoint")
+                defer span.End()
+
                 $pre:W
 
                 $assertRequest:W
@@ -84,9 +88,11 @@ public final class EndpointMiddlewareGenerator {
 
                 $post:W
 
+                span.End()
                 return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
+                        "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "pre", generatePreResolutionHooks(),
                         "assertRequest", generateAssertRequest(),
                         "assertResolver", generateAssertResolver(),
@@ -127,23 +133,27 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
                 params := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
-                endpt, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
+                endpt, err := timeOperationMetric(ctx, "client.call.resolve_endpoint_duration",
+                    func() (smithyendpoints.Endpoint, error) {
+                        return m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
+                    })
                 if err != nil {
-                    return out, metadata, $1T("failed to resolve service endpoint, %w", err)
+                    return out, metadata, $fmt.Errorf:T("failed to resolve service endpoint, %w", err)
                 }
+
+                span.SetProperty("client.call.resolved_endpoint", endpt.URI.String())
 
                 if endpt.URI.RawPath == "" && req.URL.RawPath != "" {
                     endpt.URI.RawPath = endpt.URI.Path
                 }
                 req.URL.Scheme = endpt.URI.Scheme
                 req.URL.Host = endpt.URI.Host
-                req.URL.Path = $2T(endpt.URI.Path, req.URL.Path)
-                req.URL.RawPath = $2T(endpt.URI.RawPath, req.URL.RawPath)
+                req.URL.Path = $1T(endpt.URI.Path, req.URL.Path)
+                req.URL.RawPath = $1T(endpt.URI.RawPath, req.URL.RawPath)
                 for k := range endpt.Headers {
                     req.Header.Set(k, endpt.Headers.Get(k))
                 }
                 """,
-                GoStdlibTypes.Fmt.Errorf,
                 SmithyGoTypes.Transport.Http.JoinPath);
     }
 

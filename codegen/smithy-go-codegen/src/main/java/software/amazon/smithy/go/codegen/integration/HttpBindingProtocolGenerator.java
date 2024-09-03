@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
 import static software.amazon.smithy.go.codegen.integration.ProtocolUtils.requiresDocumentSerdeFunction;
 
 import java.util.Collection;
@@ -250,6 +252,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.addUseImports(SmithyGoDependency.SMITHY);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
 
+            writer.write(goTemplate("""
+                    _, span := $T(ctx, "OperationSerializer")
+                    endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+                    defer endTimer()
+                    defer span.End()
+                    """, SMITHY_TRACING.func("StartSpan")));
+
             // cast input request to smithy transport type, check for failures
             writer.write("request, ok := in.Request.($P)", requestType);
             writer.openBlock("if !ok {", "}", () -> {
@@ -351,6 +360,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("in.Request = request");
             writer.write("");
 
+            writer.write("endTimer()");
+            writer.write("span.End()");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
     }
@@ -384,6 +395,13 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
+
+            writer.write(goTemplate("""
+                    _, span := $T(ctx, "OperationDeserializer")
+                    endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
+                    defer endTimer()
+                    defer span.End()
+                    """, SMITHY_TRACING.func("StartSpan")));
 
             writer.write("response, ok := out.RawResponse.($P)", responseType);
             writer.openBlock("if !ok {", "}", () -> {
@@ -451,6 +469,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             }
             writer.write("");
 
+            writer.write("span.End()");
             writer.write("return out, metadata, err");
         });
         goWriter.write("");

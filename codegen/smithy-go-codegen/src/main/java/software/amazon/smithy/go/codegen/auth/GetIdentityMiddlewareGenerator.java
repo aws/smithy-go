@@ -21,6 +21,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -64,26 +65,39 @@ public class GetIdentityMiddlewareGenerator {
 
     private GoWriter.Writable generateBody() {
         return goTemplate("""
-                rscheme := getResolvedAuthScheme(ctx)
+                innerCtx, span := $startSpan:T(ctx, "GetIdentity")
+                defer span.End()
+
+                rscheme := getResolvedAuthScheme(innerCtx)
                 if rscheme == nil {
-                    return out, metadata, $errorf:T("no resolved auth scheme")
+                    return out, metadata, $fmt.Errorf:T("no resolved auth scheme")
                 }
 
                 resolver := rscheme.Scheme.IdentityResolver(m.options)
                 if resolver == nil {
-                    return out, metadata, $errorf:T("no identity resolver")
+                    return out, metadata, $fmt.Errorf:T("no identity resolver")
                 }
 
-                identity, err := resolver.GetIdentity(ctx, rscheme.IdentityProperties)
+                identity, err := timeOperationMetric(ctx, "client.call.resolve_identity_duration",
+                    func() ($identity:T, error) {
+                        return resolver.GetIdentity(innerCtx, rscheme.IdentityProperties)
+                    },
+                    func (o $recordMetricOptions:P) {
+                        o.Properties.Set("auth.scheme_id", rscheme.Scheme.SchemeID())
+                    })
                 if err != nil {
-                    return out, metadata, $errorf:T("get identity: %w", err)
+                    return out, metadata, $fmt.Errorf:T("get identity: %w", err)
                 }
 
                 ctx = setIdentity(ctx, identity)
+
+                span.End()
                 return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
-                        "errorf", GoStdlibTypes.Fmt.Errorf
+                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan"),
+                        "identity", SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("Identity"),
+                        "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions")
                 ));
     }
 

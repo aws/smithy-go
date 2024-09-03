@@ -76,6 +76,8 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
     public static final GoDependency SMITHY_ENDPOINTS = smithy("endpoints", "smithyendpoints");
     public static final GoDependency SMITHY_ENDPOINT_RULESFN = smithy("endpoints/private/rulesfn");
+    public static final GoDependency SMITHY_TRACING = smithy("tracing");
+    public static final GoDependency SMITHY_METRICS = smithy("metrics");
 
     public static final GoDependency GO_JMESPATH = goJmespath(null);
     public static final GoDependency MATH = stdlib("math");

@@ -22,6 +22,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -66,6 +67,9 @@ public class ResolveAuthSchemeMiddlewareGenerator {
 
     private GoWriter.Writable generateBody() {
         return goTemplate("""
+                _, span := $3T(ctx, "ResolveAuthScheme")
+                defer span.End()
+
                 params := $1L(ctx, m.operation, getOperationInput(ctx), m.options)
                 options, err := m.options.AuthSchemeResolver.ResolveAuthSchemes(ctx, params)
                 if err != nil {
@@ -78,10 +82,14 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 }
 
                 ctx = setResolvedAuthScheme(ctx, scheme)
+
+                span.SetProperty("auth.scheme_id", scheme.Scheme.SchemeID())
+                span.End()
                 return next.HandleFinalize(ctx, in)
                 """,
                 AuthParametersResolverGenerator.FUNC_NAME,
-                GoStdlibTypes.Fmt.Errorf
+                GoStdlibTypes.Fmt.Errorf,
+                SmithyGoDependency.SMITHY_TRACING.func("StartSpan")
         );
     }
 
