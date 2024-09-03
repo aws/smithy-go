@@ -52,13 +52,23 @@ func TestToOTELSpanStatus(t *testing.T) {
 	}
 }
 
+type stringer struct{}
+
+func (s stringer) String() string {
+	return "stringer"
+}
+
+type notstringer struct{}
+
 func TestToOTELKeyValue(t *testing.T) {
 	for _, tt := range []struct {
 		K, V   any
 		Expect otelattribute.KeyValue
 	}{
-		{1, "asdf", otelattribute.KeyValue{}},      // non-string key
-		{"key", uint(0), otelattribute.KeyValue{}}, // unsupported value type
+		{1, "asdf", otelattribute.String("1", "asdf")},               // non-string key
+		{"key", stringer{}, otelattribute.String("key", "stringer")}, // stringer
+		// unsupported value type
+		{"key", notstringer{}, otelattribute.String("key", "smithyoteltracing.notstringer{}")},
 		{"key", true, otelattribute.Bool("key", true)},
 		{"key", []bool{true, false}, otelattribute.BoolSlice("key", []bool{true, false})},
 		{"key", int(1), otelattribute.Int("key", 1)},
@@ -72,7 +82,7 @@ func TestToOTELKeyValue(t *testing.T) {
 	} {
 		name := fmt.Sprintf("(%v, %v) -> %v", tt.K, tt.V, tt.Expect)
 		t.Run(name, func(t *testing.T) {
-			actual, _ := toOTELKeyValue(tt.K, tt.V)
+			actual := toOTELKeyValue(tt.K, tt.V)
 			if tt.Expect != actual {
 				t.Errorf("%v != %v", tt.Expect, actual)
 			}

@@ -2,6 +2,7 @@ package smithyoteltracing
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing"
@@ -104,9 +105,7 @@ func (s *span) AddEvent(name string, opts ...tracing.EventOption) {
 }
 
 func (s *span) SetProperty(k, v any) {
-	if kv, ok := toOTELKeyValue(k, v); ok {
-		s.otel.SetAttributes(kv)
-	}
+	s.otel.SetAttributes(toOTELKeyValue(k, v))
 }
 
 func (s *span) SetStatus(status tracing.SpanStatus) {
@@ -143,44 +142,48 @@ func toOTELSpanStatus(v tracing.SpanStatus) otelcodes.Code {
 	}
 }
 
-func toOTELKeyValue(k, v any) (otelattribute.KeyValue, bool) {
-	kk, ok := k.(string)
-	if !ok {
-		return otelattribute.KeyValue{}, false
-	}
+func toOTELKeyValue(k, v any) otelattribute.KeyValue {
+	kk := str(k)
 
 	switch vv := v.(type) {
 	case bool:
-		return otelattribute.Bool(kk, vv), true
+		return otelattribute.Bool(kk, vv)
 	case []bool:
-		return otelattribute.BoolSlice(kk, vv), true
+		return otelattribute.BoolSlice(kk, vv)
 	case int:
-		return otelattribute.Int(kk, vv), true
+		return otelattribute.Int(kk, vv)
 	case []int:
-		return otelattribute.IntSlice(kk, vv), true
+		return otelattribute.IntSlice(kk, vv)
 	case int64:
-		return otelattribute.Int64(kk, vv), true
+		return otelattribute.Int64(kk, vv)
 	case []int64:
-		return otelattribute.Int64Slice(kk, vv), true
+		return otelattribute.Int64Slice(kk, vv)
 	case float64:
-		return otelattribute.Float64(kk, vv), true
+		return otelattribute.Float64(kk, vv)
 	case []float64:
-		return otelattribute.Float64Slice(kk, vv), true
+		return otelattribute.Float64Slice(kk, vv)
 	case string:
-		return otelattribute.String(kk, vv), true
+		return otelattribute.String(kk, vv)
 	case []string:
-		return otelattribute.StringSlice(kk, vv), true
+		return otelattribute.StringSlice(kk, vv)
 	default:
-		return otelattribute.KeyValue{}, false
+		return otelattribute.String(kk, str(v))
 	}
 }
 
 func toOTELKeyValues(props smithy.Properties) []otelattribute.KeyValue {
 	var kvs []otelattribute.KeyValue
 	for k, v := range props.Values() {
-		if kv, ok := toOTELKeyValue(k, v); ok {
-			kvs = append(kvs, kv)
-		}
+		kvs = append(kvs, toOTELKeyValue(k, v))
 	}
 	return kvs
+}
+
+func str(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	} else if s, ok := v.(fmt.Stringer); ok {
+		return s.String()
+	}
+	return fmt.Sprintf("%#v", v)
 }

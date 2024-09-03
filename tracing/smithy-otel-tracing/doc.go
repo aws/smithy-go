@@ -46,13 +46,24 @@
 //
 // A key-value pair set on a [smithy.Properties] container in any of the
 // tracing APIs will automatically propagate to the underlying OTEL SDK if its
-// key is of type string, and its value is of one of the supported types. All
-// other values are silently ignored.
+// key is of type string and its value is one of those supported. Otherwise,
+// the adapter will make an effort to stringify the key or value as follows:
+//   - if value implements String(), use that value
+//   - otherwise, use the Go-string representation of the value (the result of fmt.Sprintf("%#v", ...))
 //
 // e.g.
 //
+//	type key struct{}
+//
+//	func (k key) String() string {
+//		return "app.key"
+//	}
+//
+//	type key2 struct{}
+//
 //	ctx, span := tracing.StartSpan(ctx, "Foo", func(o *tracing.SpanOptions) {
-//		o.Properties.Set("app.version", "bar")       // propagates to OTEL
-//		o.Properties.Set(customPropertyKey{}, "baz") // does not
+//		o.Properties.Set("app.version", "bar") // -> ("app.version", "bar")
+//		o.Properties.Set(key{}, "baz")         // -> ("app.key", "baz")
+//		o.Properties.Set(key2{}, "qux")        // -> ("main.key2{}", "qux")
 //	})
 package smithyoteltracing
