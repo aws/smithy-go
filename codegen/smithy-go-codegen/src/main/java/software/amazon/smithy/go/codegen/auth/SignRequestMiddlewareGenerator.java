@@ -16,12 +16,12 @@
 package software.amazon.smithy.go.codegen.auth;
 
 import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
-import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -39,7 +39,7 @@ public class SignRequestMiddlewareGenerator {
 
     public static GoWriter.Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
-                if err := stack.Finalize.Insert(&$L{}, $S, $T); err != nil {
+                if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
                     return $T("add $L: %w", err)
                 }
                 """,
@@ -56,41 +56,47 @@ public class SignRequestMiddlewareGenerator {
     }
 
     private GoWriter.Writable generateFields() {
-        return emptyGoTemplate();
+        return goTemplate("""
+                options Options
+                """);
     }
 
     private GoWriter.Writable generateBody() {
         return goTemplate("""
+                _, span := $startSpan:T(ctx, "SignRequest")
+                defer span.End()
+
                 req, ok := in.Request.($request:P)
                 if !ok {
-                    return out, metadata, $errorf:T("unexpected transport type %T", in.Request)
+                    return out, metadata, $fmt.Errorf:T("unexpected transport type %T", in.Request)
                 }
 
                 rscheme := getResolvedAuthScheme(ctx)
                 if rscheme == nil {
-                    return out, metadata, $errorf:T("no resolved auth scheme")
+                    return out, metadata, $fmt.Errorf:T("no resolved auth scheme")
                 }
 
                 identity := getIdentity(ctx)
                 if identity == nil {
-                    return out, metadata, $errorf:T("no identity")
+                    return out, metadata, $fmt.Errorf:T("no identity")
                 }
 
                 signer := rscheme.Scheme.Signer()
                 if signer == nil {
-                    return out, metadata, $errorf:T("no signer")
+                    return out, metadata, $fmt.Errorf:T("no signer")
                 }
 
                 if err := signer.SignRequest(ctx, req, identity, rscheme.SignerProperties); err != nil {
-                    return out, metadata, $errorf:T("sign request: %w", err)
+                    return out, metadata, $fmt.Errorf:T("sign request: %w", err)
                 }
 
+                span.End()
                 return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
                         // FUTURE(#458) protocol generator should specify the transport type
                         "request", SmithyGoTypes.Transport.Http.Request,
-                        "errorf", GoStdlibTypes.Fmt.Errorf
+                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan")
                 ));
     }
 }

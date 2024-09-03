@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import software.amazon.smithy.aws.traits.ServiceTrait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
@@ -94,6 +95,7 @@ final class ServiceGenerator implements Runnable {
     private GoWriter.Writable generate() {
         return GoWriter.ChainWritable.of(
                 generateMetadata(),
+                generateObservabilityHelpers(),
                 generateClient(),
                 generateNew(),
                 generateGetOptions(),
@@ -101,6 +103,19 @@ final class ServiceGenerator implements Runnable {
                 generateInputContextFuncs(),
                 generateAddProtocolFinalizerMiddleware()
         ).compose();
+    }
+
+    private GoWriter.Writable generateObservabilityHelpers() {
+        return goTemplate("""
+                func operationTracer(p $tracerProvider:T) $tracer:T {
+                    return p.Tracer($scope:S)
+                }
+                """,
+                Map.of(
+                        "tracerProvider", SmithyGoDependency.SMITHY_TRACING.interfaceSymbol("TracerProvider"),
+                        "tracer", SmithyGoDependency.SMITHY_TRACING.interfaceSymbol("Tracer"),
+                        "scope", settings.getModuleName()
+                ));
     }
 
     private GoWriter.Writable generateMetadata() {
@@ -324,7 +339,7 @@ final class ServiceGenerator implements Runnable {
     @SuppressWarnings("checkstyle:LineLength")
     private GoWriter.Writable generateInvokeOperation() {
         return goTemplate("""
-                func (c *Client) invokeOperation(ctx $context:T, opID string, params interface{}, optFns []func(*Options), stackFns ...func($stack:P, Options) error) (result interface{}, metadata $metadata:T, err error) {
+                func (c *Client) invokeOperation(ctx $context.Context:T, opID string, params interface{}, optFns []func(*Options), stackFns ...func($stack:P, Options) error) (result interface{}, metadata $metadata:T, err error) {
                     ctx = $clearStackValues:T(ctx)
                     $newStack:W
                     options := c.options.Copy()
@@ -348,25 +363,55 @@ final class ServiceGenerator implements Runnable {
                         }
                     }
 
-                    $newStackHandler:W
-                    result, metadata, err = handler.Handle(ctx, params)
+                    tracer := operationTracer(options.TracerProvider)
+                    spanName := $fmt.Sprintf:T("$tracingServiceId:L.%s", opID)
+
+                    ctx = $withOperationTracer:T(ctx, tracer)
+
+                    ctx, span := tracer.StartSpan(ctx, spanName, func (o $spanOptions:P) {
+                        o.Kind = $spanKindClient:T
+                        o.Properties.Set("rpc.system", "aws-api")
+                        o.Properties.Set("rpc.method", opID)
+                        o.Properties.Set("rpc.service", $tracingServiceId:S)
+                    })
+                    defer span.End()
+
+                    handler := $newClientHandler:T(options.HTTPClient)
+                    decorated := $decorateHandler:T(handler, stack)
+                    result, metadata, err = decorated.Handle(ctx, params)
                     if err != nil {
+                        span.SetProperty("error.go.type", $fmt.Sprintf:T("%T", err))
+                        span.SetProperty("error.go.error", err.Error())
+
+                        var aerr smithy.APIError
+                        if $errors.As:T(err, &aerr) {
+                            span.SetProperty("error.api.code", aerr.ErrorCode())
+                            span.SetProperty("error.api.message", aerr.ErrorMessage())
+                            span.SetProperty("error.api.fault", aerr.ErrorFault().String())
+                        }
+
                         err = &$operationError:T{
                             ServiceID: ServiceID,
                             OperationName: opID,
                             Err: err,
                         }
                     }
+
+                    span.SetProperty("error", err != nil)
+                    if err == nil {
+                        span.SetStatus($spanStatusOK:T)
+                    } else {
+                        span.SetStatus($spanStatusError:T)
+                    }
+
                     return result, metadata, err
                 }
                 """,
                 MapUtils.of(
-                        "context", GoStdlibTypes.Context.Context,
                         "stack", SmithyGoTypes.Middleware.Stack,
                         "metadata", SmithyGoTypes.Middleware.Metadata,
                         "clearStackValues", SmithyGoTypes.Middleware.ClearStackValues,
                         "newStack", generateNewStack(),
-                        "newStackHandler", generateNewStackHandler(),
                         "operationError", SmithyGoTypes.Smithy.OperationError,
                         "resolvers", GoWriter.ChainWritable.of(
                                 getConfigResolvers(
@@ -379,7 +424,17 @@ final class ServiceGenerator implements Runnable {
                                         ConfigFieldResolver.Location.OPERATION,
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
-                        ).compose()
+                        ).compose(),
+                        "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandler"),
+                        "decorateHandler", SmithyGoDependency.SMITHY_MIDDLEWARE.func("DecorateHandler")
+                ),
+                Map.of(
+                        "tracingServiceId", getTracingServiceId(),
+                        "spanOptions", SmithyGoDependency.SMITHY_TRACING.struct("SpanOptions"),
+                        "spanKindClient", SmithyGoDependency.SMITHY_TRACING.constSymbol("SpanKindClient"),
+                        "withOperationTracer", SmithyGoDependency.SMITHY_TRACING.constSymbol("WithOperationTracer"),
+                        "spanStatusOK", SmithyGoDependency.SMITHY_TRACING.constSymbol("SpanStatusOK"),
+                        "spanStatusError", SmithyGoDependency.SMITHY_TRACING.constSymbol("SpanStatusError")
                 ));
     }
 
@@ -387,12 +442,6 @@ final class ServiceGenerator implements Runnable {
         ensureSupportedProtocol();
         return goTemplate("stack := $T(opID, $T)",
                 SmithyGoTypes.Middleware.NewStack, SmithyGoTypes.Transport.Http.NewStackRequest);
-    }
-
-    private GoWriter.Writable generateNewStackHandler() {
-        ensureSupportedProtocol();
-        return goTemplate("handler := $T($T(options.HTTPClient), stack)",
-                SmithyGoTypes.Middleware.DecorateHandler, SmithyGoTypes.Transport.Http.NewClientHandler);
     }
 
     private void ensureSupportedProtocol() {
@@ -447,5 +496,11 @@ final class ServiceGenerator implements Runnable {
                         EndpointMiddlewareGenerator.generateAddToProtocolFinalizers(),
                         SignRequestMiddlewareGenerator.generateAddToProtocolFinalizers()
                 ).compose(false));
+    }
+
+    private String getTracingServiceId() {
+        return service.hasTrait(ServiceTrait.class)
+                ? service.expectTrait(ServiceTrait.class).getSdkId().replaceAll("\\s", "")
+                : service.getId().getName();
     }
 }
