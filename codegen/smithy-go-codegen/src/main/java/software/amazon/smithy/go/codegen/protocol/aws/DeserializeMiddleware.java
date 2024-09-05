@@ -28,7 +28,6 @@ import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
-import software.amazon.smithy.utils.StringUtils;
 
 public class DeserializeMiddleware {
 
