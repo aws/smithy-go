@@ -58,11 +58,6 @@ public class DeserializeMiddleware {
         return "awsAwsjson10_deserializeOp" + operation.toShapeId().getName();
     }
 
-    public static String getOperationErrorDeserializerName(OperationShape operation,
-                                                           ProtocolGenerator.GenerationContext ctx) {
-         return "awsAwsjson10_deserializeOpError" + StringUtils.capitalize(operation.getId().getName(ctx.getService()));
-    }
-
     public GoWriter.Writable generate() {
         return goTemplate("""
 
