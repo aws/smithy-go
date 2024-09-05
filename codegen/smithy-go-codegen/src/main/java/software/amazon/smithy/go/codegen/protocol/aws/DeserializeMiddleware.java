@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.protocol.aws;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_HTTP_TRANSPORT;
+import static software.amazon.smithy.go.codegen.integration.ProtocolGenerator.getOperationErrorDeserFunctionName;
 import static software.amazon.smithy.go.codegen.protocol.ProtocolUtil.hasEventStream;
 import static software.amazon.smithy.go.codegen.server.protocol.JsonDeserializerGenerator.getDeserializerName;
 
@@ -27,6 +28,7 @@ import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.StringUtils;
 
 public class DeserializeMiddleware {
 
@@ -54,6 +56,11 @@ public class DeserializeMiddleware {
 
     public static String getMiddlewareName(OperationShape operation) {
         return "awsAwsjson10_deserializeOp" + operation.toShapeId().getName();
+    }
+
+    public static String getOperationErrorDeserializerName(OperationShape operation,
+                                                           ProtocolGenerator.GenerationContext ctx) {
+         return "awsAwsjson10_deserializeOpError" + StringUtils.capitalize(operation.getId().getName(ctx.getService()));
     }
 
     public GoWriter.Writable generate() {
@@ -125,14 +132,15 @@ public class DeserializeMiddleware {
                 }
 
                 if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-                    return out, metadata, &$deserError:T{}
+                    return out, metadata, $errorDeserialized:L(resp)
                 }
 
             """,
                 MapUtils.of(
                         "response", SMITHY_HTTP_TRANSPORT.pointableSymbol("Response"),
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "deserError", SmithyGoDependency.SMITHY.struct("DeserializationError")
+                        "errorDeserialized", getOperationErrorDeserFunctionName(operation, ctx.getService(),
+                                "awsJson10")
                 ));
     }
 
