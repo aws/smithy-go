@@ -87,7 +87,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
             writer.write("\n");
         }
         generateSharedDeserializers(context, writer, ops);
-        generateErrorDeserializers(context, writer, ops);
+        generateErrorDeserializers(context, ops);
     }
 
     private void generateSharedDeserializers(GenerationContext context, GoWriter writer, Set<OperationShape> ops) {
@@ -97,7 +97,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                     op.getOutputShape()));
             shared.addAll(shapes);
         }
-        var errorShapes = generateErrorDeserializers(context, writer, ops);
+        var errorShapes = generateErrorDeserializers(context, ops);
         shared.addAll(errorShapes);
 
         var generator = new JsonDeserializerGenerator(context.getModel(), context.getSymbolProvider());
@@ -106,14 +106,17 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
         generateOperationErrorDeserializers(context, writer, ops);
 
         writer.write(getProtocolErrorInfo());
-        writer.write(GET_AWS_QUERY_ERROR_CODE);
+
+        if (context.getService().hasTrait(AwsQueryCompatibleTrait.class)) {
+            writer.write(GET_AWS_QUERY_ERROR_CODE);
+        }
     }
 
-    private Set<Shape> generateErrorDeserializers(GenerationContext context, GoWriter writer, Set<OperationShape> ops) {
+    private Set<Shape> generateErrorDeserializers(GenerationContext context, Set<OperationShape> ops) {
         Set<Shape> errorShapes = new HashSet<>();
         for (var op : ops) {
             var errors = op.getErrors();
-            for (var error : errors) { //consider doing this directly in deserializeOperationErrors
+            for (var error : errors) {
                 Set<Shape> shapes = getShapesToSerde(context.getModel(), context.getModel().expectShape(error));
                 errorShapes.addAll(shapes);
             }
@@ -124,6 +127,10 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
     private void generateOperationErrorDeserializers(
             GenerationContext context, GoWriter writer, Set<OperationShape> operations) {
         for (var operation : operations) {
+            var errors = context.getService().getErrors()
+                    .stream()
+                    .map(it -> deserializeErrorCase(context, context.getModel().expectShape(it, StructureShape.class)))
+                    .toList();
             writer.write(goTemplate("""
                 func $func:L(resp $smithyhttpResponse:P) error {
                     payload, err := $readAll:T(resp.Body)
@@ -144,7 +151,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                     }
 
                     _ = v
-                    switch string(typ) {
+                    switch typ {
                     $errors:W
                     default:
                         $awsQueryCompatible:W
@@ -163,13 +170,7 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                             "awsQueryCompatible", context.getService().hasTrait(AwsQueryCompatibleTrait.class)
                                     ? deserializeAwsQueryError()
                                     : emptyGoTemplate(),
-                            "errors", GoWriter.ChainWritable.of(
-                                    operation.getErrors(context.getService()).stream()
-                                            .map(it ->
-                                                    deserializeErrorCase(context, context.getModel().expectShape(
-                                                            it, StructureShape.class)))
-                                            .toList()
-                            ).compose(false)
+                            "errors", GoWriter.ChainWritable.of(errors).compose(false)
                     )));
         }
     }
@@ -223,6 +224,10 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                 var jv map[string]interface{}
 
                 jsonDecoder.Decode(&val)
+                if err != nil {
+                    return "", "", val.($value:T), $fmtErrorf:T("decode: %w", err)
+                }
+
                 err = jsonDecoder.Decode(&jv)
                 if err != nil {
                     return "", "", val.($value:T), $fmtErrorf:T("decode: %w", err)
