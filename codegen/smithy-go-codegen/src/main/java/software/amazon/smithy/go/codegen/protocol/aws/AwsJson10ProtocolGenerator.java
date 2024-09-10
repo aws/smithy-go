@@ -235,7 +235,21 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
 
                 if jtyp, ok := jv["__type"]; ok {
                     typ = jtyp.(string)
+                } else if jtyp, ok := jv["code"]; ok {
+                    typ = jtyp.(string)
                 }
+                // TODO: Add in Header Check for "x-amzn-errortype"
+
+                hashIndex, colonIndex := 0, len(typ)-1
+                for idx := 0; idx < len(typ); idx++ {
+                    if typ[idx] == '#' && hashIndex == 0 {
+                        hashIndex = idx
+                    }
+                    if typ[idx] == ':' && colonIndex == len(typ)-1 {
+                        colonIndex = idx
+                    }
+                }
+                typ = typ[hashIndex:colonIndex+1]
 
                 if jmsg, ok := jv["message"]; ok {
                     msg = jmsg.(string)
