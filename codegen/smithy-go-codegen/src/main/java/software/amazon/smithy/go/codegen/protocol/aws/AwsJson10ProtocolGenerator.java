@@ -240,22 +240,27 @@ public class AwsJson10ProtocolGenerator implements ProtocolGenerator {
                 }
                 // TODO: Add in Header Check for "x-amzn-errortype"
 
-                hashIndex, colonIndex := 0, len(typ)-1
-                for idx := 0; idx < len(typ); idx++ {
-                    if typ[idx] == '#' && hashIndex == 0 {
-                        hashIndex = idx
-                    }
-                    if typ[idx] == ':' && colonIndex == len(typ)-1 {
-                        colonIndex = idx
-                    }
-                }
-                typ = typ[hashIndex:colonIndex+1]
+                typ = sanitizeProtocolErrorTyp(typ)
 
                 if jmsg, ok := jv["message"]; ok {
                     msg = jmsg.(string)
                 }
 
                 return typ, msg, val.($value:T), nil
+            }
+
+            func sanitizeProtocolErrorTyp(typ string) (val string){
+                val = typ
+                hashIndex, colonIndex := 0, len(val)-1
+                for idx := 0; idx < len(val); idx++ {
+                    if val[idx] == '#' && hashIndex == 0 {
+                        hashIndex = idx
+                    }
+                    if val[idx] == ':' && colonIndex == len(val)-1 {
+                        colonIndex = idx
+                    }
+                }
+                return val[hashIndex:colonIndex+1]
             }
             """,
             MapUtils.of(
