@@ -101,6 +101,7 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
         putContext("fmt.Errorf", SmithyGoDependency.FMT.func("Errorf"));
         putContext("errors.As", SmithyGoDependency.ERRORS.func("As"));
         putContext("context.Context", SmithyGoDependency.CONTEXT.func("Context"));
+        putContext("time.Now", SmithyGoDependency.TIME.func("Now"));
 
         if (!innerWriter) {
             packageDocs = new GoWriter(this.fullPackageName, true);

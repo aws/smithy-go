@@ -86,7 +86,12 @@ public class SignRequestMiddlewareGenerator {
                     return out, metadata, $fmt.Errorf:T("no signer")
                 }
 
-                if err := signer.SignRequest(ctx, req, identity, rscheme.SignerProperties); err != nil {
+                _, err = timeOperationMetric(ctx, "client.call.signing_duration", func() (any, error) {
+                    return nil, signer.SignRequest(ctx, req, identity, rscheme.SignerProperties)
+                }, func(o $recordMetricOptions:P) {
+                    o.Properties.Set("auth.scheme_id", rscheme.Scheme.SchemeID())
+                })
+                if err != nil {
                     return out, metadata, $fmt.Errorf:T("sign request: %w", err)
                 }
 
@@ -96,7 +101,8 @@ public class SignRequestMiddlewareGenerator {
                 MapUtils.of(
                         // FUTURE(#458) protocol generator should specify the transport type
                         "request", SmithyGoTypes.Transport.Http.Request,
-                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan")
+                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan"),
+                        "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions")
                 ));
     }
 }

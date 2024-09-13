@@ -32,25 +32,32 @@ public class ObservabilityOptions implements GoIntegration {
             .documentation("The client tracer provider.")
             .build();
 
+    private static final ConfigField METER_PROVIDER = ConfigField.builder()
+            .name("MeterProvider")
+            .type(SmithyGoDependency.SMITHY_METRICS.interfaceSymbol("MeterProvider"))
+            .documentation("The client meter provider.")
+            .build();
+
     private static final ConfigFieldResolver RESOLVE_TRACER_PROVIDER = ConfigFieldResolver.builder()
             .resolver(buildPackageSymbol("resolveTracerProvider"))
             .location(ConfigFieldResolver.Location.CLIENT)
             .target(ConfigFieldResolver.Target.INITIALIZATION)
             .build();
 
-    // TODO
-    //  private static final ConfigField METER_PROVIDER = ConfigField.builder()
-    //          .name("MeterProvider")
-    //          .type(SmithyGoDependency.SMITHY_METRICS.interfaceSymbol("MeterProvider"))
-    //          .documentation("The client meter provider.")
-    //          .build();
+    private static final ConfigFieldResolver RESOLVE_METER_PROVIDER = ConfigFieldResolver.builder()
+            .resolver(buildPackageSymbol("resolveMeterProvider"))
+            .location(ConfigFieldResolver.Location.CLIENT)
+            .target(ConfigFieldResolver.Target.INITIALIZATION)
+            .build();
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
         return List.of(
                 RuntimeClientPlugin.builder()
                         .addConfigField(TRACER_PROVIDER)
+                        .addConfigField(METER_PROVIDER)
                         .addConfigFieldResolver(RESOLVE_TRACER_PROVIDER)
+                        .addConfigFieldResolver(RESOLVE_METER_PROVIDER)
                         .build()
         );
     }
@@ -63,6 +70,15 @@ public class ObservabilityOptions implements GoIntegration {
                         options.TracerProvider = &$T{}
                     }
                 }
-                """, SmithyGoDependency.SMITHY_TRACING.struct("NopTracerProvider")));
+
+                func resolveMeterProvider(options *Options) {
+                    if options.MeterProvider == nil {
+                        options.MeterProvider = $T{}
+                    }
+                }
+                """,
+                SmithyGoDependency.SMITHY_TRACING.struct("NopTracerProvider"),
+                SmithyGoDependency.SMITHY_METRICS.struct("NopMeterProvider")
+        ));
     }
 }

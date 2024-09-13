@@ -254,6 +254,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write(goTemplate("""
                     _, span := $T(ctx, "OperationSerializer")
+                    endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+                    defer endTimer()
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 
@@ -358,6 +360,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("in.Request = request");
             writer.write("");
 
+            writer.write("endTimer()");
             writer.write("span.End()");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
         });
@@ -395,6 +398,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write(goTemplate("""
                     _, span := $T(ctx, "OperationDeserializer")
+                    defer startMetricTimer(ctx, "client.call.deserialization_duration")()
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 
