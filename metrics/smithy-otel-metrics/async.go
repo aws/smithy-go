@@ -26,7 +26,7 @@ type int64Observer struct {
 
 var _ metrics.Int64Observer = (*int64Observer)(nil)
 
-func (o *int64Observer) Observe(ctx context.Context, v int64, opts ...metrics.RecordMetricOption) {
+func (o *int64Observer) Observe(_ context.Context, v int64, opts ...metrics.RecordMetricOption) {
 	o.observer.ObserveInt64(o.instrument, v, withMetricProps(opts...))
 }
 
@@ -48,7 +48,7 @@ type float64Observer struct {
 
 var _ metrics.Float64Observer = (*float64Observer)(nil)
 
-func (o *float64Observer) Observe(ctx context.Context, v float64, opts ...metrics.RecordMetricOption) {
+func (o *float64Observer) Observe(_ context.Context, v float64, opts ...metrics.RecordMetricOption) {
 	o.observer.ObserveFloat64(o.instrument, v, withMetricProps(opts...))
 }
 
