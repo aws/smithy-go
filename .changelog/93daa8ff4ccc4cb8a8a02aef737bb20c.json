@@ -1,6 +1,6 @@
 {
     "id": "93daa8ff-4ccc-4cb8-a8a0-2aef737bb20c",
-    "type": "feature",
+    "type": "release",
     "description": "Initial release of `smithyoteltracing` module, which is used to adapt an OpenTelemetry SDK tracer provider to be used with Smithy clients.",
     "modules": [
         "tracing/smithyoteltracing"
