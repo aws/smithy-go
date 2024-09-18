@@ -1,4 +1,4 @@
-module github.com/aws/smithy-go/tracing/smithy-otel-tracing
+module github.com/aws/smithy-go/tracing/smithyoteltracing
 
 go 1.22
 

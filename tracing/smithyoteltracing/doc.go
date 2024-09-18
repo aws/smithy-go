@@ -11,7 +11,7 @@
 //	import (
 //		"github.com/aws/aws-sdk-go-v2/config"
 //		"github.com/aws/aws-sdk-go-v2/service/s3"
-//		smithyoteltracing "github.com/aws/smithy-go/tracing/smithy-otel-tracing"
+//		"github.com/aws/smithy-go/tracing/smithyoteltracing"
 //		"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 //		"go.opentelemetry.io/otel/sdk/trace"
 //	)

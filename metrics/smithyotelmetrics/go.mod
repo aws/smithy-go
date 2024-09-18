@@ -1,4 +1,4 @@
-module github.com/aws/smithy-go/metrics/smithy-otel-metrics
+module github.com/aws/smithy-go/metrics/smithyotelmetrics
 
 go 1.22
 
