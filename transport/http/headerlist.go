@@ -55,7 +55,7 @@ func quotedCommaSplit(v string) (parts []string, err error) {
 			//------------------------------
 			var j int
 			var skipQuote bool
-			for j += 1; j < len(remaining); j++ {
+			for j ++; j < len(remaining); j++ {
 				if remaining[j] == '\\' || (remaining[j] != '\\' && skipQuote) {
 					skipQuote = !skipQuote
 					continue

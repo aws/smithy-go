@@ -189,7 +189,7 @@ func (v EncodeRaw) encode(p []byte) int {
 	return len(v)
 }
 
-// FixedUint encodes fixed-width Uint values.
+// EncodeFixedUint encodes fixed-width Uint values.
 //
 // This is used by the encoder for the purpose of embedding integrals in
 // document shapes. Decode will never return values of this type.
@@ -203,7 +203,7 @@ func (v EncodeFixedUint) encode(p []byte) int {
 	return 9
 }
 
-// FixedUint encodes fixed-width NegInt values.
+// EncodeFixedNegInt encodes fixed-width NegInt values.
 //
 // This is used by the encoder for the purpose of embedding integrals in
 // document shapes. Decode will never return values of this type.

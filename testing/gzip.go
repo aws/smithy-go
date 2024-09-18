@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-func GzipCompareCompressBytes(expect []byte, actual io.Reader) error {
+func gzipCompareCompressBytes(expect []byte, actual io.Reader) error {
 	content, err := gzip.NewReader(actual)
 	if err != nil {
 		return fmt.Errorf("error while reading request")
