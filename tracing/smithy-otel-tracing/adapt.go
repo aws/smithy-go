@@ -2,11 +2,8 @@ package smithyoteltracing
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing"
-	otelattribute "go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -140,50 +137,4 @@ func toOTELSpanStatus(v tracing.SpanStatus) otelcodes.Code {
 	default:
 		return otelcodes.Unset
 	}
-}
-
-func toOTELKeyValue(k, v any) otelattribute.KeyValue {
-	kk := str(k)
-
-	switch vv := v.(type) {
-	case bool:
-		return otelattribute.Bool(kk, vv)
-	case []bool:
-		return otelattribute.BoolSlice(kk, vv)
-	case int:
-		return otelattribute.Int(kk, vv)
-	case []int:
-		return otelattribute.IntSlice(kk, vv)
-	case int64:
-		return otelattribute.Int64(kk, vv)
-	case []int64:
-		return otelattribute.Int64Slice(kk, vv)
-	case float64:
-		return otelattribute.Float64(kk, vv)
-	case []float64:
-		return otelattribute.Float64Slice(kk, vv)
-	case string:
-		return otelattribute.String(kk, vv)
-	case []string:
-		return otelattribute.StringSlice(kk, vv)
-	default:
-		return otelattribute.String(kk, str(v))
-	}
-}
-
-func toOTELKeyValues(props smithy.Properties) []otelattribute.KeyValue {
-	var kvs []otelattribute.KeyValue
-	for k, v := range props.Values() {
-		kvs = append(kvs, toOTELKeyValue(k, v))
-	}
-	return kvs
-}
-
-func str(v any) string {
-	if s, ok := v.(string); ok {
-		return s
-	} else if s, ok := v.(fmt.Stringer); ok {
-		return s.String()
-	}
-	return fmt.Sprintf("%#v", v)
 }

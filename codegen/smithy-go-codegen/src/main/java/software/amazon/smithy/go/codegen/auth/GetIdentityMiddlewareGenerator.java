@@ -78,7 +78,13 @@ public class GetIdentityMiddlewareGenerator {
                     return out, metadata, $fmt.Errorf:T("no identity resolver")
                 }
 
-                identity, err := resolver.GetIdentity(innerCtx, rscheme.IdentityProperties)
+                identity, err := timeOperationMetric(ctx, "client.call.resolve_identity_duration",
+                    func() ($identity:T, error) {
+                        return resolver.GetIdentity(innerCtx, rscheme.IdentityProperties)
+                    },
+                    func (o $recordMetricOptions:P) {
+                        o.Properties.Set("auth.scheme_id", rscheme.Scheme.SchemeID())
+                    })
                 if err != nil {
                     return out, metadata, $fmt.Errorf:T("get identity: %w", err)
                 }
@@ -89,7 +95,9 @@ public class GetIdentityMiddlewareGenerator {
                 return next.HandleFinalize(ctx, in)
                 """,
                 MapUtils.of(
-                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan")
+                        "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan"),
+                        "identity", SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("Identity"),
+                        "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions")
                 ));
     }
 

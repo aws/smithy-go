@@ -133,9 +133,12 @@ public final class EndpointMiddlewareGenerator {
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
                 params := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
-                endpt, err := m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
+                endpt, err := timeOperationMetric(ctx, "client.call.resolve_endpoint_duration",
+                    func() (smithyendpoints.Endpoint, error) {
+                        return m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)
+                    })
                 if err != nil {
-                    return out, metadata, $1T("failed to resolve service endpoint, %w", err)
+                    return out, metadata, $fmt.Errorf:T("failed to resolve service endpoint, %w", err)
                 }
 
                 span.SetProperty("operation.resolved_endpoint", endpt.URI.String())
@@ -145,13 +148,12 @@ public final class EndpointMiddlewareGenerator {
                 }
                 req.URL.Scheme = endpt.URI.Scheme
                 req.URL.Host = endpt.URI.Host
-                req.URL.Path = $2T(endpt.URI.Path, req.URL.Path)
-                req.URL.RawPath = $2T(endpt.URI.RawPath, req.URL.RawPath)
+                req.URL.Path = $1T(endpt.URI.Path, req.URL.Path)
+                req.URL.RawPath = $1T(endpt.URI.RawPath, req.URL.RawPath)
                 for k := range endpt.Headers {
                     req.Header.Set(k, endpt.Headers.Get(k))
                 }
                 """,
-                GoStdlibTypes.Fmt.Errorf,
                 SmithyGoTypes.Transport.Http.JoinPath);
     }
 
