@@ -390,7 +390,8 @@ final class ServiceGenerator implements Runnable {
                         o.Properties.Set("rpc.method", opID)
                         o.Properties.Set("rpc.service", ServiceID)
                     })
-                    defer startMetricTimer(ctx, "client.call.duration")()
+                    endTimer := startMetricTimer(ctx, "client.call.duration")
+                    defer endTimer()
                     defer span.End()
 
                     handler := $newClientHandler:T(options.HTTPClient)

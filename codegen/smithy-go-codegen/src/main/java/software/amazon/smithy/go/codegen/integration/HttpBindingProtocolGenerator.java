@@ -398,7 +398,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
             writer.write(goTemplate("""
                     _, span := $T(ctx, "OperationDeserializer")
-                    defer startMetricTimer(ctx, "client.call.deserialization_duration")()
+                    endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
+                    defer endTimer()
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 

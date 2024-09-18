@@ -54,7 +54,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 type operationMetrics struct {
                     Duration                metrics.Float64Histogram
                     SerializeDuration       metrics.Float64Histogram
-                    GetIdentityDuration     metrics.Float64Histogram
+                    ResolveIdentityDuration metrics.Float64Histogram
                     ResolveEndpointDuration metrics.Float64Histogram
                     SignRequestDuration     metrics.Float64Histogram
                     DeserializeDuration     metrics.Float64Histogram
@@ -83,7 +83,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                     if err != nil {
                         return nil, err
                     }
-                    om.GetIdentityDuration, err = operationMetricTimer(meter, "client.call.auth.resolve_identity_duration",
+                    om.ResolveIdentityDuration, err = operationMetricTimer(meter, "client.call.auth.resolve_identity_duration",
                         "The time taken to acquire an identity (AWS credentials, bearer token, etc) from an Identity Provider")
                     if err != nil {
                         return nil, err
@@ -129,7 +129,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                     case "client.call.serialization_duration":
                         return m.SerializeDuration
                     case "client.call.resolve_identity_duration":
-                        return m.GetIdentityDuration
+                        return m.ResolveIdentityDuration
                     case "client.call.resolve_endpoint_duration":
                         return m.ResolveEndpointDuration
                     case "client.call.signing_duration":
