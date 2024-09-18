@@ -16,7 +16,7 @@ const (
 type compareCompressFunc func([]byte, io.Reader) error
 
 var allowedAlgorithms = map[string]compareCompressFunc{
-	GZIP: gzipCompareCompressBytes,
+	GZIP: GzipCompareCompressBytes,
 }
 
 // CompareReaderEmpty checks if the reader is nil, or contains no bytes.

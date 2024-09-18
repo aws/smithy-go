@@ -71,7 +71,7 @@ func ParseURL(input string) *URL {
 		Authority:      authority,
 		Path:           u.Path,
 		NormalizedPath: normalizedPath,
-		IsIP:           net.ParseIP(hostnameWithoutZone(u)) != nil,
+		IsIp:           net.ParseIP(hostnameWithoutZone(u)) != nil,
 	}
 }
 
@@ -82,7 +82,7 @@ type URL struct {
 	Authority      string // https://www.rfc-editor.org/rfc/rfc3986#section-3.2
 	Path           string // https://www.rfc-editor.org/rfc/rfc3986#section-3.3
 	NormalizedPath string // https://www.rfc-editor.org/rfc/rfc3986#section-6.2.3
-	IsIP bool
+	IsIp           bool
 }
 
 // URIEncode returns an percent-encoded [RFC3986 section 2.1] version of the
