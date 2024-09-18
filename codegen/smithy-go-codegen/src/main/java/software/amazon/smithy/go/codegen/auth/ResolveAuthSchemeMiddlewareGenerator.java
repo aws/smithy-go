@@ -83,7 +83,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
 
                 ctx = setResolvedAuthScheme(ctx, scheme)
 
-                span.SetProperty("operation.auth.resolved_scheme_id", scheme.Scheme.SchemeID())
+                span.SetProperty("auth.scheme_id", scheme.Scheme.SchemeID())
                 span.End()
                 return next.HandleFinalize(ctx, in)
                 """,

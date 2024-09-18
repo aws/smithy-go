@@ -141,7 +141,7 @@ public final class EndpointMiddlewareGenerator {
                     return out, metadata, $fmt.Errorf:T("failed to resolve service endpoint, %w", err)
                 }
 
-                span.SetProperty("operation.resolved_endpoint", endpt.URI.String())
+                span.SetProperty("client.call.resolved_endpoint", endpt.URI.String())
 
                 if endpt.URI.RawPath == "" && req.URL.RawPath != "" {
                     endpt.URI.RawPath = endpt.URI.Path

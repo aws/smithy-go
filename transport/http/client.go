@@ -56,14 +56,14 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 		return nil, metadata, err
 	}
 
-	span.SetProperty("http.request.method", req.Method)
-	span.SetProperty("http.request.content_length", -1) // at least indicate unknown
+	span.SetProperty("http.method", req.Method)
+	span.SetProperty("http.request_content_length", -1) // at least indicate unknown
 	length, ok, err := req.StreamLength()
 	if err != nil {
 		return nil, metadata, err
 	}
 	if ok {
-		span.SetProperty("http.request.content_length", length)
+		span.SetProperty("http.request_content_length", length)
 	}
 
 	resp, err := c.client.Do(builtRequest)
@@ -93,9 +93,9 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 		_ = builtRequest.Body.Close()
 	}
 
-	span.SetProperty("http.proto", fmt.Sprintf("%d.%d", resp.ProtoMajor, resp.ProtoMinor))
-	span.SetProperty("http.response.status_code", resp.StatusCode)
-	span.SetProperty("http.response.content_length", resp.ContentLength)
+	span.SetProperty("net.protocol.version", fmt.Sprintf("%d.%d", resp.ProtoMajor, resp.ProtoMinor))
+	span.SetProperty("http.status_code", resp.StatusCode)
+	span.SetProperty("http.response_content_length", resp.ContentLength)
 
 	return &Response{Response: resp}, metadata, err
 }
