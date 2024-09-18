@@ -405,6 +405,7 @@ final class ServiceGenerator implements Runnable {
                         if $errors.As:T(err, &aerr) {
                             span.SetProperty("api.error_code", aerr.ErrorCode())
                             span.SetProperty("api.error_message", aerr.ErrorMessage())
+                            span.SetProperty("api.error_fault", aerr.ErrorFault().String())
                         }
 
                         err = &$operationError:T{
