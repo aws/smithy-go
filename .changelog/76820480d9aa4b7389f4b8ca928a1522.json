@@ -1,0 +1,8 @@
+{
+    "id": "76820480-d9aa-4b73-89f4-b8ca928a1522",
+    "type": "feature",
+    "description": "Add tracing and metrics APIs, and builtin instrumentation for both, in generated clients.",
+    "modules": [
+        "."
+    ]
+}

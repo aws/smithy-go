@@ -1,0 +1,8 @@
+{
+    "id": "8a8ce2aa-a0b8-4978-a2b8-74ca2f90d021",
+    "type": "release",
+    "description": "Initial release of `smithyotelmetrics` module, which is used to adapt an OpenTelemetry SDK meter provider to be used with Smithy clients.",
+    "modules": [
+        "metrics/smithyotelmetrics"
+    ]
+}

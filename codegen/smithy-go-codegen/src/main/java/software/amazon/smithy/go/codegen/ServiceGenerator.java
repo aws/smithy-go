@@ -37,6 +37,7 @@ import software.amazon.smithy.go.codegen.integration.ClientMember;
 import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -94,6 +95,7 @@ final class ServiceGenerator implements Runnable {
     private GoWriter.Writable generate() {
         return GoWriter.ChainWritable.of(
                 generateMetadata(),
+                generateObservabilityComponents(),
                 generateClient(),
                 generateNew(),
                 generateGetOptions(),
@@ -101,6 +103,22 @@ final class ServiceGenerator implements Runnable {
                 generateInputContextFuncs(),
                 generateAddProtocolFinalizerMiddleware()
         ).compose();
+    }
+
+    private GoWriter.Writable generateObservabilityComponents() {
+        return goTemplate("""
+                $operationMetrics:W
+
+                func operationTracer(p $tracerProvider:T) $tracer:T {
+                    return p.Tracer($scope:S)
+                }
+                """,
+                Map.of(
+                        "tracerProvider", SmithyGoDependency.SMITHY_TRACING.interfaceSymbol("TracerProvider"),
+                        "tracer", SmithyGoDependency.SMITHY_TRACING.interfaceSymbol("Tracer"),
+                        "scope", settings.getModuleName(),
+                        "operationMetrics", new OperationMetricsStruct(settings.getModuleName())
+                ));
     }
 
     private GoWriter.Writable generateMetadata() {
@@ -324,8 +342,16 @@ final class ServiceGenerator implements Runnable {
     @SuppressWarnings("checkstyle:LineLength")
     private GoWriter.Writable generateInvokeOperation() {
         return goTemplate("""
-                func (c *Client) invokeOperation(ctx $context:T, opID string, params interface{}, optFns []func(*Options), stackFns ...func($stack:P, Options) error) (result interface{}, metadata $metadata:T, err error) {
-                    ctx = $clearStackValues:T(ctx)
+                $middleware:D $tracing:D
+                func (c *Client) invokeOperation(
+                    ctx context.Context, opID string, params interface{}, optFns []func(*Options), stackFns ...func(*middleware.Stack, Options) error,
+                ) (
+                    result interface{}, metadata middleware.Metadata, err error,
+                ) {
+                    ctx = middleware.ClearStackValues(ctx)
+                    ctx = middleware.WithServiceID(ctx, ServiceID)
+                    ctx = middleware.WithOperationName(ctx, opID)
+
                     $newStack:W
                     options := c.options.Copy()
                     $resolvers:W
@@ -348,25 +374,61 @@ final class ServiceGenerator implements Runnable {
                         }
                     }
 
-                    $newStackHandler:W
-                    result, metadata, err = handler.Handle(ctx, params)
+                    ctx, err = withOperationMetrics(ctx, options.MeterProvider)
                     if err != nil {
+                        return nil, metadata, err
+                    }
+
+                    tracer := operationTracer(options.TracerProvider)
+                    spanName := fmt.Sprintf("%s.%s", ServiceID, opID)
+
+                    ctx = tracing.WithOperationTracer(ctx, tracer)
+
+                    ctx, span := tracer.StartSpan(ctx, spanName, func (o *tracing.SpanOptions) {
+                        o.Kind = tracing.SpanKindClient
+                        o.Properties.Set("rpc.system", "aws-api")
+                        o.Properties.Set("rpc.method", opID)
+                        o.Properties.Set("rpc.service", ServiceID)
+                    })
+                    endTimer := startMetricTimer(ctx, "client.call.duration")
+                    defer endTimer()
+                    defer span.End()
+
+                    handler := $newClientHandler:T(options.HTTPClient)
+                    decorated := middleware.DecorateHandler(handler, stack)
+                    result, metadata, err = decorated.Handle(ctx, params)
+                    if err != nil {
+                        span.SetProperty("exception.type", fmt.Sprintf("%T", err))
+                        span.SetProperty("exception.message", err.Error())
+
+                        var aerr smithy.APIError
+                        if $errors.As:T(err, &aerr) {
+                            span.SetProperty("api.error_code", aerr.ErrorCode())
+                            span.SetProperty("api.error_message", aerr.ErrorMessage())
+                            span.SetProperty("api.error_fault", aerr.ErrorFault().String())
+                        }
+
                         err = &$operationError:T{
                             ServiceID: ServiceID,
                             OperationName: opID,
                             Err: err,
                         }
                     }
+
+                    span.SetProperty("error", err != nil)
+                    if err == nil {
+                        span.SetStatus(tracing.SpanStatusOK)
+                    } else {
+                        span.SetStatus(tracing.SpanStatusError)
+                    }
+
                     return result, metadata, err
                 }
                 """,
                 MapUtils.of(
-                        "context", GoStdlibTypes.Context.Context,
-                        "stack", SmithyGoTypes.Middleware.Stack,
-                        "metadata", SmithyGoTypes.Middleware.Metadata,
-                        "clearStackValues", SmithyGoTypes.Middleware.ClearStackValues,
+                        "middleware", SmithyGoDependency.SMITHY_MIDDLEWARE,
+                        "tracing", SmithyGoDependency.SMITHY_TRACING,
                         "newStack", generateNewStack(),
-                        "newStackHandler", generateNewStackHandler(),
                         "operationError", SmithyGoTypes.Smithy.OperationError,
                         "resolvers", GoWriter.ChainWritable.of(
                                 getConfigResolvers(
@@ -379,7 +441,8 @@ final class ServiceGenerator implements Runnable {
                                         ConfigFieldResolver.Location.OPERATION,
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
-                        ).compose()
+                        ).compose(),
+                        "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandler")
                 ));
     }
 
@@ -387,12 +450,6 @@ final class ServiceGenerator implements Runnable {
         ensureSupportedProtocol();
         return goTemplate("stack := $T(opID, $T)",
                 SmithyGoTypes.Middleware.NewStack, SmithyGoTypes.Transport.Http.NewStackRequest);
-    }
-
-    private GoWriter.Writable generateNewStackHandler() {
-        ensureSupportedProtocol();
-        return goTemplate("handler := $T($T(options.HTTPClient), stack)",
-                SmithyGoTypes.Middleware.DecorateHandler, SmithyGoTypes.Transport.Http.NewClientHandler);
     }
 
     private void ensureSupportedProtocol() {
