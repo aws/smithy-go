@@ -19,6 +19,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -59,6 +61,7 @@ public final class ExecuteCommand {
     public void execute() throws Exception {
         int exitCode;
         Process child;
+        var output = new StringBuilder();
         try {
             var cmdArray = new String[command.size()];
             command.toArray(cmdArray);
@@ -73,12 +76,16 @@ public final class ExecuteCommand {
                     InputStreamReader(child.getErrorStream(), Charset.defaultCharset()));
 
             String s;
+            output.append("stdout: ");
             while ((s = stdOut.readLine()) != null) {
                 LOGGER.info(s);
+                output.append(s);
             }
             stdOut.close();
+            output.append(" stderr: ");
             while ((s = stdErr.readLine()) != null) {
                 LOGGER.warning(s);
+                output.append(s);
             }
             stdErr.close();
         } catch (Exception e) {
@@ -87,7 +94,7 @@ public final class ExecuteCommand {
 
         if (exitCode != 0) {
             throw new Exception("Command existed with non-zero code, " + command
-                    + ", status code: " + exitCode);
+                    + ", status code: " + exitCode + " output: " + output);
         }
     }
 
