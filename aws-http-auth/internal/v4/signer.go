@@ -55,7 +55,6 @@ func (s *Signer) Do() error {
 
 	canonicalRequest, signedHeaders := s.buildCanonicalRequest()
 	stringToSign := s.buildStringToSign(canonicalRequest)
-	fmt.Println(stringToSign)
 	signature, err := s.Finalizer.SignString(stringToSign)
 	if err != nil {
 		return nil
