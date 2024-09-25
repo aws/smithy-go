@@ -137,7 +137,7 @@ func TestE2E_SQS(t *testing.T) {
 		QueueName: queueName,
 	})
 	if err != nil {
-		t.Fatalf("list queues: %v", err)
+		t.Fatalf("create queue: %v", err)
 	}
 
 	queueURL := out.QueueURL
