@@ -1,8 +1,0 @@
-{
-    "id": "2354988d-845a-448c-9373-984ff9cceab0",
-    "type": "release",
-    "description": "Initial release of module aws-http-auth, which implements generically consumable SigV4 and SigV4a request signing.",
-    "modules": [
-        "aws-http-auth"
-    ]
-}

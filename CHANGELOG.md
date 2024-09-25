@@ -1,3 +1,9 @@
+# Release (2024-09-25)
+
+## Module Highlights
+* `github.com/aws/smithy-go/aws-http-auth`: [v1.0.0](aws-http-auth/CHANGELOG.md#v100-2024-09-25)
+  * **Release**: Initial release of module aws-http-auth, which implements generically consumable SigV4 and SigV4a request signing.
+
 # Release (2024-09-19)
 
 ## General Highlights
