@@ -18,16 +18,17 @@ func init() {
 			i == '-' ||
 			i == '.' ||
 			i == '_' ||
-			i == '~'
+			i == '~' ||
+			i == '/'
 	}
 }
 
 // uriEncode implements "Amazon-style" URL escaping.
-func uriEncode(path string, encodeSep bool) string {
+func uriEncode(path string) string {
 	var buf bytes.Buffer
 	for i := 0; i < len(path); i++ {
 		c := path[i]
-		if noEscape[c] || (c == '/' && !encodeSep) {
+		if noEscape[c] {
 			buf.WriteByte(c)
 		} else {
 			fmt.Fprintf(&buf, "%%%02X", c)

@@ -360,7 +360,7 @@ func getSignature(r *http.Request) (
 
 	parts := strings.Split(auth, ", ")
 	if len(parts) != 3 {
-		err = fmt.Errorf("auth parts have non-3 size %d", len(parts))
+		err = fmt.Errorf("auth header is malformed: %q", auth)
 		return
 	}
 

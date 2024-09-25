@@ -140,6 +140,72 @@ host;x-amz-foo
 	}
 }
 
+func TestBuildCanonicalRequest_SortQuery(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost,
+		"https://service.region.amazonaws.com",
+		seekable("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.URL.Path = "/"
+	req.URL.RawQuery = "a=b&%20b=c"
+	req.Header.Set("Host", "service.region.amazonaws.com")
+	s := &Signer{
+		Request:     req,
+		PayloadHash: []byte(v4.UnsignedPayload),
+		Options: v4.SignerOptions{
+			HeaderRules: defaultHeaderRules{},
+		},
+	}
+
+	expect := `POST
+/
+%20b=c&a=b
+host:service.region.amazonaws.com
+
+host
+UNSIGNED-PAYLOAD`
+
+	actual, _ := s.buildCanonicalRequest()
+	if expect != actual {
+		t.Errorf("canonical request\n%s\n!=\n%s", expect, actual)
+	}
+}
+
+func TestBuildCanonicalRequest_EmptyQuery(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost,
+		"https://service.region.amazonaws.com",
+		seekable("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.URL.Path = "/"
+	req.URL.RawQuery = "foo"
+	req.Header.Set("Host", "service.region.amazonaws.com")
+	s := &Signer{
+		Request:     req,
+		PayloadHash: []byte(v4.UnsignedPayload),
+		Options: v4.SignerOptions{
+			HeaderRules: defaultHeaderRules{},
+		},
+	}
+
+	expect := `POST
+/
+foo=
+host:service.region.amazonaws.com
+
+host
+UNSIGNED-PAYLOAD`
+
+	actual, _ := s.buildCanonicalRequest()
+	if expect != actual {
+		t.Errorf("canonical request\n%s\n!=\n%s", expect, actual)
+	}
+}
+
 func TestBuildCanonicalRequest_UnsignedPayload(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost,
 		"https://service.region.amazonaws.com",

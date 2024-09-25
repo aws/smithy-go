@@ -126,7 +126,7 @@ func (s *Signer) buildCanonicalRequest() (string, string) {
 		canonPath = "/"
 	}
 	if !s.Options.DisableDoublePathEscape {
-		canonPath = uriEncode(canonPath, false)
+		canonPath = uriEncode(canonPath)
 	}
 
 	query := s.Request.URL.Query()
