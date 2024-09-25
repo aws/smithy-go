@@ -2,6 +2,7 @@ package sigv4a
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
@@ -378,4 +379,28 @@ func getSignature(r *http.Request) (
 	}
 
 	return parts[0], parts[1], sig, nil
+}
+
+type readexploder struct{}
+
+func (readexploder) Read([]byte) (int, error) {
+	return 0, fmt.Errorf("readexploder boom")
+}
+
+func TestSignRequest_SignStringError(t *testing.T) {
+	randReader := rand.Reader
+	rand.Reader = readexploder{}
+	defer func() { rand.Reader = randReader }()
+	s := New()
+
+	err := s.SignRequest(&SignRequestInput{
+		Request:     newRequest(http.NoBody),
+		PayloadHash: []byte(v4.UnsignedPayload),
+	})
+	if err == nil {
+		t.Fatal("expect error but didn't get one")
+	}
+	if expect := "readexploder boom"; expect != err.Error() {
+		t.Errorf("error mismatch: %v != %v", expect, err.Error())
+	}
 }

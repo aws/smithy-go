@@ -57,7 +57,7 @@ func (s *Signer) Do() error {
 	stringToSign := s.buildStringToSign(canonicalRequest)
 	signature, err := s.Finalizer.SignString(stringToSign)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	s.Request.Header.Set("Authorization",
