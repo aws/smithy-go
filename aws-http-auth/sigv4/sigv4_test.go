@@ -116,7 +116,7 @@ func TestSignRequest(t *testing.T) {
 		"explicit unsigned payload": {
 			Input: &SignRequestInput{
 				Request:     newRequest(seekable("{}")),
-				PayloadHash: []byte(v4.UnsignedPayload),
+				PayloadHash: v4.UnsignedPayload(),
 				Credentials: credsSession,
 				Service:     "dynamodb",
 				Region:      "us-east-1",

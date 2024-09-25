@@ -1,10 +1,6 @@
 // Package v4 exposes common APIs for AWS Signature Version 4.
 package v4
 
-// UnsignedPayload is a sentinel value for a payload hash to indicate that a
-// request's payload is unsigned.
-const UnsignedPayload = "UNSIGNED-PAYLOAD"
-
 // SignerOption applies configuration to a signer.
 type SignerOption func(*SignerOptions)
 
@@ -39,4 +35,10 @@ type SignerOptions struct {
 // By convention, ShouldSign is invoked with lowercase values.
 type SignedHeaderRules interface {
 	IsSigned(string) bool
+}
+
+// UnsignedPayload provides the sentinel value for a payload hash to indicate
+// that a request's payload is unsigned.
+func UnsignedPayload() []byte {
+	return []byte("UNSIGNED-PAYLOAD")
 }

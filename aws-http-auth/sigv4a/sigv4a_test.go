@@ -184,7 +184,7 @@ func TestSignRequest(t *testing.T) {
 		"explicit unsigned payload": {
 			Input: &SignRequestInput{
 				Request:     newRequest(seekable("{}")),
-				PayloadHash: []byte(v4.UnsignedPayload),
+				PayloadHash: v4.UnsignedPayload(),
 				Credentials: credsSession,
 				Service:     "dynamodb",
 				RegionSet:   []string{"us-east-1"},
@@ -395,7 +395,7 @@ func TestSignRequest_SignStringError(t *testing.T) {
 
 	err := s.SignRequest(&SignRequestInput{
 		Request:     newRequest(http.NoBody),
-		PayloadHash: []byte(v4.UnsignedPayload),
+		PayloadHash: v4.UnsignedPayload(),
 	})
 	if err == nil {
 		t.Fatal("expect error but didn't get one")

@@ -91,7 +91,7 @@ func (s *Signer) resolvePayloadHash() error {
 
 	rs, ok := s.Request.Body.(io.ReadSeeker)
 	if !ok || s.Options.DisableImplicitPayloadHashing {
-		s.PayloadHash = []byte(v4.UnsignedPayload)
+		s.PayloadHash = v4.UnsignedPayload()
 		return nil
 	}
 

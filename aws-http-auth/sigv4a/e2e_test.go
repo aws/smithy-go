@@ -150,7 +150,7 @@ func signV4(signer *sigv4.Signer, creds credentials.Credentials, region string) 
 func signV4A(signer *Signer, creds credentials.Credentials, isUnsignedPayload bool) func(*http.Request) error {
 	var payloadHash []byte
 	if isUnsignedPayload {
-		payloadHash = []byte(v4.UnsignedPayload)
+		payloadHash = v4.UnsignedPayload()
 	}
 	return func(r *http.Request) error {
 		err := signer.SignRequest(&SignRequestInput{

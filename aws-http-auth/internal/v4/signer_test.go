@@ -153,7 +153,7 @@ func TestBuildCanonicalRequest_SortQuery(t *testing.T) {
 	req.Header.Set("Host", "service.region.amazonaws.com")
 	s := &Signer{
 		Request:     req,
-		PayloadHash: []byte(v4.UnsignedPayload),
+		PayloadHash: v4.UnsignedPayload(),
 		Options: v4.SignerOptions{
 			HeaderRules: defaultHeaderRules{},
 		},
@@ -186,7 +186,7 @@ func TestBuildCanonicalRequest_EmptyQuery(t *testing.T) {
 	req.Header.Set("Host", "service.region.amazonaws.com")
 	s := &Signer{
 		Request:     req,
-		PayloadHash: []byte(v4.UnsignedPayload),
+		PayloadHash: v4.UnsignedPayload(),
 		Options: v4.SignerOptions{
 			HeaderRules: defaultHeaderRules{},
 		},
