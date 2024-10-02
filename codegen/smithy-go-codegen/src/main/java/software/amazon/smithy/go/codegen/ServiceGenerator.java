@@ -394,7 +394,9 @@ final class ServiceGenerator implements Runnable {
                     defer endTimer()
                     defer span.End()
 
-                    handler := $newClientHandler:T(options.HTTPClient)
+                    handler := $newClientHandler:T(options.HTTPClient, func(o *smithyhttp.ClientHandler) {
+                        o.Meter = options.MeterProvider.Meter($scope:S)
+                    })
                     decorated := middleware.DecorateHandler(handler, stack)
                     result, metadata, err = decorated.Handle(ctx, params)
                     if err != nil {
@@ -442,7 +444,8 @@ final class ServiceGenerator implements Runnable {
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
-                        "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandler")
+                        "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandlerWithOptions"),
+                        "scope", settings.getModuleName()
                 ));
     }
 
