@@ -1,0 +1,8 @@
+{
+    "id": "240018a2-7d40-4933-a603-8db3cf0aa991",
+    "type": "feature",
+    "description": "Add HTTP client metrics.",
+    "modules": [
+        "."
+    ]
+}
