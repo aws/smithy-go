@@ -1,3 +1,12 @@
+# Release (2024-10-03)
+
+## General Highlights
+* **Dependency Update**: Updated to the latest SDK module versions
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.22.0
+  * **Feature**: Add HTTP client metrics.
+
 # Release (2024-09-25)
 
 ## Module Highlights
