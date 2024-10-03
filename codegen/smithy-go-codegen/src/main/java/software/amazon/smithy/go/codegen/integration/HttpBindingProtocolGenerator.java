@@ -877,11 +877,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
                             writer.addUseImports(SmithyGoDependency.NET_HTTP);
                             writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
-                                GoValueAccessUtils.writeIfNonZeroValue(context.getModel(), writer, valueMemberShape,
-                                        "mapVal", false, false, () -> {
-                                            writeHeaderBinding(context, valueMemberShape, "mapVal", location,
-                                                    "http.CanonicalHeaderKey(mapKey)", "hv");
-                                        });
+                                writeHeaderBinding(context, valueMemberShape, "mapVal", location,
+                                        "http.CanonicalHeaderKey(mapKey)", "hv");
                             });
                             break;
                         case LABEL:
