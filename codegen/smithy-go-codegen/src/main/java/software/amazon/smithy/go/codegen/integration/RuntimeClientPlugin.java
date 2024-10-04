@@ -17,7 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -244,12 +244,12 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     public static final class Builder implements SmithyBuilder<RuntimeClientPlugin> {
         private BiPredicate<Model, ServiceShape> servicePredicate = (model, service) -> true;
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
-        private Set<ConfigField> configFields = new HashSet<>();
-        private Set<ConfigFieldResolver> configFieldResolvers = new HashSet<>();
-        private Set<ClientMember> clientMembers = new HashSet<>();
-        private Set<ClientMemberResolver> clientMemberResolvers = new HashSet<>();
-        private Set<AuthParameter> authParameters = new HashSet<>();
-        private Set<AuthParametersResolver> authParameterResolvers = new HashSet<>();
+        private Set<ConfigField> configFields = new LinkedHashSet<>();
+        private Set<ConfigFieldResolver> configFieldResolvers = new LinkedHashSet<>();
+        private Set<ClientMember> clientMembers = new LinkedHashSet<>();
+        private Set<ClientMemberResolver> clientMemberResolvers = new LinkedHashSet<>();
+        private Set<AuthParameter> authParameters = new LinkedHashSet<>();
+        private Set<AuthParametersResolver> authParameterResolvers = new LinkedHashSet<>();
         private Map<String, GoWriter.Writable> endpointBuiltinBindings = new HashMap<>();
         private MiddlewareRegistrar registerMiddleware;
         private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
@@ -350,7 +350,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @return Returns the builder.
          */
         public Builder configFields(Collection<ConfigField> configFields) {
-            this.configFields = new HashSet<>(configFields);
+            this.configFields = new LinkedHashSet<>(configFields);
             return this;
         }
 
@@ -384,7 +384,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @return Returns the builder.
          */
         public Builder configFieldResolvers(Collection<ConfigFieldResolver> configFieldResolvers) {
-            this.configFieldResolvers = new HashSet<>(configFieldResolvers);
+            this.configFieldResolvers = new LinkedHashSet<>(configFieldResolvers);
             return this;
         }
 
@@ -418,7 +418,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @return Returns the builder.
          */
         public Builder clientMembers(Collection<ClientMember> clientMembers) {
-            this.clientMembers = new HashSet<>(clientMembers);
+            this.clientMembers = new LinkedHashSet<>(clientMembers);
             return this;
         }
 
@@ -450,7 +450,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @return Returns the builder.
          */
         public Builder clientMemberResolvers(Collection<ClientMemberResolver> clientMemberResolvers) {
-            this.clientMemberResolvers = new HashSet<>(clientMemberResolvers);
+            this.clientMemberResolvers = new LinkedHashSet<>(clientMemberResolvers);
             return this;
         }
 
