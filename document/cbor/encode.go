@@ -145,7 +145,7 @@ func (e *encoder) encodeMap(rv reflect.Value) (cbor.Map, error) {
 	for _, key := range rv.MapKeys() {
 		keyName := fmt.Sprint(key.Interface())
 		if keyName == "" {
-			return nil, &document.InvalidMarshalError{"map key cannot be empty"}
+			return nil, &document.InvalidMarshalError{Message: "map key cannot be empty"}
 		}
 
 		cv, err := e.encode(rv.MapIndex(key), serde.Tag{})
