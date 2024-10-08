@@ -756,6 +756,13 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
                 .map(DocumentationTrait::getValue)
                 .map(docs -> {
                     writePackageDocs(docs);
+                    if (shape.hasTrait(DeprecatedTrait.class)) {
+                        var message = shape.expectTrait(DeprecatedTrait.class)
+                                .getMessage()
+                                .orElse("This package is deprecated.");
+                        writePackageDocs("");
+                        writePackageDocs("Deprecated: " + message);
+                    }
                     return true;
                 }).orElse(false);
     }
