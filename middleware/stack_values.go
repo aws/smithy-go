@@ -21,7 +21,7 @@ func ClearStackValues(ctx context.Context) context.Context {
 	return context.WithValue(ctx, stackValuesKey{}, nil)
 }
 
-// GetStackValues returns the value pointed to by the key within the stack
+// GetStackValue returns the value pointed to by the key within the stack
 // values, if it is present.
 func GetStackValue(ctx context.Context, key interface{}) interface{} {
 	md, _ := ctx.Value(stackValuesKey{}).(*stackValues)
@@ -62,13 +62,13 @@ func (m *stackValues) Value(key interface{}) interface{} {
 	return m.parent.Value(key)
 }
 
-func (c *stackValues) String() string {
+func (m *stackValues) String() string {
 	var str strings.Builder
 
-	cc := c
+	cc := m
 	for cc == nil {
 		str.WriteString("(" +
-			reflect.TypeOf(c.key).String() +
+			reflect.TypeOf(m.key).String() +
 			": " +
 			stringify(cc.value) +
 			")")

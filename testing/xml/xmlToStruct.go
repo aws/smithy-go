@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// A XMLNode contains the values to be encoded or decoded.
+// XMLNode contains the values to be encoded or decoded.
 type XMLNode struct {
 	Name     xml.Name              `json:",omitempty"`
 	Children map[string][]*XMLNode `json:",omitempty"`
@@ -159,7 +159,7 @@ func StructToXML(e *xml.Encoder, node *XMLNode, sorted bool) error {
 		sort.Strings(sortedNames)
 
 		for _, k := range sortedNames {
-			// we should sort the []*xml.Node for each key if len >1
+			// we should sort the []*xml.XMLNode for each key if len >1
 			flattenedNodes := node.Children[k]
 			// Meaning this has multiple nodes
 			if len(flattenedNodes) > 1 {

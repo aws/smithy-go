@@ -33,7 +33,7 @@ func NewEncoder(path, query string, headers http.Header) (*Encoder, error) {
 	return NewEncoderWithRawPath(path, path, query, headers)
 }
 
-// NewHTTPBindingEncoder creates a new encoder from the passed in request. All query and
+// NewEncoderWithRawPath creates a new encoder from the passed in request. All query and
 // header values will be added on top of the request's existing values. Overwriting
 // duplicate values.
 func NewEncoderWithRawPath(path, rawPath, query string, headers http.Header) (*Encoder, error) {
