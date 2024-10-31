@@ -492,4 +492,33 @@ public class GoJmespathExpressionGeneratorTest {
                 v3 := []*string{v1,v2}
                 """));
     }
+
+    @Test
+    public void testMultiSelectFlatten() {
+        var expr = "objectList[*].[key][]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.go.synthetic#StringList"));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.ObjectList
+                var v2 [][]string
+                for _, v := range v1 {
+                    v3 := v.Key
+                    v4 := []*string{v3}
+                    if v4 != nil {
+                        v2 = append(v2, *v4)
+                    }
+                }
+                var v5 []string
+                for _, v := range v2 {
+                    v5 = append(v5, v...)
+                }
+                """));
+    }
 }

@@ -27,7 +27,7 @@ import software.amazon.smithy.model.shapes.StringShape;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
-            .id("smithy.go.synthetic#String")
+            .id("smithy.api#String")
             .build();
 
     public static final IntegerShape INT_SHAPE = IntegerShape.builder()
