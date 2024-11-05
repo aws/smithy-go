@@ -489,7 +489,13 @@ public class GoJmespathExpressionGeneratorTest {
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := input.SimpleShape
                 v2 := input.SimpleShape2
-                v3 := []*string{v1,v2}
+                v3 := []string{}
+                if v1 != nil {
+                    v3 = append(v3, *v1)
+                }
+                if v2 != nil {
+                    v3 = append(v3, *v2)
+                }
                 """));
     }
 
@@ -510,9 +516,12 @@ public class GoJmespathExpressionGeneratorTest {
                 var v2 [][]string
                 for _, v := range v1 {
                     v3 := v.Key
-                    v4 := []*string{v3}
+                    v4 := []string{}
+                    if v3 != nil {
+                        v4 = append(v4, *v3)
+                    }
                     if v4 != nil {
-                        v2 = append(v2, *v4)
+                        v2 = append(v2, v4)
                     }
                 }
                 var v5 []string
