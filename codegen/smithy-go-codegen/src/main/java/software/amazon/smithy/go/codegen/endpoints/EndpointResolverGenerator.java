@@ -43,7 +43,10 @@ import software.amazon.smithy.model.SourceLocation;
 import software.amazon.smithy.rulesengine.language.Endpoint;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.error.RuleError;
+import software.amazon.smithy.rulesengine.language.evaluation.type.ArrayType;
 import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
+import software.amazon.smithy.rulesengine.language.evaluation.type.StringType;
+import software.amazon.smithy.rulesengine.language.evaluation.type.Type;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
@@ -304,14 +307,21 @@ public final class EndpointResolverGenerator {
         }
 
         if (fn.type() instanceof OptionalType || isConditionalFnResultOptional(condition, fn)) {
+            // []string (e.g. in endpoint params) needs to be casted as stringSlice instead of dereferenced for index
+            // operations
+            var isStringSlice = false;
+            if (fn.type() instanceof OptionalType opt) {
+                isStringSlice = isStringSlice(opt.inner());
+            }
             return goTemplate("""
                     if exprVal := $target:W; exprVal != nil {
-                        $conditionIdent:L := *exprVal
+                        $conditionIdent:L := $exprVal:L
                         _ = $conditionIdent:L
                         $next:W
                     }
                     """,
                     MapUtils.of(
+                            "exprVal", isStringSlice ? "stringSlice(exprVal)" : "*exprVal",
                             "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
                             "next", generateRule(
@@ -600,5 +610,12 @@ public final class EndpointResolverGenerator {
                     v := s[i]
                     return &v
                 }""");
+    }
+
+    private boolean isStringSlice(Type type) {
+        if (!(type instanceof ArrayType array)) {
+            return false;
+        }
+        return array.getMember() instanceof StringType;
     }
 }
