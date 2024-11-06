@@ -266,9 +266,9 @@ public class GoJmespathExpressionGenerator {
             var deref = lookahead.shape instanceof CollectionShape || lookahead.shape instanceof MapShape
                     ? "" : "*"; // ...but slices/maps do not get dereferenced
             writer.write("""
-                    if $2L != nil {
-                        $1L = append($1L, $3L$2L)
-                    }""", ident, projected.ident, deref);
+                    if $1L != nil {
+                        $2L = append($2L, $3L$1L)
+                    }""", projected.ident, ident, deref);
         } else {
             writer.write("$1L = append($1L, $2L)", ident, projected.ident);
         }
