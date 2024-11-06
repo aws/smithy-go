@@ -27,15 +27,15 @@ import software.amazon.smithy.model.shapes.StringShape;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
-            .id("smithy.api#String")
+            .id("smithy.api#PrimitiveString")
             .build();
 
     public static final IntegerShape INT_SHAPE = IntegerShape.builder()
-            .id("smithy.api#Integer")
+            .id("smithy.api#PrimitiveInteger")
             .build();
 
     public static final BooleanShape BOOL_SHAPE = BooleanShape.builder()
-            .id("smithy.api#Boolean")
+            .id("smithy.api#PrimitiveBoolean")
             .build();
 
     private ShapeUtil() {}

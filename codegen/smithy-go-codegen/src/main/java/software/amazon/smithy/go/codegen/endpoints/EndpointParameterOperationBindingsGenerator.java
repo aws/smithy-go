@@ -23,14 +23,11 @@ import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
-import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
-import software.amazon.smithy.rulesengine.language.syntax.Identifier;
-import software.amazon.smithy.rulesengine.language.syntax.parameters.ParameterType;
 import software.amazon.smithy.rulesengine.traits.ContextParamTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.rulesengine.traits.OperationContextParamDefinition;
@@ -103,7 +100,6 @@ public class EndpointParameterOperationBindingsGenerator {
     }
 
     private GoWriter.Writable generateOpContextParamBinding(String paramName, OperationContextParamDefinition def) {
-        var param = rules.getParameters().get(Identifier.of(paramName)).get();
         var expr = JmespathExpression.parse(def.getPath());
 
         return writer -> {
@@ -111,25 +107,7 @@ public class EndpointParameterOperationBindingsGenerator {
 
             writer.write("func() {"); // contain the scope for each binding
             var result = generator.generate(expr, new GoJmespathExpressionGenerator.Variable(input, "in"));
-
-            if (param.getType().equals(ParameterType.STRING_ARRAY)) {
-                // projections can result in either []string OR []*string -- if the latter, we have to unwrap
-                var target = result.shape().asListShape().get().getMember().getTarget();
-                if (GoPointableIndex.of(ctx.model()).isPointable(target)) {
-                    writer.write("""
-                            deref := []string{}
-                            for _, v := range $L {
-                                if v != nil {
-                                    deref = append(deref, *v)
-                                }
-                            }
-                            p.$L = deref""", result.ident(), capitalize(paramName));
-                } else {
-                    writer.write("p.$L = $L", capitalize(paramName), result.ident());
-                }
-            } else {
-                writer.write("p.$L = $L", capitalize(paramName), result.ident());
-            }
+            writer.write("p.$L = $L", capitalize(paramName), result.ident());
             writer.write("}()");
         };
     }

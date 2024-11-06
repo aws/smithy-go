@@ -21,9 +21,9 @@ import static software.amazon.smithy.go.codegen.SymbolUtils.sliceOf;
 import static software.amazon.smithy.go.codegen.util.ShapeUtil.BOOL_SHAPE;
 import static software.amazon.smithy.go.codegen.util.ShapeUtil.INT_SHAPE;
 import static software.amazon.smithy.go.codegen.util.ShapeUtil.STRING_SHAPE;
-import static software.amazon.smithy.go.codegen.util.ShapeUtil.listOf;
 import static software.amazon.smithy.utils.StringUtils.capitalize;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -63,6 +63,12 @@ public class GoJmespathExpressionGenerator {
     private final GoWriter writer;
 
     private int idIndex = 0;
+
+    // as we traverse an expression, we may produce intermediate "synthetic" lists - e.g. list of string, list of list
+    // of string, etc.
+    // we may need to pull the member shapes back out later, but they're not guaranteed to be in the model - so keep a
+    // shadow map of synthetic -> member to short-circuit the model lookup
+    private final Map<Shape, Shape> synthetics = new HashMap<>();
 
     public GoJmespathExpressionGenerator(GoCodegenContext ctx, GoWriter writer) {
         this.ctx = ctx;
@@ -121,8 +127,17 @@ public class GoJmespathExpressionGenerator {
         var first = items.get(0);
 
         var ident = nextIdent();
-        writer.write("$L := []$P{$L}", ident, first.type,
-                String.join(",", items.stream().map(it -> it.ident).toList()));
+        writer.write("$L := []$T{}", ident, first.type);
+        for (var item : items) {
+            if (isPointable(item.type)) {
+                writer.write("""
+                        if $2L != nil {
+                            $1L = append($1L, *$2L)
+                        }""", ident, item.ident);
+            } else {
+                writer.write("$1L = append($1L, $2L)", ident, item.ident);
+            }
+        }
 
         return new Variable(listOf(first.shape), ident, sliceOf(first.type));
     }
@@ -247,11 +262,13 @@ public class GoJmespathExpressionGenerator {
         writer.indent();
         // projected.shape is the _member_ of the resulting list
         var projected = visit(expr.getRight(), new Variable(leftMember, "v", leftSymbol));
-        if (isPointable(lookahead.type)) { // projections implicitly filter out nil evaluations of RHS
+        if (isPointable(lookahead.type)) { // projections implicitly filter out nil evaluations of RHS...
+            var deref = lookahead.shape instanceof CollectionShape || lookahead.shape instanceof MapShape
+                    ? "" : "*"; // ...but slices/maps do not get dereferenced
             writer.write("""
-                    if $2L != nil {
-                        $1L = append($1L, *$2L)
-                    }""", ident, projected.ident);
+                    if $1L != nil {
+                        $2L = append($2L, $3L$1L)
+                    }""", projected.ident, ident, deref);
         } else {
             writer.write("$1L = append($1L, $2L)", ident, projected.ident);
         }
@@ -348,22 +365,22 @@ public class GoJmespathExpressionGenerator {
         return "v" + idIndex;
     }
 
+    private Shape listOf(Shape shape) {
+        var list = ShapeUtil.listOf(shape);
+        synthetics.putIfAbsent(list, shape);
+        return list;
+    }
+
     private Shape expectMember(CollectionShape shape) {
-        return switch (shape.getMember().getTarget().toString()) {
-            case "smithy.go.synthetic#StringList" -> listOf(STRING_SHAPE);
-            case "smithy.go.synthetic#IntegerList" -> listOf(INT_SHAPE);
-            case "smithy.go.synthetic#BooleanList" -> listOf(BOOL_SHAPE);
-            default -> ShapeUtil.expectMember(ctx.model(), shape);
-        };
+        return synthetics.containsKey(shape)
+                ? synthetics.get(shape)
+                : ShapeUtil.expectMember(ctx.model(), shape);
     }
 
     private Shape expectMember(MapShape shape) {
-        return switch (shape.getValue().getTarget().toString()) {
-            case "smithy.go.synthetic#StringList" -> listOf(STRING_SHAPE);
-            case "smithy.go.synthetic#IntegerList" -> listOf(INT_SHAPE);
-            case "smithy.go.synthetic#BooleanList" -> listOf(BOOL_SHAPE);
-            default -> ShapeUtil.expectMember(ctx.model(), shape);
-        };
+        return synthetics.containsKey(shape)
+                ? synthetics.get(shape)
+                : ShapeUtil.expectMember(ctx.model(), shape);
     }
 
     // helper to generate comparisons from two results, automatically handling any dereferencing in the process
