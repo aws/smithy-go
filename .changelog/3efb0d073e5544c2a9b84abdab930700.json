@@ -1,0 +1,8 @@
+{
+    "id": "3efb0d07-3e55-44c2-a9b8-4abdab930700",
+    "type": "bugfix",
+    "description": "Fix the uri path element replace issue caused by prefix overlap",
+    "modules": [
+        "."
+    ]
+}

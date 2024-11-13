@@ -22,6 +22,7 @@ func bufCap(b []byte, n int) []byte {
 // replacePathElement replaces a single element in the path []byte.
 // Escape is used to control whether the value will be escaped using Amazon path escape style.
 func replacePathElement(path, fieldBuf []byte, key, val string, escape bool) ([]byte, []byte, error) {
+	// search for "{<key>}". If not found, search for the greedy version "{<key>+}". If none are found, return error
 	fieldBuf = bufCap(fieldBuf, len(key)+2) // { <key> }
 	fieldBuf = append(fieldBuf, uriTokenStart)
 	fieldBuf = append(fieldBuf, key...)
