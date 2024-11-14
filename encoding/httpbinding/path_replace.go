@@ -39,7 +39,6 @@ func replacePathElement(path, fieldBuf []byte, key, val string, escape bool) ([]
 
 		start = bytes.Index(path, fieldBuf)
 		if start < 0 {
-			// TODO what to do about error?
 			return path, fieldBuf, fmt.Errorf("invalid path index, start=%d. %s", start, path)
 		}
 		encodeSep = false

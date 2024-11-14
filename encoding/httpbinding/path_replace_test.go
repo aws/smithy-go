@@ -9,6 +9,7 @@ func TestPathReplace(t *testing.T) {
 	cases := []struct {
 		Orig, ExpPath, ExpRawPath []byte
 		Key, Val                  string
+		ExpectErr                 bool
 	}{
 		{
 			Orig:       []byte("/{bucket}/{key+}"),
@@ -52,6 +53,11 @@ func TestPathReplace(t *testing.T) {
 			ExpRawPath: []byte("/value/{namespace}"),
 			Key:        "name", Val: "value",
 		},
+		{
+			Orig: []byte("/{namespace}/{name+}"),
+			Key:  "nam", Val: "value",
+			ExpectErr: true,
+		},
 	}
 
 	var buffer [64]byte
@@ -62,8 +68,17 @@ func TestPathReplace(t *testing.T) {
 
 		path, _, err := replacePathElement(c.Orig, buffer[:0], c.Key, c.Val, false)
 		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
+			if !c.ExpectErr {
+				t.Fatalf("expected no error, got %v", err)
+			}
+		} else if c.ExpectErr {
+			t.Fatalf("expect error, got none")
 		}
+
+		if c.ExpectErr {
+			return
+		}
+
 		rawPath, _, err := replacePathElement(origRaw, buffer[:0], c.Key, c.Val, true)
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
