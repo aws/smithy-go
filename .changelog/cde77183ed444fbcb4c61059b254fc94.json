@@ -1,0 +1,8 @@
+{
+    "id": "cde77183-ed44-4fbc-b4c6-1059b254fc94",
+    "type": "bugfix",
+    "description": "Fix failure to replace URI path segments when their names overlap.",
+    "modules": [
+        "."
+    ]
+}
