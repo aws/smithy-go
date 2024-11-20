@@ -46,7 +46,7 @@ func SetSigV4ASigningName(p *smithy.Properties, name string) {
 	p.Set(sigV4ASigningNameKey{}, name)
 }
 
-// GetSigV4ASigningRegion gets the v4a signing region set from Properties.
+// GetSigV4ASigningRegions gets the v4a signing region set from Properties.
 func GetSigV4ASigningRegions(p *smithy.Properties) ([]string, bool) {
 	v, ok := p.Get(sigV4ASigningRegionsKey{}).([]string)
 	return v, ok
