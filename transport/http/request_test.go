@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -136,7 +135,7 @@ func TestRequestSetStream(t *testing.T) {
 			expectNilBody:       true,
 		},
 		"unseekable no len stream": {
-			reader:                 ioutil.NopCloser(bytes.NewBuffer([]byte("abc123"))),
+			reader:                 io.NopCloser(bytes.NewBuffer([]byte("abc123"))),
 			expectContentLength:    -1,
 			expectNilStream:        false,
 			expectNilBody:          false,

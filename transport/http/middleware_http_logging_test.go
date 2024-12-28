@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
@@ -49,7 +48,7 @@ func TestRequestResponseLogger(t *testing.T) {
 					},
 				},
 			},
-			InputBody: ioutil.NopCloser(bytes.NewReader([]byte(`this is the body`))),
+			InputBody: io.NopCloser(bytes.NewReader([]byte(`this is the body`))),
 			ExpectedLog: "Request\n" +
 				"GET /foo HTTP/1.1\r\n" +
 				"Host: example.amazonaws.com\r\n" +
@@ -75,7 +74,7 @@ func TestRequestResponseLogger(t *testing.T) {
 					ContentLength: 16,
 				},
 			},
-			InputBody: ioutil.NopCloser(bytes.NewReader([]byte(`this is the body`))),
+			InputBody: io.NopCloser(bytes.NewReader([]byte(`this is the body`))),
 			ExpectedLog: "Request\n" +
 				"GET /foo HTTP/1.1\r\n" +
 				"Host: example.amazonaws.com\r\n" +
@@ -98,7 +97,7 @@ func TestRequestResponseLogger(t *testing.T) {
 					Header: map[string][]string{
 						"Foo": {"Bar"},
 					},
-					Body: ioutil.NopCloser(bytes.NewReader([]byte(`this is the body`))),
+					Body: io.NopCloser(bytes.NewReader([]byte(`this is the body`))),
 				},
 			},
 			ExpectedLog: "Response\n" +
@@ -119,7 +118,7 @@ func TestRequestResponseLogger(t *testing.T) {
 					Header: map[string][]string{
 						"Foo": {"Bar"},
 					},
-					Body: ioutil.NopCloser(bytes.NewReader([]byte(`this is the body`))),
+					Body: io.NopCloser(bytes.NewReader([]byte(`this is the body`))),
 				},
 			},
 			ExpectedLog: "Response\n" +

@@ -2,7 +2,7 @@ package middleware_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/aws/smithy-go/logging"
@@ -26,7 +26,7 @@ func TestGetLogger(t *testing.T) {
 		t.Fatal("expect GetLogger to fallback to Nop")
 	}
 
-	standardLogger := logging.NewStandardLogger(ioutil.Discard)
+	standardLogger := logging.NewStandardLogger(io.Discard)
 	ctx := middleware.SetLogger(context.Background(), standardLogger)
 
 	if logger := middleware.GetLogger(ctx); logger == nil {
