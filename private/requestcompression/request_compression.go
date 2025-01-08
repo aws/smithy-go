@@ -10,12 +10,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+
 	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/transport/http"
-	"io"
 )
 
-const MaxRequestMinCompressSizeBytes = 10485760
+// MaxRequestMinCompressSizeBytes is the maximum value allowed for the member MinCompressSizeBytes
+const MaxRequestMinCompressSizeBytes = 10485760 // 10 MB
 
 // Enumeration values for supported compress Algorithms.
 const (
