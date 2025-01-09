@@ -649,6 +649,7 @@ public class Waiters2 implements GoIntegration {
                     });
 
                     writer.write("");
+                    writer.write("if err != nil { return false, err }");
                     writer.write("return true, nil");
                 });
     }
