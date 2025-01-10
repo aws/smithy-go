@@ -124,7 +124,11 @@ public class GoJmespathExpressionGeneratorTest {
         assertThat(actual.ident(), Matchers.equalTo("v2"));
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := input.Nested
-                v2 := v1.NestedField
+                var v2 *string
+                if v1 != nil {
+                    v3 := v1.NestedField
+                    v2 = v3
+                }
                 """));
     }
 
@@ -304,14 +308,18 @@ public class GoJmespathExpressionGeneratorTest {
                 "input"
         ));
         assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
-        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := input.Nested
-                v2 := v1.NestedField
-                v3 := "foo"
-                var v4 bool
+                var v2 *string
+                if v1 != nil {
+                    v3 := v1.NestedField
+                    v2 = v3
+                }
+                v4 := "foo"
+                var v5 bool
                 if v2 != nil   {
-                    v4 = string(*v2) == string(v3)
+                    v5 = string(*v2) == string(v4)
                 }
                 """));
     }
@@ -327,14 +335,18 @@ public class GoJmespathExpressionGeneratorTest {
                 "input"
         ));
         assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
-        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := "foo"
                 v2 := input.Nested
-                v3 := v2.NestedField
-                var v4 bool
+                var v3 *string
+                if v2 != nil {
+                    v4 := v2.NestedField
+                    v3 = v4
+                }
+                var v5 bool
                 if   v3 != nil {
-                    v4 = string(v1) == string(*v3)
+                    v5 = string(v1) == string(*v3)
                 }
                 """));
     }
@@ -350,14 +362,18 @@ public class GoJmespathExpressionGeneratorTest {
                 "input"
         ));
         assertThat(actual.shape(), Matchers.equalTo(ShapeUtil.BOOL_SHAPE));
-        assertThat(actual.ident(), Matchers.equalTo("v4"));
+        assertThat(actual.ident(), Matchers.equalTo("v5"));
         assertThat(writer.toString(), Matchers.containsString("""
                 v1 := input.Nested
-                v2 := v1.NestedField
-                v3 := input.SimpleShape
-                var v4 bool
-                if v2 != nil && v3 != nil {
-                    v4 = string(*v2) == string(*v3)
+                var v2 *string
+                if v1 != nil {
+                    v3 := v1.NestedField
+                    v2 = v3
+                }
+                v4 := input.SimpleShape
+                var v5 bool
+                if v2 != nil && v4 != nil {
+                    v5 = string(*v2) == string(*v4)
                 }
                 """));
     }

@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SymbolUtils.isNilable;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
 import static software.amazon.smithy.go.codegen.SymbolUtils.sliceOf;
 import static software.amazon.smithy.go.codegen.util.ShapeUtil.BOOL_SHAPE;
@@ -280,7 +281,21 @@ public class GoJmespathExpressionGenerator {
 
     private Variable visitSub(Subexpression expr, Variable current) {
         var left = visit(expr.getLeft(), current);
-        return visit(expr.getRight(), left);
+        if (!isNilable(left.type)) {
+            return visit(expr.getRight(), left);
+        }
+
+        var lookahead = new GoJmespathExpressionGenerator(ctx, new GoWriter(""))
+                .generate(expr.getRight(), left);
+        var ident = nextIdent();
+        writer.write("var $L $P", ident, lookahead.type);
+        writer.write("if $L != nil {", left.ident);
+        writer.indent();
+        var inner = visit(expr.getRight(), left);
+        writer.write("$L = $L", ident, inner.ident);
+        writer.dedent();
+        writer.write("}");
+        return new Variable(inner.shape, ident, inner.type);
     }
 
     private Variable visitField(FieldExpression expr, Variable current) {
