@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 )
 
 // Enumeration values for supported compress Algorithms.
@@ -25,7 +24,7 @@ func CompareReaderEmpty(r io.Reader) error {
 	if r == nil {
 		return nil
 	}
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("unable to read from reader, %v", err)
 	}
@@ -41,7 +40,7 @@ func CompareReaderBytes(r io.Reader, expect []byte) error {
 	if r == nil {
 		return fmt.Errorf("missing body")
 	}
-	actual, err := ioutil.ReadAll(r)
+	actual, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("unable to read, %v", err)
 	}
@@ -60,7 +59,7 @@ func CompareJSONReaderBytes(r io.Reader, expect []byte) error {
 	if r == nil {
 		return fmt.Errorf("missing body")
 	}
-	actual, err := ioutil.ReadAll(r)
+	actual, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("unable to read, %v", err)
 	}
@@ -77,7 +76,7 @@ func CompareXMLReaderBytes(r io.Reader, expect []byte) error {
 		return fmt.Errorf("missing body")
 	}
 
-	actual, err := ioutil.ReadAll(r)
+	actual, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func CompareURLFormReaderBytes(r io.Reader, expect []byte) error {
 	if r == nil {
 		return fmt.Errorf("missing body")
 	}
-	actual, err := ioutil.ReadAll(r)
+	actual, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("unable to read, %v", err)
 	}

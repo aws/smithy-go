@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"math"
 	"strings"
 	"testing"
@@ -83,7 +82,7 @@ func TestCompareValues(t *testing.T) {
 				Foo io.Reader
 				Bar int
 			}{
-				Foo: ioutil.NopCloser(strings.NewReader("abc123")),
+				Foo: io.NopCloser(strings.NewReader("abc123")),
 				Bar: 123,
 			},
 		},
@@ -99,7 +98,7 @@ func TestCompareValues(t *testing.T) {
 				Foo io.Reader
 				Bar int
 			}{
-				Foo: ioutil.NopCloser(strings.NewReader("123abc")),
+				Foo: io.NopCloser(strings.NewReader("123abc")),
 				Bar: 123,
 			},
 			ExpectErr: "<root>.Foo: bytes do not match",
