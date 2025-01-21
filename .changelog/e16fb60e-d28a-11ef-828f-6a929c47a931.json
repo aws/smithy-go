@@ -1,14 +1,9 @@
 {
     "id": "e16fb60e-d28a-11ef-828f-6a929c47a931",
     "type": "bugfix",
-    "description": "refactor: fix deprecated for ioutil",
-    "collapse": true,
+    "description": "Replace usages of deprecated ioutil package.",
+    "collapse": false,
     "modules": [
-        ".",
-        "io",
-        "middleware",
-        "private/protocol",
-        "testing",
-        "transport/http"
+        "."
     ]
 }
