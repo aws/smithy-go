@@ -4,6 +4,6 @@
   "collapse": true,
   "description": "transport/http: fix metrics race condition",
   "modules": [
-    "transport/http"
+    "."
   ]
 }
