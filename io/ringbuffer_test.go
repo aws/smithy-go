@@ -3,7 +3,6 @@ package io
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 	"testing"
@@ -449,7 +448,7 @@ func TestRingBufferWriteRead(t *testing.T) {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 
-			actual, err := ioutil.ReadAll(ringBuffer)
+			actual, err := io.ReadAll(ringBuffer)
 			if err != nil {
 				t.Errorf("unexpected error, %v", err)
 				return

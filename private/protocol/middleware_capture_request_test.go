@@ -2,15 +2,15 @@ package protocol
 
 import (
 	"context"
-	"github.com/aws/smithy-go/middleware"
-	smithytesting "github.com/aws/smithy-go/testing"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/aws/smithy-go/middleware"
+	smithytesting "github.com/aws/smithy-go/testing"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // TestAddCaptureRequestMiddleware tests AddCaptureRequestMiddleware
@@ -45,7 +45,7 @@ func TestAddCaptureRequestMiddleware(t *testing.T) {
 					Path:    "test/path",
 					RawPath: "test/path",
 				},
-				Body: ioutil.NopCloser(strings.NewReader("hello world.")),
+				Body: io.NopCloser(strings.NewReader("hello world.")),
 			},
 			ExpectQuery: []smithytesting.QueryItem{
 				{
@@ -95,11 +95,11 @@ func TestAddCaptureRequestMiddleware(t *testing.T) {
 				t.Errorf("expect %v path, got %v", e, a)
 			}
 			if c.ExpectRequest.Body != nil {
-				expect, err := ioutil.ReadAll(c.ExpectRequest.Body)
+				expect, err := io.ReadAll(c.ExpectRequest.Body)
 				if capturedRequest.Body == nil {
 					t.Errorf("Expect request stream %v captured, get nil", string(expect))
 				}
-				actual, err := ioutil.ReadAll(capturedRequest.Body)
+				actual, err := io.ReadAll(capturedRequest.Body)
 				if err != nil {
 					t.Errorf("unable to read captured request body, %v", err)
 				}
