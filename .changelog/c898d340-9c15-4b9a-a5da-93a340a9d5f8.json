@@ -2,7 +2,7 @@
   "id": "c898d340-9c15-4b9a-a5da-93a340a9d5f8",
   "type": "bugfix",
   "collapse": false,
-  "description": "transport/http: fix metrics race condition",
+  "description": "Fix HTTP metrics data race.",
   "modules": [
     "."
   ]
