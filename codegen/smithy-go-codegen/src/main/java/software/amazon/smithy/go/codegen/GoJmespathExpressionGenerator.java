@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isNilable;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
@@ -407,8 +408,30 @@ public class GoJmespathExpressionGenerator {
             return goTemplate("$1L := $5L($2L) $4L $5L($3L)", ident, left.ident, right.ident, cmp, cast);
         }
 
+        // undocumented jmespath behavior: null in numeric comparisons coerces to 0
+        // this means the subsequent nil checks for numerics are moot, but it's either this or branch the codegen even
+        // further for questionable benefit
+        var nilCoerceLeft = emptyGoTemplate();
+        var nilCoerceRight = emptyGoTemplate();
+        if (isLPtr && left.shape instanceof NumberShape) {
+            nilCoerceLeft = goTemplate("""
+                    if ($1L == nil) {
+                        $1L = new($2T)
+                        *$1L = 0
+                    }""", left.ident, left.type);
+        }
+        if (isRPtr && right.shape instanceof NumberShape) {
+            nilCoerceRight = goTemplate("""
+                    if ($1L == nil) {
+                        $1L = new($2T)
+                        *$1L = 0
+                    }""", right.ident, right.type);
+        }
+
         return goTemplate("""
                  var $ident:L bool
+                 $nilCoerceLeft:W
+                 $nilCoerceRight:W
                  if $lif:L $amp:L $rif:L {
                      $ident:L = $cast:L($lhs:L) $cmp:L $cast:L($rhs:L)
                  }""",
@@ -420,7 +443,9 @@ public class GoJmespathExpressionGenerator {
                         "cmp", cmp,
                         "lhs", isLPtr ? "*" + left.ident : left.ident,
                         "rhs", isRPtr ? "*" + right.ident : right.ident,
-                        "cast", cast
+                        "cast", cast,
+                        "nilCoerceLeft", nilCoerceLeft,
+                        "nilCoerceRight", nilCoerceRight
                 ));
     }
 
