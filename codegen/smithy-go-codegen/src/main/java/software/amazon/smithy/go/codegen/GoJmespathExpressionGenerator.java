@@ -430,10 +430,18 @@ public class GoJmespathExpressionGenerator {
             }
         }
 
-        // also, if they're both pointers, and it's equality, there's an additional true case where both are nil
-        var elseCmpBothNull = !isOrderComparator(cmp) && isLPtr && isRPtr
-                ? goTemplate("else { $L = $L == nil && $L == nil }", ident, left.ident, right.ident)
-                : emptyGoTemplate();
+        // also, if they're both pointers, and it's (in)equality, there's an additional true case where both are nil,
+        // or both are different
+        var elseCheckPtrs = emptyGoTemplate();
+        if (isLPtr && isRPtr) {
+            if (cmp == ComparatorType.EQUAL) {
+                elseCheckPtrs = goTemplate("else { $L = $L == nil && $L == nil }",
+                        ident, left.ident, right.ident);
+            } else if (cmp == ComparatorType.NOT_EQUAL) {
+                elseCheckPtrs = goTemplate("else { $1L = ($2L == nil && $3L != nil) || ($2L != nil && $3L == nil) }",
+                        ident, left.ident, right.ident);
+            }
+        }
 
         return goTemplate("""
                  var $ident:L bool
@@ -441,7 +449,7 @@ public class GoJmespathExpressionGenerator {
                  $nilCoerceRight:W
                  if $lif:L $amp:L $rif:L {
                      $ident:L = $cast:L($lhs:L) $cmp:L $cast:L($rhs:L)
-                 }$elseCmpBothNull:W""",
+                 }$elseCheckPtrs:W""",
                 Map.of(
                         "ident", ident,
                         "lif", isLPtr ? left.ident + " != nil" : "",
@@ -455,7 +463,7 @@ public class GoJmespathExpressionGenerator {
                         "nilCoerceRight", nilCoerceRight
                 ),
                 Map.of(
-                        "elseCmpBothNull", elseCmpBothNull
+                        "elseCheckPtrs", elseCheckPtrs
                 ));
     }
 

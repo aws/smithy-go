@@ -608,4 +608,50 @@ public class GoJmespathExpressionGeneratorTest {
                 }
                 """));
     }
+
+    @Test
+    public void testEqualBothNullable() {
+        var expr = "nullableIntegerA == nullableIntegerB";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := input.NullableIntegerB
+                var v3 bool
+
+                if v1 != nil && v2 != nil {
+                    v3 = int64(*v1) == int64(*v2)
+                }else { v3 = v1 == nil && v2 == nil }
+                """));
+    }
+
+    @Test
+    public void testNotEqualBothNullable() {
+        var expr = "nullableIntegerA != nullableIntegerB";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := input.NullableIntegerB
+                var v3 bool
+
+                if v1 != nil && v2 != nil {
+                    v3 = int64(*v1) != int64(*v2)
+                }else { v3 = (v1 == nil && v2 != nil) || (v1 != nil && v2 == nil) }
+                """));
+    }
 }
