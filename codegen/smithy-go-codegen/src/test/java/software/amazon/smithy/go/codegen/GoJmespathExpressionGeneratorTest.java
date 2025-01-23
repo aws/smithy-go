@@ -379,7 +379,7 @@ public class GoJmespathExpressionGeneratorTest {
 
                 if v2 != nil && v4 != nil {
                     v5 = string(*v2) == string(*v4)
-                }
+                }else { v5 = v2 == nil && v4 == nil }
                 """));
     }
 
@@ -553,7 +553,7 @@ public class GoJmespathExpressionGeneratorTest {
     }
 
     @Test
-    public void testComparatorNumberCoercesLeftNullable() {
+    public void testOrderComparatorNumberCoercesLeftNullable() {
         var expr = "nullableIntegerA > `9`";
 
         var writer = testWriter();
@@ -580,7 +580,7 @@ public class GoJmespathExpressionGeneratorTest {
     }
 
     @Test
-    public void testComparatorNumberCoercesBothNullable() {
+    public void testOrderComparatorNumberCoercesBothNullable() {
         var expr = "nullableIntegerA > nullableIntegerB";
 
         var writer = testWriter();
