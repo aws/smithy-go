@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isNilable;
 import static software.amazon.smithy.go.codegen.SymbolUtils.isPointable;
@@ -407,11 +408,48 @@ public class GoJmespathExpressionGenerator {
             return goTemplate("$1L := $5L($2L) $4L $5L($3L)", ident, left.ident, right.ident, cmp, cast);
         }
 
+        // undocumented jmespath behavior: null in numeric _ordering_ comparisons coerces to 0
+        // this means the subsequent nil checks for numerics are moot, but it's either this or branch the codegen even
+        // further for questionable benefit
+        var nilCoerceLeft = emptyGoTemplate();
+        var nilCoerceRight = emptyGoTemplate();
+        if (isOrderComparator(cmp)) {
+            if (isLPtr && left.shape instanceof NumberShape) {
+                nilCoerceLeft = goTemplate("""
+                        if ($1L == nil) {
+                            $1L = new($2T)
+                            *$1L = 0
+                        }""", left.ident, left.type);
+            }
+            if (isRPtr && right.shape instanceof NumberShape) {
+                nilCoerceRight = goTemplate("""
+                        if ($1L == nil) {
+                            $1L = new($2T)
+                            *$1L = 0
+                        }""", right.ident, right.type);
+            }
+        }
+
+        // also, if they're both pointers, and it's (in)equality, there's an additional true case where both are nil,
+        // or both are different
+        var elseCheckPtrs = emptyGoTemplate();
+        if (isLPtr && isRPtr) {
+            if (cmp == ComparatorType.EQUAL) {
+                elseCheckPtrs = goTemplate("else { $L = $L == nil && $L == nil }",
+                        ident, left.ident, right.ident);
+            } else if (cmp == ComparatorType.NOT_EQUAL) {
+                elseCheckPtrs = goTemplate("else { $1L = ($2L == nil && $3L != nil) || ($2L != nil && $3L == nil) }",
+                        ident, left.ident, right.ident);
+            }
+        }
+
         return goTemplate("""
                  var $ident:L bool
+                 $nilCoerceLeft:W
+                 $nilCoerceRight:W
                  if $lif:L $amp:L $rif:L {
                      $ident:L = $cast:L($lhs:L) $cmp:L $cast:L($rhs:L)
-                 }""",
+                 }$elseCheckPtrs:W""",
                 Map.of(
                         "ident", ident,
                         "lif", isLPtr ? left.ident + " != nil" : "",
@@ -420,8 +458,18 @@ public class GoJmespathExpressionGenerator {
                         "cmp", cmp,
                         "lhs", isLPtr ? "*" + left.ident : left.ident,
                         "rhs", isRPtr ? "*" + right.ident : right.ident,
-                        "cast", cast
+                        "cast", cast,
+                        "nilCoerceLeft", nilCoerceLeft,
+                        "nilCoerceRight", nilCoerceRight
+                ),
+                Map.of(
+                        "elseCheckPtrs", elseCheckPtrs
                 ));
+    }
+
+    private static boolean isOrderComparator(ComparatorType cmp) {
+        return cmp == ComparatorType.GREATER_THAN || cmp == ComparatorType.LESS_THAN
+                || cmp == ComparatorType.GREATER_THAN_EQUAL || cmp == ComparatorType.LESS_THAN_EQUAL;
     }
 
     /**

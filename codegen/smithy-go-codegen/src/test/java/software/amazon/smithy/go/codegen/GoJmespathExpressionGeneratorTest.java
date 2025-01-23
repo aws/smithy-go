@@ -43,6 +43,8 @@ public class GoJmespathExpressionGeneratorTest {
                 objectList: ObjectList
                 objectMap: ObjectMap
                 nested: NestedStruct
+                nullableIntegerA: Integer
+                nullableIntegerB: Integer
             }
 
             structure Object {
@@ -318,6 +320,7 @@ public class GoJmespathExpressionGeneratorTest {
                 }
                 v4 := "foo"
                 var v5 bool
+
                 if v2 != nil   {
                     v5 = string(*v2) == string(v4)
                 }
@@ -345,6 +348,7 @@ public class GoJmespathExpressionGeneratorTest {
                     v3 = v4
                 }
                 var v5 bool
+
                 if   v3 != nil {
                     v5 = string(v1) == string(*v3)
                 }
@@ -372,9 +376,10 @@ public class GoJmespathExpressionGeneratorTest {
                 }
                 v4 := input.SimpleShape
                 var v5 bool
+
                 if v2 != nil && v4 != nil {
                     v5 = string(*v2) == string(*v4)
-                }
+                }else { v5 = v2 == nil && v4 == nil }
                 """));
     }
 
@@ -544,6 +549,109 @@ public class GoJmespathExpressionGeneratorTest {
                 for _, v := range v2 {
                     v5 = append(v5, v...)
                 }
+                """));
+    }
+
+    @Test
+    public void testOrderComparatorNumberCoercesLeftNullable() {
+        var expr = "nullableIntegerA > `9`";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := 9
+                var v3 bool
+                if (v1 == nil) {
+                    v1 = new(int32)
+                    *v1 = 0
+                }
+
+                if v1 != nil   {
+                    v3 = int64(*v1) > int64(v2)
+                }
+                """));
+    }
+
+    @Test
+    public void testOrderComparatorNumberCoercesBothNullable() {
+        var expr = "nullableIntegerA > nullableIntegerB";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := input.NullableIntegerB
+                var v3 bool
+                if (v1 == nil) {
+                    v1 = new(int32)
+                    *v1 = 0
+                }
+                if (v2 == nil) {
+                    v2 = new(int32)
+                    *v2 = 0
+                }
+                if v1 != nil && v2 != nil {
+                    v3 = int64(*v1) > int64(*v2)
+                }
+                """));
+    }
+
+    @Test
+    public void testEqualBothNullable() {
+        var expr = "nullableIntegerA == nullableIntegerB";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := input.NullableIntegerB
+                var v3 bool
+
+                if v1 != nil && v2 != nil {
+                    v3 = int64(*v1) == int64(*v2)
+                }else { v3 = v1 == nil && v2 == nil }
+                """));
+    }
+
+    @Test
+    public void testNotEqualBothNullable() {
+        var expr = "nullableIntegerA != nullableIntegerB";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape().toShapeId().toString(), Matchers.equalTo("smithy.api#PrimitiveBoolean"));
+        assertThat(actual.ident(), Matchers.equalTo("v3"));
+        assertThat(writer.toString(), Matchers.containsString("""
+                v1 := input.NullableIntegerA
+                v2 := input.NullableIntegerB
+                var v3 bool
+
+                if v1 != nil && v2 != nil {
+                    v3 = int64(*v1) != int64(*v2)
+                }else { v3 = (v1 == nil && v2 != nil) || (v1 != nil && v2 == nil) }
                 """));
     }
 }
