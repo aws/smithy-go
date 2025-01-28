@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.protocol;
 import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createSerializeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -53,7 +54,6 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
         var name = ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), ctx.getService(),
                 generator.getProtocolName());
         var middleware = createSerializeStepMiddleware(name, ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
-
         writer.write(middleware.asWritable(generateHandleSerialize(), emptyGoTemplate()));
     }
 
@@ -63,6 +63,10 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
 
     private GoWriter.Writable generateHandleSerialize() {
         return goTemplate("""
+                _, span := $startSpan:T(ctx, "OperationSerializer")
+                endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+                defer endTimer()
+                defer span.End()
                 input, ok := in.Parameters.($input:P)
                 if !ok {
                     return out, metadata, $errorf:T("unexpected input type %T", in.Parameters)
@@ -81,6 +85,7 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
                 return next.HandleSerialize(ctx, in)
                 """,
                 MapUtils.of(
+                        "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "input", ctx.getSymbolProvider().toSymbol(input),
                         "request", generator.getApplicationProtocol().getRequestType(),
                         "route", generateRouteRequest(),
