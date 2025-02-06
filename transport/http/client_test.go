@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	smithy "github.com/aws/smithy-go"
 )
@@ -64,6 +65,42 @@ func TestClientHandler_Handle(t *testing.T) {
 				return nil
 			},
 		},
+		"context timeout": {
+			Context: func() context.Context {
+				ctx, fn := context.WithTimeout(context.Background(), time.Millisecond)
+				fn()
+				return ctx
+			}(),
+			Client: ClientDoFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{}, nil
+			}),
+			ExpectErr: func(err error) error {
+				var cancelError *smithy.CanceledError
+				if !errors.As(err, &cancelError) {
+					return fmt.Errorf("expect error to be %T, %v", cancelError, err)
+				}
+
+				return nil
+			},
+		},
+		"context deadline": {
+			Context: func() context.Context {
+				ctx, fn := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond))
+				fn()
+				return ctx
+			}(),
+			Client: ClientDoFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{}, nil
+			}),
+			ExpectErr: func(err error) error {
+				var cancelError *smithy.CanceledError
+				if !errors.As(err, &cancelError) {
+					return fmt.Errorf("expect error to be %T, %v", cancelError, err)
+				}
+
+				return nil
+			},
+		},
 	}
 
 	for name, c := range cases {
@@ -75,6 +112,7 @@ func TestClientHandler_Handle(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expect error, got none")
 				}
+
 				if err = c.ExpectErr(err); err != nil {
 					t.Fatalf("expect error match failed, %v", err)
 				}

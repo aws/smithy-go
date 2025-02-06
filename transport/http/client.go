@@ -98,6 +98,7 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 			Body:   http.NoBody,
 		}
 	}
+
 	if err != nil {
 		err = &RequestSendError{Err: err}
 
@@ -106,6 +107,13 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 		case <-ctx.Done():
 			err = &smithy.CanceledError{Err: ctx.Err()}
 		default:
+		}
+
+	} else {
+
+		// Even if there is no error, we're checking context has timed out
+		if ctx.Err() != nil {
+			err = &smithy.CanceledError{Err: ctx.Err()}
 		}
 	}
 

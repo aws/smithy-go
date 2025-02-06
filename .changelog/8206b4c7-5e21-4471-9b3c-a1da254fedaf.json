@@ -1,0 +1,9 @@
+{
+  "id": "8206b4c7-5e21-4471-9b3c-a1da254fedaf",
+  "type": "bugfix",
+  "collapse": false,
+  "description": "Fix context.Context with deadline and timeout.",
+  "modules": [
+    "."
+  ]
+}
