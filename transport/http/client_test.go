@@ -61,43 +61,59 @@ func TestClientHandler_Handle(t *testing.T) {
 				if !errors.As(err, &cancelError) {
 					return fmt.Errorf("expect error to be %T, %v", cancelError, err)
 				}
-
+				if !errors.Is(cancelError.Err, context.Canceled) {
+					return fmt.Errorf("expect underlying error to be context.Canceled, got %v", cancelError.Err)
+				}
 				return nil
 			},
 		},
 		"context timeout": {
 			Context: func() context.Context {
-				ctx, fn := context.WithTimeout(context.Background(), time.Millisecond)
+				ctx, fn := context.WithTimeout(context.Background(), 5*time.Millisecond)
 				fn()
 				return ctx
 			}(),
-			Client: ClientDoFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{}, nil
+			Client: ClientDoFunc(func(req *http.Request) (*http.Response, error) {
+				select {
+				case <-time.After(50 * time.Millisecond):
+					return &http.Response{}, nil
+				case <-req.Context().Done():
+					return nil, req.Context().Err()
+				}
 			}),
 			ExpectErr: func(err error) error {
 				var cancelError *smithy.CanceledError
 				if !errors.As(err, &cancelError) {
 					return fmt.Errorf("expect error to be %T, %v", cancelError, err)
 				}
-
+				if !errors.Is(cancelError.Err, context.Canceled) {
+					return fmt.Errorf("expect underlying error to be context.Canceled, got %v", cancelError.Err)
+				}
 				return nil
 			},
 		},
 		"context deadline": {
 			Context: func() context.Context {
-				ctx, fn := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond))
+				ctx, fn := context.WithDeadline(context.Background(), time.Now().Add(50*time.Millisecond))
 				fn()
 				return ctx
 			}(),
-			Client: ClientDoFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{}, nil
+			Client: ClientDoFunc(func(req *http.Request) (*http.Response, error) {
+				select {
+				case <-time.After(500 * time.Millisecond):
+					return &http.Response{}, nil
+				case <-req.Context().Done():
+					return nil, req.Context().Err()
+				}
 			}),
 			ExpectErr: func(err error) error {
 				var cancelError *smithy.CanceledError
 				if !errors.As(err, &cancelError) {
 					return fmt.Errorf("expect error to be %T, %v", cancelError, err)
 				}
-
+				if !errors.Is(cancelError.Err, context.Canceled) {
+					return fmt.Errorf("expect underlying error to be context.Canceled, got %v", cancelError.Err)
+				}
 				return nil
 			},
 		},

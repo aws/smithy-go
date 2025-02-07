@@ -98,25 +98,15 @@ func (c ClientHandler) Handle(ctx context.Context, input interface{}) (
 			Body:   http.NoBody,
 		}
 	}
-
 	if err != nil {
-		err = &RequestSendError{Err: err}
-
-		// Override the error with a context canceled error, if that was canceled.
-		select {
-		case <-ctx.Done():
-			err = &smithy.CanceledError{Err: ctx.Err()}
-		default:
-		}
-
-	} else {
-
-		// Even if there is no error, we're checking context has timed out
+		// Context was canceled or timed out
 		if ctx.Err() != nil {
 			err = &smithy.CanceledError{Err: ctx.Err()}
+		} else {
+			// HTTP error occurred
+			err = &RequestSendError{Err: err}
 		}
 	}
-
 	// HTTP RoundTripper *should* close the request body. But this may not happen in a timely manner.
 	// So instead Smithy *Request Build wraps the body to be sent in a safe closer that will clear the
 	// stream reference so that it can be safely reused.
