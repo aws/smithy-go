@@ -1,3 +1,12 @@
+# Release (2025-02-17)
+
+## General Highlights
+* **Dependency Update**: Updated to the latest SDK module versions
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.22.3
+ *  **Dependency Update**: Bump minimum Go version to 1.22 per our language support policy.
+
 # Release (2025-01-21)
 
 ## General Highlights
