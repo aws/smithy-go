@@ -51,12 +51,10 @@ cover:
 .PHONY: unit unit-race unit-test unit-race-test
 
 unit: verify
-	go vet ${BUILD_TAGS} --all ./... && \
 	go test ${BUILD_TAGS} ${RUN_NONE} ./... && \
 	go test -timeout=1m ${UNIT_TEST_TAGS} ./...
 
 unit-race: verify
-	go vet ${BUILD_TAGS} --all ./... && \
 	go test ${BUILD_TAGS} ${RUN_NONE} ./... && \
 	go test -timeout=1m ${UNIT_TEST_TAGS} -race -cpu=4 ./...
 

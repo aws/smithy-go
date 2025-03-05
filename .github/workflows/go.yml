@@ -23,4 +23,4 @@ jobs:
         go-version: ${{ matrix.go-version }}
 
     - name: Test
-      run: go test -v ./...
+      run: make unit-race
