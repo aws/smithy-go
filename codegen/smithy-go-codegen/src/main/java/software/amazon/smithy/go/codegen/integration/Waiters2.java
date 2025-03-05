@@ -553,7 +553,6 @@ public class Waiters2 implements GoIntegration {
                                 break;
 
                             case "inputOutput":
-                                writer.addUseImports(SmithyGoDependency.GO_JMESPATH);
                                 writer.addUseImports(SmithyGoDependency.FMT);
 
                                 Matcher.InputOutputMember ioMember = (Matcher.InputOutputMember) matcher;
