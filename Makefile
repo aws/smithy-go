@@ -36,7 +36,7 @@ GRADLE_SLEEP := 2
 ensure-gradle-up:
 	@cd codegen && for i in $(shell seq 1 $(GRADLE_RETRIES)); do \
 		echo "Checking if Gradle daemon is up, attempt $$i..."; \
-		if ./gladlew help; then \
+		if ./gradlew help; then \
 			echo "Gradle daemon is up!"; \
 			exit 0; \
 		fi; \
