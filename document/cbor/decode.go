@@ -48,7 +48,7 @@ func (d *decoder) Decode(v cbor.Value, to interface{}) error {
 
 	rv := reflect.ValueOf(to)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() || !rv.IsValid() {
-		return &document.InvalidUnmarshalError{reflect.TypeOf(to)}
+		return &document.InvalidUnmarshalError{Type: reflect.TypeOf(to)}
 	}
 
 	return d.decode(v, rv, serde.Tag{})
