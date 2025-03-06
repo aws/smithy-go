@@ -30,6 +30,22 @@ smithy-build:
 smithy-clean:
 	cd codegen && ./gradlew clean
 
+GRADLE_RETRIES := 3
+GRADLE_SLEEP := 2
+
+ensure-gradle-up:
+	@cd codegen && for i in $(shell seq 1 $(GRADLE_RETRIES)); do \
+		echo "Checking if Gradle daemon is up, attempt $$i..."; \
+		if ./gladlew help; then \
+			echo "Gradle daemon is up!"; \
+			exit 0; \
+		fi; \
+		echo "Failed to start Gradle, retrying in $(GRADLE_SLEEP) seconds..."; \
+		sleep $(GRADLE_SLEEP); \
+	done; \
+	echo "Failed to start Gradle after $(GRADLE_RETRIES) attempts."; \
+	exit 1
+
 ##################
 # Linting/Verify #
 ##################
