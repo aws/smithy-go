@@ -33,6 +33,8 @@ smithy-clean:
 GRADLE_RETRIES := 3
 GRADLE_SLEEP := 2
 
+# We're making a call to ./gradlew to trigger downloading Gradle and
+# starting the daemon. Any call works, so using `./gradlew help`
 ensure-gradle-up:
 	@cd codegen && for i in $(shell seq 1 $(GRADLE_RETRIES)); do \
 		echo "Checking if Gradle daemon is up, attempt $$i..."; \
