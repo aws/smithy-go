@@ -78,6 +78,8 @@ public abstract class DeserializeResponseMiddleware implements GoWriter.Writable
 
                 $deserialize:W
 
+                endTimer()
+                span.End()
                 return out, metadata, nil
                 """,
                 MapUtils.of(
