@@ -82,6 +82,9 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
 
                 $serialize:W
 
+                endTimer()
+                span.End()
+
                 return next.HandleSerialize(ctx, in)
                 """,
                 MapUtils.of(
