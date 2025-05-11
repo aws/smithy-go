@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"sort"
 
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/document/internal/serde"
@@ -181,7 +182,18 @@ func (e *Encoder) encodeMap(vp valueProvider, rv reflect.Value) error {
 	object := vp.GetValue().Object()
 	defer object.Close()
 
-	for _, key := range rv.MapKeys() {
+	// Get all keys
+	keys := rv.MapKeys()
+
+	// Sort the keys for deterministic JSON output
+	sort.Slice(keys, func(i, j int) bool {
+		// Convert keys to strings for consistent comparison
+		iStr := fmt.Sprint(keys[i].Interface())
+		jStr := fmt.Sprint(keys[j].Interface())
+		return iStr < jStr
+	})
+
+	for _, key := range keys {
 		keyName := fmt.Sprint(key.Interface())
 		if keyName == "" {
 			return &document.InvalidMarshalError{Message: "map key cannot be empty"}
