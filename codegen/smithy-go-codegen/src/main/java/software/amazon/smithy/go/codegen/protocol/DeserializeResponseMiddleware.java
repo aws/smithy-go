@@ -62,11 +62,13 @@ public abstract class DeserializeResponseMiddleware implements GoWriter.Writable
 
     private GoWriter.Writable generateHandleDeserialize() {
         return goTemplate("""
+                out, metadata, err = next.HandleDeserialize(ctx, in)
+
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
                 defer endTimer()
                 defer span.End()
-                out, metadata, err = next.HandleDeserialize(ctx, in)
+
                 if err != nil {
                     return out, metadata, err
                 }
@@ -78,8 +80,6 @@ public abstract class DeserializeResponseMiddleware implements GoWriter.Writable
 
                 $deserialize:W
 
-                endTimer()
-                span.End()
                 return out, metadata, nil
                 """,
                 MapUtils.of(
