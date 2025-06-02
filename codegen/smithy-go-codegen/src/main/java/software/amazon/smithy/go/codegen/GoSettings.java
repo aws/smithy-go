@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,7 +40,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  */
 @SmithyInternalApi
 public final class GoSettings {
-    public static final Set<ShapeId> PROTOCOLS_BY_PRIORITY = Set.of(
+    public static final List<ShapeId> PROTOCOLS_BY_PRIORITY = List.of(
             Rpcv2CborTrait.ID,
             AwsJson1_0Trait.ID,
             AwsJson1_1Trait.ID,
