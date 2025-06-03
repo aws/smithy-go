@@ -862,6 +862,10 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                             writeHeaderBinding(context, memberShape, operand, location, "locationName", "encoder");
                             break;
                         case PREFIX_HEADERS:
+                            // the prefix is allowed to be empty for headers, this simply means that there is none
+                            // and map keys are used directly as headers
+                            var prefix = binding.getLocationName();
+
                             MemberShape valueMemberShape = model.expectShape(targetShape.getId(),
                                     MapShape.class).getValue();
                             Shape valueMemberTarget = model.expectShape(valueMemberShape.getTarget());
@@ -872,7 +876,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                                         + valueMemberShape.getId());
                             }
 
-                            writer.write("hv := encoder.Headers($S)", getCanonicalHeader(locationName));
+                            writer.write("hv := encoder.Headers($S)", getCanonicalHeader(prefix));
                             writer.addUseImports(SmithyGoDependency.NET_HTTP);
                             writer.openBlock("for mapKey, mapVal := range $L {", "}", operand, () -> {
                                 writeHeaderBinding(context, valueMemberShape, "mapVal", location,
