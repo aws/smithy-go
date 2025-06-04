@@ -195,14 +195,14 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
 
     private GoWriter.Writable deserializeAwsQueryError() {
         return goTemplate("""
-                if qtype := getAwsQueryErrorCode(resp); len(qt) > 0 {
+                if qtype := getAwsQueryErrorCode(resp); len(qtype) > 0 {
                     typ = qtype
                 }""");
     }
 
     private GoWriter.Writable deserializeModeledAwsQueryError() {
         return goTemplate("""
-                if qtype := getAwsQueryErrorCode(resp); len(qt) > 0 {
+                if qtype := getAwsQueryErrorCode(resp); len(qtype) > 0 {
                     verr.ErrorCodeOverride = $T(qtype)
                 }""", SmithyGoTypes.Ptr.String);
     }
