@@ -215,15 +215,38 @@ public final class CborSerializerGenerator {
 
         var symbol = symbolProvider.toSymbol(member);
         return switch (target.getType()) {
-            case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, STRING, BOOLEAN, TIMESTAMP ->
+            case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN, TIMESTAMP ->
                     isPointable(symbol)
                             ? serializeNilableMember(member, target, true)
                             : serializeMember(member, target);
             case BLOB, LIST, SET, MAP, STRUCTURE, UNION ->
                     serializeNilableMember(member, target, false);
+            case STRING ->
+                    isPointable(symbol)
+                            ? serializeNilableMember(member, target, true)
+                            : serializeString(member, target);
+            case ENUM ->
+                    serializeString(member, target);
             default ->
                     serializeMember(member, target);
         };
+    }
+
+    private GoWriter.Writable serializeString(MemberShape member, Shape target) {
+        return goTemplate("""
+               if len(v.$field:L) > 0 {
+                   ser, err := $serialize:L(v.$field:L)
+                   if err != nil {
+                       return nil, err
+                   }
+                   vm[$key:S] = ser
+               }
+               """,
+                MapUtils.of(
+                        "field", symbolProvider.toMemberName(member),
+                        "key", member.getMemberName(),
+                        "serialize", getSerializerName(target)
+                ));
     }
 
     private GoWriter.Writable serializeNilableMember(MemberShape member, Shape target, boolean deref) {
