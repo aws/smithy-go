@@ -1,0 +1,8 @@
+{
+    "id": "9ac5f902-6a91-46ff-b605-76f2b7c79f7c",
+    "type": "bugfix",
+    "description": "Fix CBOR serd empty check for string and enum fields",
+    "modules": [
+        "."
+    ]
+}
