@@ -21,7 +21,6 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenera
 import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenerator.SMITHY_PROTOCOL_NAME;
 import static software.amazon.smithy.go.codegen.serde.cbor.CborSerializerGenerator.getSerializerName;
 
-import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
@@ -55,8 +54,6 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
         }
 
         return goTemplate("""
-                $awsQueryCompatible:W
-
                 cv, err := $serialize:L(input)
                 if err != nil {
                     return out, metadata, &$error:T{Err: err}
@@ -73,16 +70,7 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
                         "serialize", getSerializerName(input),
                         "encode", SmithyGoTypes.Encoding.Cbor.Encode,
                         "reader", GoStdlibTypes.Bytes.NewReader,
-                        "error", SmithyGoTypes.Smithy.SerializationError,
-                        "awsQueryCompatible", ctx.getService().hasTrait(AwsQueryCompatibleTrait.class)
-                                ? setAwsQueryModeHeader()
-                                : emptyGoTemplate()
+                        "error", SmithyGoTypes.Smithy.SerializationError
                 ));
-    }
-
-    private GoWriter.Writable setAwsQueryModeHeader() {
-        return goTemplate("""
-                req.Header.Set("X-Amzn-Query-Mode", "true")
-                """);
     }
 }
