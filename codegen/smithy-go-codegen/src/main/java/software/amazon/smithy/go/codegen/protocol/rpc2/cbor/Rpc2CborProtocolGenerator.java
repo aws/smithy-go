@@ -136,7 +136,10 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                     }
 
                     _ = v
-                    switch string(typ) {
+                    // namespace can be mangled by service, so matching by error shape name
+                    errorParts := strings.Split(typ, "#")
+                    errorName := errorParts[len(errorParts)-1]
+                    switch string(errorName) {
                     $errors:W
                     default:
                         $awsQueryCompatible:W
@@ -170,7 +173,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
 
     private GoWriter.Writable deserializeErrorCase(GenerationContext ctx, StructureShape error) {
         return goTemplate("""
-                case $type:S:
+                case $errorType:S:
                     verr, err := $deserialize:L(v)
                     if err != nil {
                         return &$deserError:T{
@@ -182,6 +185,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                     return verr
                 """,
                 MapUtils.of(
+                        "errorType", error.getId().getName(),
                         "deserError", SmithyGoDependency.SMITHY.pointableSymbol("DeserializationError"),
                         "deserialize", getDeserializerName(error),
                         "equalFold", SmithyGoDependency.STRINGS.func("EqualFold"),
@@ -191,6 +195,10 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                                 ? deserializeModeledAwsQueryError()
                                 : emptyGoTemplate()
                 ));
+    }
+
+    private String getShapeName(ShapeId id) {
+        return id.getName() + "Error";
     }
 
     private GoWriter.Writable deserializeAwsQueryError() {
