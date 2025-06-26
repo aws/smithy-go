@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen.protocol.rpc2;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -54,6 +55,7 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
 
                 $contentTypeHeader:W
                 $acceptHeader:W
+                $awsQueryCompatible:W
                 """,
                 MapUtils.of(
                         "methodPost", GoStdlibTypes.Net.Http.MethodPost,
@@ -61,7 +63,10 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
                         "operation", operation.getId().getName(),
                         "protocol", getProtocolName(),
                         "contentTypeHeader", setContentTypeHeader(),
-                        "acceptHeader", acceptHeader()
+                        "acceptHeader", acceptHeader(),
+                        "awsQueryCompatible", ctx.getService().hasTrait(AwsQueryCompatibleTrait.class)
+                                ? setAwsQueryModeHeader()
+                                : emptyGoTemplate()
                 ));
     }
 
@@ -79,6 +84,12 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
         return goTemplate("""
                 req.Header.Set("Accept", $S)
                 """, isOutputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
+    }
+
+    private GoWriter.Writable setAwsQueryModeHeader() {
+        return goTemplate("""
+                req.Header.Set("X-Amzn-Query-Mode", "true")
+                """);
     }
 
     private boolean isInputEventStream() {
