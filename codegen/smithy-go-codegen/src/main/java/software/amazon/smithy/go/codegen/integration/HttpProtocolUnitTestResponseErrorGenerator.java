@@ -123,7 +123,16 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
             }
         });
 
-        writeStructField(writer, "ExpectError", errorShape, testCase.getParams());
+        var errorParams = testCase.getParams();
+
+        // inject query-compatible ErrorCodeOverride if present
+        var vendorParamsShape = testCase.getVendorParamsShape();
+        if (testCase.getHeaders().containsKey("x-amzn-query-error") && vendorParamsShape.isPresent()) {
+            var vp = testCase.getVendorParams();
+            errorParams = errorParams.withMember("ErrorCodeOverride", vp.expectStringMember("code").getValue());
+        }
+
+        writeStructField(writer, "ExpectError", errorShape, errorParams);
     }
 
     /**

@@ -589,6 +589,13 @@ public final class ShapeValueGenerator {
                 MemberShape member;
                 switch (currentShape.getType()) {
                     case STRUCTURE:
+                        // query-compatible error code override field isn't modeled, short-circuit here
+                        if (keyNode.getValue().equals("ErrorCodeOverride")) {
+                            var value = valueNode.expectStringNode().getValue();
+                            writer.write("ErrorCodeOverride: ptr.String($S),", value);
+                            break;
+                        }
+
                         if (currentShape.asStructureShape().get().getMember(keyNode.getValue()).isPresent()) {
                             member = currentShape.asStructureShape().get().getMember(keyNode.getValue()).get();
                         } else {
