@@ -6,6 +6,7 @@ software.amazon.smithy.go.codegen.integration.EndpointHostPrefixMiddleware
 software.amazon.smithy.go.codegen.integration.OperationInterfaceGenerator
 software.amazon.smithy.go.codegen.integration.ClientLogger
 software.amazon.smithy.go.codegen.endpoints.EndpointClientPluginsGenerator
+software.amazon.smithy.go.codegen.integration.OperationInterceptors
 
 # modeled auth schemes
 software.amazon.smithy.go.codegen.integration.auth.SigV4AuthScheme
