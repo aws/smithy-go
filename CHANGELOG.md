@@ -5,6 +5,7 @@
 
 ## Module Highlights
 * `github.com/aws/smithy-go`: v1.22.5
+  * **Feature**: Add HTTP interceptors.
   * **Bug Fix**: Fix HTTP metrics data race.
   * **Bug Fix**: Replace usages of deprecated ioutil package.
 
