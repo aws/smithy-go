@@ -290,33 +290,6 @@ func (m *InterceptAfterDeserialization) HandleDeserialize(
 	return out, md, err
 }
 
-// InterceptAfterExecution runs AfterExecutionInterceptors.
-type InterceptAfterExecution struct {
-	Interceptors []AfterExecutionInterceptor
-}
-
-// ID identifies the middleware.
-func (m *InterceptAfterExecution) ID() string {
-	return "InterceptAfterExecution"
-}
-
-// HandleInitialize runs the interceptors.
-func (m *InterceptAfterExecution) HandleInitialize(
-	ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler,
-) (
-	out middleware.InitializeOutput, md middleware.Metadata, err error,
-) {
-	out, md, err = next.HandleInitialize(ctx, in)
-
-	for _, i := range m.Interceptors {
-		if err := i.AfterExecution(ctx, getIctx(ctx)); err != nil {
-			return out, md, err
-		}
-	}
-
-	return out, md, err
-}
-
 // InterceptAttempt runs AfterAttemptInterceptors.
 type InterceptAttempt struct {
 	BeforeAttempt []BeforeAttemptInterceptor
