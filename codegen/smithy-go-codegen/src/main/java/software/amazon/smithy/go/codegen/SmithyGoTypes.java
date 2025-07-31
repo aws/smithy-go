@@ -20,7 +20,6 @@ import software.amazon.smithy.codegen.core.Symbol;
 /**
  * Collection of Symbol constants for types in the smithy-go runtime.
  */
-@SuppressWarnings({"checkstyle:ConstantName", "checkstyle:LineLength"})
 public final class SmithyGoTypes {
     private SmithyGoTypes() { }
 

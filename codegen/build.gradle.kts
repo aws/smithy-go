@@ -17,7 +17,6 @@ plugins {
     `java-library`
     `maven-publish`
     signing
-    checkstyle
     jacoco
     id("com.github.spotbugs") version "4.7.4"
     id("io.codearte.nexus-staging") version "0.30.0"
@@ -195,18 +194,6 @@ subprojects {
                 useInMemoryPgpKeys(signingKey, signingPassword)
                 sign(publishing.publications["mavenJava"])
             }
-        }
-
-        /*
-         * CheckStyle
-         * ====================================================
-         */
-        apply(plugin = "checkstyle")
-
-        tasks["checkstyleTest"].enabled = false
-
-        checkstyle {
-            toolVersion = "10.17.0"
         }
 
         /*

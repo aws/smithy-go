@@ -62,7 +62,6 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 """);
     }
 
-    @SuppressWarnings({"checkstyle:LineLength"})
     private GoWriter.Writable generateContextApis() {
         return goTemplate("""
                 type operationMetricsKey struct{}

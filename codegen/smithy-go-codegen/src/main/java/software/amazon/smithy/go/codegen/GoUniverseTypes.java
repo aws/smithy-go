@@ -21,7 +21,6 @@ import software.amazon.smithy.codegen.core.Symbol;
  * Collection of Symbol constants for golang universe types.
  * See <a href="https://go.dev/ref/spec#Predeclared_identifiers">predeclared identifiers</a>.
  */
-@SuppressWarnings("checkstyle:ConstantName")
 public final class GoUniverseTypes {
     public static final Symbol Any = universe("any");
     public static final Symbol Bool = universe("bool");

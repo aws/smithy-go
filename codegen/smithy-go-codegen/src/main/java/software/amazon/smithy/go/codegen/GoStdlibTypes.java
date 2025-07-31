@@ -20,7 +20,6 @@ import software.amazon.smithy.codegen.core.Symbol;
 /**
  * Collection of Symbol constants for types in the go standard library.
  */
-@SuppressWarnings({"checkstyle:ConstantName", "checkstyle:LineLength"})
 public final class GoStdlibTypes {
     private GoStdlibTypes() { }
 

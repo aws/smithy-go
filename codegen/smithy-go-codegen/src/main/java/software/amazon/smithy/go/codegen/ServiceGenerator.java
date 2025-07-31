@@ -339,7 +339,6 @@ final class ServiceGenerator implements Runnable {
                 schemeMappings);
     }
 
-    @SuppressWarnings("checkstyle:LineLength")
     private GoWriter.Writable generateInvokeOperation() {
         return goTemplate("""
                 $middleware:D $tracing:D
