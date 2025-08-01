@@ -31,6 +31,7 @@ This repository implements the following Smithy build plugins:
 |----|------------|-------------|
 | `go-codegen`        | `software.amazon.smithy.go:smithy-go-codegen` | Implements Go client code generation for Smithy models. |
 | `go-server-codegen` | `software.amazon.smithy.go:smithy-go-codegen` | Implements Go server code generation for Smithy models. |
+| `go-shape-codegen` | `software.amazon.smithy.go:smithy-go-codegen` | Implements Go shape code generation (types only) for Smithy models. |
 
 **NOTE: Build plugins are not currently published to mavenCentral. You must publish to mavenLocal to make the build plugins visible to the Smithy CLI. The artifact version is currently fixed at 0.1.0.**
 
@@ -84,6 +85,10 @@ example created from `smithy init`:
 ```
 
 ## `go-server-codegen`
+
+This plugin is a work-in-progress and is currently undocumented.
+
+## `go-shape-codegen`
 
 This plugin is a work-in-progress and is currently undocumented.
 

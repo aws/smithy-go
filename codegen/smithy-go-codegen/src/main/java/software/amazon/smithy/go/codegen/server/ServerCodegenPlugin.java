@@ -19,6 +19,7 @@ import java.util.logging.Logger;
 import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.build.SmithyBuildPlugin;
 import software.amazon.smithy.codegen.core.directed.CodegenDirector;
+import software.amazon.smithy.go.codegen.AbstractDirectedCodegen;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -61,27 +62,6 @@ public final class ServerCodegenPlugin implements SmithyBuildPlugin {
     }
 
     private void generate(PluginContext context) {
-        CodegenDirector<GoWriter,
-                GoIntegration,
-                GoCodegenContext,
-                GoSettings> runner = new CodegenDirector<>();
-
-        runner.model(context.getModel());
-        runner.directedCodegen(new ServerDirectedCodegen());
-
-        runner.integrationClass(GoIntegration.class);
-
-        runner.fileManifest(context.getFileManifest());
-
-        GoSettings settings = runner.settings(GoSettings.class,
-                context.getSettings());
-
-        runner.service(settings.getService());
-
-        runner.performDefaultCodegenTransforms();
-        runner.createDedicatedInputsAndOutputs();
-        runner.changeStringEnumsToEnumShapes(false);
-
-        runner.run();
+        AbstractDirectedCodegen.run(context, new ServerDirectedCodegen());
     }
 }

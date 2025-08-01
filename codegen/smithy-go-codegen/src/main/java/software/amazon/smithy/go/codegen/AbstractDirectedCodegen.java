@@ -18,8 +18,10 @@ package software.amazon.smithy.go.codegen;
 import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.isUnit;
 import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.withUnit;
 
+import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.WriterDelegator;
+import software.amazon.smithy.codegen.core.directed.CodegenDirector;
 import software.amazon.smithy.codegen.core.directed.CreateContextDirective;
 import software.amazon.smithy.codegen.core.directed.CreateSymbolProviderDirective;
 import software.amazon.smithy.codegen.core.directed.DirectedCodegen;
@@ -35,6 +37,31 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
 public abstract class AbstractDirectedCodegen implements DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> {
+    public static void run(PluginContext context, DirectedCodegen<GoCodegenContext, GoSettings, GoIntegration> directedCodegen) {
+        CodegenDirector<GoWriter,
+                GoIntegration,
+                GoCodegenContext,
+                GoSettings> runner = new CodegenDirector<>();
+
+        runner.model(context.getModel());
+        runner.directedCodegen(directedCodegen);
+
+        runner.integrationClass(GoIntegration.class);
+
+        runner.fileManifest(context.getFileManifest());
+
+        GoSettings settings = runner.settings(GoSettings.class,
+                context.getSettings());
+
+        runner.service(settings.getService());
+
+        runner.performDefaultCodegenTransforms();
+        runner.createDedicatedInputsAndOutputs();
+        runner.changeStringEnumsToEnumShapes(false);
+
+        runner.run();
+    }
+
     @Override
     public final SymbolProvider createSymbolProvider(CreateSymbolProviderDirective<GoSettings> directive) {
         return new SymbolVisitor(withUnit(directive.model()), directive.settings());
