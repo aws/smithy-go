@@ -8,15 +8,17 @@ The smithy-go runtime requires a minimum version of Go 1.22.
 
 **WARNING: All interfaces are subject to change.**
 
-## Can I use the code generators?
+## :no_entry_sign: DO NOT use the code generators in this repository
+
+**The code generators in this repository do not generate working clients at
+this time.**
 
 In order to generate a usable smithy client you must provide a [protocol definition](https://github.com/aws/smithy-go/blob/main/codegen/smithy-go-codegen/src/main/java/software/amazon/smithy/go/codegen/integration/ProtocolGenerator.java),
 such as [AWS restJson1](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html),
 in order to generate transport mechanisms and serialization/deserialization
 code ("serde") accordingly.
 
-The code generator does not currently support any protocols out of the box other than the new `smithy.protocols#rpcv2Cbor`,
-therefore the useability of this project on its own is currently limited.
+The code generator does not currently support any protocols out of the box.
 Support for all [AWS protocols](https://smithy.io/2.0/aws/protocols/index.html)
 exists in [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2). We are
 tracking the movement of those out of the SDK into smithy-go in
