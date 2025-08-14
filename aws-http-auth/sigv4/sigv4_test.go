@@ -209,3 +209,134 @@ func TestSignRequest(t *testing.T) {
 		})
 	}
 }
+func TestSignRequestQueryString(t *testing.T) {
+	signer := New()
+
+	req := newRequest(nil)
+	req.URL.RawQuery = "existing=param"
+
+	err := signer.SignRequest(&SignRequestInput{
+		Request:              req,
+		Credentials:          credsNoSession,
+		Service:              "s3",
+		Region:               "us-east-1",
+		Time:                 time.Unix(1375315200, 0),
+		SignatureType v4.SignatureType
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should not have Authorization header
+	if auth := req.Header.Get("Authorization"); auth != "" {
+		t.Errorf("expected no Authorization header, got %s", auth)
+	}
+
+	// Should have query parameters
+	query := req.URL.Query()
+	if query.Get("X-Amz-Algorithm") != "AWS4-HMAC-SHA256" {
+		t.Errorf("expected X-Amz-Algorithm=AWS4-HMAC-SHA256, got %s", query.Get("X-Amz-Algorithm"))
+	}
+	if !strings.Contains(query.Get("X-Amz-Credential"), "AKID/20130801/us-east-1/s3/aws4_request") {
+		t.Errorf("unexpected X-Amz-Credential: %s", query.Get("X-Amz-Credential"))
+	}
+	if query.Get("X-Amz-Date") != "20130801T000000Z" {
+		t.Errorf("expected X-Amz-Date=20130801T000000Z, got %s", query.Get("X-Amz-Date"))
+	}
+	if query.Get("X-Amz-SignedHeaders") == "" {
+		t.Error("expected X-Amz-SignedHeaders to be set")
+	}
+	if query.Get("X-Amz-Signature") == "" {
+		t.Error("expected X-Amz-Signature to be set")
+	}
+
+	// Should preserve existing query params
+	if query.Get("existing") != "param" {
+		t.Errorf("expected existing=param, got existing=%s", query.Get("existing"))
+	}
+}
+
+func TestSignRequestQueryStringWithSession(t *testing.T) {
+	signer := New()
+
+	req := newRequest(nil)
+
+	err := signer.SignRequest(&SignRequestInput{
+		Request:              req,
+		Credentials:          credsSession,
+		Service:              "s3",
+		Region:               "us-east-1",
+		Time:                 time.Unix(1375315200, 0),
+	SignatureType v4.SignatureType
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	query := req.URL.Query()
+	if query.Get("X-Amz-Security-Token") != "SESSION" {
+		t.Errorf("expected X-Amz-Security-Token=SESSION, got %s", query.Get("X-Amz-Security-Token"))
+	}
+}
+func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {
+	signer := New()
+
+	req := newRequest(nil)
+	req.URL.RawQuery = "existing=param&another=value"
+	originalQuery := req.URL.RawQuery
+
+	err := signer.SignRequest(&SignRequestInput{
+		Request:              req,
+		Credentials:          credsNoSession,
+		Service:              "s3",
+		Region:               "us-east-1",
+		Time:                 time.Unix(1375315200, 0),
+	SignatureType v4.SignatureType
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should have Authorization header
+	if auth := req.Header.Get("Authorization"); auth == "" {
+		t.Error("expected Authorization header to be set")
+	}
+
+	// Query string should be unchanged
+	if req.URL.RawQuery != originalQuery {
+		t.Errorf("expected query string unchanged, got %s, want %s", req.URL.RawQuery, originalQuery)
+	}
+}
+func TestBackwardsCompatibility(t *testing.T) {
+	signer := New()
+
+	req := newRequest(nil)
+
+	SignatureType v4.SignatureType
+	err := signer.SignRequest(&SignRequestInput{
+		Request:     req,
+		Credentials: credsNoSession,
+		Service:     "s3",
+		Region:      "us-east-1",
+		Time:        time.Unix(1375315200, 0),
+	SignatureType v4.SignatureType
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should behave like header method (old behavior)
+	if auth := req.Header.Get("Authorization"); auth == "" {
+		t.Error("expected Authorization header to be set for backwards compatibility")
+	}
+
+	// Should not have query parameters
+	query := req.URL.Query()
+	if query.Get("X-Amz-Algorithm") != "" {
+		t.Error("expected no X-Amz-Algorithm in query string for backwards compatibility")
+	}
+}

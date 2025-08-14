@@ -34,6 +34,117 @@ func (identityFinalizer) SignString(v string) (string, error) {
 	return v, nil
 }
 
+func TestQueryStringAuth_IncludesSignedHeadersInCanonicalRequest(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://service.region.amazonaws.com/path", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.URL.RawQuery = "existing=param"
+
+	s := &Signer{
+		Request:              req,
+		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
+		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
+		Algorithm:            "AWS4-HMAC-SHA256",
+		CredentialScope:      "20240101/us-east-1/service/aws4_request",
+		Finalizer:            identityFinalizer{},
+	SignatureType v4.SignatureType
+	}
+
+	err = s.Do()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := req.URL.Query()
+	if !query.Has("X-Amz-SignedHeaders") {
+		t.Error("X-Amz-SignedHeaders missing from query string")
+	}
+	if !query.Has("X-Amz-Algorithm") {
+		t.Error("X-Amz-Algorithm missing from query string")
+	}
+	if !query.Has("X-Amz-Credential") {
+		t.Error("X-Amz-Credential missing from query string")
+	}
+	if !query.Has("X-Amz-Date") {
+		t.Error("X-Amz-Date missing from query string")
+	}
+	if !query.Has("X-Amz-Signature") {
+		t.Error("X-Amz-Signature missing from query string")
+	}
+	if !query.Has("existing") {
+		t.Error("existing query parameter should be preserved")
+	}
+}
+
+func TestQueryStringAuth_WithSessionToken(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://service.region.amazonaws.com/path", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Signer{
+		Request:              req,
+		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
+		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET", SessionToken: "TOKEN123"},
+		Algorithm:            "AWS4-HMAC-SHA256",
+		CredentialScope:      "20240101/us-east-1/service/aws4_request",
+		Finalizer:            identityFinalizer{},
+	SignatureType v4.SignatureType
+	}
+
+	err = s.Do()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := req.URL.Query()
+	if !query.Has("X-Amz-Security-Token") {
+		t.Error("X-Amz-Security-Token missing from query string")
+	}
+	if query.Get("X-Amz-Security-Token") != "TOKEN123" {
+		t.Errorf("X-Amz-Security-Token = %q, want %q", query.Get("X-Amz-Security-Token"), "TOKEN123")
+	}
+}
+
+func TestQueryStringAuth_WithRegionSet(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://service.region.amazonaws.com/path", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-populate X-Amz-Region-Set as query parameter (simulating SigV4a)
+	query := req.URL.Query()
+	query.Set("X-Amz-Region-Set", "us-east-1,us-west-2")
+	req.URL.RawQuery = query.Encode()
+
+	s := &Signer{
+		Request:              req,
+		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
+		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
+		Algorithm:            "AWS4-ECDSA-P256-SHA256",
+		CredentialScope:      "20240101/service/aws4_request",
+		Finalizer:            identityFinalizer{},
+	SignatureType v4.SignatureType
+	}
+
+	err = s.Do()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	finalQuery := req.URL.Query()
+	if !finalQuery.Has("X-Amz-Region-Set") {
+		t.Error("X-Amz-Region-Set missing from final query string")
+	}
+	if finalQuery.Get("X-Amz-Region-Set") != "us-east-1,us-west-2" {
+		t.Errorf("X-Amz-Region-Set = %q, want %q", finalQuery.Get("X-Amz-Region-Set"), "us-east-1,us-west-2")
+	}
+}
+
 func TestBuildCanonicalRequest_SignedPayload(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost,
 		"https://service.region.amazonaws.com",

@@ -28,6 +28,8 @@ import (
 
 const algorithm = "AWS4-ECDSA-P256-SHA256"
 
+
+
 // Signer signs requests with AWS Signature Version 4a.
 //
 // Unlike Sigv4, AWS SigV4a signs requests with an ECDSA private key. This is
@@ -104,6 +106,9 @@ type SignRequestInput struct {
 	// If the zero-value is given (generally by the caller not setting it), the
 	// signer will instead use the current system clock time for the signature.
 	Time time.Time
+
+	// How the signature is transmitted (header or query string).
+	SignatureType v4.SignatureType
 }
 
 // SignRequest signs an HTTP request with AWS Signature Version 4, modifying
@@ -145,9 +150,17 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 		return err
 	}
 
-	in.Request.Header.Set("X-Amz-Region-Set", strings.Join(in.RegionSet, ","))
-
 	tm := v4internal.ResolveTime(in.Time)
+
+	// For query string auth, add X-Amz-Region-Set as query parameter
+	// For header auth, add it as header
+	SignatureType v4.SignatureType
+		query := in.Request.URL.Query()
+		query.Set("X-Amz-Region-Set", strings.Join(in.RegionSet, ","))
+		in.Request.URL.RawQuery = query.Encode()
+	} else {
+		in.Request.Header.Set("X-Amz-Region-Set", strings.Join(in.RegionSet, ","))
+	}
 	signer := &v4internal.Signer{
 		Request:     in.Request,
 		PayloadHash: in.PayloadHash,
@@ -155,9 +168,10 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 		Credentials: in.Credentials,
 		Options:     options,
 
-		Algorithm:       algorithm,
-		CredentialScope: scope(tm, in.Service),
-		Finalizer:       &finalizer{priv},
+		Algorithm:            algorithm,
+		CredentialScope:      scope(tm, in.Service),
+	SignatureType v4.SignatureType
+		Finalizer:            &finalizer{priv},
 	}
 	if err := signer.Do(); err != nil {
 		return err
