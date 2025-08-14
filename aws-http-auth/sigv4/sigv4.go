@@ -17,6 +17,13 @@ import (
 
 const algorithm = "AWS4-HMAC-SHA256"
 
+const (
+	// AuthenticationMethodHeader transmits signature via Authorization header (default).
+	AuthenticationMethodHeader = v4.AuthenticationMethodHeader
+	// AuthenticationMethodQueryString transmits signature via query parameters.
+	AuthenticationMethodQueryString = v4.AuthenticationMethodQueryString
+)
+
 // Signer signs requests with AWS Signature version 4.
 type Signer struct {
 	options v4.SignerOptions
@@ -66,6 +73,10 @@ type SignRequestInput struct {
 	// If the zero-value is given (generally by the caller not setting it), the
 	// signer will instead use the current system clock time for the signature.
 	Time time.Time
+
+	// How the signature is transmitted (header or query string).
+	// Defaults to AuthenticationMethodHeader.
+	AuthenticationMethod v4.AuthenticationMethod
 }
 
 // SignRequest signs an HTTP request with AWS Signature Version 4, modifying
@@ -107,8 +118,9 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 		Credentials: in.Credentials,
 		Options:     options,
 
-		Algorithm:       algorithm,
-		CredentialScope: scope(tm, in.Region, in.Service),
+		Algorithm:            algorithm,
+		CredentialScope:      scope(tm, in.Region, in.Service),
+		AuthenticationMethod: in.AuthenticationMethod,
 		Finalizer: &finalizer{
 			Secret:  in.Credentials.SecretAccessKey,
 			Service: in.Service,
