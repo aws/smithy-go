@@ -28,12 +28,7 @@ import (
 
 const algorithm = "AWS4-ECDSA-P256-SHA256"
 
-const (
-	// AuthenticationMethodHeader transmits signature via Authorization header (default).
-	AuthenticationMethodHeader = v4.AuthenticationMethodHeader
-	// AuthenticationMethodQueryString transmits signature via query parameters.
-	AuthenticationMethodQueryString = v4.AuthenticationMethodQueryString
-)
+
 
 // Signer signs requests with AWS Signature Version 4a.
 //
@@ -160,7 +155,7 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 	
 	// For query string auth, add X-Amz-Region-Set as query parameter
 	// For header auth, add it as header
-	if in.AuthenticationMethod == AuthenticationMethodQueryString {
+	if in.AuthenticationMethod == v4.AuthenticationMethodQueryString {
 		query := in.Request.URL.Query()
 		query.Set("X-Amz-Region-Set", strings.Join(in.RegionSet, ","))
 		in.Request.URL.RawQuery = query.Encode()

@@ -17,12 +17,7 @@ import (
 
 const algorithm = "AWS4-HMAC-SHA256"
 
-const (
-	// AuthenticationMethodHeader transmits signature via Authorization header (default).
-	AuthenticationMethodHeader = v4.AuthenticationMethodHeader
-	// AuthenticationMethodQueryString transmits signature via query parameters.
-	AuthenticationMethodQueryString = v4.AuthenticationMethodQueryString
-)
+
 
 // Signer signs requests with AWS Signature version 4.
 type Signer struct {

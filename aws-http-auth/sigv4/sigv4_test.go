@@ -221,7 +221,7 @@ func TestSignRequestQueryString(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-		AuthenticationMethod: AuthenticationMethodQueryString,
+		AuthenticationMethod: v4.AuthenticationMethodQueryString,
 	})
 
 	if err != nil {
@@ -268,7 +268,7 @@ func TestSignRequestQueryStringWithSession(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-		AuthenticationMethod: AuthenticationMethodQueryString,
+		AuthenticationMethod: v4.AuthenticationMethodQueryString,
 	})
 
 	if err != nil {
@@ -293,7 +293,7 @@ func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-		AuthenticationMethod: AuthenticationMethodHeader, // explicit header method
+		AuthenticationMethod: v4.AuthenticationMethodHeader, // explicit header method
 	})
 
 	if err != nil {
