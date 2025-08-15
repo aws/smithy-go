@@ -1,6 +1,17 @@
 // Package v4 exposes common APIs for AWS Signature Version 4.
 package v4
 
+// AuthenticationMethod specifies how the signature is transmitted.
+type AuthenticationMethod int
+
+const (
+	// AuthenticationMethodHeader transmits signature via Authorization header (default).
+	AuthenticationMethodHeader AuthenticationMethod = iota
+	// AuthenticationMethodQueryString transmits signature via query parameters.
+	// See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+	AuthenticationMethodQueryString
+)
+
 // SignerOption applies configuration to a signer.
 type SignerOption func(*SignerOptions)
 
