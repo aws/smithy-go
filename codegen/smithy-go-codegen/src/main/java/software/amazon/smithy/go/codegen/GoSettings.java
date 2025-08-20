@@ -32,6 +32,7 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -56,6 +57,7 @@ public final class GoSettings {
     private static final String MODULE_VERSION = "moduleVersion";
     private static final String GENERATE_GO_MOD = "generateGoMod";
     private static final String GO_DIRECTIVE = "goDirective";
+    private static final String REQUIRED_MEMBER_MODE = "requiredMemberMode";
 
     private ShapeId service;
     private String moduleName;
@@ -65,6 +67,7 @@ public final class GoSettings {
     private String goDirective = GoModuleInfo.DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
     private ArtifactType artifactType;
+    private RequiredMemberMode requiredMemberMode = RequiredMemberMode.NILLABLE;
 
     @SmithyInternalApi
     public enum ArtifactType {
@@ -86,7 +89,7 @@ public final class GoSettings {
     public static GoSettings from(ObjectNode config, ArtifactType artifactType) {
         GoSettings settings = new GoSettings();
         config.warnIfAdditionalProperties(
-            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, GO_DIRECTIVE));
+                Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, GO_DIRECTIVE, REQUIRED_MEMBER_MODE));
         settings.setArtifactType(artifactType);
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
@@ -95,6 +98,7 @@ public final class GoSettings {
         settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
         settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
         settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, GoModuleInfo.DEFAULT_GO_DIRECTIVE));
+        settings.setRequiredMemberMode(config.getStringMemberOrDefault(REQUIRED_MEMBER_MODE, null));
         return settings;
     }
 
@@ -199,7 +203,7 @@ public final class GoSettings {
         }
     }
 
-     /**
+    /**
      * Gets the flag for generating go.mod file.
      *
      * @return Returns if go.mod will be generated (true) or not (false)
@@ -293,5 +297,54 @@ public final class GoSettings {
     @SmithyInternalApi
     public void setArtifactType(ArtifactType artifactType) {
         this.artifactType = artifactType;
+    }
+
+    /**
+     * @return the RequiredMemberMode behavior.
+     */
+    public RequiredMemberMode getRequiredMemberMode() {
+        return this.requiredMemberMode;
+    }
+
+    /**
+     * Sets the RequiredMemberMode behavior.
+     */
+    public void setRequiredMemberMode(String requiredMemberMode) {
+        if (requiredMemberMode != null) {
+            this.requiredMemberMode = RequiredMemberMode.fromString(requiredMemberMode);
+        }
+    }
+
+    public enum RequiredMemberMode {
+        /**
+         * This is the current behavior, and it will be the default.
+         * When set, it makes output types members regardless whether they're required ({@link RequiredTrait}) or not to be nillable.
+         */
+        NILLABLE("nillable"),
+
+        /**
+         * This option will generate value types (non-nillable) for output types members marked with {@link RequiredTrait}.
+         */
+        STRICT("strict");
+
+        private final String mode;
+
+        RequiredMemberMode(String mode) {
+            this.mode = mode;
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public static RequiredMemberMode fromString(String s) {
+            if ("nillable".equals(s)) {
+                return NILLABLE;
+            }
+            if ("strict".equals(s)) {
+                return STRICT;
+            }
+            throw new CodegenException(String.format("Unsupported required member mode: %s", s));
+        }
     }
 }

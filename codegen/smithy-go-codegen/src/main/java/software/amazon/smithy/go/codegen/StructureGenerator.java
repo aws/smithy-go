@@ -49,6 +49,7 @@ public final class StructureGenerator implements Runnable {
     private final Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
+    private final RequiredMemberModePredicate requiredMemberModePredicate;
 
     public StructureGenerator(
             Model model,
@@ -57,7 +58,8 @@ public final class StructureGenerator implements Runnable {
             ServiceShape service,
             StructureShape shape,
             Symbol symbol,
-            ProtocolGenerator protocolGenerator
+            ProtocolGenerator protocolGenerator,
+            GoSettings.RequiredMemberMode requiredMemberMode
     ) {
         this.model = model;
         this.symbolProvider = symbolProvider;
@@ -66,6 +68,7 @@ public final class StructureGenerator implements Runnable {
         this.shape = shape;
         this.symbol = symbol;
         this.protocolGenerator = protocolGenerator;
+        this.requiredMemberModePredicate = new RequiredMemberModePredicate(model, requiredMemberMode);
     }
 
     @Override
@@ -115,7 +118,11 @@ public final class StructureGenerator implements Runnable {
                                 .orElse(memberSymbol);
                     }
 
-                    writer.write("$L $P", memberName, memberSymbol);
+                    if (requiredMemberModePredicate.isRequiredOutputMember(member)) {
+                        writer.write("$L $T", memberName, memberSymbol);
+                    } else {
+                        writer.write("$L $P", memberName, memberSymbol);
+                    }
                 });
 
         runnable.run();

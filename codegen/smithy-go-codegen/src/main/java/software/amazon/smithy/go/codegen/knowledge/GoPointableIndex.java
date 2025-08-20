@@ -20,6 +20,8 @@ package software.amazon.smithy.go.codegen.knowledge;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
+
+import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.KnowledgeIndex;
 import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
@@ -33,6 +35,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SetUtils;
 
@@ -47,6 +50,9 @@ public class GoPointableIndex implements KnowledgeIndex {
     //         IDL2 here instead
     public static final NullableIndex.CheckMode DEFAULT_CHECKMODE =
             NullableIndex.CheckMode.CLIENT_ZERO_VALUE_V1_NO_INPUT;
+
+    public static final GoSettings.RequiredMemberMode DEFAULT_REQUIRED_MEMBER_MODE =
+            GoSettings.RequiredMemberMode.NILLABLE;
 
     private static final Logger LOGGER = Logger.getLogger(GoPointableIndex.class.getName());
 
@@ -266,5 +272,9 @@ public class GoPointableIndex implements KnowledgeIndex {
      */
     public final boolean isDereferencable(ToShapeId shape) {
         return dereferencableShapes.contains(shape.toShapeId());
+    }
+
+    public final boolean isInherentlyValue(ShapeType shapeType) {
+        return INHERENTLY_VALUE.contains(shapeType);
     }
 }

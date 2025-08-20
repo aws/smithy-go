@@ -301,8 +301,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             return null;
         }
         Symbol symbol = symbolProvider.toSymbol(shape);
+        var requiredMode = ctx.settings().getRequiredMemberMode();
         writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+                model, symbolProvider, writer, service, shape, symbol, protocolGenerator, requiredMode).run());
         return null;
     }
 
