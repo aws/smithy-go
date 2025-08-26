@@ -1,0 +1,8 @@
+{
+    "id": "ed10934b-f38a-4ea9-a93d-f3498ffdfd8a",
+    "type": "feature",
+    "description": "Sort map keys in JSON Document types.",
+    "modules": [
+        "."
+    ]
+}

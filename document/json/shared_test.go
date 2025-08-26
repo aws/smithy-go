@@ -27,6 +27,8 @@ type StructA struct {
 	FieldNestedStruct          *StructA `document:"field_nested_struct"`
 	FieldNestedStructOmitEmpty *StructA `document:"field_nested_struct_omit_empty,omitempty"`
 
+	FieldMap map[string]string `document:",omitempty"`
+
 	fieldUnexported string
 
 	StructB
@@ -88,6 +90,14 @@ var sharedObjectTests = map[string]testCase{
 	},
 	"filled json structure": {
 		json: []byte(`{
+  "FieldMap": {
+    "a": "b",
+    "bar": "baz",
+    "baz": "qux",
+    "c": "d",
+    "foo": "bar",
+    "z": "a"
+  },
   "FieldName": "a",
   "FieldPtrName": "b",
   "field_rename": "c",
@@ -115,6 +125,14 @@ var sharedObjectTests = map[string]testCase{
 			return &v
 		}(),
 		want: &StructA{
+			FieldMap: map[string]string{
+				"foo": "bar",
+				"bar": "baz",
+				"baz": "qux",
+				"a":   "b",
+				"c":   "d",
+				"z":   "a",
+			},
 			FieldName:            "a",
 			FieldPtrName:         ptr.String("b"),
 			FieldRename:          "c",
