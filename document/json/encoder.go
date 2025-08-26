@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"slices"
+	"strings"
 
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/document/internal/serde"
@@ -181,16 +183,25 @@ func (e *Encoder) encodeMap(vp valueProvider, rv reflect.Value) error {
 	object := vp.GetValue().Object()
 	defer object.Close()
 
-	for _, key := range rv.MapKeys() {
-		keyName := fmt.Sprint(key.Interface())
-		if keyName == "" {
+	rawKeys := rv.MapKeys()
+	keys := make([]*mapKey, 0, len(rawKeys))
+	for _, raw := range rawKeys {
+		keys = append(keys, &mapKey{
+			Value:      raw,
+			Underlying: fmt.Sprint(raw.Interface()),
+		})
+	}
+
+	slices.SortFunc(keys, sortMapKeys)
+	for _, key := range keys {
+		if key.Underlying == "" {
 			return &document.InvalidMarshalError{Message: "map key cannot be empty"}
 		}
 
-		ev := rv.MapIndex(key)
+		ev := rv.MapIndex(key.Value)
 		err := e.encode(jsonObjectKeyProvider{
 			Object: object,
-			Key:    keyName,
+			Key:    key.Underlying,
 		}, ev, serde.Tag{})
 		if err != nil {
 			return err
@@ -326,4 +337,15 @@ func isValidJSONNumber(s string) bool {
 
 	// Make sure we are at the end.
 	return s == ""
+}
+
+// cache struct to cache a map key's reflect.Value with its underlying value,
+// since repeated calls to reflect.Value.Interface() may be expensive
+type mapKey struct {
+	Value      reflect.Value
+	Underlying string
+}
+
+func sortMapKeys(i, j *mapKey) int {
+	return strings.Compare(i.Underlying, j.Underlying)
 }
