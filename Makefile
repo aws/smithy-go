@@ -74,8 +74,7 @@ cover:
 
 test: unit-race
 
-unit: verify
-	unit-modules-.
+unit: verify unit-modules-.
 
 unit-modules-%:
 	go run ${REPOTOOLS_CMD_EACHMODULE} -p $(subst unit-modules-,,$@) \
