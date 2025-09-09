@@ -200,6 +200,7 @@ public final class EndpointResolverGenerator {
                                     case STRING_ARRAY -> {
                                         w.write("$L := stringSlice($L)",
                                                 getLocalVarParameterName(param), getMemberParameterName(param));
+                                        w.write("_ = $L", getLocalVarParameterName(param));
                                     }
                                     default -> throw new CodegenException("unrecognized parameter type");
                                 }
