@@ -318,8 +318,8 @@ b28cca9faeaa86f4dbfcc3113b05b38f53cd41f41448a41e08e0171cea8ec363`,
 // otherwise signatures wouldn't match
 func expectSignature(
 	t *testing.T, signed *http.Request, creds credentials.Credentials,
-	expectPreamble, expectSignedHeaders string, // fixed header components
-	expectStrToSign string, // for manual signature verification
+	expectPreamble, expectSignedHeaders string,      // fixed header components
+	expectStrToSign string,                          // for manual signature verification
 	expectDate, expectToken, expectRegionSet string, // fixed headers
 ) {
 	t.Helper()
@@ -396,6 +396,7 @@ func TestSignRequest_SignStringError(t *testing.T) {
 	err := s.SignRequest(&SignRequestInput{
 		Request:     newRequest(http.NoBody),
 		PayloadHash: v4.UnsignedPayload(),
+		Credentials: credsSession,
 	})
 	if err == nil {
 		t.Fatal("expect error but didn't get one")
