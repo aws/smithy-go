@@ -58,7 +58,7 @@ func (s *Signer) Do() error {
 	// Build canonical headers first to get signedHeaders
 	canonHeaders, signedHeaders := s.buildCanonicalHeaders()
 
-	SignatureType v4.SignatureType
+	if s.SignatureType == v4.SignatureTypeQueryString {
 		s.addSignatureParametersToQuery(signedHeaders)
 	}
 
@@ -69,7 +69,7 @@ func (s *Signer) Do() error {
 		return err
 	}
 
-	SignatureType v4.SignatureType
+	if s.SignatureType == v4.SignatureTypeQueryString {
 		s.addSignatureToQuery(signature, signedHeaders)
 	} else {
 		s.Request.Header.Set("Authorization",
@@ -123,7 +123,7 @@ func (s *Signer) setRequiredHeaders() {
 	s.Request.Header.Set("Host", s.Request.Host)
 
 	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using
-	SignatureType v4.SignatureType
+	if s.SignatureType == v4.SignatureTypeHeader {
 		s.Request.Header.Set("X-Amz-Date", s.Time.Format(TimeFormat))
 		if len(s.Credentials.SessionToken) > 0 {
 			s.Request.Header.Set("X-Amz-Security-Token", s.Credentials.SessionToken)

@@ -396,6 +396,12 @@ func TestSignRequest_SignStringError(t *testing.T) {
 	err := s.SignRequest(&SignRequestInput{
 		Request:     newRequest(http.NoBody),
 		PayloadHash: v4.UnsignedPayload(),
+		Credentials: credentials.Credentials{
+			AccessKeyID:     "AKID",
+			SecretAccessKey: "SECRET",
+		},
+		Service:   "s3",
+		RegionSet: []string{"us-east-1"},
 	})
 	if err == nil {
 		t.Fatal("expect error but didn't get one")
@@ -416,7 +422,7 @@ func TestSignRequestQueryString(t *testing.T) {
 		Service:              "s3",
 		RegionSet:            []string{"us-east-1"},
 		Time:                 time.Unix(1375315200, 0),
-		SignatureType v4.SignatureType
+		SignatureType: v4.SignatureTypeQueryString,
 	})
 
 	if err != nil {
@@ -464,7 +470,7 @@ func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {
 		Service:              "s3",
 		RegionSet:            []string{"us-east-1"},
 		Time:                 time.Unix(1375315200, 0),
-	SignatureType v4.SignatureType
+	SignatureType: v4.SignatureTypeHeader,
 	})
 
 	if err != nil {

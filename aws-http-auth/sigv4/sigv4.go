@@ -114,7 +114,7 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 
 		Algorithm:            algorithm,
 		CredentialScope:      scope(tm, in.Region, in.Service),
-	SignatureType v4.SignatureType
+		SignatureType:        in.SignatureType,
 		Finalizer: &finalizer{
 			Secret:  in.Credentials.SecretAccessKey,
 			Service: in.Service,

@@ -221,7 +221,7 @@ func TestSignRequestQueryString(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-		SignatureType v4.SignatureType
+		SignatureType: v4.SignatureTypeQueryString,
 	})
 
 	if err != nil {
@@ -268,7 +268,7 @@ func TestSignRequestQueryStringWithSession(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-	SignatureType v4.SignatureType
+	SignatureType: v4.SignatureTypeQueryString,
 	})
 
 	if err != nil {
@@ -293,7 +293,7 @@ func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {
 		Service:              "s3",
 		Region:               "us-east-1",
 		Time:                 time.Unix(1375315200, 0),
-	SignatureType v4.SignatureType
+	SignatureType: v4.SignatureTypeHeader,
 	})
 
 	if err != nil {
@@ -315,14 +315,12 @@ func TestBackwardsCompatibility(t *testing.T) {
 
 	req := newRequest(nil)
 
-	SignatureType v4.SignatureType
 	err := signer.SignRequest(&SignRequestInput{
 		Request:     req,
 		Credentials: credsNoSession,
 		Service:     "s3",
 		Region:      "us-east-1",
 		Time:        time.Unix(1375315200, 0),
-	SignatureType v4.SignatureType
 	})
 
 	if err != nil {

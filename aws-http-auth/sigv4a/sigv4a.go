@@ -154,7 +154,7 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 
 	// For query string auth, add X-Amz-Region-Set as query parameter
 	// For header auth, add it as header
-	SignatureType v4.SignatureType
+	if in.SignatureType == v4.SignatureTypeQueryString {
 		query := in.Request.URL.Query()
 		query.Set("X-Amz-Region-Set", strings.Join(in.RegionSet, ","))
 		in.Request.URL.RawQuery = query.Encode()
@@ -170,7 +170,7 @@ func (s *Signer) SignRequest(in *SignRequestInput, opts ...v4.SignerOption) erro
 
 		Algorithm:            algorithm,
 		CredentialScope:      scope(tm, in.Service),
-	SignatureType v4.SignatureType
+		SignatureType:        in.SignatureType,
 		Finalizer:            &finalizer{priv},
 	}
 	if err := signer.Do(); err != nil {
