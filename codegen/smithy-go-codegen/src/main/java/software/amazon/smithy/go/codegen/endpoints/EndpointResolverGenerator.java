@@ -189,12 +189,18 @@ public final class EndpointResolverGenerator {
                                     continue;
                                 }
                                 switch (param.getType()) {
-                                    case STRING, BOOLEAN ->
+                                    case STRING, BOOLEAN -> {
                                         w.write("$L := *$L",
                                                 getLocalVarParameterName(param), getMemberParameterName(param));
+                                        // even if the parameter is required, it's not guaranteed that it will be used
+                                        // so we generate a blank identifier to prevent a compiler error if the
+                                        // variable is not used
+                                        w.write("_ = $L", getLocalVarParameterName(param));
+                                    }
                                     case STRING_ARRAY -> {
                                         w.write("$L := stringSlice($L)",
                                                 getLocalVarParameterName(param), getMemberParameterName(param));
+                                        w.write("_ = $L", getLocalVarParameterName(param));
                                     }
                                     default -> throw new CodegenException("unrecognized parameter type");
                                 }

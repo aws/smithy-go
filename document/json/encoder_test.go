@@ -67,6 +67,32 @@ func TestNewEncoderUnsupportedTypes(t *testing.T) {
 	}
 }
 
+func TestDeterministicMapOrder(t *testing.T) {
+	value := struct {
+		Map map[string]string
+	}{
+		Map: map[string]string{
+			"foo": "bar",
+			"a":   "b",
+			"bar": "baz",
+			"b":   "c",
+			"baz": "qux",
+			"c":   "d",
+		},
+	}
+	expect := `{"Map":{"a":"b","b":"c","bar":"baz","baz":"qux","c":"d","foo":"bar"}}`
+
+	encoder := json.NewEncoder()
+	actual, err := encoder.Encode(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if expect != string(actual) {
+		t.Errorf("encode determinstic order:\n%q !=\n%q", expect, actual)
+	}
+}
+
 func testEncode(t *testing.T, tt testCase) {
 	t.Helper()
 
