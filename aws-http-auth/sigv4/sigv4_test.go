@@ -244,11 +244,12 @@ func TestSignRequestQueryString(t *testing.T) {
 	if query.Get("X-Amz-Date") != "20130801T000000Z" {
 		t.Errorf("expected X-Amz-Date=20130801T000000Z, got %s", query.Get("X-Amz-Date"))
 	}
-	if query.Get("X-Amz-SignedHeaders") == "" {
-		t.Error("expected X-Amz-SignedHeaders to be set")
+	if query.Get("X-Amz-SignedHeaders") != "host" {
+		t.Errorf("expected X-Amz-SignedHeaders=host, got %s", query.Get("X-Amz-SignedHeaders"))
 	}
-	if query.Get("X-Amz-Signature") == "" {
-		t.Error("expected X-Amz-Signature to be set")
+	expectedSignature := "16e17486c8e6bb97596d140876d8a23164a13552e644900b81dba01ad092bdac"
+	if query.Get("X-Amz-Signature") != expectedSignature {
+		t.Errorf("expected X-Amz-Signature=%s, got %s", expectedSignature, query.Get("X-Amz-Signature"))
 	}
 
 	// Should preserve existing query params
@@ -276,8 +277,15 @@ func TestSignRequestQueryStringWithSession(t *testing.T) {
 	}
 
 	query := req.URL.Query()
+	if query.Get("X-Amz-SignedHeaders") != "host" {
+		t.Errorf("expected X-Amz-SignedHeaders=host, got %s", query.Get("X-Amz-SignedHeaders"))
+	}
 	if query.Get("X-Amz-Security-Token") != "SESSION" {
 		t.Errorf("expected X-Amz-Security-Token=SESSION, got %s", query.Get("X-Amz-Security-Token"))
+	}
+	expectedSignature := "485caefdc25560b950ea52c7cd87bc607084a43193387b1737bd2290ba3b699a"
+	if query.Get("X-Amz-Signature") != expectedSignature {
+		t.Errorf("expected X-Amz-Signature=%s, got %s", expectedSignature, query.Get("X-Amz-Signature"))
 	}
 }
 func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {

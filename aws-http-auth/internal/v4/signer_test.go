@@ -49,7 +49,7 @@ func TestQueryStringAuth_IncludesSignedHeadersInCanonicalRequest(t *testing.T) {
 		Algorithm:            "AWS4-HMAC-SHA256",
 		CredentialScope:      "20240101/us-east-1/service/aws4_request",
 		Finalizer:            identityFinalizer{},
-	SignatureType: v4.SignatureTypeQueryString,
+		SignatureType: v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()
@@ -92,7 +92,7 @@ func TestQueryStringAuth_WithSessionToken(t *testing.T) {
 		Algorithm:            "AWS4-HMAC-SHA256",
 		CredentialScope:      "20240101/us-east-1/service/aws4_request",
 		Finalizer:            identityFinalizer{},
-	SignatureType: v4.SignatureTypeQueryString,
+		SignatureType: v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()
@@ -128,7 +128,7 @@ func TestQueryStringAuth_WithRegionSet(t *testing.T) {
 		Algorithm:            "AWS4-ECDSA-P256-SHA256",
 		CredentialScope:      "20240101/service/aws4_request",
 		Finalizer:            identityFinalizer{},
-	SignatureType: v4.SignatureTypeQueryString,
+		SignatureType: v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()

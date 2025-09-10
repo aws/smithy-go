@@ -122,7 +122,7 @@ func (s *Signer) setRequiredHeaders() {
 
 	s.Request.Header.Set("Host", s.Request.Host)
 
-	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using
+	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using a header signature type
 	if s.SignatureType == v4.SignatureTypeHeader {
 		s.Request.Header.Set("X-Amz-Date", s.Time.Format(TimeFormat))
 		if len(s.Credentials.SessionToken) > 0 {
