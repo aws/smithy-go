@@ -1,3 +1,9 @@
+# Release (2025-09-18)
+
+## Module Highlights
+* `github.com/aws/smithy-go/aws-http-auth`: [v1.1.0](aws-http-auth/CHANGELOG.md#v110-2025-09-18)
+  * **Feature**: Added support for SIG4/SIGV4A querystring authentication.
+
 # Release (2025-08-27)
 
 ## General Highlights
