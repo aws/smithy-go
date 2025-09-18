@@ -1,0 +1,8 @@
+{
+    "id": "f0a1241b-7cda-4522-8d99-618ad59c5d9a",
+    "type": "feature",
+    "description": "Added support for SIG4/SIGV4A querystring authentication.",
+    "modules": [
+        "aws-http-auth"
+    ]
+}
