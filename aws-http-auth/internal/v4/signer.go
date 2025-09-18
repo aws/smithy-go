@@ -33,6 +33,8 @@ type Signer struct {
 	Algorithm       string
 	CredentialScope string
 	Finalizer       Finalizer
+
+	SignatureType v4.SignatureType
 }
 
 // Finalizer performs the final step in v4 signing, deriving a signature for
@@ -53,15 +55,26 @@ func (s *Signer) Do() error {
 
 	s.setRequiredHeaders()
 
-	canonicalRequest, signedHeaders := s.buildCanonicalRequest()
+	// Build canonical headers first to get signedHeaders
+	canonHeaders, signedHeaders := s.buildCanonicalHeaders()
+
+	if s.SignatureType == v4.SignatureTypeQueryString {
+		s.addSignatureParametersToQuery(signedHeaders)
+	}
+
+	canonicalRequest := s.buildCanonicalRequestWithHeaders(canonHeaders, signedHeaders)
 	stringToSign := s.buildStringToSign(canonicalRequest)
 	signature, err := s.Finalizer.SignString(stringToSign)
 	if err != nil {
 		return err
 	}
 
-	s.Request.Header.Set("Authorization",
-		s.buildAuthorizationHeader(signature, signedHeaders))
+	if s.SignatureType == v4.SignatureTypeQueryString {
+		s.addSignatureToQuery(signature, signedHeaders)
+	} else {
+		s.Request.Header.Set("Authorization",
+			s.buildAuthorizationHeader(signature, signedHeaders))
+	}
 
 	return nil
 }
@@ -108,20 +121,32 @@ func (s *Signer) setRequiredHeaders() {
 	headers := s.Request.Header
 
 	s.Request.Header.Set("Host", s.Request.Host)
-	s.Request.Header.Set("X-Amz-Date", s.Time.Format(TimeFormat))
 
-	if len(s.Credentials.SessionToken) > 0 {
-		s.Request.Header.Set("X-Amz-Security-Token", s.Credentials.SessionToken)
+	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using a header signature type
+	if s.SignatureType == v4.SignatureTypeHeader {
+		s.Request.Header.Set("X-Amz-Date", s.Time.Format(TimeFormat))
+		if len(s.Credentials.SessionToken) > 0 {
+			s.Request.Header.Set("X-Amz-Security-Token", s.Credentials.SessionToken)
+		}
+	} else {
+		// For query string auth, ensure these headers are not present
+		s.Request.Header.Del("X-Amz-Date")
+		s.Request.Header.Del("X-Amz-Security-Token")
 	}
+
 	if len(s.PayloadHash) > 0 && s.Options.AddPayloadHashHeader {
 		headers.Set("X-Amz-Content-Sha256", payloadHashString(s.PayloadHash))
 	}
 }
 
 func (s *Signer) buildCanonicalRequest() (string, string) {
+	canonHeaders, signedHeaders := s.buildCanonicalHeaders()
+	canonicalRequest := s.buildCanonicalRequestWithHeaders(canonHeaders, signedHeaders)
+	return canonicalRequest, signedHeaders
+}
+
+func (s *Signer) buildCanonicalRequestWithHeaders(canonHeaders, signedHeaders string) string {
 	canonPath := s.Request.URL.EscapedPath()
-	// https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html:
-	// if input has no path, "/" is used
 	if len(canonPath) == 0 {
 		canonPath = "/"
 	}
@@ -135,8 +160,6 @@ func (s *Signer) buildCanonicalRequest() (string, string) {
 	}
 	canonQuery := strings.Replace(query.Encode(), "+", "%20", -1)
 
-	canonHeaders, signedHeaders := s.buildCanonicalHeaders()
-
 	req := strings.Join([]string{
 		s.Request.Method,
 		canonPath,
@@ -146,7 +169,7 @@ func (s *Signer) buildCanonicalRequest() (string, string) {
 		payloadHashString(s.PayloadHash),
 	}, "\n")
 
-	return req, signedHeaders
+	return req
 }
 
 func (s *Signer) buildCanonicalHeaders() (canon, signed string) {
@@ -201,6 +224,28 @@ func (s *Signer) buildAuthorizationHeader(signature, headers string) string {
 		s.Credentials.AccessKeyID+"/"+s.CredentialScope,
 		headers,
 		signature)
+}
+
+func (s *Signer) addSignatureParametersToQuery(signedHeaders string) {
+	query := s.Request.URL.Query()
+	query.Set("X-Amz-Algorithm", s.Algorithm)
+	query.Set("X-Amz-Credential", s.Credentials.AccessKeyID+"/"+s.CredentialScope)
+	query.Set("X-Amz-Date", s.Time.Format(TimeFormat))
+	query.Set("X-Amz-SignedHeaders", signedHeaders)
+
+	if len(s.Credentials.SessionToken) > 0 {
+		query.Set("X-Amz-Security-Token", s.Credentials.SessionToken)
+	}
+
+	s.Request.URL.RawQuery = query.Encode()
+}
+
+func (s *Signer) addSignatureToQuery(signature, signedHeaders string) {
+	query := s.Request.URL.Query()
+	query.Set("X-Amz-SignedHeaders", signedHeaders)
+	query.Set("X-Amz-Signature", signature)
+
+	s.Request.URL.RawQuery = query.Encode()
 }
 
 func payloadHashString(p []byte) string {
