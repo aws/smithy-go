@@ -1,3 +1,7 @@
+# v1.1.1 (2025-10-15)
+
+* **Dependency Update**: Bump minimum go version to 1.23.
+
 # v1.1.0 (2025-09-18)
 
 * **Feature**: Added support for SIG4/SIGV4A querystring authentication.
