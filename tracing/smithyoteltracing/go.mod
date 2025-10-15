@@ -1,6 +1,6 @@
 module github.com/aws/smithy-go/tracing/smithyoteltracing
 
-go 1.22
+go 1.23
 
 require (
 	github.com/aws/smithy-go v1.23.0
