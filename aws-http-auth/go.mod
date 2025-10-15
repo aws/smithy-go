@@ -1,3 +1,3 @@
 module github.com/aws/smithy-go/aws-http-auth
 
-go 1.21
+go 1.23
