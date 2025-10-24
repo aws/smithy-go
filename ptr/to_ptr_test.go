@@ -1,6 +1,7 @@
 package ptr
 
 import (
+	"github.com/google/uuid"
 	"testing"
 	"time"
 )
@@ -686,5 +687,43 @@ func TestTimeMap(t *testing.T) {
 	}
 	if ps["2038-01-19T03:14:07Z"].Unix() != 2147483647 {
 		t.Errorf("expected %d, but received %d", 2147483647, ps["2038-01-19T03:14:07Z"].Unix())
+	}
+}
+
+func TestUUID(t *testing.T) {
+	id := uuid.New()
+	v := UUID(id)
+	if *v != id {
+		t.Errorf("expected %s, but received %s", id.String(), v.String())
+	}
+}
+
+func TestUUIDSlice(t *testing.T) {
+	s := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	ps := UUIDSlice(s)
+	if len(ps) != 3 {
+		t.Errorf("expected %d, but received %d", 3, len(ps))
+	}
+	for i, v := range s {
+		if *ps[i] != v {
+			t.Errorf("at index %d: expected %s, but received %s", i, v.String(), ps[i].String())
+		}
+	}
+}
+
+func TestUUIDMap(t *testing.T) {
+	s := map[string]uuid.UUID{
+		"first":  uuid.New(),
+		"second": uuid.New(),
+		"third":  uuid.New(),
+	}
+	ps := UUIDMap(s)
+	if len(ps) != 3 {
+		t.Errorf("expected %d, but received %d", 3, len(ps))
+	}
+	for k, v := range s {
+		if *ps[k] != v {
+			t.Errorf("for key %q: expected %s, but received %s", k, v.String(), ps[k].String())
+		}
 	}
 }
