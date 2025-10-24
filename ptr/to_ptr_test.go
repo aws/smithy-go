@@ -1,6 +1,7 @@
 package ptr
 
 import (
+	"github.com/google/uuid"
 	"testing"
 	"time"
 )
@@ -686,5 +687,91 @@ func TestTimeMap(t *testing.T) {
 	}
 	if ps["2038-01-19T03:14:07Z"].Unix() != 2147483647 {
 		t.Errorf("expected %d, but received %d", 2147483647, ps["2038-01-19T03:14:07Z"].Unix())
+	}
+}
+
+func TestUUID(t *testing.T) {
+	id := uuid.New()
+	v := UUID(id)
+	if *v != id {
+		t.Errorf("expected %s, but received %s", id.String(), v.String())
+	}
+}
+
+func TestUUIDSlice(t *testing.T) {
+	s := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	ps := UUIDSlice(s)
+	if len(ps) != 3 {
+		t.Errorf("expected %d, but received %d", 3, len(ps))
+	}
+	for i, v := range s {
+		if *ps[i] != v {
+			t.Errorf("at index %d: expected %s, but received %s", i, v.String(), ps[i].String())
+		}
+	}
+}
+
+func TestUUIDMap(t *testing.T) {
+	s := map[string]uuid.UUID{
+		"first":  uuid.New(),
+		"second": uuid.New(),
+		"third":  uuid.New(),
+	}
+	ps := UUIDMap(s)
+	if len(ps) != 3 {
+		t.Errorf("expected %d, but received %d", 3, len(ps))
+	}
+	for k, v := range s {
+		if *ps[k] != v {
+			t.Errorf("for key %q: expected %s, but received %s", k, v.String(), ps[k].String())
+		}
+	}
+}
+
+func TestByType(t *testing.T) {
+	v := 42
+	p := ByType(v)
+	if *p != v {
+		t.Fatalf("expected %d, got %d", v, *p)
+	}
+
+	id := uuid.New()
+	pid := ByType(id)
+	if *pid != id {
+		t.Fatalf("expected %s, got %s", id, pid)
+	}
+}
+
+func TestSliceByType(t *testing.T) {
+	nums := []int{1, 2, 3}
+	ps := SliceByType(nums)
+	if len(ps) != len(nums) {
+		t.Fatalf("expected length %d, got %d", len(nums), len(ps))
+	}
+	for i := range nums {
+		if *ps[i] != nums[i] {
+			t.Errorf("expected %d, got %d", nums[i], *ps[i])
+		}
+	}
+}
+
+func TestMapByType(t *testing.T) {
+	m := map[string]int{"a": 1, "b": 2}
+	pm := MapByType(m)
+	if len(pm) != len(m) {
+		t.Fatalf("expected length %d, got %d", len(m), len(pm))
+	}
+	for k, v := range m {
+		if *pm[k] != v {
+			t.Errorf("for key %q expected %d, got %d", k, v, *pm[k])
+		}
+	}
+
+	u := map[string]uuid.UUID{"x": uuid.New()}
+	pu := MapByType(u)
+	for k, v := range u {
+		if *pu[k] != v {
+			t.Errorf("for key %q expected %s, got %s", k, v, pu[k])
+		}
 	}
 }

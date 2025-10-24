@@ -2,6 +2,7 @@
 package ptr
 
 import (
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -495,5 +496,56 @@ func DurationMap(vs map[string]time.Duration) map[string]*time.Duration {
 		ps[k] = &vv
 	}
 
+	return ps
+}
+
+
+// UUID returns a pointer value for the uuid.UUID value passed in.
+func UUID(v uuid.UUID) *uuid.UUID {
+	return &v
+}
+
+// UUIDSlice returns a slice of uuid.UUID pointers from the values passed in.
+func UUIDSlice(vs []uuid.UUID) []*uuid.UUID {
+	ps := make([]*uuid.UUID, len(vs))
+	for i, v := range vs {
+		vv := v
+		ps[i] = &vv
+	}
+	return ps
+}
+
+// UUIDMap returns a map of uuid.UUID pointers from the values passed in.
+func UUIDMap(vs map[string]uuid.UUID) map[string]*uuid.UUID {
+	ps := make(map[string]*uuid.UUID, len(vs))
+	for k, v := range vs {
+		vv := v
+		ps[k] = &vv
+	}
+	return ps
+}
+
+// ByType returns a pointer to the provided value.
+func ByType[T any](v T) *T {
+	return &v
+}
+
+// SliceByType returns a slice of pointers from the provided slice.
+func SliceByType[T any](vs []T) []*T {
+	ps := make([]*T, len(vs))
+	for i, v := range vs {
+		vv := v
+		ps[i] = &vv
+	}
+	return ps
+}
+
+// MapByType returns a map of pointers from the provided map.
+func MapByType[K comparable, V any](vs map[K]V) map[K]*V {
+	ps := make(map[K]*V, len(vs))
+	for k, v := range vs {
+		vv := v
+		ps[k] = &vv
+	}
 	return ps
 }
