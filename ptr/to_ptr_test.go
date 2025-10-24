@@ -727,3 +727,51 @@ func TestUUIDMap(t *testing.T) {
 		}
 	}
 }
+
+func TestByType(t *testing.T) {
+	v := 42
+	p := ByType(v)
+	if *p != v {
+		t.Fatalf("expected %d, got %d", v, *p)
+	}
+
+	id := uuid.New()
+	pid := ByType(id)
+	if *pid != id {
+		t.Fatalf("expected %s, got %s", id, pid)
+	}
+}
+
+func TestSliceByType(t *testing.T) {
+	nums := []int{1, 2, 3}
+	ps := SliceByType(nums)
+	if len(ps) != len(nums) {
+		t.Fatalf("expected length %d, got %d", len(nums), len(ps))
+	}
+	for i := range nums {
+		if *ps[i] != nums[i] {
+			t.Errorf("expected %d, got %d", nums[i], *ps[i])
+		}
+	}
+}
+
+func TestMapByType(t *testing.T) {
+	m := map[string]int{"a": 1, "b": 2}
+	pm := MapByType(m)
+	if len(pm) != len(m) {
+		t.Fatalf("expected length %d, got %d", len(m), len(pm))
+	}
+	for k, v := range m {
+		if *pm[k] != v {
+			t.Errorf("for key %q expected %d, got %d", k, v, *pm[k])
+		}
+	}
+
+	u := map[string]uuid.UUID{"x": uuid.New()}
+	pu := MapByType(u)
+	for k, v := range u {
+		if *pu[k] != v {
+			t.Errorf("for key %q expected %s, got %s", k, v, pu[k])
+		}
+	}
+}
