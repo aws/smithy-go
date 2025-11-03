@@ -6,7 +6,7 @@ import (
 )
 
 func TestOrderedIDsAdd(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Add(&mockIder{"second"}, After))
@@ -31,7 +31,7 @@ func TestOrderedIDsAdd(t *testing.T) {
 }
 
 func TestOrderedIDsInsert(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Insert(&mockIder{"third"}, "first", After))
@@ -63,7 +63,7 @@ func TestOrderedIDsInsert(t *testing.T) {
 }
 
 func TestOrderedIDsGet(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Add(&mockIder{"second"}, After))
@@ -83,7 +83,7 @@ func TestOrderedIDsGet(t *testing.T) {
 }
 
 func TestOrderedIDsSwap(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Add(&mockIder{"second"}, After))
@@ -119,7 +119,7 @@ func TestOrderedIDsSwap(t *testing.T) {
 }
 
 func TestOrderedIDsRemove(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 	firstIder := &mockIder{"first"}
 	noError(t, o.Add(firstIder, After))
 	noError(t, o.Insert(&mockIder{"third"}, "first", After))
@@ -144,7 +144,7 @@ func TestOrderedIDsRemove(t *testing.T) {
 }
 
 func TestOrderedIDsClear(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Add(&mockIder{"second"}, After))
@@ -161,7 +161,7 @@ func TestOrderedIDsClear(t *testing.T) {
 }
 
 func TestOrderedIDsGetOrder(t *testing.T) {
-	o := newOrderedIDs()
+	o := newOrderedIDs(10)
 
 	noError(t, o.Add(&mockIder{"first"}, After))
 	noError(t, o.Add(&mockIder{"second"}, After))
