@@ -1,8 +1,0 @@
-{
-    "id": "ae0ef34a-003c-4214-9a07-8ca1288c1360",
-    "type": "bugfix",
-    "description": "Avoid unnecessary allocation overhead from the metrics system when not in use.",
-    "modules": [
-        "."
-    ]
-}

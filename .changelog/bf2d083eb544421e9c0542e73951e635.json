@@ -1,8 +1,0 @@
-{
-    "id": "bf2d083e-b544-421e-9c05-42e73951e635",
-    "type": "bugfix",
-    "description": "Adjust the initial sizes of each middleware phase to avoid some unnecessary reallocation.",
-    "modules": [
-        "."
-    ]
-}
