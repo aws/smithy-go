@@ -1,0 +1,8 @@
+{
+    "id": "a156568a-92b3-4741-be5d-cfbf895450ad",
+    "type": "bugfix",
+    "description": "Return validation error if input region is not a valid host label",
+    "modules": [
+        "."
+    ]
+}
