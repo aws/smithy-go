@@ -80,6 +80,8 @@ public final class EndpointMiddlewareGenerator {
 
                 $assertRequest:W
 
+                $assertRegion:W
+
                 $assertResolver:W
 
                 $resolveEndpoint:W
@@ -95,6 +97,7 @@ public final class EndpointMiddlewareGenerator {
                         "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "pre", generatePreResolutionHooks(),
                         "assertRequest", generateAssertRequest(),
+                        "assertRegion", generateAssertRegion(),
                         "assertResolver", generateAssertResolver(),
                         "resolveEndpoint", generateResolveEndpoint(),
                         "mergeAuthProperties", generateMergeAuthProperties(),
@@ -119,6 +122,19 @@ public final class EndpointMiddlewareGenerator {
                 """,
                 SmithyGoTypes.Transport.Http.Request,
                 GoStdlibTypes.Fmt.Errorf);
+    }
+
+    private GoWriter.Writable generateAssertRegion() {
+        return goTemplate("""
+                if !$validHost:T(m.options.Region) {
+                    return out, metadata, $error:T("invalid input region %s", m.options.Region)
+                }
+                """,
+                MapUtils.of(
+                        "validHost", SmithyGoTypes.Transport.Http.ValidHostLabel,
+                        "error", GoStdlibTypes.Fmt.Errorf
+                )
+        );
     }
 
     private GoWriter.Writable generateAssertResolver() {
