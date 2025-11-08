@@ -80,8 +80,6 @@ public final class EndpointMiddlewareGenerator {
 
                 $assertRequest:W
 
-                $assertRegion:W
-
                 $assertResolver:W
 
                 $resolveEndpoint:W
@@ -97,7 +95,6 @@ public final class EndpointMiddlewareGenerator {
                         "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "pre", generatePreResolutionHooks(),
                         "assertRequest", generateAssertRequest(),
-                        "assertRegion", generateAssertRegion(),
                         "assertResolver", generateAssertResolver(),
                         "resolveEndpoint", generateResolveEndpoint(),
                         "mergeAuthProperties", generateMergeAuthProperties(),
@@ -148,7 +145,10 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
-                params := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
+                params, err := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
+                if err != nil {
+                    return out, metadata, $fmt.Errorf:T("failed to bind endpoint params, %w", err)
+                }
                 endpt, err := timeOperationMetric(ctx, "client.call.resolve_endpoint_duration",
                     func() (smithyendpoints.Endpoint, error) {
                         return m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)

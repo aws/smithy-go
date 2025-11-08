@@ -57,9 +57,9 @@ public class EndpointParameterBindingsGenerator {
                     bindEndpointParams(*EndpointParameters)
                 }
 
-                func bindEndpointParams(ctx $context:T, input interface{}, options Options) *EndpointParameters {
+                func bindEndpointParams(ctx $context:T, input interface{}, options Options) (*EndpointParameters, error) {
                     params := &EndpointParameters{}
-
+                
                     $builtinBindings:W
 
                     $clientContextBindings:W
@@ -68,7 +68,7 @@ public class EndpointParameterBindingsGenerator {
                         b.bindEndpointParams(params)
                     }
 
-                    return params
+                    return params, nil
                 }
                 """,
                 MapUtils.of(
@@ -94,10 +94,22 @@ public class EndpointParameterBindingsGenerator {
                 .toList();
         return writer -> {
             for (var param: boundBuiltins) {
-                writer.write(
-                        "params.$L = $W",
-                        EndpointParametersGenerator.getExportedParameterName(param),
-                        builtinBindings.get(param.getBuiltIn().get()));
+                String paramName =  EndpointParametersGenerator.getExportedParameterName(param);
+                if (paramName.equals("Region")) {
+                    writer.write("""
+                                    region, err := $W
+                                    if err != nil {
+                                        return nil, err
+                                    }
+                                    params.Region = region
+                                    """,
+                            builtinBindings.get(param.getBuiltIn().get()));
+                } else {
+                    writer.write(
+                            "params.$L = $W",
+                            paramName,
+                            builtinBindings.get(param.getBuiltIn().get()));
+                }
             }
         };
     }
