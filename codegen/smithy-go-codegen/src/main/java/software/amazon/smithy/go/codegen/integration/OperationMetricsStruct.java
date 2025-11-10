@@ -67,6 +67,12 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 type operationMetricsKey struct{}
 
                 func withOperationMetrics(parent context.Context, mp metrics.MeterProvider) (context.Context, error) {
+                    if _, ok := mp.(metrics.NopMeterProvider); ok {
+                        // not using the metrics system - setting up the metrics context is a memory-intensive operation
+                        // so we should skip it in this case
+                        return parent, nil
+                    }
+
                     meter := mp.Meter($S)
                     om := &operationMetrics{}
 
@@ -114,7 +120,10 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 }
 
                 func getOperationMetrics(ctx context.Context) *operationMetrics {
-                    return ctx.Value(operationMetricsKey{}).(*operationMetrics)
+                    if v := ctx.Value(operationMetricsKey{}); v != nil {
+                        return v.(*operationMetrics)
+                    }
+                    return nil
                 }
                 """, scope);
     }
@@ -144,7 +153,12 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                     ctx context.Context, metric string, fn func() (T, error),
                     opts ...metrics.RecordMetricOption,
                 ) (T, error) {
-                    instr := getOperationMetrics(ctx).histogramFor(metric)
+                    mm := getOperationMetrics(ctx)
+                    if mm == nil { // not using the metrics system
+                        return fn()
+                    }
+
+                    instr := mm.histogramFor(metric)
                     opts = append([]metrics.RecordMetricOption{withOperationMetadata(ctx)}, opts...)
 
                     start := time.Now()
@@ -157,7 +171,12 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 }
 
                 func startMetricTimer(ctx context.Context, metric string, opts ...metrics.RecordMetricOption) func() {
-                    instr := getOperationMetrics(ctx).histogramFor(metric)
+                    mm := getOperationMetrics(ctx)
+                    if mm == nil { // not using the metrics system
+                        return func() {}
+                    }
+
+                    instr := mm.histogramFor(metric)
                     opts = append([]metrics.RecordMetricOption{withOperationMetadata(ctx)}, opts...)
 
                     var ended bool
