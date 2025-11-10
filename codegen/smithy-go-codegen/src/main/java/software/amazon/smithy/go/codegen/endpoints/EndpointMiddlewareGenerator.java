@@ -121,6 +121,19 @@ public final class EndpointMiddlewareGenerator {
                 GoStdlibTypes.Fmt.Errorf);
     }
 
+    private GoWriter.Writable generateAssertRegion() {
+        return goTemplate("""
+                if !$validHost:T(m.options.Region) {
+                    return out, metadata, $error:T("invalid input region %s", m.options.Region)
+                }
+                """,
+                MapUtils.of(
+                        "validHost", SmithyGoTypes.Transport.Http.ValidHostLabel,
+                        "error", GoStdlibTypes.Fmt.Errorf
+                )
+        );
+    }
+
     private GoWriter.Writable generateAssertResolver() {
         return goTemplate("""
                 if m.options.EndpointResolverV2 == nil {
@@ -132,7 +145,10 @@ public final class EndpointMiddlewareGenerator {
 
     private GoWriter.Writable generateResolveEndpoint() {
         return goTemplate("""
-                params := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
+                params, err := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
+                if err != nil {
+                    return out, metadata, $fmt.Errorf:T("failed to bind endpoint params, %w", err)
+                }
                 endpt, err := timeOperationMetric(ctx, "client.call.resolve_endpoint_duration",
                     func() (smithyendpoints.Endpoint, error) {
                         return m.options.EndpointResolverV2.ResolveEndpoint(ctx, *params)

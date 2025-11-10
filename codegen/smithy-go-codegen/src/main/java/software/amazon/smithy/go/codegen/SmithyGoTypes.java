@@ -141,6 +141,8 @@ public final class SmithyGoTypes {
             public static final Symbol SetSigV4ASigningRegions = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SetSigV4ASigningRegions");
             public static final Symbol SetIsUnsignedPayload = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SetIsUnsignedPayload");
             public static final Symbol SetDisableDoubleEncoding = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("SetDisableDoubleEncoding");
+
+            public static final Symbol ValidHostLabel = SmithyGoDependency.SMITHY_HTTP_TRANSPORT.valueSymbol("ValidHostLabel");
         }
     }
 
