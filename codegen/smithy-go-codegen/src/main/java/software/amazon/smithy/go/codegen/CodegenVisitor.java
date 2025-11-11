@@ -219,7 +219,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         TopDownIndex.of(model).getContainedOperations(service)
                 .forEach(eventStreamGenerator::generateOperationEventStreamStructure);
 
-        if (protocolGenerator != null) {
+        if (!settings.useExperimentalSerde() && protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
                     .protocolName(protocolGenerator.getProtocolName())
@@ -251,6 +251,27 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 });
             }
 
+            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
+                    + " unit tests for " + service.getId());
+            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
+                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
+            });
+
+            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
+        }
+
+        // TODO: With serde/schema decoupling, protocol generators are going away. Endpoint/auth resolution is going to
+        //       need to be decoupled from that and I don't really know how yet. Probably just separate integrations /
+        //       integration hooks.
+        if (protocolGenerator != null) {
+            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
+                    .protocolName(protocolGenerator.getProtocolName())
+                    .integrations(integrations)
+                    .model(model)
+                    .service(service)
+                    .settings(settings)
+                    .symbolProvider(symbolProvider)
+                    .delegator(writers);
             writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateEndpointResolution(context);
@@ -265,14 +286,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateEndpointResolutionTests(context);
             });
-
-            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                    + " unit tests for " + service.getId());
-            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
-                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
-            });
-
-            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
         LOGGER.fine("Flushing go writers");
@@ -303,6 +316,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         Symbol symbol = symbolProvider.toSymbol(shape);
         writers.useShapeWriter(shape, writer -> new StructureGenerator(
                 model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+
+        if (settings.useExperimentalSerde()) {
+            writers.useFileWriter("schemas.go", settings.getModuleName(), new SchemaGenerator(ctx, shape));
+        }
         return null;
     }
 
