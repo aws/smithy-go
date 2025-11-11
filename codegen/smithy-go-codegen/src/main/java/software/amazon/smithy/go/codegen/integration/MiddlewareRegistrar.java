@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import static software.amazon.smithy.go.codegen.SymbolUtils.buildPackageSymbol;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
@@ -115,6 +117,17 @@ public class MiddlewareRegistrar implements ToSmithyBuilder<MiddlewareRegistrar>
          */
         public Builder resolvedFunction(Symbol resolvedFunction) {
             this.resolvedFunction = resolvedFunction;
+            return this;
+        }
+
+        /**
+         * Set the name of the MiddlewareRegistrar function.
+         *
+         * @param resolvedFunction the name of a package-local function in the generated client.
+         * @return Returns the builder.
+         */
+        public Builder resolvedFunction(String resolvedFunction) {
+            this.resolvedFunction = buildPackageSymbol(resolvedFunction);
             return this;
         }
 
