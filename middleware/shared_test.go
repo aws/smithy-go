@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -71,4 +72,25 @@ func mockDeserializeMiddleware(id string) DeserializeMiddleware {
 		) {
 			return next.HandleDeserialize(ctx, in)
 		})
+}
+
+func expectID(t *testing.T, m ider, expect string) {
+	t.Helper()
+	if m == nil {
+		t.Error("expect is nil")
+		return
+	}
+	if actual := m.ID(); expect != actual {
+		t.Errorf("expect %q, got %q", expect, actual)
+	}
+}
+
+func expectIDList(t *testing.T, expect, actual []string) {
+	t.Helper()
+	if len(expect) == 0 && len(actual) == 0 {
+		return
+	}
+	if !reflect.DeepEqual(expect, actual) {
+		t.Errorf("%v !=\n%v", expect, actual)
+	}
 }
