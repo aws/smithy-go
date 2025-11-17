@@ -257,6 +257,8 @@ func (s *InitializeStep) List() []string {
 		// *initializeWrapHandler, make sure to check for that
 		if hnext, ok := h.Next.(*decoratedInitializeHandler); ok {
 			h = hnext
+		} else {
+			break
 		}
 	}
 	return ids

@@ -257,6 +257,8 @@ func (s *DeserializeStep) List() []string {
 		// *deserializeWrapHandler, make sure to check for that
 		if hnext, ok := h.Next.(*decoratedDeserializeHandler); ok {
 			h = hnext
+		} else {
+			break
 		}
 	}
 	return ids

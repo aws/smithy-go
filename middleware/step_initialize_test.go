@@ -148,3 +148,15 @@ func TestInitializeStep_Clear(t *testing.T) {
 	step.Clear()
 	expectIDList(t, nil, step.List())
 }
+
+func TestInitializeStep_List(t *testing.T) {
+	step := NewInitializeStep()
+	step.Add(mockInitializeMiddleware("A"), After)
+	step.Add(mockInitializeMiddleware("B"), After)
+	step.Add(mockInitializeMiddleware("C"), After)
+
+	// mock post-handle state
+	step.tail.Next = &initializeWrapHandler{}
+
+	expectIDList(t, []string{"A", "B", "C"}, step.List())
+}

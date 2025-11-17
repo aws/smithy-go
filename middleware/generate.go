@@ -301,6 +301,8 @@ func (s *{{.Phase}}Step) List() []string {
 		// *{{.PhaseLowercase}}WrapHandler, make sure to check for that
 		if hnext, ok := h.Next.(*decorated{{.Phase}}Handler); ok {
 			h = hnext
+		} else {
+			break
 		}
 	}
 	return ids

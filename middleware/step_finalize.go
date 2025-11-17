@@ -256,6 +256,8 @@ func (s *FinalizeStep) List() []string {
 		// *finalizeWrapHandler, make sure to check for that
 		if hnext, ok := h.Next.(*decoratedFinalizeHandler); ok {
 			h = hnext
+		} else {
+			break
 		}
 	}
 	return ids

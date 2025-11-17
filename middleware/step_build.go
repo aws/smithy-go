@@ -256,6 +256,8 @@ func (s *BuildStep) List() []string {
 		// *buildWrapHandler, make sure to check for that
 		if hnext, ok := h.Next.(*decoratedBuildHandler); ok {
 			h = hnext
+		} else {
+			break
 		}
 	}
 	return ids
