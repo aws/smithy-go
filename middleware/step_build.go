@@ -117,16 +117,12 @@ func (s *BuildStep) HandleMiddleware(ctx context.Context, in interface{}, next H
 
 // Get retrieves the middleware identified by id. If the middleware is not present, returns false.
 func (s *BuildStep) Get(id string) (BuildMiddleware, bool) {
-	for h := s.head; h != nil; {
-		if h.With.ID() == id {
-			return h.With, true
-		}
-		if h.Next == nil {
-			break
-		}
-		h = h.Next.(*decoratedBuildHandler)
+	found, _ := s.get(id)
+	if found == nil {
+		return nil, false
 	}
-	return nil, false
+
+	return found.With, true
 }
 
 // Add injects the middleware to the relative position of the middleware group.
@@ -156,18 +152,7 @@ func (s *BuildStep) Add(m BuildMiddleware, pos RelativePosition) error {
 // Returns error if the original middleware does not exist, or the middleware
 // being added already exists.
 func (s *BuildStep) Insert(m BuildMiddleware, relativeTo string, pos RelativePosition) error {
-	var prev, found *decoratedBuildHandler
-	for h := s.head; h != nil; {
-		if h.With.ID() == relativeTo {
-			found = h
-			break
-		}
-		prev = h
-		if h.Next == nil {
-			break
-		}
-		h = h.Next.(*decoratedBuildHandler)
-	}
+	found, prev := s.get(relativeTo)
 	if found == nil {
 		return fmt.Errorf("not found: %s", m.ID())
 	}
@@ -195,35 +180,20 @@ func (s *BuildStep) Insert(m BuildMiddleware, relativeTo string, pos RelativePos
 // Returns the middleware removed, or error if the middleware to be removed
 // doesn't exist.
 func (s *BuildStep) Swap(id string, m BuildMiddleware) (BuildMiddleware, error) {
-	for h := s.head; h != nil; {
-		if h.With.ID() == id {
-			swapped := h.With
-			h.With = m
-			return swapped, nil
-		}
-		if h.Next == nil {
-			break
-		}
-		h = h.Next.(*decoratedBuildHandler)
+	found, _ := s.get(id)
+	if found == nil {
+		return nil, fmt.Errorf("not found: %s", m.ID())
 	}
-	return nil, fmt.Errorf("not found: %s", m.ID())
+
+	swapped := found.With
+	found.With = m
+	return swapped, nil
 }
 
 // Remove removes the middleware by id. Returns error if the middleware
 // doesn't exist.
 func (s *BuildStep) Remove(id string) (BuildMiddleware, error) {
-	var prev, found *decoratedBuildHandler
-	for h := s.head; h != nil; {
-		if h.With.ID() == id {
-			found = h
-			break
-		}
-		prev = h
-		if h.Next == nil {
-			break
-		}
-		h = h.Next.(*decoratedBuildHandler)
-	}
+	found, prev := s.get(id)
 	if found == nil {
 		return nil, fmt.Errorf("not found: %s", id)
 	}
@@ -267,6 +237,24 @@ func (s *BuildStep) List() []string {
 func (s *BuildStep) Clear() {
 	s.head = nil
 	s.tail = nil
+}
+
+func (s *BuildStep) get(id string) (found, prev *decoratedBuildHandler) {
+	for h := s.head; h != nil; {
+		if h.With.ID() == id {
+			found = h
+			return
+		}
+		prev = h
+		if h.Next == nil {
+			return
+		}
+
+		// once executed, tail.Next of the list will be set to an
+		// *buildWrapHandler
+		h, _ = h.Next.(*decoratedBuildHandler)
+	}
+	return
 }
 
 type buildWrapHandler struct {

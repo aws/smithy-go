@@ -136,6 +136,13 @@ func TestInitializeStep_Remove(t *testing.T) {
 	if _, err := step.Remove("ILLUSION"); err == nil {
 		t.Error("expect err, got none")
 	}
+
+	// mock post-handle state
+	step.Add(mockInitializeMiddleware("A"), After)
+	step.tail.Next = &initializeWrapHandler{}
+	if _, err := step.Remove("ILLUSION"); err == nil {
+		t.Error("expect err, got none")
+	}
 }
 
 func TestInitializeStep_Clear(t *testing.T) {
