@@ -136,6 +136,13 @@ func TestInitializeStep_Remove(t *testing.T) {
 	if _, err := step.Remove("ILLUSION"); err == nil {
 		t.Error("expect err, got none")
 	}
+
+	// mock post-handle state
+	step.Add(mockInitializeMiddleware("A"), After)
+	step.tail.Next = &initializeWrapHandler{}
+	if _, err := step.Remove("ILLUSION"); err == nil {
+		t.Error("expect err, got none")
+	}
 }
 
 func TestInitializeStep_Clear(t *testing.T) {
@@ -147,4 +154,16 @@ func TestInitializeStep_Clear(t *testing.T) {
 	expectIDList(t, []string{"A", "B", "C"}, step.List())
 	step.Clear()
 	expectIDList(t, nil, step.List())
+}
+
+func TestInitializeStep_List(t *testing.T) {
+	step := NewInitializeStep()
+	step.Add(mockInitializeMiddleware("A"), After)
+	step.Add(mockInitializeMiddleware("B"), After)
+	step.Add(mockInitializeMiddleware("C"), After)
+
+	// mock post-handle state
+	step.tail.Next = &initializeWrapHandler{}
+
+	expectIDList(t, []string{"A", "B", "C"}, step.List())
 }
