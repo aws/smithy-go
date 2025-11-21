@@ -43,14 +43,14 @@ public class AuthParametersResolverGenerator {
         loadResolvers();
 
         return goTemplate("""
-                func $name:L(ctx $context:T, operation string, input interface{}, options Options) $params:P {
-                    params := &$params:T{
+                func $name:L(ctx $context:T, operation string, input interface{}, options Options) (params $params:P, err error) {
+                    params = &$params:T{
                         Operation: operation,
                     }
 
                     $bindings:W
-
-                    return params
+                
+                    return
                 }
                 """,
                 MapUtils.of(
@@ -64,7 +64,11 @@ public class AuthParametersResolverGenerator {
     private GoWriter.Writable generateResolvers() {
         return (writer) -> {
             for (var resolver: resolvers) {
-                writer.write("$T(ctx, params, input, options)", resolver.resolver());
+                if (resolver.resolver().getName().equals("bindAuthEndpointParams")) {
+                    writer.write("err = $T(ctx, params, input, options)", resolver.resolver());
+                } else {
+                    writer.write("$T(ctx, params, input, options)", resolver.resolver());
+                }
             }
         };
     }

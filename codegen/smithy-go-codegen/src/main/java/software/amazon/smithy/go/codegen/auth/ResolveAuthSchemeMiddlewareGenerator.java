@@ -70,7 +70,10 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 _, span := $3T(ctx, "ResolveAuthScheme")
                 defer span.End()
 
-                params := $1L(ctx, m.operation, getOperationInput(ctx), m.options)
+                params, err := $1L(ctx, m.operation, getOperationInput(ctx), m.options)
+                if err != nil {
+                    return out, metadata, $2T("bind auth scheme params: %w", err)
+                }
                 options, err := m.options.AuthSchemeResolver.ResolveAuthSchemes(ctx, params)
                 if err != nil {
                     return out, metadata, $2T("resolve auth scheme: %w", err)
