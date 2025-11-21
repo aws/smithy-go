@@ -57,8 +57,8 @@ public class EndpointParameterBindingsGenerator {
                     bindEndpointParams(*EndpointParameters)
                 }
 
-                func bindEndpointParams(ctx $context:T, input interface{}, options Options) (params *EndpointParameters, err error) {
-                    params = &EndpointParameters{}
+                func bindEndpointParams(ctx $context:T, input interface{}, options Options) (*EndpointParameters, error) {
+                    params := &EndpointParameters{}
                 
                     $builtinBindings:W
 
@@ -68,7 +68,7 @@ public class EndpointParameterBindingsGenerator {
                         b.bindEndpointParams(params)
                     }
 
-                    return
+                    return params, nil
                 }
                 """,
                 MapUtils.of(
@@ -96,7 +96,13 @@ public class EndpointParameterBindingsGenerator {
             for (var param: boundBuiltins) {
                 String paramName =  EndpointParametersGenerator.getExportedParameterName(param);
                 if (paramName.equals("Region")) {
-                    writer.write("params.Region, err = $W",
+                    writer.write("""
+                                    region, err := $W
+                                    if err != nil {
+                                        return nil, err
+                                    }
+                                    params.Region = region
+                                    """,
                             builtinBindings.get(param.getBuiltIn().get()));
                 } else {
                     writer.write(
