@@ -1,8 +1,0 @@
-{
-    "id": "e8363f0e-1011-46e7-ac60-6bc674c1f16e",
-    "type": "feature",
-    "description": "Improve allocation footprint of the middleware stack. This should convey a ~10% reduction in allocations per SDK request.",
-    "modules": [
-        "."
-    ]
-}
