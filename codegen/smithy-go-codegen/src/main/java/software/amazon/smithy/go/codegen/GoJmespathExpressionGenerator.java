@@ -43,6 +43,7 @@ import software.amazon.smithy.jmespath.ast.FunctionExpression;
 import software.amazon.smithy.jmespath.ast.LiteralExpression;
 import software.amazon.smithy.jmespath.ast.MultiSelectListExpression;
 import software.amazon.smithy.jmespath.ast.NotExpression;
+import software.amazon.smithy.jmespath.ast.OrExpression;
 import software.amazon.smithy.jmespath.ast.ProjectionExpression;
 import software.amazon.smithy.jmespath.ast.Subexpression;
 import software.amazon.smithy.model.shapes.CollectionShape;
@@ -98,6 +99,8 @@ public class GoJmespathExpressionGenerator {
             return visitLiteral(tExpr);
         } else if (expr instanceof AndExpression tExpr) {
             return visitAnd(tExpr, current);
+        } else if (expr instanceof OrExpression tExpr) {
+            return visitOr(tExpr, current);
         } else if (expr instanceof NotExpression tExpr) {
             return visitNot(tExpr, current);
         } else if (expr instanceof FilterProjectionExpression tExpr) {
@@ -171,6 +174,14 @@ public class GoJmespathExpressionGenerator {
         var right = visit(expr.getRight(), current);
         var ident = nextIdent();
         writer.write("$L := $L && $L", ident, left.ident, right.ident);
+        return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
+    }
+
+    private Variable visitOr(OrExpression expr, Variable current) {
+        var left = visit(expr.getLeft(), current);
+        var right = visit(expr.getRight(), current);
+        var ident = nextIdent();
+        writer.write("$L := $L || $L", ident, left.ident, right.ident);
         return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
     }
 
