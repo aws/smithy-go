@@ -313,9 +313,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return null;
         }
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+        writers.useShapeWriter(shape, writer ->
+                new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
 
         if (settings.useExperimentalSerde()) {
             writers.useFileWriter("schemas.go", settings.getModuleName(), new SchemaGenerator(ctx, shape));

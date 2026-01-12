@@ -55,23 +55,22 @@ public final class StructureGenerator implements Runnable {
     private final Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
+    private final boolean useExperimentalSerde;
 
     public StructureGenerator(
-            Model model,
-            SymbolProvider symbolProvider,
+            GoCodegenContext ctx,
             GoWriter writer,
-            ServiceShape service,
             StructureShape shape,
-            Symbol symbol,
             ProtocolGenerator protocolGenerator
     ) {
-        this.model = model;
-        this.symbolProvider = symbolProvider;
+        this.model = ctx.model();
+        this.symbolProvider = ctx.symbolProvider();
         this.writer = writer;
-        this.service = service;
+        this.service = ctx.service();
         this.shape = shape;
-        this.symbol = symbol;
+        this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
+        this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
     }
 
     @Override
@@ -136,7 +135,7 @@ public final class StructureGenerator implements Runnable {
 
         writer.closeBlock("}").write("");
 
-        if (true) { // TODO: settings.useExperimentalSerde()
+        if (useExperimentalSerde) {
             generateSerializers();
         }
     }

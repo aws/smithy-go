@@ -121,9 +121,8 @@ public final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, protocolGenerator)
-                .renderStructure(() -> {
-                }, true);
+        new StructureGenerator(ctx, writer, inputShape, protocolGenerator)
+                .renderStructure(() -> {}, true);
 
         var rulesTrait = service.getTrait(EndpointRuleSetTrait.class);
         if (rulesTrait.isPresent()) {
@@ -139,7 +138,7 @@ public final class OperationGenerator implements Runnable {
                         outputShape.members().stream())
                 .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
 
-        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
+        new StructureGenerator(ctx, writer, outputShape, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
