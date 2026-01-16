@@ -8,13 +8,21 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public class SchemaGenerator implements GoWriter.Writable {
+public class StructureSchemaGenerator implements GoWriter.Writable {
     private final GoCodegenContext ctx;
     private final StructureShape shape;
 
-    public SchemaGenerator(GoCodegenContext ctx, StructureShape shape) {
+    public StructureSchemaGenerator(GoCodegenContext ctx, StructureShape shape) {
         this.ctx = ctx;
         this.shape = shape;
+    }
+
+    public static String schemaName(StructureShape shape) {
+        return shape.getId().getName();
+    }
+
+    public static String schemaName(StructureShape shape, MemberShape member) {
+        return String.format("%s_%s", schemaName(shape), member.getMemberName());
     }
 
     @Override
@@ -44,13 +52,5 @@ public class SchemaGenerator implements GoWriter.Writable {
                         "schemaName", schemaName(shape, member),
                         "member", memberName
                 ));
-    }
-
-    public static String schemaName(StructureShape shape) {
-        return String.format("%s", shape.getId().getName());
-    }
-
-    public static String schemaName(StructureShape shape, MemberShape member) {
-        return String.format("%s_%s", shape.getId().getName(), member.getMemberName());
     }
 }

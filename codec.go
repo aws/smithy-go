@@ -42,7 +42,9 @@ type ShapeSerializer interface {
 	WriteTime(*Schema, time.Time)
 	WriteNil(*Schema)
 	WriteList(*Schema, func())
+
 	WriteMap(*Schema, func())
+	WriteKey(*Schema, string, func())
 }
 
 type ShapeDeserializer interface {

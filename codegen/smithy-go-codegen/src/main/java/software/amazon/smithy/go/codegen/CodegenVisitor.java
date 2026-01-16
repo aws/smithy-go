@@ -29,7 +29,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
@@ -41,6 +40,8 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.IntEnumShape;
+import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -310,15 +311,16 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void structureShape(StructureShape shape) {
+        if (settings.useExperimentalSerde()) {
+            writers.useFileWriter("./schemas/schemas.go", settings.getModuleName() + "/schemas", new StructureSchemaGenerator(ctx, shape));
+        }
+
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return null;
         }
         writers.useShapeWriter(shape, writer ->
                 new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
 
-        if (settings.useExperimentalSerde()) {
-            writers.useFileWriter("./schemas/schemas.go", settings.getModuleName() + "/schemas", new SchemaGenerator(ctx, shape));
-        }
         return null;
     }
 
@@ -335,6 +337,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
+
+        if (settings.useExperimentalSerde()) {
+            // TODO schema probably
+        }
         return null;
     }
 
@@ -393,6 +399,24 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     @Override
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
+        return null;
+    }
+
+    @Override
+    public Void listShape(ListShape shape) {
+        if (settings.useExperimentalSerde()) {
+            writers.useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    new ListSchemaGenerator(ctx, shape));
+        }
+        return null;
+    }
+
+    @Override
+    public Void mapShape(MapShape shape) {
+        if (settings.useExperimentalSerde()) {
+            writers.useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    new MapSchemaGenerator(ctx, shape));
+        }
         return null;
     }
 }

@@ -18,7 +18,6 @@ package software.amazon.smithy.go.codegen;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
-import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -215,7 +214,7 @@ public final class StructureGenerator implements Runnable {
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
-            writer.openBlock("s.WriteMap(schemas.$L, func() {", "})", SchemaGenerator.schemaName(shape), () -> {
+            writer.openBlock("s.WriteMap(schemas.$L, func() {", "})", StructureSchemaGenerator.schemaName(shape), () -> {
                 writer.write("v.SerializeFields(s)");
             });
         });
@@ -224,13 +223,21 @@ public final class StructureGenerator implements Runnable {
             for (var member : members) {
                 var target = ShapeUtil.expectMember(model, shape, member.getMemberName());
                 var ident = String.format("v.%s", symbolProvider.toMemberName(member));
-                generateSerializeMember(member, target, ident, 0);
+                generateSerializeMember(0, member, target, ident, 0);
             }
         });
     }
 
-    private void generateSerializeMember(MemberShape member, Shape target, String ident, int depth) {
-        var schemaName = "schemas." + SchemaGenerator.schemaName(shape, member);
+    private void generateSerializeMember(int type, MemberShape member, Shape target, String ident, int depth) {
+        String schemaName;
+
+        // TODO this is stupid
+        if (type == 0) { // struct
+            schemaName = "schemas." + StructureSchemaGenerator.schemaName(shape, member);
+        } else {
+            schemaName = "nil";
+        }
+
         var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
             case BYTE ->
@@ -248,42 +255,43 @@ public final class StructureGenerator implements Runnable {
                     writer.write("s.WriteFloat64$L($L, $L)", ptrSuffix, schemaName, ident);
 
             case BOOLEAN ->
-                    writer.write("s.WriteBoolean$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writer.write("s.WriteBool$L($L, $L)", ptrSuffix, schemaName, ident);
             case STRING ->
                     writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
 
             case TIMESTAMP -> writer.write("s.WriteTime($L, $L)", schemaName, ident);
 
-            case BLOB -> writer.write("s.WriteBlob$L($L, $L)", schemaName, ident);
+            case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
 
             case ENUM -> writer.write("s.WriteString($L, string($L))", schemaName, ident);
             case INT_ENUM -> writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
 
-            case STRUCTURE -> {
-                writer.write("close$L := s.WriteMap($L)", sanitizeIdent(ident), schemaName);
-                writer.write("$L.SerializeFields(s)", ident);
-                writer.write("close$L()", sanitizeIdent(ident));
-            }
+            case STRUCTURE ->
+                writer.openBlock("s.WriteMap($L, func() {", " })", schemaName, () -> {
+                    writer.write("$L.SerializeFields(s)", ident);
+                });
 
             case LIST, SET -> {
                 var elemIdent = "v" + depth;
-                writer.write("close$L := s.WriteList($L)", sanitizeIdent(ident), schemaName);
-                writer.openBlock("for _, $L := range $L {", "}", elemIdent, ident, () -> {
-                    var collection = (CollectionShape) target;
-                    generateSerializeMember(collection.getMember(), ShapeUtil.expectMember(model, collection), elemIdent, depth + 1);
+                writer.openBlock("s.WriteList($L, func() {", "})", schemaName, () -> {
+                    writer.openBlock("for _, $L := range $L {", "}", elemIdent, ident, () -> {
+                        var collection = (CollectionShape) target;
+                        generateSerializeMember(1, collection.getMember(), ShapeUtil.expectMember(model, collection), elemIdent, depth + 1);
+                    });
                 });
-                writer.write("close$L()", sanitizeIdent(ident));
             }
 
             case MAP -> {
                 // TODO: sort fields
                 var elemIdent = "v" + depth;
-                writer.write("close$L := s.WriteMap($L)", sanitizeIdent(ident), schemaName);
-                writer.openBlock("for k, $L := range $L {", "}", elemIdent, ident, () -> {
-                    var collection = (MapShape) target;
-                    generateSerializeMember(collection.getValue(), ShapeUtil.expectMember(model, collection), elemIdent, depth + 1);
+                var map = (MapShape) target;
+                writer.openBlock("s.WriteMap($L, func() {", "})", schemaName, () -> {
+                    writer.openBlock("for k, $L := range $L {", "}", elemIdent, ident, () -> {
+                        writer.openBlock("s.WriteKey(schemas.$L, k, func() {", "})", MapSchemaGenerator.keySchemaName(map), () -> {
+                            generateSerializeMember(2, map.getValue(), ShapeUtil.expectMember(model, map), elemIdent, depth + 1);
+                        });
+                    });
                 });
-                writer.write("close$L()", sanitizeIdent(ident));
             }
 
             case UNION -> writer.write("// TODO: union $L", ident);
