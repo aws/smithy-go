@@ -1,3 +1,7 @@
 package awsjson10
 
-type JSONShapeSerializer struct{}
+// ShapeSerializer implements awsjson10.
+type ShapeSerializer struct{}
+
+// ShapeDeserializer implements awsjson10.
+type ShapeDeserializer struct{}

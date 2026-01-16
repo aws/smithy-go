@@ -35,10 +35,22 @@ type ShapeSerializer interface {
 
 	WriteList(*Schema) func()
 	WriteMap(*Schema) func()
-	WriteDocument(*Schema, any) // TODO value type?
 }
 
 type ShapeDeserializer interface {
+	ReadInt8(*Schema) (int8, error)
+	ReadInt16(*Schema) (int16, error)
+	ReadInt32(*Schema) (int32, error)
+	ReadInt64(*Schema) (int64, error)
+
+	ReadFloat32(*Schema) (float32, error)
+	ReadFloat64(*Schema) (float64, error)
+
+	ReadBool(*Schema) (bool, error)
+	ReadString(*Schema) (string, error)
+
+	ReadList(*Schema, func() error) error
+	ReadMap(*Schema, func(string) error)
 }
 
 type Serializable interface {

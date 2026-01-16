@@ -3,7 +3,6 @@ package software.amazon.smithy.go.codegen;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -20,8 +19,9 @@ public class SchemaGenerator implements GoWriter.Writable {
 
     @Override
     public void accept(GoWriter writer) {
+        writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.write(goTemplate("""
-                var $schemaName:L = encoding.NewSchema($shapeId:S)
+                var $schemaName:L = smithy.NewSchema($shapeId:S)
                 $members:W
                 """,
                 Map.of(
@@ -38,7 +38,7 @@ public class SchemaGenerator implements GoWriter.Writable {
     private GoWriter.Writable renderMember(MemberShape member) {
         var memberName = member.getMemberName();
         return goTemplate("""
-                var $schemaName:L = encoding.NewMemberSchema($member:S)
+                var $schemaName:L = smithy.NewMemberSchema($member:S)
                 """,
                 Map.of(
                         "schemaName", schemaName(shape, member),
@@ -47,10 +47,10 @@ public class SchemaGenerator implements GoWriter.Writable {
     }
 
     public static String schemaName(StructureShape shape) {
-        return String.format("Schema_%s", shape.getId().getName());
+        return String.format("%s", shape.getId().getName());
     }
 
     public static String schemaName(StructureShape shape, MemberShape member) {
-        return String.format("Schema_%s_%s", shape.getId().getName(), member.getMemberName());
+        return String.format("%s_%s", shape.getId().getName(), member.getMemberName());
     }
 }

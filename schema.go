@@ -18,7 +18,7 @@ type Schema struct {
 //
 // Generated clients include schemas for every shape that needs to be
 // (de)serialized as part of a service operation.
-func NewSchema(id string, members map[string]Schema, trait ...Trait) Schema {
+func NewSchema(id string, trait ...Trait) Schema { // TODO need members probably
 	traits := map[string]Trait{}
 	for _, t := range trait {
 		traits[t.TraitID()] = t
@@ -27,7 +27,6 @@ func NewSchema(id string, members map[string]Schema, trait ...Trait) Schema {
 	return Schema{
 		shapeID: id,
 		traits:  traits,
-		members: members,
 	}
 }
 

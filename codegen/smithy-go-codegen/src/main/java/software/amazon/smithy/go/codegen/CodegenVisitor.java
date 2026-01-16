@@ -317,7 +317,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
 
         if (settings.useExperimentalSerde()) {
-            writers.useFileWriter("schemas.go", settings.getModuleName(), new SchemaGenerator(ctx, shape));
+            writers.useFileWriter("./schemas/schemas.go", settings.getModuleName(), new SchemaGenerator(ctx, shape));
         }
         return null;
     }

@@ -56,6 +56,7 @@ public final class StructureGenerator implements Runnable {
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
     private final boolean useExperimentalSerde;
+    private final GoCodegenContext ctx;
 
     public StructureGenerator(
             GoCodegenContext ctx,
@@ -63,6 +64,7 @@ public final class StructureGenerator implements Runnable {
             StructureShape shape,
             ProtocolGenerator protocolGenerator
     ) {
+        this.ctx = ctx;
         this.model = ctx.model();
         this.symbolProvider = ctx.symbolProvider();
         this.writer = writer;
@@ -206,6 +208,7 @@ public final class StructureGenerator implements Runnable {
         var members = shape.members().stream()
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
+        writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
             writer.write("closeStruct := s.WriteMap($L)", SchemaGenerator.schemaName(shape));
             writer.write("v.SerializeFields(s)");
@@ -222,7 +225,8 @@ public final class StructureGenerator implements Runnable {
     }
 
     private void generateSerializeMember(MemberShape member, Shape target, String ident, int depth) {
-        var schemaName = SchemaGenerator.schemaName(shape, member);
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        var schemaName = "schemas." + SchemaGenerator.schemaName(shape, member);
         switch (target.getType()) {
             case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
             case BOOLEAN -> writer.write("s.WriteBoolean($L, $L)", schemaName, ident);
