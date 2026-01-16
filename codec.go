@@ -20,21 +20,29 @@ type ShapeSerializer interface {
 	WriteInt16(*Schema, int16)
 	WriteInt32(*Schema, int32)
 	WriteInt64(*Schema, int64)
+	WriteInt8Ptr(*Schema, *int8)
+	WriteInt16Ptr(*Schema, *int16)
+	WriteInt32Ptr(*Schema, *int32)
+	WriteInt64Ptr(*Schema, *int64)
 
 	WriteFloat32(*Schema, float32)
 	WriteFloat64(*Schema, float64)
+	WriteFloat32Ptr(*Schema, *float32)
+	WriteFloat64Ptr(*Schema, *float64)
+
+	WriteBool(*Schema, bool)
+	WriteBoolPtr(*Schema, *bool)
+
+	WriteString(*Schema, string)
+	WriteStringPtr(*Schema, *string)
 
 	WriteBigInteger(*Schema, big.Int)
 	WriteBigDecimal(*Schema, big.Float)
-
-	WriteBool(*Schema, bool)
-	WriteString(*Schema, string)
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
 	WriteNil(*Schema)
-
-	WriteList(*Schema) func()
-	WriteMap(*Schema) func()
+	WriteList(*Schema, func())
+	WriteMap(*Schema, func())
 }
 
 type ShapeDeserializer interface {
@@ -50,7 +58,7 @@ type ShapeDeserializer interface {
 	ReadString(*Schema) (string, error)
 
 	ReadList(*Schema, func() error) error
-	ReadMap(*Schema, func(string) error)
+	ReadMap(*Schema, func(string) error) error
 }
 
 type Serializable interface {

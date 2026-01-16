@@ -22,6 +22,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
@@ -57,6 +58,7 @@ public final class StructureGenerator implements Runnable {
     private final ProtocolGenerator protocolGenerator;
     private final boolean useExperimentalSerde;
     private final GoCodegenContext ctx;
+    private final GoPointableIndex nilIndex;
 
     public StructureGenerator(
             GoCodegenContext ctx,
@@ -73,6 +75,7 @@ public final class StructureGenerator implements Runnable {
         this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
         this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
+        this.nilIndex = GoPointableIndex.of(model);
     }
 
     @Override
@@ -204,15 +207,17 @@ public final class StructureGenerator implements Runnable {
     }
 
     private void generateSerializers() {
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+
         var symbol = symbolProvider.toSymbol(shape);
         var members = shape.members().stream()
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
-            writer.write("closeStruct := s.WriteMap($L)", SchemaGenerator.schemaName(shape));
-            writer.write("v.SerializeFields(s)");
-            writer.write("closeStruct()");
+            writer.openBlock("s.WriteMap(schemas.$L, func() {", "})", SchemaGenerator.schemaName(shape), () -> {
+                writer.write("v.SerializeFields(s)");
+            });
         });
         writer.write("");
         writer.openBlock("func (v *$L) SerializeFields(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
@@ -225,19 +230,31 @@ public final class StructureGenerator implements Runnable {
     }
 
     private void generateSerializeMember(MemberShape member, Shape target, String ident, int depth) {
-        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
         var schemaName = "schemas." + SchemaGenerator.schemaName(shape, member);
+        var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
-            case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
-            case BOOLEAN -> writer.write("s.WriteBoolean($L, $L)", schemaName, ident);
-            case STRING -> writer.write("s.WriteString($L, $L)", schemaName, ident);
+            case BYTE ->
+                    writer.write("s.WriteInt8$L($L, $L)", ptrSuffix, schemaName, ident);
+            case SHORT ->
+                    writer.write("s.WriteInt16$L($L, $L)", ptrSuffix, schemaName, ident);
+            case INTEGER ->
+                    writer.write("s.WriteInt32$L($L, $L)", ptrSuffix, schemaName, ident);
+            case LONG ->
+                    writer.write("s.WriteInt64$L($L, $L)", ptrSuffix, schemaName, ident);
+
+            case FLOAT ->
+                    writer.write("s.WriteFloat32$L($L, $L)", ptrSuffix, schemaName, ident);
+            case DOUBLE ->
+                    writer.write("s.WriteFloat64$L($L, $L)", ptrSuffix, schemaName, ident);
+
+            case BOOLEAN ->
+                    writer.write("s.WriteBoolean$L($L, $L)", ptrSuffix, schemaName, ident);
+            case STRING ->
+                    writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
+
             case TIMESTAMP -> writer.write("s.WriteTime($L, $L)", schemaName, ident);
-            case BYTE -> writer.write("s.WriteInt8($L, $L)", schemaName, ident);
-            case SHORT -> writer.write("s.WriteInt16($L, $L)", schemaName, ident);
-            case INTEGER -> writer.write("s.WriteInt32($L, $L)", schemaName, ident);
-            case LONG -> writer.write("s.WriteInt64($L, $L)", schemaName, ident);
-            case FLOAT -> writer.write("s.WriteFloat32($L, $L)", schemaName, ident);
-            case DOUBLE -> writer.write("s.WriteFloat64($L, $L)", schemaName, ident);
+
+            case BLOB -> writer.write("s.WriteBlob$L($L, $L)", schemaName, ident);
 
             case ENUM -> writer.write("s.WriteString($L, string($L))", schemaName, ident);
             case INT_ENUM -> writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
