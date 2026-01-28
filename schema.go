@@ -2,76 +2,137 @@ package smithy
 
 import "strings"
 
+// ShapeType is a type of Smithy shape.
+// See https://smithy.io/2.0/spec/idl.html#defining-shapes.
+type ShapeType int
+
+// Enumerates ShapeType per the Smithy IDL.
+const (
+	ShapeTypeBlob ShapeType = iota
+	ShapeTypeBoolean
+	ShapeTypeString
+	ShapeTypeTimestamp
+	ShapeTypeByte
+	ShapeTypeShort
+	ShapeTypeInteger
+	ShapeTypeLong
+	ShapeTypeFloat
+	ShapeTypeDocument
+	ShapeTypeDouble
+	ShapeTypeBigDecimal
+	ShapeTypeBigInteger
+	ShapeTypeEnum
+	ShapeTypeIntEnum
+	ShapeTypeList
+	ShapeTypeSet
+	ShapeTypeMap
+	ShapeTypeStructure
+	ShapeTypeUnion
+	ShapeTypeMember
+	ShapeTypeService
+	ShapeTypeResource
+	ShapeTypeOperation
+)
+
+// ShapeID fields of a Smithy shape ID.
+type ShapeID struct {
+	Namespace, Name, Member string
+}
+
+func stoid(s string) ShapeID {
+	ns, n, _ := strings.Cut(s, "#")
+	n, m, _ := strings.Cut(n, "$")
+	return ShapeID{ns, n, m}
+}
+
 // Schema encodes information about a shape from a Smithy model.
 //
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	shapeID    string
-	memberName string // only if member
+	id  ShapeID
+	typ ShapeType
 
-	members map[string]Schema // member name -> schema
-	traits  map[string]Trait  // trait ID -> trait
+	members map[string]*Schema // member name -> schema
+	traits  map[string]Trait   // trait ID -> trait
+}
+
+// SchemaOptions configures a new Schema.
+type SchemaOptions struct {
+	members []*Schema
+	traits  []Trait
+}
+
+// WithMember adds a member targeting the given Schema.
+//
+// Traits provided for the member here override any traits on the target if
+// there is collision.
+func WithMember(name string, target *Schema, traits ...Trait) func(*SchemaOptions) {
+	return func(o *SchemaOptions) {
+		m := &Schema{
+			id:      target.id,
+			typ:     target.typ,
+			members: target.members,
+			traits:  target.traits,
+		}
+
+		m.id.Member = name
+		for _, t := range traits {
+			m.traits[t.TraitID()] = t
+		}
+
+		o.members = append(o.members, m)
+	}
+}
+
+// WithTraits adds traits to the Schema.
+func WithTraits(traits ...Trait) func(*SchemaOptions) {
+	return func(o *SchemaOptions) {
+		o.traits = append(o.traits, traits...)
+	}
 }
 
 // NewSchema returns a schema with the provided members and traits.
 //
 // Generated clients include schemas for every shape that needs to be
 // (de)serialized as part of a service operation.
-func NewSchema(id string, trait ...Trait) *Schema { // TODO need members probably
-	traits := map[string]Trait{}
-	for _, t := range trait {
+func NewSchema(id string, typ ShapeType, opts ...func(*SchemaOptions)) *Schema {
+	var o SchemaOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	members := make(map[string]*Schema, len(o.members))
+	for _, m := range o.members {
+		members[m.id.Member] = m
+	}
+
+	traits := make(map[string]Trait, len(o.traits))
+	for _, t := range o.traits {
 		traits[t.TraitID()] = t
 	}
 
 	return &Schema{
-		shapeID: id,
+		id:      stoid(id),
+		typ:     typ,
+		members: members,
 		traits:  traits,
 	}
 }
 
-// NewMemberSchema returns a member schema with the provided members and traits.
-func NewMemberSchema(name string, trait ...Trait) *Schema {
-	traits := map[string]Trait{}
-	for _, t := range trait {
-		traits[t.TraitID()] = t
-	}
-
-	return &Schema{
-		memberName: name,
-		traits:     traits,
-	}
-}
-
-// ShapeID returns the shape ID for this schema as it appears in the original
+// ID returns the shape ID for this schema as it appears in the original
 // Smithy model.
-func (s *Schema) ShapeID() string {
-	return s.shapeID
+func (s *Schema) ID() ShapeID {
+	return s.id
 }
 
-// ShapeName returns the unqualified shape name for this schema.
-func (s *Schema) ShapeName() string {
-	parts := strings.Split(s.shapeID, "#")
-	return parts[1]
-}
-
-// MemberName returns the member name for this schema as it appears in the
-// Smithy model.
-func (s *Schema) MemberName() string {
-	return s.memberName
-}
-
-// Member returns the named member of the schema if it exists.
-func (s *Schema) Member(name string) (*Schema, bool) {
-	schema, ok := s.members[name]
-	if !ok {
-		return nil, false
-	}
-	return &schema, true
+// Type returns the schema's type.
+func (s *Schema) Type() ShapeType {
+	return s.typ
 }
 
 // Trait returns the target trait on the schema if it exists.
-func SchemaTrait[T Trait](s Schema) (T, bool) {
+func SchemaTrait[T Trait](s *Schema) (T, bool) {
 	var trait T
 
 	opaque, ok := s.traits[trait.TraitID()]
@@ -79,8 +140,6 @@ func SchemaTrait[T Trait](s Schema) (T, bool) {
 		return trait, false
 	}
 
-	if tt, ok := opaque.(T); ok {
-		trait = tt
-	}
-	return trait, true
+	tt, ok := opaque.(T)
+	return tt, ok
 }
