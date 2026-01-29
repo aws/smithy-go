@@ -25,11 +25,11 @@ import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.directed.GenerateOperationDirective;
 import software.amazon.smithy.codegen.core.directed.GenerateServiceDirective;
 import software.amazon.smithy.go.codegen.AbstractDirectedCodegen;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoModGenerator;
 import software.amazon.smithy.go.codegen.GoModuleInfo;
 import software.amazon.smithy.go.codegen.GoSettings;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ManifestWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -57,7 +57,7 @@ public class ServerDirectedCodegen extends AbstractDirectedCodegen {
                 .flatMap(it -> getShapesToSerde(model, it).stream())
                 .collect(toSet());
 
-        delegator.useFileWriter("service.go", namespace, GoWriter.ChainWritable.of(
+        delegator.useFileWriter("service.go", namespace, ChainWritable.of(
                 new NotImplementedError(),
                 new ServerInterface(directive.model(), directive.service(), directive.symbolProvider()),
                 new NoopServiceStruct(directive.model(), directive.service(), directive.symbolProvider()),

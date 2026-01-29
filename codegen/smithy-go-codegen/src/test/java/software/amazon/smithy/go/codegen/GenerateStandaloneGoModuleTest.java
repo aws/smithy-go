@@ -93,7 +93,7 @@ public class GenerateStandaloneGoModuleTest {
         testGoModule(testPath);
     }
 
-    private GoWriter.Writable generateSomethingElse() {
+    private Writable generateSomethingElse() {
         return goBlockTemplate("func (s *$name:L) $funcName:L(i int) string {", "}",
                 MapUtils.of("funcName", "SomethingElse"),
                 MapUtils.of(

@@ -36,7 +36,7 @@ import software.amazon.smithy.utils.MapUtils;
 /**
  * Implements codegen for service client config.
  */
-public class ClientOptions implements GoWriter.Writable {
+public class ClientOptions implements Writable {
     public static final String NAME = "Options";
 
     private final ProtocolGenerator.GenerationContext context;
@@ -66,7 +66,7 @@ public class ClientOptions implements GoWriter.Writable {
         writer.write(generate());
     }
 
-    private GoWriter.Writable generate() {
+    private Writable generate() {
         var apiOptionsDocs = goDocTemplate(
                 "Set of options to modify how an operation is invoked. These apply to all operations "
                         + "invoked for this client. Use functional options on operation call to modify this "
@@ -95,7 +95,7 @@ public class ClientOptions implements GoWriter.Writable {
                         "apiOptionsDocs", apiOptionsDocs,
                         "options", NAME,
                         "stack", SmithyGoTypes.Middleware.Stack,
-                        "fields", GoWriter.ChainWritable.of(fields.stream().map(this::writeField).toList()).compose(),
+                        "fields", ChainWritable.of(fields.stream().map(this::writeField).toList()).compose(),
                         "protocolFields", generateProtocolFields(),
                         "copy", generateCopy(),
                         "getIdentityResolver", generateGetIdentityResolver(),
@@ -103,7 +103,7 @@ public class ClientOptions implements GoWriter.Writable {
                 ));
     }
 
-    private GoWriter.Writable generateProtocolTypes() {
+    private Writable generateProtocolTypes() {
         ensureSupportedProtocol();
         return goTemplate("""
                 type HTTPClient interface {
@@ -112,8 +112,8 @@ public class ClientOptions implements GoWriter.Writable {
                 """, GoStdlibTypes.Net.Http.Request, GoStdlibTypes.Net.Http.Response);
     }
 
-    private GoWriter.Writable writeField(ConfigField field) {
-        GoWriter.Writable docs = writer -> {
+    private Writable writeField(ConfigField field) {
+        Writable docs = writer -> {
             field.getDocumentation().ifPresent(writer::writeDocs);
             field.getDeprecated().ifPresent(s -> {
                 if (field.getDocumentation().isPresent()) {
@@ -128,7 +128,7 @@ public class ClientOptions implements GoWriter.Writable {
                 """, docs, field.getName(), field.getType());
     }
 
-    private GoWriter.Writable generateProtocolFields() {
+    private Writable generateProtocolFields() {
         ensureSupportedProtocol();
         return goTemplate("""
                 $1W
@@ -157,7 +157,7 @@ public class ClientOptions implements GoWriter.Writable {
                 goDocTemplate("Priority list of preferred auth scheme names (e.g. sigv4a)."));
     }
 
-    private GoWriter.Writable generateCopy() {
+    private Writable generateCopy() {
         return goTemplate("""
                 // Copy creates a clone where the APIOptions list is deep copied.
                 func (o $1L) Copy() $1L {
@@ -171,7 +171,7 @@ public class ClientOptions implements GoWriter.Writable {
                 """, NAME, SmithyGoTypes.Middleware.Stack);
     }
 
-    private GoWriter.Writable generateGetIdentityResolver() {
+    private Writable generateGetIdentityResolver() {
         return goTemplate("""
                 func (o $L) GetIdentityResolver(schemeID string) $T {
                     $W
@@ -181,7 +181,7 @@ public class ClientOptions implements GoWriter.Writable {
                 """,
                 NAME,
                 SmithyGoTypes.Auth.IdentityResolver,
-                GoWriter.ChainWritable.of(
+                ChainWritable.of(
                         ServiceIndex.of(context.getModel())
                                 .getEffectiveAuthSchemes(context.getService()).keySet().stream()
                                 .filter(authSchemes::containsKey)
@@ -191,14 +191,14 @@ public class ClientOptions implements GoWriter.Writable {
                 generateGetIdentityResolverMapping(NoAuthTrait.ID, new AnonymousDefinition()));
     }
 
-    private GoWriter.Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
+    private Writable generateGetIdentityResolverMapping(ShapeId schemeId, AuthSchemeDefinition scheme) {
         return goTemplate("""
                 if schemeID == $S {
                     return $W
                 }""", schemeId.toString(), scheme.generateOptionsIdentityResolver());
     }
 
-    private GoWriter.Writable generateHelpers() {
+    private Writable generateHelpers() {
         return writer -> {
             writer.write("""
                     $W

@@ -18,8 +18,10 @@ package software.amazon.smithy.go.codegen.server;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -32,7 +34,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Generates the interface that describes the service API.
  */
 @SmithyInternalApi
-public final class ServerInterface implements GoWriter.Writable {
+public final class ServerInterface implements Writable {
     public static final String NAME = "Service";
 
     private final Model model;
@@ -53,7 +55,7 @@ public final class ServerInterface implements GoWriter.Writable {
         writer.write(generateInterface());
     }
 
-    private GoWriter.Writable generateInterface() {
+    private Writable generateInterface() {
         return goTemplate("""
                 type $L interface {
                     $W
@@ -61,8 +63,8 @@ public final class ServerInterface implements GoWriter.Writable {
                 """, NAME, generateOperations());
     }
 
-    private GoWriter.Writable generateOperations() {
-        return GoWriter.ChainWritable.of(
+    private Writable generateOperations() {
+        return ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .filter(op -> !ServerCodegenUtil.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
@@ -71,7 +73,7 @@ public final class ServerInterface implements GoWriter.Writable {
         ).compose(false);
     }
 
-    private GoWriter.Writable generateOperation(OperationShape operation) {
+    private Writable generateOperation(OperationShape operation) {
         return goTemplate(
                 "$operation:L($context:T, $input:P) ($output:P, error)",
                 MapUtils.of(

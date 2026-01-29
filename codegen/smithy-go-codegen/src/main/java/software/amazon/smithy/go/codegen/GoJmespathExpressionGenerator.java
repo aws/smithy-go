@@ -411,8 +411,8 @@ public class GoJmespathExpressionGenerator {
     }
 
     // helper to generate comparisons from two results, automatically handling any dereferencing in the process
-    private GoWriter.Writable compareVariables(String ident, Variable left, Variable right, ComparatorType cmp,
-                                               String cast) {
+    private Writable compareVariables(String ident, Variable left, Variable right, ComparatorType cmp,
+                                      String cast) {
         var isLPtr = isPointable(left.type);
         var isRPtr = isPointable(right.type);
         if (!isLPtr && !isRPtr) {

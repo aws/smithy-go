@@ -18,8 +18,10 @@ package software.amazon.smithy.go.codegen.server;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -32,7 +34,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Generates a no-op implementation of the service that returns 501 Not Implemented for every operation.
  */
 @SmithyInternalApi
-public final class NoopServiceStruct implements GoWriter.Writable {
+public final class NoopServiceStruct implements Writable {
     public static final String NAME = "NoopFallbackService";
 
     private final Model model;
@@ -54,7 +56,7 @@ public final class NoopServiceStruct implements GoWriter.Writable {
         writer.write(generateStruct());
     }
 
-    private GoWriter.Writable generateStruct() {
+    private Writable generateStruct() {
         return goTemplate("""
                 type $struct:L struct{}
 
@@ -69,8 +71,8 @@ public final class NoopServiceStruct implements GoWriter.Writable {
                 ));
     }
 
-    private GoWriter.Writable generateOperations() {
-        return GoWriter.ChainWritable.of(
+    private Writable generateOperations() {
+        return ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .filter(op -> !ServerCodegenUtil.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
@@ -79,7 +81,7 @@ public final class NoopServiceStruct implements GoWriter.Writable {
         ).compose();
     }
 
-    private GoWriter.Writable generateOperation(OperationShape operation) {
+    private Writable generateOperation(OperationShape operation) {
         final var operationSymbol = symbolProvider.toSymbol(operation);
         return goTemplate("""
                 func (*$struct:L) $operation:L($context:T, $input:P) ($output:P, error) {

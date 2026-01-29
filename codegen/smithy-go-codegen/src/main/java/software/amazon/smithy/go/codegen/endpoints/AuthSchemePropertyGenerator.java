@@ -17,8 +17,9 @@ package software.amazon.smithy.go.codegen.endpoints;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.RecordLiteral;
@@ -43,7 +44,7 @@ public class AuthSchemePropertyGenerator {
         };
     }
 
-    public GoWriter.Writable generate(Expression expr) {
+    public Writable generate(Expression expr) {
         return goTemplate("""
                 $T(&out, []$P{
                     $W
@@ -51,14 +52,14 @@ public class AuthSchemePropertyGenerator {
                 """,
                 SmithyGoTypes.Auth.SetAuthOptions,
                 SmithyGoTypes.Auth.Option,
-                GoWriter.ChainWritable.of(
+                ChainWritable.of(
                         ((TupleLiteral) expr).members().stream()
                                 .map(it -> generateOption(generator, (RecordLiteral) it))
                                 .toList()
                 ).compose(false));
     }
 
-    private GoWriter.Writable generateOption(ExpressionGenerator generator, RecordLiteral scheme) {
+    private Writable generateOption(ExpressionGenerator generator, RecordLiteral scheme) {
         var members = scheme.members();
         var schemeName = ((StringLiteral) members.get(Identifier.of("name"))).value().expectLiteral();
         return goTemplate("""
@@ -75,8 +76,8 @@ public class AuthSchemePropertyGenerator {
                 generateOptionSignerProps(generator, scheme));
     }
 
-    private GoWriter.Writable generateOptionSignerProps(ExpressionGenerator generator, RecordLiteral scheme) {
-        var props = new GoWriter.ChainWritable();
+    private Writable generateOptionSignerProps(ExpressionGenerator generator, RecordLiteral scheme) {
+        var props = new ChainWritable();
         scheme.members().forEach((ident, expr) -> {
             var name = ident.getName().expectStringNode().getValue();
             switch (name) { // properties that don't apply to the scheme would just be ignored by the signer impl.
@@ -89,7 +90,7 @@ public class AuthSchemePropertyGenerator {
                 case "signingRegion" -> props.add(goTemplate("$T(&sp, $W)",
                         SmithyGoTypes.Transport.Http.SetSigV4SigningRegion, generator.generate(expr)));
                 case "signingRegionSet" -> {
-                    var regions = GoWriter.ChainWritable.of(
+                    var regions = ChainWritable.of(
                             ((TupleLiteral) expr).members().stream()
                                     .map(generator::generate)
                                     .toList()

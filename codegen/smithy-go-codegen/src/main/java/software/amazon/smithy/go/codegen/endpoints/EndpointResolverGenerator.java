@@ -34,10 +34,12 @@ import java.util.TreeMap;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceException;
 import software.amazon.smithy.model.SourceLocation;
 import software.amazon.smithy.rulesengine.language.Endpoint;
@@ -96,7 +98,7 @@ public final class EndpointResolverGenerator {
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
     }
 
-    public GoWriter.Writable generate(Optional<EndpointRuleSet> ruleset) {
+    public Writable generate(Optional<EndpointRuleSet> ruleset) {
         if (ruleset.isPresent()) {
             return generateResolverType(generateResolveMethodBody(ruleset.get()));
         } else {
@@ -105,11 +107,11 @@ public final class EndpointResolverGenerator {
         }
     }
 
-    public GoWriter.Writable generateEmptyRules() {
+    public Writable generateEmptyRules() {
         return generateResolverType(generateEmptyResolveMethodBody());
     }
 
-    private GoWriter.Writable generateResolverType(GoWriter.Writable resolveMethodBody) {
+    private Writable generateResolverType(Writable resolveMethodBody) {
         return goTemplate("""
                 $stringSlice:W
 
@@ -154,7 +156,7 @@ public final class EndpointResolverGenerator {
         return PARAMS_ARG_NAME + "." + getExportedParameterName(p);
     }
 
-    private GoWriter.Writable generateResolveMethodBody(EndpointRuleSet ruleset) {
+    private Writable generateResolveMethodBody(EndpointRuleSet ruleset) {
         var scope = Scope.empty();
         for (Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();) {
             // Required parameters can be dereferenced directly so that read access are
@@ -182,7 +184,7 @@ public final class EndpointResolverGenerator {
                         "logPrintln", SymbolUtils.createValueSymbolBuilder("Println", SmithyGoDependency.LOG).build(),
                         "validateParams", generateValidateParams(ruleset.getParameters()),
                         "paramsWithDefaults", generateParamsWithDefaults(),
-                        "paramVars", (GoWriter.Writable) (GoWriter w) -> {
+                        "paramVars", (Writable) (GoWriter w) -> {
                             for (Iterator<Parameter> iter = ruleset.getParameters().iterator(); iter.hasNext();) {
                                 Parameter param = iter.next();
                                 if (!param.isRequired()) {
@@ -209,29 +211,29 @@ public final class EndpointResolverGenerator {
                         "rules", generateRulesList(ruleset.getRules(), scope)));
     }
 
-    private GoWriter.Writable generateParamsWithDefaults() {
+    private Writable generateParamsWithDefaults() {
         return goTemplate("$paramArgName:L = $paramArgName:L.$withDefaults:L()",
                 commonCodegenArgs,
                 MapUtils.of(
                         "withDefaults", EndpointParametersGenerator.DEFAULT_VALUE_FUNC_NAME));
     }
 
-    private GoWriter.Writable generateEmptyResolveMethodBody() {
+    private Writable generateEmptyResolveMethodBody() {
         return goTemplate("return endpoint, $fmtErrorf:T(\"no endpoint rules defined\")", commonCodegenArgs);
     }
 
-    private GoWriter.Writable generateResolverTypeDocs() {
+    private Writable generateResolverTypeDocs() {
         return goDocTemplate("$resolverImplementationType:T provides the implementation for resolving endpoints.",
                 commonCodegenArgs);
     }
 
-    private GoWriter.Writable generateResolveEndpointMethodDocs() {
+    private Writable generateResolveEndpointMethodDocs() {
         return goDocTemplate("$resolveEndpointMethodName:L attempts to resolve the endpoint with the provided options,"
                 + " returning the endpoint if found. Otherwise an error is returned.",
                 commonCodegenArgs);
     }
 
-    private GoWriter.Writable generateValidateParams(Parameters parameters) {
+    private Writable generateValidateParams(Parameters parameters) {
         if (!haveRequiredParameters(parameters)) {
             return emptyGoTemplate();
         }
@@ -246,7 +248,7 @@ public final class EndpointResolverGenerator {
 
     }
 
-    private GoWriter.Writable generateRulesList(List<Rule> rules, Scope scope) {
+    private Writable generateRulesList(List<Rule> rules, Scope scope) {
         return (w) -> {
             rules.forEach(rule -> {
                 rule.getDocumentation().ifPresent(w::writeDocs);
@@ -289,7 +291,7 @@ public final class EndpointResolverGenerator {
         };
     }
 
-    private GoWriter.Writable generateRule(Rule rule, List<Condition> conditions, Scope scope) {
+    private Writable generateRule(Rule rule, List<Condition> conditions, Scope scope) {
         if (conditions.isEmpty()) {
             return rule.accept(new RuleVisitor(scope, this.fnProvider));
         }
@@ -392,7 +394,7 @@ public final class EndpointResolverGenerator {
         return "_" + ref.getName();
     }
 
-    private GoWriter.Writable generateEndpoint(Endpoint endpoint, Scope scope) {
+    private Writable generateEndpoint(Endpoint endpoint, Scope scope) {
         return goTemplate("""
                 $endpointType:T{
                     URI: *$uriVariableName:L,
@@ -407,7 +409,7 @@ public final class EndpointResolverGenerator {
                         "properties", generateEndpointProperties(endpoint.getProperties(), scope)));
     }
 
-    private GoWriter.Writable generateEndpointHeaders(Map<String, List<Expression>> headers, Scope scope) {
+    private Writable generateEndpointHeaders(Map<String, List<Expression>> headers, Scope scope) {
         Map<String, Object> args = MapUtils.of(
                 "memberName", "Headers",
                 "headerType", SymbolUtils.createPointableSymbolBuilder("Header",
@@ -422,10 +424,10 @@ public final class EndpointResolverGenerator {
             return goTemplate("Headers: $newHeaders:T,", args);
         }
 
-        var writableHeaders = new TreeMap<String, List<GoWriter.Writable>>();
+        var writableHeaders = new TreeMap<String, List<Writable>>();
         var generator = new ExpressionGenerator(scope, this.fnProvider);
         headers.forEach((k, vs) -> {
-            var writables = new ArrayList<GoWriter.Writable>();
+            var writables = new ArrayList<Writable>();
             vs.forEach(v -> writables.add(generator.generate(v)));
             writableHeaders.put(k, writables);
         });
@@ -439,7 +441,7 @@ public final class EndpointResolverGenerator {
         });
     }
 
-    private GoWriter.Writable generateNewHeaderValue(String headerName, List<GoWriter.Writable> headerValues) {
+    private Writable generateNewHeaderValue(String headerName, List<Writable> headerValues) {
         Map<String, Object> args = MapUtils.of(
                 "headerName", headerName,
                 "headerValues", joinWritables(headerValues, ", "));
@@ -451,7 +453,7 @@ public final class EndpointResolverGenerator {
         return goTemplate("$headerName:S, $headerValues:W", args);
     }
 
-    private GoWriter.Writable generateEndpointProperties(Map<Identifier, Literal> properties, Scope scope) {
+    private Writable generateEndpointProperties(Map<Identifier, Literal> properties, Scope scope) {
         if (properties.isEmpty()) {
             return emptyGoTemplate();
         }
@@ -465,21 +467,21 @@ public final class EndpointResolverGenerator {
                 }(),
                 """,
                 SmithyGoTypes.Smithy.Properties,
-                GoWriter.ChainWritable.of(
+                ChainWritable.of(
                         properties.entrySet().stream()
                                 .map(it -> generateSetProperty(generator, it.getKey(), it.getValue()))
                                 .toList()
                 ).compose(false));
     }
 
-    private GoWriter.Writable generateSetProperty(ExpressionGenerator generator, Identifier ident, Expression expr) {
+    private Writable generateSetProperty(ExpressionGenerator generator, Identifier ident, Expression expr) {
         // FUTURE: add these via GoIntegration?
         return ident.toString().equals("authSchemes")
                 ? new AuthSchemePropertyGenerator(generator).generate(expr)
                 : goTemplate("out.Set($S, $W)", ident.toString(), generator.generate(expr));
     }
 
-    class RuleVisitor implements RuleValueVisitor<GoWriter.Writable> {
+    class RuleVisitor implements RuleValueVisitor<Writable> {
         final Scope scope;
         final FnProvider fnProvider;
 
@@ -489,12 +491,12 @@ public final class EndpointResolverGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitTreeRule(List<Rule> rules) {
+        public Writable visitTreeRule(List<Rule> rules) {
             return generateRulesList(rules, scope);
         }
 
         @Override
-        public GoWriter.Writable visitErrorRule(Expression errorExpr) {
+        public Writable visitErrorRule(Expression errorExpr) {
             return goTemplate("""
                     return endpoint, $fmtErrorf:T("endpoint rule error, %s", $errorExpr:W)
                     """,
@@ -504,7 +506,7 @@ public final class EndpointResolverGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitEndpointRule(Endpoint endpoint) {
+        public Writable visitEndpointRule(Endpoint endpoint) {
             return goTemplate("""
                     uriString := $url:W
 
@@ -604,7 +606,7 @@ public final class EndpointResolverGenerator {
         }
     }
 
-    private GoWriter.Writable generateStringSliceHelper() {
+    private Writable generateStringSliceHelper() {
         return goTemplate("""
                 type stringSlice []string
 

@@ -27,12 +27,12 @@ public class SetOperationInputContextMiddleware {
     public static final String MIDDLEWARE_NAME = "setOperationInputMiddleware";
     public static final String MIDDLEWARE_ID = "setOperationInput";
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         return createSerializeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                 .asWritable(generateBody(), emptyGoTemplate());
     }
 
-    private GoWriter.Writable generateBody() {
+    private Writable generateBody() {
         return goTemplate("""
                 ctx = setOperationInput(ctx, in.Parameters)
                 return next.HandleSerialize(ctx, in)

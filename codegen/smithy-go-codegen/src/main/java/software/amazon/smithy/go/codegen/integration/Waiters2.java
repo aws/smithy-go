@@ -26,6 +26,7 @@ import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.ClientOptions;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
@@ -429,7 +430,7 @@ public class Waiters2 implements GoIntegration {
                         }).write("");
 
                         // make a request
-                        var baseOpts = GoWriter.ChainWritable.of(
+                        var baseOpts = ChainWritable.of(
                                 getAdditionalClientOptions().stream()
                                         .map(it -> goTemplate("$T,", it))
                                         .toList()

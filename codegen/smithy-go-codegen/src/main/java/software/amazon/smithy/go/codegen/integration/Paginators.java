@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
@@ -225,7 +226,7 @@ public class Paginators implements GoIntegration {
                         }
                     });
 
-                    var optFns = GoWriter.ChainWritable.of(
+                    var optFns = ChainWritable.of(
                             getAdditionalClientOptions().stream()
                                     .map(it -> goTemplate("$T,", it))
                                     .toList()

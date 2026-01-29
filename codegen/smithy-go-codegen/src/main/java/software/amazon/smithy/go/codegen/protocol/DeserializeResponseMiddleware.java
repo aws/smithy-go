@@ -23,6 +23,7 @@ import static software.amazon.smithy.go.codegen.integration.ProtocolGenerator.ge
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -31,7 +32,7 @@ import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public abstract class DeserializeResponseMiddleware implements GoWriter.Writable {
+public abstract class DeserializeResponseMiddleware implements Writable {
     protected final ProtocolGenerator generator;
     protected final ProtocolGenerator.GenerationContext ctx;
     protected final OperationShape operation;
@@ -58,9 +59,9 @@ public abstract class DeserializeResponseMiddleware implements GoWriter.Writable
         writer.write(middleware.asWritable(generateHandleDeserialize(), emptyGoTemplate()));
     }
 
-    public abstract GoWriter.Writable generateDeserialize();
+    public abstract Writable generateDeserialize();
 
-    private GoWriter.Writable generateHandleDeserialize() {
+    private Writable generateHandleDeserialize() {
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
 

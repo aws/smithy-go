@@ -18,15 +18,15 @@ package software.amazon.smithy.go.codegen.protocol;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.model.traits.StreamingTrait.isEventStream;
 
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
 public final class ProtocolUtil {
-    public static final GoWriter.Writable GET_AWS_QUERY_ERROR_CODE = goTemplate("""
+    public static final Writable GET_AWS_QUERY_ERROR_CODE = goTemplate("""
             func getAwsQueryErrorCode(resp $P) string {
                 header := resp.Header.Get("x-amzn-query-error")
                 if header == "" {

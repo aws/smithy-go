@@ -73,7 +73,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param body is the function body.
      * @return the generated middleware func.
      */
-    public static GoWriter.Writable generateInitializeMiddlewareFunc(GoWriter.Writable body) {
+    public static Writable generateInitializeMiddlewareFunc(Writable body) {
         return goTemplate("""
                 func(ctx $T, in $T, next $T) (
                     out $T, metadata $T, err error,
@@ -143,7 +143,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param body is the function body.
      * @return the generated middleware func.
      */
-    public static GoWriter.Writable generateFinalizeMiddlewareFunc(GoWriter.Writable body) {
+    public static Writable generateFinalizeMiddlewareFunc(Writable body) {
         return goTemplate("""
                 func(ctx $T, in $T, next $T) (
                     out $T, metadata $T, err error,
@@ -284,7 +284,7 @@ public final class GoStackStepMiddlewareGenerator {
      * @param fields A Writable that renders the middleware struct's fields.
      * @return the writable.
      */
-    public GoWriter.Writable asWritable(GoWriter.Writable body, GoWriter.Writable fields) {
+    public Writable asWritable(Writable body, Writable fields) {
         return writer -> writeMiddleware(
                 writer,
                 (generator, bodyWriter) -> bodyWriter.write("$W", body),

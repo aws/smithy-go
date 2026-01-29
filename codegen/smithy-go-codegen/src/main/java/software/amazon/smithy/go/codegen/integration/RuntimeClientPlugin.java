@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.auth.AuthParameter;
 import software.amazon.smithy.go.codegen.auth.AuthParametersResolver;
 import software.amazon.smithy.model.Model;
@@ -53,7 +53,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Set<AuthParameter> authParameters;
     private final Set<AuthParametersResolver> authParameterResolvers;
     private final MiddlewareRegistrar registerMiddleware;
-    private final Map<String, GoWriter.Writable> endpointBuiltinBindings;
+    private final Map<String, Writable> endpointBuiltinBindings;
     private final Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions;
     private final Map<ShapeId, Symbol> shapeDeserializers;
 
@@ -121,7 +121,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      * Gets the endpoint builtin bindings that will be rendered by this plugin.
      * @return the bindings.
      */
-    public Map<String, GoWriter.Writable> getEndpointBuiltinBindings() {
+    public Map<String, Writable> getEndpointBuiltinBindings() {
         return endpointBuiltinBindings;
     }
 
@@ -250,7 +250,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private Set<ClientMemberResolver> clientMemberResolvers = new LinkedHashSet<>();
         private Set<AuthParameter> authParameters = new LinkedHashSet<>();
         private Set<AuthParametersResolver> authParameterResolvers = new LinkedHashSet<>();
-        private Map<String, GoWriter.Writable> endpointBuiltinBindings = new HashMap<>();
+        private Map<String, Writable> endpointBuiltinBindings = new HashMap<>();
         private MiddlewareRegistrar registerMiddleware;
         private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
         private Map<ShapeId, Symbol> shapeDeserializers = new HashMap<>();
@@ -493,7 +493,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          * @param binding The writable binding.
          * @return Returns the builder.
          */
-        public Builder addEndpointBuiltinBinding(String name, GoWriter.Writable binding) {
+        public Builder addEndpointBuiltinBinding(String name, Writable binding) {
             this.endpointBuiltinBindings.put(name, binding);
             return this;
         }

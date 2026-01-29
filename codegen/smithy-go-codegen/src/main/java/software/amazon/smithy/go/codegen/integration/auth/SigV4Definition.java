@@ -21,8 +21,8 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import software.amazon.smithy.aws.traits.auth.SigV4Trait;
 import software.amazon.smithy.aws.traits.auth.UnsignedPayloadTrait;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -42,7 +42,7 @@ public class SigV4Definition implements AuthSchemeDefinition {
     );
 
     @Override
-    public GoWriter.Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service) {
+    public Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service) {
         var trait = service.expectTrait(SigV4Trait.class);
         return goTemplate("""
                 &$option:T{
@@ -61,7 +61,7 @@ public class SigV4Definition implements AuthSchemeDefinition {
     }
 
     @Override
-    public GoWriter.Writable generateOperationOption(
+    public Writable generateOperationOption(
             ProtocolGenerator.GenerationContext context,
             OperationShape operation
     ) {
@@ -84,7 +84,7 @@ public class SigV4Definition implements AuthSchemeDefinition {
                 ));
     }
 
-    private GoWriter.Writable generateIsUnsignedPayload(OperationShape operation) {
+    private Writable generateIsUnsignedPayload(OperationShape operation) {
         return operation.hasTrait(UnsignedPayloadTrait.class)
                 ? goTemplate("$T(&props, true)", SmithyGoTypes.Transport.Http.SetIsUnsignedPayload)
                 : emptyGoTemplate();

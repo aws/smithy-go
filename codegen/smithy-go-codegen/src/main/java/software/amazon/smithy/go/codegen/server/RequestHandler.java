@@ -17,7 +17,9 @@ package software.amazon.smithy.go.codegen.server;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -26,7 +28,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * protocol generator must fill in the actual handler logic as appropriate.
  */
 @SmithyInternalApi
-public final class RequestHandler implements GoWriter.Writable {
+public final class RequestHandler implements Writable {
     public static final String NAME = "RequestHandler";
 
     private final ServerProtocolGenerator protocolGenerator;
@@ -40,15 +42,15 @@ public final class RequestHandler implements GoWriter.Writable {
         writer.write(generate());
     }
 
-    private GoWriter.Writable generate() {
-        return GoWriter.ChainWritable.of(
+    private Writable generate() {
+        return ChainWritable.of(
                 generateStruct(),
                 generateNew(),
                 protocolGenerator.generateHandleRequest()
         ).compose();
     }
 
-    private GoWriter.Writable generateStruct() {
+    private Writable generateStruct() {
         return goTemplate("""
                 type $this:L struct {
                     service $service:L
@@ -62,7 +64,7 @@ public final class RequestHandler implements GoWriter.Writable {
                 ));
     }
 
-    private GoWriter.Writable generateNew() {
+    private Writable generateNew() {
         return goTemplate("""
                 func New(svc $interface:L, opts $options:L, optFns ...func(*$options:L)) *$this:L {
                     o := opts

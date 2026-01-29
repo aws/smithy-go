@@ -24,6 +24,7 @@ import java.util.function.Function;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceLocation;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
@@ -47,7 +48,7 @@ final class ExpressionGenerator {
         this.fnProvider = fnProvider;
     }
 
-    public GoWriter.Writable generate(Expression expr) {
+    public Writable generate(Expression expr) {
         var exprOrRef = expr;
         var optExprIdent = scope.getIdent(expr);
         if (optExprIdent.isPresent()) {
@@ -57,22 +58,22 @@ final class ExpressionGenerator {
     }
 
     private record ExpressionGeneratorVisitor(Scope scope, FnProvider fnProvider)
-            implements ExpressionVisitor<GoWriter.Writable> {
+            implements ExpressionVisitor<Writable> {
 
         @Override
-        public GoWriter.Writable visitLiteral(Literal literal) {
+        public Writable visitLiteral(Literal literal) {
             return literal.accept(new LiteralGeneratorVisitor(scope, fnProvider));
         }
 
         @Override
-        public GoWriter.Writable visitRef(Reference ref) {
+        public Writable visitRef(Reference ref) {
             return goTemplate(ref.getName().toString());
         }
 
         @Override
-        public GoWriter.Writable visitGetAttr(GetAttr getAttr) {
+        public Writable visitGetAttr(GetAttr getAttr) {
             var target = new ExpressionGenerator(scope, fnProvider).generate(getAttr.getTarget());
-            var path = (GoWriter.Writable) (GoWriter w) -> {
+            var path = (Writable) (GoWriter w) -> {
                 getAttr.getPath().stream().toList().forEach((part) -> {
                     if (part instanceof GetAttr.Part.Key) {
                         w.writeInline(".$L", getBuiltinMemberName(((GetAttr.Part.Key) part).key()));
@@ -86,21 +87,21 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitIsSet(Expression expr) {
+        public Writable visitIsSet(Expression expr) {
             return (GoWriter w) -> {
                 w.write("$W != nil", new ExpressionGenerator(scope, fnProvider).generate(expr));
             };
         }
 
         @Override
-        public GoWriter.Writable visitNot(Expression expr) {
+        public Writable visitNot(Expression expr) {
             return (GoWriter w) -> {
                 w.write("!($W)", new ExpressionGenerator(scope, fnProvider).generate(expr));
             };
         }
 
         @Override
-        public GoWriter.Writable visitBoolEquals(Expression left, Expression right) {
+        public Writable visitBoolEquals(Expression left, Expression right) {
             return (GoWriter w) -> {
                 var generator = new ExpressionGenerator(scope, fnProvider);
                 w.write("$W == $W", generator.generate(left), generator.generate(right));
@@ -108,7 +109,7 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitStringEquals(Expression left, Expression right) {
+        public Writable visitStringEquals(Expression left, Expression right) {
             return (GoWriter w) -> {
                 var generator = new ExpressionGenerator(scope, fnProvider);
                 w.write("$W == $W", generator.generate(left), generator.generate(right));
@@ -116,21 +117,21 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitLibraryFunction(FunctionDefinition fnDef, List<Expression> args) {
+        public Writable visitLibraryFunction(FunctionDefinition fnDef, List<Expression> args) {
             return new FnGenerator(scope, fnProvider).generate(fnDef, args);
         }
     }
 
     private record LiteralGeneratorVisitor(Scope scope, FnProvider fnProvider)
-            implements LiteralVisitor<GoWriter.Writable> {
+            implements LiteralVisitor<Writable> {
 
         @Override
-        public GoWriter.Writable visitBoolean(boolean b) {
+        public Writable visitBoolean(boolean b) {
             return goTemplate(String.valueOf(b));
         }
 
         @Override
-        public GoWriter.Writable visitString(Template value) {
+        public Writable visitString(Template value) {
             var parts = value.accept(
                     new TemplateGeneratorVisitor((expr) -> new ExpressionGenerator(scope, fnProvider).generate(expr))
             ).toList();
@@ -141,7 +142,7 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitRecord(Map<Identifier, Literal> members) {
+        public Writable visitRecord(Map<Identifier, Literal> members) {
             return goBlockTemplate("map[string]interface{}{", "}",
                     (w) -> {
                         members.forEach((k, v) -> {
@@ -152,7 +153,7 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitTuple(List<Literal> members) {
+        public Writable visitTuple(List<Literal> members) {
             return goBlockTemplate("[]interface{}{", "}",
                     (w) -> {
                         members.forEach((v) -> w.write("$W,", new ExpressionGenerator(scope, fnProvider).generate(v)));
@@ -160,40 +161,40 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable visitInteger(int i) {
+        public Writable visitInteger(int i) {
             return goTemplate(String.valueOf(i));
         }
     }
 
     private record TemplateGeneratorVisitor(
-            Function<Expression, GoWriter.Writable> generator) implements TemplateVisitor<GoWriter.Writable> {
+            Function<Expression, Writable> generator) implements TemplateVisitor<Writable> {
 
         @Override
-        public GoWriter.Writable visitStaticTemplate(String s) {
+        public Writable visitStaticTemplate(String s) {
             return (GoWriter w) -> w.write("$S", s);
         }
 
         @Override
-        public GoWriter.Writable visitSingleDynamicTemplate(Expression expr) {
+        public Writable visitSingleDynamicTemplate(Expression expr) {
             return this.generator.apply(expr);
         }
 
         @Override
-        public GoWriter.Writable visitStaticElement(String s) {
+        public Writable visitStaticElement(String s) {
             return (GoWriter w) -> {
                 w.write("out.WriteString($S)", s);
             };
         }
 
         @Override
-        public GoWriter.Writable visitDynamicElement(Expression expr) {
+        public Writable visitDynamicElement(Expression expr) {
             return (GoWriter w) -> {
                 w.write("out.WriteString($W)", this.generator.apply(expr));
             };
         }
 
         @Override
-        public GoWriter.Writable startMultipartTemplate() {
+        public Writable startMultipartTemplate() {
             return goTemplate("""
                     func() string {
                         var out $stringsBuilder:T
@@ -204,7 +205,7 @@ final class ExpressionGenerator {
         }
 
         @Override
-        public GoWriter.Writable finishMultipartTemplate() {
+        public Writable finishMultipartTemplate() {
             return goTemplate("""
                         return out.String()
                     }()

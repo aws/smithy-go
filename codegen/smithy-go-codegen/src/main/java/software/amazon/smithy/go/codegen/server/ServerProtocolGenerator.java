@@ -17,7 +17,7 @@ package software.amazon.smithy.go.codegen.server;
 
 import java.util.Set;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -31,15 +31,15 @@ public interface ServerProtocolGenerator {
     ShapeId getProtocol();
 
     // Go
-    GoWriter.Writable generateHandleRequest();
+    Writable generateHandleRequest();
 
-    GoWriter.Writable generateHandleOperation(OperationShape operation);
+    Writable generateHandleOperation(OperationShape operation);
 
-    GoWriter.Writable generateOptions();
+    Writable generateOptions();
 
-    GoWriter.Writable generateDeserializers(Set<Shape> shape);
+    Writable generateDeserializers(Set<Shape> shape);
 
-    GoWriter.Writable generateSerializers(Set<Shape> shape);
+    Writable generateSerializers(Set<Shape> shape);
 
-    GoWriter.Writable generateProtocolSource();
+    Writable generateProtocolSource();
 }

@@ -20,8 +20,8 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenera
 import static software.amazon.smithy.go.codegen.serde.cbor.CborDeserializerGenerator.getDeserializerName;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2DeserializeResponseMiddleware;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -40,7 +40,7 @@ final class DeserializeMiddleware extends Rpc2DeserializeResponseMiddleware {
     }
 
     @Override
-    public GoWriter.Writable deserializeSuccessResponse() {
+    public Writable deserializeSuccessResponse() {
         return goTemplate("""
                     payload, err := $readAll:T(resp.Body)
                     if err != nil {

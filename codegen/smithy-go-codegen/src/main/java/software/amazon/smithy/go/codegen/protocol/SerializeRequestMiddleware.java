@@ -22,6 +22,7 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACIN
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -30,7 +31,7 @@ import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
+public abstract class SerializeRequestMiddleware implements Writable {
     protected final ProtocolGenerator generator;
     protected final ProtocolGenerator.GenerationContext ctx;
     protected final OperationShape operation;
@@ -57,11 +58,11 @@ public abstract class SerializeRequestMiddleware implements GoWriter.Writable {
         writer.write(middleware.asWritable(generateHandleSerialize(), emptyGoTemplate()));
     }
 
-    public abstract GoWriter.Writable generateRouteRequest();
+    public abstract Writable generateRouteRequest();
 
-    public abstract GoWriter.Writable generateSerialize();
+    public abstract Writable generateSerialize();
 
-    private GoWriter.Writable generateHandleSerialize() {
+    private Writable generateHandleSerialize() {
         return goTemplate("""
                 _, span := $startSpan:T(ctx, "OperationSerializer")
                 endTimer := startMetricTimer(ctx, "client.call.serialization_duration")

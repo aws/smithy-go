@@ -18,12 +18,13 @@ package software.amazon.smithy.go.codegen.integration;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -43,7 +44,7 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
         });
     }
 
-    private GoWriter.Writable commonTestSource() {
+    private Writable commonTestSource() {
         return goTemplate("""
                 $os:D $fs:D $io:D $errors:D $fmt:D $middleware:D
 
@@ -102,23 +103,23 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
                 ));
     }
 
-    private GoWriter.Writable snapshotUpdaters(Model model, ServiceShape service, SymbolProvider symbolProvider) {
-        return GoWriter.ChainWritable.of(
+    private Writable snapshotUpdaters(Model model, ServiceShape service, SymbolProvider symbolProvider) {
+        return ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .map(it -> testUpdateSnapshot(it, symbolProvider))
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable snapshotTests(Model model, ServiceShape service, SymbolProvider symbolProvider) {
-        return GoWriter.ChainWritable.of(
+    private Writable snapshotTests(Model model, ServiceShape service, SymbolProvider symbolProvider) {
+        return ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .map(it -> testCheckSnapshot(it, symbolProvider))
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable testUpdateSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
+    private Writable testUpdateSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
         return goTemplate("""
                 func TestUpdateSnapshot_$operation:L(t $testingT:P) {
                     svc := New(Options{})
@@ -140,7 +141,7 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
                 ));
     }
 
-    private GoWriter.Writable testCheckSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
+    private Writable testCheckSnapshot(OperationShape operation, SymbolProvider symbolProvider) {
         return goTemplate("""
                 func TestCheckSnapshot_$operation:L(t $testingT:P) {
                     svc := New(Options{})

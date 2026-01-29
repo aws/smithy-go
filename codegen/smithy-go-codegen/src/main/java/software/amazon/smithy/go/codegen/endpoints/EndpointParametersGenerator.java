@@ -30,10 +30,12 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.evaluation.value.Value;
@@ -56,7 +58,7 @@ public final class EndpointParametersGenerator {
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
     }
 
-    public GoWriter.Writable generate(Optional<EndpointRuleSet> ruleset) {
+    public Writable generate(Optional<EndpointRuleSet> ruleset) {
         if (ruleset.isPresent()) {
             var parameters = ruleset.get().getParameters();
             return generateParameters(MapUtils.of(
@@ -71,7 +73,7 @@ public final class EndpointParametersGenerator {
         }
     }
 
-    private GoWriter.Writable generateParameters(Map<String, Object> overriddenArgs) {
+    private Writable generateParameters(Map<String, Object> overriddenArgs) {
         return goTemplate("""
                 $parametersTypeDocs:W
                 type $parametersType:T struct {
@@ -87,17 +89,17 @@ public final class EndpointParametersGenerator {
                 overriddenArgs);
     }
 
-    private GoWriter.Writable generateParametersTypeDocs() {
+    private Writable generateParametersTypeDocs() {
         return goDocTemplate("""
                 $parametersType:T provides the parameters that influence how endpoints are resolved.
                 """, commonCodegenArgs);
     }
 
-    private GoWriter.Writable generateParametersMembers(Parameters parameters) {
+    private Writable generateParametersMembers(Parameters parameters) {
         return (GoWriter w) -> {
             w.indent();
             parameters.forEach((parameter) -> {
-                var writeChain = new GoWriter.ChainWritable()
+                var writeChain = new ChainWritable()
                         .add(parameter.getDocumentation(), GoWriter::goTemplate)
                         // TODO[GH-25977529]: fix incorrect wrapping in generated comment
                         .add(parameter.isRequired(), goTemplate("Parameter is required."))
@@ -116,7 +118,7 @@ public final class EndpointParametersGenerator {
         };
     }
 
-    private GoWriter.Writable generateDefaultsMethod(Parameters parameters) {
+    private Writable generateDefaultsMethod(Parameters parameters) {
         return goTemplate("""
                 $methodDocs:W
                 func (p $parametersType:T) $funcName:L() $parametersType:T {
@@ -132,7 +134,7 @@ public final class EndpointParametersGenerator {
                                 commonCodegenArgs,
                                 MapUtils.of(
                                         "funcName", DEFAULT_VALUE_FUNC_NAME)),
-                        "setDefaults", (GoWriter.Writable) (GoWriter w) -> {
+                        "setDefaults", (Writable) (GoWriter w) -> {
                             sortParameters(parameters).forEach((parameter) -> {
                                 parameter.getDefault().ifPresent(defaultValue -> {
                                     w.writeGoTemplate("""
@@ -150,13 +152,13 @@ public final class EndpointParametersGenerator {
                         }));
     }
 
-    private GoWriter.Writable generateDefaultValue(Parameter parameter, Value defaultValue) {
+    private Writable generateDefaultValue(Parameter parameter, Value defaultValue) {
         return switch (parameter.getType()) {
             case STRING -> goTemplate("$T($S)",
                     SmithyGoDependency.SMITHY_PTR.func("String"), defaultValue.expectStringValue());
             case BOOLEAN -> goTemplate("$T($L)",
                     SmithyGoDependency.SMITHY_PTR.func("Bool"), defaultValue.expectBooleanValue());
-            case STRING_ARRAY -> goTemplate("[]string{$W}", GoWriter.ChainWritable.of(
+            case STRING_ARRAY -> goTemplate("[]string{$W}", ChainWritable.of(
                     defaultValue.expectArrayValue().getValues().stream()
                             .map(it -> goTemplate("$S,", it.expectStringValue()))
                             .toList()
@@ -164,7 +166,7 @@ public final class EndpointParametersGenerator {
         };
     }
 
-    private GoWriter.Writable generateValidationMethod(Parameters parameters) {
+    private Writable generateValidationMethod(Parameters parameters) {
         if (!haveRequiredParameters(parameters)) {
             return emptyGoTemplate();
         }

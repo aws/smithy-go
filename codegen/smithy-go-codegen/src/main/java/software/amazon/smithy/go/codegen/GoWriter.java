@@ -16,14 +16,12 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import software.amazon.smithy.codegen.core.CodegenException;
@@ -43,7 +41,6 @@ import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StringTrait;
 import software.amazon.smithy.utils.AbstractCodeWriter;
-import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
@@ -168,14 +165,14 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
      */
     public static Writable autoDocTemplate(String contents) {
         var paragraphs = contents.split("\n\n");
-        var chain = new GoWriter.ChainWritable();
+        var chain = new ChainWritable();
         for (int i = 0; i < paragraphs.length; ++i) {
             chain.add(docParagraphWriter(paragraphs[i], i < paragraphs.length - 1));
         }
         return chain.compose(false);
     }
 
-    private static GoWriter.Writable docParagraphWriter(String paragraph, boolean writeNewline) {
+    private static Writable docParagraphWriter(String paragraph, boolean writeNewline) {
         return writer -> {
             writer.writeDocs(paragraph);
             if (writeNewline) {
@@ -1001,67 +998,4 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
         }
     }
 
-    public interface Writable extends Consumer<GoWriter> {
-    }
-
-    /**
-     * Chains together multiple Writables that can be composed into one Writable.
-     */
-    public static final class ChainWritable {
-        private final List<GoWriter.Writable> writables;
-
-        public ChainWritable() {
-            writables = new ArrayList<>();
-        }
-
-        public static ChainWritable of(GoWriter.Writable... writables) {
-            var chain = new ChainWritable();
-            chain.writables.addAll(ListUtils.of(writables));
-            return chain;
-        }
-
-        public static ChainWritable of(Collection<GoWriter.Writable> writables) {
-            var chain = new ChainWritable();
-            chain.writables.addAll(writables);
-            return chain;
-        }
-
-        public boolean isEmpty() {
-            return writables.isEmpty();
-        }
-
-        public ChainWritable add(GoWriter.Writable writable) {
-            writables.add(writable);
-            return this;
-        }
-
-        public <T> ChainWritable add(Optional<T> value, Function<T, Writable> fn) {
-            value.ifPresent(t -> writables.add(fn.apply(t)));
-            return this;
-        }
-
-        public ChainWritable add(boolean include, GoWriter.Writable writable) {
-            if (!include) {
-                writables.add(writable);
-            }
-            return this;
-        }
-
-        public GoWriter.Writable compose(boolean writeNewlines) {
-            return (GoWriter writer) -> {
-                var hasPrevious = false;
-                for (GoWriter.Writable writable : writables) {
-                    if (hasPrevious && writeNewlines) {
-                        writer.write("");
-                    }
-                    hasPrevious = true;
-                    writer.write("$W", writable);
-                }
-            };
-        }
-
-        public GoWriter.Writable compose() {
-            return compose(true);
-        }
-    }
 }

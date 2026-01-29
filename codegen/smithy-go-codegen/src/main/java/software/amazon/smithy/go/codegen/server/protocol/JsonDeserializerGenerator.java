@@ -23,9 +23,10 @@ import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.normali
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -48,15 +49,15 @@ public final class JsonDeserializerGenerator {
         return "deserialize" + shape.getId().getName();
     }
 
-    public GoWriter.Writable generate(Set<Shape> shapes) {
-        return GoWriter.ChainWritable.of(
+    public Writable generate(Set<Shape> shapes) {
+        return ChainWritable.of(
                 shapes.stream()
                         .map(this::generateShapeDeserializer)
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable generateShapeDeserializer(Shape shape) {
+    private Writable generateShapeDeserializer(Shape shape) {
         return goTemplate("""
                 func $name:L(v interface{}) ($shapeType:P, error) {
                     av, ok := v.($assert:W)
@@ -76,7 +77,7 @@ public final class JsonDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateOpaqueAssert(Shape shape) {
+    private Writable generateOpaqueAssert(Shape shape) {
         return switch (shape.getType()) {
             case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, INT_ENUM ->
                     goTemplate("$T", GoStdlibTypes.Encoding.Json.Number);
@@ -93,7 +94,7 @@ public final class JsonDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateZeroValue(Shape shape) {
+    private Writable generateZeroValue(Shape shape) {
         return switch (shape.getType()) {
             case BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE ->
                     goTemplate("0");
@@ -114,7 +115,7 @@ public final class JsonDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateDeserializeAssertedValue(Shape shape, String ident) {
+    private Writable generateDeserializeAssertedValue(Shape shape, String ident) {
         return switch (shape.getType()) {
             case BYTE -> generateDeserializeIntegral(ident, "int8", Byte.MIN_VALUE, Byte.MAX_VALUE);
             case SHORT -> generateDeserializeIntegral(ident, "int16", Short.MIN_VALUE, Short.MAX_VALUE);
@@ -189,7 +190,7 @@ public final class JsonDeserializerGenerator {
                     MapUtils.of(
                             "type", symbolProvider.toSymbol(shape),
                             "ident", ident,
-                            "deserializeFields", GoWriter.ChainWritable.of(
+                            "deserializeFields", ChainWritable.of(
                                     shape.getAllMembers().entrySet().stream()
                                             .map(it -> {
                                                 var target = model.expectShape(it.getValue().getTarget());
@@ -221,7 +222,7 @@ public final class JsonDeserializerGenerator {
                     MapUtils.of(
                             "type", symbolProvider.toSymbol(shape),
                             "ident", ident,
-                            "deserializeVariant", GoWriter.ChainWritable.of(
+                            "deserializeVariant", ChainWritable.of(
                                     shape.getAllMembers().entrySet().stream()
                                             .map(it -> {
                                                 var target = model.expectShape(it.getValue().getTarget());
@@ -254,7 +255,7 @@ public final class JsonDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateDeserializeIntegral(String ident, String castTo, long min, long max) {
+    private Writable generateDeserializeIntegral(String ident, String castTo, long min, long max) {
         return goTemplate("""
                 $nextident:L, err := $ident:L.Int64()
                 if err != nil {
@@ -275,7 +276,7 @@ public final class JsonDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateStructFieldDeref(MemberShape member, String ident) {
+    private Writable generateStructFieldDeref(MemberShape member, String ident) {
         var symbol = symbolProvider.toSymbol(member);
         if (!isPointable(symbol)) {
             return goTemplate(ident);

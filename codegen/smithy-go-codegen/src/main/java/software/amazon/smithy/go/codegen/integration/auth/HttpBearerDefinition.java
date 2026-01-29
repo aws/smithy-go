@@ -17,8 +17,8 @@ package software.amazon.smithy.go.codegen.integration.auth;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -29,14 +29,14 @@ import software.amazon.smithy.model.shapes.ServiceShape;
  */
 public class HttpBearerDefinition implements AuthSchemeDefinition {
     @Override
-    public GoWriter.Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service) {
+    public Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service) {
         return goTemplate("&$T{SchemeID: $T},",
                 SmithyGoTypes.Auth.Option,
                 SmithyGoTypes.Auth.SchemeIDHTTPBearer);
     }
 
     @Override
-    public GoWriter.Writable generateOperationOption(ProtocolGenerator.GenerationContext c, OperationShape o) {
+    public Writable generateOperationOption(ProtocolGenerator.GenerationContext c, OperationShape o) {
         return goTemplate("&$T{SchemeID: $T},",
                 SmithyGoTypes.Auth.Option,
                 SmithyGoTypes.Auth.SchemeIDHTTPBearer);

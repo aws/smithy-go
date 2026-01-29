@@ -21,10 +21,11 @@ import static software.amazon.smithy.go.codegen.server.protocol.JsonSerializerGe
 
 import java.util.Set;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.server.NotImplementedError;
 import software.amazon.smithy.go.codegen.server.RequestHandler;
 import software.amazon.smithy.go.codegen.server.ServerCodegenUtil;
@@ -61,20 +62,20 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     @Override
-    public GoWriter.Writable generateDeserializers(Set<Shape> shapes) {
+    public Writable generateDeserializers(Set<Shape> shapes) {
         return new JsonDeserializerGenerator(ctx.model(), ctx.symbolProvider()).generate(shapes);
     }
 
     @Override
-    public GoWriter.Writable generateSerializers(Set<Shape> shapes) {
-        return GoWriter.ChainWritable.of(
+    public Writable generateSerializers(Set<Shape> shapes) {
+        return ChainWritable.of(
                 new JsonSerializerGenerator(ctx.model(), ctx.symbolProvider()).generate(shapes),
                 generateSerializeError()
         ).compose();
     }
 
     @Override
-    public GoWriter.Writable generateServeHttp() {
+    public Writable generateServeHttp() {
         return goTemplate("""
                 func (h *$requestHandler:L) ServeHTTP(w $rw:T, r $r:P) {
                     w.Header().Set("Content-Type", "application/x-amz-json-1.0")
@@ -100,10 +101,10 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 ));
     }
 
-    private GoWriter.Writable generateRouteRequest() {
+    private Writable generateRouteRequest() {
         var model = ctx.model();
         var service = ctx.settings().getService(ctx.model());
-        return GoWriter.ChainWritable.of(
+        return ChainWritable.of(
                 TopDownIndex.of(model).getContainedOperations(service).stream()
                         .filter(op -> !ServerCodegenUtil.operationHasEventStream(
                             model, operationIndex.expectInputShape(op), operationIndex.expectOutputShape(op)))
@@ -118,7 +119,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     @Override
-    public GoWriter.Writable generateDeserializeRequest(OperationShape operation) {
+    public Writable generateDeserializeRequest(OperationShape operation) {
         return goTemplate("""
                 d := $decoder:T(r.Body)
                 d.UseNumber()
@@ -141,7 +142,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     @Override
-    public GoWriter.Writable generateSerializeResponse(OperationShape operation) {
+    public Writable generateSerializeResponse(OperationShape operation) {
         return goTemplate("""
                 e := $encoder:T()
                 if err := $serialize:L(out, e.Value); err != nil {
@@ -159,7 +160,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 ));
     }
 
-    private GoWriter.Writable generateSerializeError() {
+    private Writable generateSerializeError() {
         var errorShapes = ctx.model().getStructureShapesWithTrait(ErrorTrait.class);
         return goTemplate("""
                 func serializeError(w $rw:T, err error) {
@@ -192,15 +193,15 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
     }
 
     // FUTURE only generate errors that apply to an operation
-    private GoWriter.Writable generateSerializeErrors(Set<StructureShape> errorShapes) {
-        return GoWriter.ChainWritable.of(
+    private Writable generateSerializeErrors(Set<StructureShape> errorShapes) {
+        return ChainWritable.of(
                 errorShapes.stream()
                         .map(this::generateSerializeError)
                         .toList()
         ).compose(false);
     }
 
-    private GoWriter.Writable generateSerializeError(StructureShape errorShape) {
+    private Writable generateSerializeError(StructureShape errorShape) {
         var httpStatus = errorShape.hasTrait(HttpErrorTrait.class)
                 ? errorShape.expectTrait(HttpErrorTrait.class).getCode()
                 : 400;

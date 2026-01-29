@@ -22,9 +22,10 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import java.util.stream.Collectors;
 import software.amazon.smithy.aws.traits.auth.UnsignedPayloadTrait;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -67,7 +68,7 @@ public class AuthSchemeResolverGenerator {
         return !serviceSchemes.equals(operationSchemes) || operation.hasTrait(UnsignedPayloadTrait.class);
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
        return goTemplate("""
                $W
 
@@ -75,7 +76,7 @@ public class AuthSchemeResolverGenerator {
                """, generateInterface(), generateDefault());
     }
 
-    private GoWriter.Writable generateInterface() {
+    private Writable generateInterface() {
         return goTemplate("""
                 $W
                 type $L interface {
@@ -89,12 +90,12 @@ public class AuthSchemeResolverGenerator {
                 SmithyGoTypes.Auth.Option);
     }
 
-    private GoWriter.Writable generateDocs() {
+    private Writable generateDocs() {
         return goDocTemplate("AuthSchemeResolver returns a set of possible authentication options for an "
                 + "operation.");
     }
 
-    private GoWriter.Writable generateDefault() {
+    private Writable generateDefault() {
         return goTemplate("""
                 $W
 
@@ -104,7 +105,7 @@ public class AuthSchemeResolverGenerator {
                 generateDefaultResolve());
     }
 
-    private GoWriter.Writable generateDefaultStruct() {
+    private Writable generateDefaultStruct() {
         return goTemplate("""
                 type $1L struct{}
 
@@ -112,7 +113,7 @@ public class AuthSchemeResolverGenerator {
                 """, DEFAULT_NAME, INTERFACE_NAME);
     }
 
-    private GoWriter.Writable generateDefaultResolve() {
+    private Writable generateDefaultResolve() {
         return goTemplate("""
                 func (*$receiver:L) ResolveAuthSchemes(ctx $ctx:L, params *$params:L) ([]$options:P, error) {
                     if overrides, ok := operationAuthOptions[params.Operation]; ok {
@@ -133,8 +134,8 @@ public class AuthSchemeResolverGenerator {
                         "svcAuthOptions", generateServiceAuthOptions()));
     }
 
-    private GoWriter.Writable generateOperationAuthOptions() {
-        var options = new GoWriter.ChainWritable();
+    private Writable generateOperationAuthOptions() {
+        var options = new ChainWritable();
         TopDownIndex.of(context.getModel())
                 .getContainedOperations(context.getService()).stream()
                 .filter(this::hasAuthOverrides)
@@ -152,8 +153,8 @@ public class AuthSchemeResolverGenerator {
                 options.compose());
     }
 
-    private GoWriter.Writable generateOperationAuthOptionsEntry(OperationShape operation) {
-        var options = new GoWriter.ChainWritable();
+    private Writable generateOperationAuthOptionsEntry(OperationShape operation) {
+        var options = new ChainWritable();
         serviceIndex
                 .getEffectiveAuthSchemes(context.getService(), operation, ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .entrySet().stream()
@@ -177,8 +178,8 @@ public class AuthSchemeResolverGenerator {
                         options.compose());
     }
 
-    private GoWriter.Writable generateServiceAuthOptions() {
-        var options = new GoWriter.ChainWritable();
+    private Writable generateServiceAuthOptions() {
+        var options = new ChainWritable();
         serviceIndex
                 .getEffectiveAuthSchemes(context.getService(), ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .entrySet().stream()

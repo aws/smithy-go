@@ -20,14 +20,16 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 
 /**
  * Abstract base class for code generation of operation middleware.
  */
-public abstract class OperationMiddleware implements GoWriter.Writable {
+public abstract class OperationMiddleware implements Writable {
     public abstract String getStructName();
 
     public Map<String, Symbol> getFields() {
@@ -46,7 +48,7 @@ public abstract class OperationMiddleware implements GoWriter.Writable {
 
     public abstract Symbol getOutput();
 
-    public abstract GoWriter.Writable getFuncBody();
+    public abstract Writable getFuncBody();
 
     @Override
     public final void accept(GoWriter goWriter) {
@@ -81,8 +83,8 @@ public abstract class OperationMiddleware implements GoWriter.Writable {
                 )));
     }
 
-    private GoWriter.Writable renderFields() {
-        return GoWriter.ChainWritable.of(
+    private Writable renderFields() {
+        return ChainWritable.of(
                 getFields().entrySet().stream()
                         .map(it -> goTemplate("$L $P", it.getKey(), it.getValue()))
                         .toList()

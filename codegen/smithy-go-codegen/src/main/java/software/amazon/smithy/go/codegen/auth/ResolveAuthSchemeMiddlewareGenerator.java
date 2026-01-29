@@ -19,11 +19,12 @@ import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.c
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -37,7 +38,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddToProtocolFinalizers() {
+    public static Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Add(&$L{operation: operation, options: options}, $T); err != nil {
                     return $T("add $L: %w", err)
@@ -49,8 +50,8 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 MIDDLEWARE_ID);
     }
 
-    public GoWriter.Writable generate() {
-        return GoWriter.ChainWritable.of(
+    public Writable generate() {
+        return ChainWritable.of(
                 createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                         .asWritable(generateBody(), generateFields()),
                 generateSelectScheme(),
@@ -58,14 +59,14 @@ public class ResolveAuthSchemeMiddlewareGenerator {
         ).compose();
     }
 
-    private GoWriter.Writable generateFields() {
+    private Writable generateFields() {
         return goTemplate("""
                 operation string
                 options   Options
                 """);
     }
 
-    private GoWriter.Writable generateBody() {
+    private Writable generateBody() {
         return goTemplate("""
                 _, span := $3T(ctx, "ResolveAuthScheme")
                 defer span.End()
@@ -96,7 +97,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
         );
     }
 
-    private GoWriter.Writable generateSelectScheme() {
+    private Writable generateSelectScheme() {
         return goTemplate("""
                 $strings:D $slices:D
                 func (m *$middlewareName:L) selectScheme(options []$option:P) (*resolvedAuthScheme, bool) {
@@ -154,7 +155,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
         );
     }
 
-    private GoWriter.Writable generateContextFuncs() {
+    private Writable generateContextFuncs() {
         return goTemplate("""
                 type resolvedAuthSchemeKey struct{}
 

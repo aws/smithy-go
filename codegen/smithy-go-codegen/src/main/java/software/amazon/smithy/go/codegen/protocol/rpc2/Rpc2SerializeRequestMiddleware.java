@@ -21,7 +21,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.SerializeRequestMiddleware;
 import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
@@ -47,7 +47,7 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
     public abstract String getContentType();
 
     @Override
-    public final GoWriter.Writable generateRouteRequest() {
+    public final Writable generateRouteRequest() {
         return goTemplate("""
                 req.Method = $methodPost:T
                 req.URL.Path = "/service/$service:L/operation/$operation:L"
@@ -70,7 +70,7 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
                 ));
     }
 
-    private GoWriter.Writable setContentTypeHeader() {
+    private Writable setContentTypeHeader() {
         if (input.hasTrait(BackfilledInputOutputTrait.class)) {
             return emptyGoTemplate();
         }
@@ -80,13 +80,13 @@ public abstract class Rpc2SerializeRequestMiddleware extends SerializeRequestMid
                 """, isInputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
     }
 
-    private GoWriter.Writable acceptHeader() {
+    private Writable acceptHeader() {
         return goTemplate("""
                 req.Header.Set("Accept", $S)
                 """, isOutputEventStream() ? EventStreamGenerator.AMZ_CONTENT_TYPE : getContentType());
     }
 
-    private GoWriter.Writable setAwsQueryModeHeader() {
+    private Writable setAwsQueryModeHeader() {
         return goTemplate("""
                 req.Header.Set("X-Amzn-Query-Mode", "true")
                 """);

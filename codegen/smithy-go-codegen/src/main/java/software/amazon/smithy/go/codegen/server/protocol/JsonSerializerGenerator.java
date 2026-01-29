@@ -23,8 +23,9 @@ import static software.amazon.smithy.go.codegen.server.ServerCodegenUtil.normali
 import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -50,15 +51,15 @@ public final class JsonSerializerGenerator {
         return "serialize" + shape.getId().getName();
     }
 
-    public GoWriter.Writable generate(Set<Shape> shapes) {
-        return GoWriter.ChainWritable.of(
+    public Writable generate(Set<Shape> shapes) {
+        return ChainWritable.of(
                 shapes.stream()
                         .map(this::generateShapeSerializer)
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable generateShapeSerializer(Shape shape) {
+    private Writable generateShapeSerializer(Shape shape) {
         return goTemplate("""
                 func $name:L(v $shapeType:P, jv $jsonValue:T) (error) {
                     $serialize:W
@@ -73,7 +74,7 @@ public final class JsonSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeValue(Shape shape) {
+    private Writable generateSerializeValue(Shape shape) {
         return switch (shape.getType()) {
             case BYTE -> goTemplate("jv.Byte(v)");
             case SHORT -> goTemplate("jv.Short(v)");
@@ -96,7 +97,7 @@ public final class JsonSerializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateSerializeTimestamp(TimestampShape shape) {
+    private Writable generateSerializeTimestamp(TimestampShape shape) {
         return goTemplate("""
                 if v != nil {
                     jv.String($T(*v))
@@ -104,7 +105,7 @@ public final class JsonSerializerGenerator {
                 """, SmithyGoTypes.Time.FormatDateTime);
     }
 
-    private GoWriter.Writable generateSerializeList(CollectionShape shape) {
+    private Writable generateSerializeList(CollectionShape shape) {
             var target = normalize(model.expectShape(shape.getMember().getTarget()));
             var symbol = symbolProvider.toSymbol(shape);
             var targetSymbol = symbolProvider.toSymbol(target);
@@ -125,7 +126,7 @@ public final class JsonSerializerGenerator {
                     ));
     }
 
-    private GoWriter.Writable generateSerializeMap(MapShape shape) {
+    private Writable generateSerializeMap(MapShape shape) {
         var value = normalize(model.expectShape(shape.getValue().getTarget()));
         var symbol = symbolProvider.toSymbol(shape);
         var valueSymbol = symbolProvider.toSymbol(value);
@@ -146,19 +147,19 @@ public final class JsonSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeStruct(StructureShape shape) {
+    private Writable generateSerializeStruct(StructureShape shape) {
         return goTemplate("""
                 mp := jv.Object()
                 defer mp.Close()
                 $W
-                """, GoWriter.ChainWritable.of(
+                """, ChainWritable.of(
                         shape.getAllMembers().values().stream()
                                 .map(this::generateSerializeField)
                                 .toList()
                 ).compose(false));
     }
 
-    private GoWriter.Writable generateSerializeField(MemberShape member) {
+    private Writable generateSerializeField(MemberShape member) {
         var symbol = symbolProvider.toSymbol(member);
         var target = normalize(model.expectShape(member.getTarget()));
         return switch (target.getType()) {
@@ -173,7 +174,7 @@ public final class JsonSerializerGenerator {
         };
     }
 
-    private GoWriter.Writable serializeNilableMember(MemberShape member, Shape target, boolean deref) {
+    private Writable serializeNilableMember(MemberShape member, Shape target, boolean deref) {
         return goTemplate("""
                 if v.$field:L != nil {
                     if err := $serialize:L($deref:L v.$field:L, mp.Key($key:S)); err != nil {
@@ -189,7 +190,7 @@ public final class JsonSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable serializeMember(MemberShape member, Shape target) {
+    private Writable serializeMember(MemberShape member, Shape target) {
         return goTemplate("""
                 if err := $serialize:L(v.$field:L, mp.Key($key:S)); err != nil {
                     return err
@@ -202,19 +203,19 @@ public final class JsonSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeUnion(UnionShape shape) {
+    private Writable generateSerializeUnion(UnionShape shape) {
         return goTemplate("""
                 mp := jv.Object()
                 defer mp.Close()
                 $W
-                """, GoWriter.ChainWritable.of(
+                """, ChainWritable.of(
                 shape.getAllMembers().values().stream()
                         .map(this::generateSerializeVariant)
                         .toList()
         ).compose(false));
     }
 
-    private GoWriter.Writable generateSerializeVariant(MemberShape member) {
+    private Writable generateSerializeVariant(MemberShape member) {
         var target = normalize(model.expectShape(member.getTarget()));
         return goTemplate("""
                 if variant, ok := v.($variant:P); ok {

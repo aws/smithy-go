@@ -17,8 +17,8 @@ package software.amazon.smithy.go.codegen.integration.auth;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -29,21 +29,21 @@ import software.amazon.smithy.model.shapes.ServiceShape;
  */
 public class AnonymousDefinition implements AuthSchemeDefinition {
     @Override
-    public GoWriter.Writable generateServiceOption(ProtocolGenerator.GenerationContext c, ServiceShape s) {
+    public Writable generateServiceOption(ProtocolGenerator.GenerationContext c, ServiceShape s) {
         return goTemplate("&$T{SchemeID: $T},",
                 SmithyGoTypes.Auth.Option,
                 SmithyGoTypes.Auth.SchemeIDAnonymous);
     }
 
     @Override
-    public GoWriter.Writable generateOperationOption(ProtocolGenerator.GenerationContext c, OperationShape o) {
+    public Writable generateOperationOption(ProtocolGenerator.GenerationContext c, OperationShape o) {
         return goTemplate("&$T{SchemeID: $T},",
                 SmithyGoTypes.Auth.Option,
                 SmithyGoTypes.Auth.SchemeIDAnonymous);
     }
 
     @Override
-    public GoWriter.Writable generateOptionsIdentityResolver() {
+    public Writable generateOptionsIdentityResolver() {
         return goTemplate("&$T{}", SmithyGoTypes.Auth.AnonymousIdentityResolver);
     }
 }

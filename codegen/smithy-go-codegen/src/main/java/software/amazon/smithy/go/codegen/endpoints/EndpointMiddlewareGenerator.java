@@ -23,6 +23,7 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -43,7 +44,7 @@ public final class EndpointMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddToProtocolFinalizers() {
+    public static Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
                     return $T("add $L: %v", err)
@@ -56,18 +57,18 @@ public final class EndpointMiddlewareGenerator {
                 MIDDLEWARE_ID);
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         return createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                 .asWritable(generateBody(), generateFields());
     }
 
-    private GoWriter.Writable generateFields() {
+    private Writable generateFields() {
         return goTemplate("""
                 options Options
                 """);
     }
 
-    private GoWriter.Writable generateBody() {
+    private Writable generateBody() {
         if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
             return goTemplate("return next.HandleFinalize(ctx, in)");
         }
@@ -102,7 +103,7 @@ public final class EndpointMiddlewareGenerator {
                 ));
     }
 
-    private GoWriter.Writable generatePreResolutionHooks() {
+    private Writable generatePreResolutionHooks() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
                 integration.renderPreEndpointResolutionHook(context.getSettings(), writer, context.getModel());
@@ -110,7 +111,7 @@ public final class EndpointMiddlewareGenerator {
         };
     }
 
-    private GoWriter.Writable generateAssertRequest() {
+    private Writable generateAssertRequest() {
         return goTemplate("""
                 req, ok := in.Request.($P)
                 if !ok {
@@ -121,7 +122,7 @@ public final class EndpointMiddlewareGenerator {
                 GoStdlibTypes.Fmt.Errorf);
     }
 
-    private GoWriter.Writable generateAssertRegion() {
+    private Writable generateAssertRegion() {
         return goTemplate("""
                 if !$validHost:T(m.options.Region) {
                     return out, metadata, $error:T("invalid input region %s", m.options.Region)
@@ -134,7 +135,7 @@ public final class EndpointMiddlewareGenerator {
         );
     }
 
-    private GoWriter.Writable generateAssertResolver() {
+    private Writable generateAssertResolver() {
         return goTemplate("""
                 if m.options.EndpointResolverV2 == nil {
                     return out, metadata, $T("expected endpoint resolver to not be nil")
@@ -143,7 +144,7 @@ public final class EndpointMiddlewareGenerator {
                 GoStdlibTypes.Fmt.Errorf);
     }
 
-    private GoWriter.Writable generateResolveEndpoint() {
+    private Writable generateResolveEndpoint() {
         return goTemplate("""
                 params, err := bindEndpointParams(ctx, getOperationInput(ctx), m.options)
                 if err != nil {
@@ -173,7 +174,7 @@ public final class EndpointMiddlewareGenerator {
                 SmithyGoTypes.Transport.Http.JoinPath);
     }
 
-    private GoWriter.Writable generateMergeAuthProperties() {
+    private Writable generateMergeAuthProperties() {
         return goTemplate("""
                 rscheme := getResolvedAuthScheme(ctx)
                 if rscheme == nil {
@@ -187,7 +188,7 @@ public final class EndpointMiddlewareGenerator {
                 """, GoStdlibTypes.Fmt.Errorf, SmithyGoTypes.Auth.GetAuthOptions);
     }
 
-    private GoWriter.Writable generatePostResolutionHooks() {
+    private Writable generatePostResolutionHooks() {
         return (GoWriter writer) -> {
             for (GoIntegration integration : context.getIntegrations()) {
                 integration.renderPostEndpointResolutionHook(context.getSettings(), writer, context.getModel());

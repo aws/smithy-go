@@ -20,8 +20,8 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.MapUtils;
@@ -47,7 +47,7 @@ public class AuthParametersGenerator {
         this.context = context;
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         loadFields();
 
         return goTemplate(
@@ -65,14 +65,14 @@ public class AuthParametersGenerator {
         );
     }
 
-    private GoWriter.Writable generateDocs() {
+    private Writable generateDocs() {
         return goDocTemplate(
                 "$name:L contains the set of inputs necessary for auth scheme resolution.",
                 MapUtils.of("name", STRUCT_NAME)
         );
     }
 
-    private GoWriter.Writable generateFields() {
+    private Writable generateFields() {
         return (writer) -> {
             for (var field: fields) {
                 writer.write("""

@@ -22,8 +22,8 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenera
 import static software.amazon.smithy.go.codegen.serde.cbor.CborSerializerGenerator.getSerializerName;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2SerializeRequestMiddleware;
 import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
@@ -48,7 +48,7 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
     }
 
     @Override
-    public GoWriter.Writable generateSerialize() {
+    public Writable generateSerialize() {
         if (input.hasTrait(BackfilledInputOutputTrait.class)) {
             return emptyGoTemplate();
         }
