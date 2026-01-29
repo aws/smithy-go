@@ -19,6 +19,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -26,7 +27,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
  * Generates the NotImplemented error sentinel to be returned when a service doesn't support a specific action.
  */
 @SmithyInternalApi
-public final class NotImplementedError implements GoWriter.Writable {
+public final class NotImplementedError implements Writable {
     public static final String NAME = "NotImplemented";
 
     @Override
@@ -34,7 +35,7 @@ public final class NotImplementedError implements GoWriter.Writable {
         writer.write(generateStruct());
     }
 
-    private GoWriter.Writable generateStruct() {
+    private Writable generateStruct() {
         return goTemplate("""
                 type $struct:L struct {
                     Operation string

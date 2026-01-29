@@ -26,10 +26,11 @@ import static software.amazon.smithy.go.codegen.serde.cbor.CborDeserializerGener
 import java.util.LinkedHashSet;
 import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.DeserializeResponseMiddleware;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenerator;
@@ -86,7 +87,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                         .sorted()
                         .collect(toCollection(LinkedHashSet::new))) // in case of overlap
         );
-        writer.write(GoWriter.ChainWritable.of(
+        writer.write(ChainWritable.of(
                 operations.stream()
                         .sorted()
                         .map(it -> deserializeOperationError(context, it))
@@ -111,7 +112,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         return new DeserializeMiddleware(generator, ctx, operation);
     }
 
-    private GoWriter.Writable deserializeOperationError(
+    private Writable deserializeOperationError(
             ProtocolGenerator.GenerationContext ctx, OperationShape operation
     ) {
         var model = ctx.getModel();
@@ -162,7 +163,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                         "awsQueryCompatible", ctx.getService().hasTrait(AwsQueryCompatibleTrait.class)
                                 ? deserializeAwsQueryError()
                                 : emptyGoTemplate(),
-                        "errors", GoWriter.ChainWritable.of(
+                        "errors", ChainWritable.of(
                                 operation.getErrors(service).stream()
                                         .map(it ->
                                                 deserializeErrorCase(ctx, model.expectShape(it, StructureShape.class)))
@@ -171,7 +172,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeErrorCase(GenerationContext ctx, StructureShape error) {
+    private Writable deserializeErrorCase(GenerationContext ctx, StructureShape error) {
         return goTemplate("""
                 case $errorType:S:
                     verr, err := $deserialize:L(v)
@@ -201,14 +202,14 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         return id.getName() + "Error";
     }
 
-    private GoWriter.Writable deserializeAwsQueryError() {
+    private Writable deserializeAwsQueryError() {
         return goTemplate("""
                 if qtype := getAwsQueryErrorCode(resp); len(qtype) > 0 {
                     typ = qtype
                 }""");
     }
 
-    private GoWriter.Writable deserializeModeledAwsQueryError() {
+    private Writable deserializeModeledAwsQueryError() {
         return goTemplate("""
                 if qtype := getAwsQueryErrorCode(resp); len(qtype) > 0 {
                     verr.ErrorCodeOverride = $T(qtype)

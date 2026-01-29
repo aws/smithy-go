@@ -19,8 +19,8 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.protocol.ProtocolUtil.hasEventStream;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.DeserializeResponseMiddleware;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -37,10 +37,10 @@ public abstract class Rpc2DeserializeResponseMiddleware extends DeserializeRespo
 
     protected abstract String getProtocolName();
 
-    protected abstract GoWriter.Writable deserializeSuccessResponse();
+    protected abstract Writable deserializeSuccessResponse();
 
     @Override
-    public GoWriter.Writable generateDeserialize() {
+    public Writable generateDeserialize() {
         return goTemplate("""
                 if resp.Header.Get("smithy-protocol") != $protocol:S {
                     return out, metadata, &$deserError:T{
@@ -68,7 +68,7 @@ public abstract class Rpc2DeserializeResponseMiddleware extends DeserializeRespo
                 ));
     }
 
-    private GoWriter.Writable handleResponse() {
+    private Writable handleResponse() {
         if (output.members().isEmpty()) {
             return discardDeserialize();
         } else if (hasEventStream(ctx.getModel(), output)) {
@@ -77,7 +77,7 @@ public abstract class Rpc2DeserializeResponseMiddleware extends DeserializeRespo
         return deserializeSuccessResponse();
     }
 
-    private GoWriter.Writable discardDeserialize() {
+    private Writable discardDeserialize() {
         return goTemplate("""
                 if _, err = $copy:T($discard:T, resp.Body); err != nil {
                     return out, metadata, $errorf:T("discard response body: %w", err)
@@ -95,7 +95,7 @@ public abstract class Rpc2DeserializeResponseMiddleware extends DeserializeRespo
 
     // Basically a no-op. Event stream deserializer middleware, implemented elsewhere, will handle the wire-up here,
     // including handling the initial-response message to deserialize any non-stream members to output.
-    private GoWriter.Writable deserializeEventStream() {
+    private Writable deserializeEventStream() {
         return goTemplate("out.Result = &$T{}", ctx.getSymbolProvider().toSymbol(output));
     }
 }

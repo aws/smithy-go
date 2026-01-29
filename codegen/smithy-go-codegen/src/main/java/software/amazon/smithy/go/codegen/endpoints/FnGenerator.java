@@ -21,9 +21,9 @@ import static software.amazon.smithy.go.codegen.GoWriter.joinWritables;
 import java.util.ArrayList;
 import java.util.List;
 import software.amazon.smithy.codegen.core.Symbol;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
 import software.amazon.smithy.utils.MapUtils;
@@ -37,7 +37,7 @@ public class FnGenerator {
         this.fnProvider = fnProvider;
     }
 
-    GoWriter.Writable generate(FunctionDefinition fnDef, List<Expression> fnArgs) {
+    Writable generate(FunctionDefinition fnDef, List<Expression> fnArgs) {
 
         Symbol goFn;
         if (this.fnProvider.fnFor(fnDef.getId()) == null) {
@@ -47,7 +47,7 @@ public class FnGenerator {
             goFn = this.fnProvider.fnFor(fnDef.getId());
         }
 
-        List<GoWriter.Writable> writableFnArgs = new ArrayList<>();
+        List<Writable> writableFnArgs = new ArrayList<>();
         fnArgs.forEach((expr) -> {
             writableFnArgs.add(new ExpressionGenerator(scope, this.fnProvider).generate(expr));
         });

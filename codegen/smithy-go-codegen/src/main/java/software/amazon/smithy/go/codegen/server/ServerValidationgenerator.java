@@ -42,6 +42,7 @@ import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.model.Model;
@@ -60,7 +61,7 @@ import software.amazon.smithy.utils.StringUtils;
 
 @SmithyInternalApi
 public final class ServerValidationgenerator {
-    public GoWriter.Writable generate(Model model, ServiceShape service, SymbolProvider symbolProvider) {
+    public Writable generate(Model model, ServiceShape service, SymbolProvider symbolProvider) {
         return writer -> execute(writer, model, symbolProvider, service);
     }
 

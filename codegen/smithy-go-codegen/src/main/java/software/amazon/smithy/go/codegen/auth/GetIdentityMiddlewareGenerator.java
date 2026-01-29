@@ -18,11 +18,12 @@ package software.amazon.smithy.go.codegen.auth;
 import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.createFinalizeStepMiddleware;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -36,7 +37,7 @@ public class GetIdentityMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddToProtocolFinalizers() {
+    public static Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
                     return $T("add $L: %v", err)
@@ -49,21 +50,21 @@ public class GetIdentityMiddlewareGenerator {
                 MIDDLEWARE_ID);
     }
 
-    public GoWriter.Writable generate() {
-        return GoWriter.ChainWritable.of(
+    public Writable generate() {
+        return ChainWritable.of(
                 createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                         .asWritable(generateBody(), generateFields()),
                 generateContextFuncs()
         ).compose();
     }
 
-    private GoWriter.Writable generateFields() {
+    private Writable generateFields() {
         return goTemplate("""
                 options Options
                 """);
     }
 
-    private GoWriter.Writable generateBody() {
+    private Writable generateBody() {
         return goTemplate("""
                 innerCtx, span := $startSpan:T(ctx, "GetIdentity")
                 defer span.End()
@@ -101,7 +102,7 @@ public class GetIdentityMiddlewareGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateContextFuncs() {
+    private Writable generateContextFuncs() {
         return goTemplate("""
                 type identityKey struct{}
 

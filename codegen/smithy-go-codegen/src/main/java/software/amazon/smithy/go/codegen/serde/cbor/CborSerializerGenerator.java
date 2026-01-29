@@ -27,9 +27,10 @@ import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
@@ -59,15 +60,15 @@ public final class CborSerializerGenerator {
         return "serializeCBOR_" + shape.getId().getName();
     }
 
-    public GoWriter.Writable generate(Set<Shape> shapes) {
-        return GoWriter.ChainWritable.of(
+    public Writable generate(Set<Shape> shapes) {
+        return ChainWritable.of(
                 shapes.stream()
                         .map(this::generateShapeSerializer)
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable generateShapeSerializer(Shape shape) {
+    private Writable generateShapeSerializer(Shape shape) {
         return goTemplate("""
                 func $name:L(v $shapeType:P) ($cborValue:T, error) {
                     $serialize:W
@@ -81,7 +82,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeValue(Shape shape) {
+    private Writable generateSerializeValue(Shape shape) {
         return switch (shape.getType()) {
             case BYTE, SHORT, INTEGER, LONG, INT_ENUM -> generateSerializeIntegral();
             case FLOAT -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.Float32);
@@ -103,7 +104,7 @@ public final class CborSerializerGenerator {
         };
     }
 
-    private GoWriter.Writable generateSerializeIntegral() {
+    private Writable generateSerializeIntegral() {
         return goTemplate("""
                 if v < 0 {
                     return $T(uint64(-v)), nil
@@ -112,7 +113,7 @@ public final class CborSerializerGenerator {
                 """, SmithyGoTypes.Encoding.Cbor.NegInt, SmithyGoTypes.Encoding.Cbor.Uint);
     }
 
-    private GoWriter.Writable generateSerializeTimestamp(TimestampShape shape) {
+    private Writable generateSerializeTimestamp(TimestampShape shape) {
         return goTemplate("""
                 return &$tag:T{
                     ID:    1,
@@ -125,7 +126,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeList(CollectionShape shape) {
+    private Writable generateSerializeList(CollectionShape shape) {
         var target = normalize(model.expectShape(shape.getMember().getTarget()));
         var symbol = symbolProvider.toSymbol(shape);
         var targetSymbol = symbolProvider.toSymbol(target);
@@ -149,7 +150,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable handleSparseList() {
+    private Writable handleSparseList() {
         return goTemplate("""
                 if v[i] == nil {
                     vl = append(vl, &$T{})
@@ -158,7 +159,7 @@ public final class CborSerializerGenerator {
                 """, SmithyGoTypes.Encoding.Cbor.Nil);
     }
 
-    private GoWriter.Writable generateSerializeMap(MapShape shape) {
+    private Writable generateSerializeMap(MapShape shape) {
         var value = normalize(model.expectShape(shape.getValue().getTarget()));
         var symbol = symbolProvider.toSymbol(shape);
         var valueSymbol = symbolProvider.toSymbol(value);
@@ -182,7 +183,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable handleSparseMap() {
+    private Writable handleSparseMap() {
         return goTemplate("""
                 if vv == nil {
                     vm[k] = &$T{}
@@ -191,7 +192,7 @@ public final class CborSerializerGenerator {
                 """, SmithyGoTypes.Encoding.Cbor.Nil);
     }
 
-    private GoWriter.Writable generateSerializeStruct(StructureShape shape) {
+    private Writable generateSerializeStruct(StructureShape shape) {
         return goTemplate("""
                 vm := $map:T{}
                 $serialize:W
@@ -199,7 +200,7 @@ public final class CborSerializerGenerator {
                 """,
                 MapUtils.of(
                         "map", SmithyGoTypes.Encoding.Cbor.Map,
-                        "serialize", GoWriter.ChainWritable.of(
+                        "serialize", ChainWritable.of(
                                 shape.getAllMembers().values().stream()
                                         .map(this::generateSerializeField)
                                         .toList()
@@ -207,7 +208,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeField(MemberShape member) {
+    private Writable generateSerializeField(MemberShape member) {
         var target = normalize(model.expectShape(member.getTarget()));
         if (target.hasTrait(StreamingTrait.class)) {
             return emptyGoTemplate(); // event stream, not an actual field
@@ -232,7 +233,7 @@ public final class CborSerializerGenerator {
         };
     }
 
-    private GoWriter.Writable serializeString(MemberShape member, Shape target) {
+    private Writable serializeString(MemberShape member, Shape target) {
         return goTemplate("""
                if len(v.$field:L) > 0 {
                    ser, err := $serialize:L(v.$field:L)
@@ -249,7 +250,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable serializeNilableMember(MemberShape member, Shape target, boolean deref) {
+    private Writable serializeNilableMember(MemberShape member, Shape target, boolean deref) {
         return goTemplate("""
                 if v.$field:L != nil {
                     ser, err := $serialize:L($deref:L v.$field:L)
@@ -267,7 +268,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable serializeMember(MemberShape member, Shape target) {
+    private Writable serializeMember(MemberShape member, Shape target) {
         return goTemplate("""
                 ser$key:L, err := $serialize:L(v.$field:L)
                 if err != nil {
@@ -282,7 +283,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateSerializeUnion(UnionShape union) {
+    private Writable generateSerializeUnion(UnionShape union) {
         return goTemplate("""
                 vm := $map:T{}
                 switch uv := v.(type) {
@@ -295,7 +296,7 @@ public final class CborSerializerGenerator {
                 MapUtils.of(
                         "map", SmithyGoTypes.Encoding.Cbor.Map,
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "serialize", GoWriter.ChainWritable.of(
+                        "serialize", ChainWritable.of(
                                 union.getAllMembers().values().stream()
                                         .map(it -> serializeVariant(union, it))
                                         .toList()
@@ -303,7 +304,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable serializeVariant(UnionShape union, MemberShape member) {
+    private Writable serializeVariant(UnionShape union, MemberShape member) {
         var target = normalize(model.expectShape(member.getTarget()));
         var symbol = symbolProvider.toSymbol(union);
         var variantSymbol = buildSymbol(symbolProvider.toMemberName(member), symbol.getNamespace());
@@ -323,7 +324,7 @@ public final class CborSerializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable serializeDocument(DocumentShape document) {
+    private Writable serializeDocument(DocumentShape document) {
         return goTemplate("""
                 raw, err := v.MarshalSmithyDocument()
                 if err != nil {

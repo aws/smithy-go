@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
@@ -37,7 +37,7 @@ import software.amazon.smithy.utils.MapUtils;
 public class EndpointParameterBindingsGenerator {
     private final ProtocolGenerator.GenerationContext context;
 
-    private final Map<String, GoWriter.Writable> builtinBindings;
+    private final Map<String, Writable> builtinBindings;
 
     public EndpointParameterBindingsGenerator(ProtocolGenerator.GenerationContext context) {
         this.context = context;
@@ -47,7 +47,7 @@ public class EndpointParameterBindingsGenerator {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
             return emptyGoTemplate();
         }
@@ -78,8 +78,8 @@ public class EndpointParameterBindingsGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateBuiltinBindings() {
-        var bindings = new HashMap<String, GoWriter.Writable>();
+    private Writable generateBuiltinBindings() {
+        var bindings = new HashMap<String, Writable>();
         for (var integration: context.getIntegrations()) {
             var plugins = integration.getClientPlugins(context.getModel(), context.getService());
             for (var plugin: plugins) {
@@ -114,7 +114,7 @@ public class EndpointParameterBindingsGenerator {
         };
     }
 
-    private GoWriter.Writable generateClientContextBindings() {
+    private Writable generateClientContextBindings() {
         if (!context.getService().hasTrait(ClientContextParamsTrait.class)) {
             return goTemplate("");
         }

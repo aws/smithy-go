@@ -20,13 +20,14 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.ArrayList;
 import java.util.List;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
@@ -121,13 +122,13 @@ public final class RequestCompression implements GoIntegration {
        return runtimeClientPlugins;
     }
 
-    private GoWriter.Writable generateAlgorithmList(List<String> algorithms) {
+    private Writable generateAlgorithmList(List<String> algorithms) {
         return goTemplate("""
         []string{
             $W
         }
         """,
-                GoWriter.ChainWritable.of(
+                ChainWritable.of(
                         algorithms.stream()
                                 .map(it -> goTemplate("$S,", it))
                                 .toList()
@@ -138,7 +139,7 @@ public final class RequestCompression implements GoIntegration {
         return String.format("addOperation%sRequestCompressionMiddleware", operationName);
     }
 
-    private GoWriter.Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
+    private Writable writeMiddlewareHelper(SymbolProvider symbolProvider, OperationShape operation) {
         String operationName = symbolProvider.toSymbol(operation).getName();
         RequestCompressionTrait trait = operation.expectTrait(RequestCompressionTrait.class);
 

@@ -27,12 +27,13 @@ import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
@@ -62,15 +63,15 @@ public final class CborDeserializerGenerator {
         return "deserializeCBOR_" + shape.getId().getName();
     }
 
-    public GoWriter.Writable generate(Set<Shape> shapes) {
-        return GoWriter.ChainWritable.of(
+    public Writable generate(Set<Shape> shapes) {
+        return ChainWritable.of(
                 shapes.stream()
                         .map(this::deserializeShape)
                         .toList()
         ).compose();
     }
 
-    private GoWriter.Writable deserializeShape(Shape shape) {
+    private Writable deserializeShape(Shape shape) {
         return switch (shape.getType()) {
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("arbitrary-precision nums are not supported (" + shape.getType() + ")");
@@ -88,7 +89,7 @@ public final class CborDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable deserializeStatic(Shape shape, Symbol coercer) {
+    private Writable deserializeStatic(Shape shape, Symbol coercer) {
         return goTemplate("""
                 func $deserName:L(v $cborValue:T) ($type:T, error) {
                     return $coercer:T(v)
@@ -102,7 +103,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeIntEnum(Shape shape) {
+    private Writable deserializeIntEnum(Shape shape) {
         return goTemplate("""
                 func $name:L(v $cborValue:T) ($shapeType:T, error) {
                     av, err := $asInt32:T(v)
@@ -120,7 +121,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeString(Shape shape) {
+    private Writable deserializeString(Shape shape) {
         return goTemplate("""
                 func $name:L(v $cborValue:T) (string, error) {
                     av, ok := v.($assert:T)
@@ -138,7 +139,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeAssertFunc(Shape shape) {
+    private Writable deserializeAssertFunc(Shape shape) {
         return goTemplate("""
                 func $name:L(v $cborValue:T) ($shapeType:P, error) {
                     av, ok := v.($assert:W)
@@ -159,7 +160,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable typeAssert(Shape shape) {
+    private Writable typeAssert(Shape shape) {
         return switch (shape.getType()) {
             case STRING, ENUM ->
                     goTemplate("$T", SmithyGoTypes.Encoding.Cbor.String);
@@ -178,7 +179,7 @@ public final class CborDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable zeroValue(Shape shape) {
+    private Writable zeroValue(Shape shape) {
         return switch (shape.getType()) {
             case STRING ->
                     goTemplate("\"\"");
@@ -195,7 +196,7 @@ public final class CborDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable deserializeAsserted(Shape shape, String ident) {
+    private Writable deserializeAsserted(Shape shape, String ident) {
         return switch (shape.getType()) {
             case STRING -> goTemplate("return string($L), nil", ident);
             case ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
@@ -210,7 +211,7 @@ public final class CborDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable deserializeList(CollectionShape shape, String ident) {
+    private Writable deserializeList(CollectionShape shape, String ident) {
         var target = normalize(model.expectShape(shape.getMember().getTarget()));
         var symbol = symbolProvider.toSymbol(shape);
         var targetSymbol = symbolProvider.toSymbol(target);
@@ -235,7 +236,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable handleSparseList() {
+    private Writable handleSparseList() {
         return goTemplate("""
                 if _, ok := si.($P); ok {
                     dl = append(dl, nil)
@@ -244,7 +245,7 @@ public final class CborDeserializerGenerator {
                 """, SmithyGoTypes.Encoding.Cbor.Nil);
     }
 
-    private GoWriter.Writable deserializeMap(MapShape shape, String ident) {
+    private Writable deserializeMap(MapShape shape, String ident) {
         var value = normalize(model.expectShape(shape.getValue().getTarget()));
         var symbol = symbolProvider.toSymbol(shape);
         var valueSymbol = symbolProvider.toSymbol(value);
@@ -269,7 +270,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable handleSparseMap() {
+    private Writable handleSparseMap() {
         return goTemplate("""
                 if _, ok := sv.($P); ok {
                     dm[key] = nil
@@ -285,7 +286,7 @@ public final class CborDeserializerGenerator {
         return isPointable(deserialized) ? "*" : "&";
     }
 
-    private GoWriter.Writable deserializeStruct(StructureShape shape, String ident) {
+    private Writable deserializeStruct(StructureShape shape, String ident) {
         return goTemplate("""
                 ds := &$type:T{}
                 for key, sv := range $ident:L {
@@ -297,7 +298,7 @@ public final class CborDeserializerGenerator {
                 MapUtils.of(
                         "type", symbolProvider.toSymbol(shape),
                         "ident", ident,
-                        "fields", GoWriter.ChainWritable.of(
+                        "fields", ChainWritable.of(
                                 shape.getAllMembers().values().stream()
                                         .map(this::deserializeField)
                                         .toList()
@@ -305,7 +306,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeField(MemberShape member) {
+    private Writable deserializeField(MemberShape member) {
         var target = model.expectShape(member.getTarget());
         if (target.hasTrait(StreamingTrait.class)) {
             return emptyGoTemplate(); // event stream, not an actual field
@@ -331,14 +332,14 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable handleSparseField() {
+    private Writable handleSparseField() {
         return goTemplate("""
                 if _, ok := sv.($P); ok {
                     continue
                 }""", SmithyGoTypes.Encoding.Cbor.Nil);
     }
 
-    private GoWriter.Writable generateStructFieldDeref(MemberShape member, String ident) {
+    private Writable generateStructFieldDeref(MemberShape member, String ident) {
         var symbol = symbolProvider.toSymbol(member);
         if (!isPointable(symbol)) {
             return goTemplate(ident);
@@ -357,7 +358,7 @@ public final class CborDeserializerGenerator {
         };
     }
 
-    private GoWriter.Writable deserializeUnion(UnionShape union, String ident) {
+    private Writable deserializeUnion(UnionShape union, String ident) {
         return goTemplate("""
                 for key, sv := range $ident:L {
                     $variants:W
@@ -368,7 +369,7 @@ public final class CborDeserializerGenerator {
                         "type", symbolProvider.toSymbol(union),
                         "ident", ident,
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "variants", GoWriter.ChainWritable.of(
+                        "variants", ChainWritable.of(
                                 union.getAllMembers().values().stream()
                                         .map(it -> deserializeVariant(union, it, "sv"))
                                         .toList()
@@ -376,7 +377,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeVariant(UnionShape union, MemberShape member, String ident) {
+    private Writable deserializeVariant(UnionShape union, MemberShape member, String ident) {
         var target = normalize(model.expectShape(member.getTarget()));
         var symbol = symbolProvider.toSymbol(union);
         var variantSymbol = buildSymbol(symbolProvider.toMemberName(member), symbol.getNamespace());
@@ -402,7 +403,7 @@ public final class CborDeserializerGenerator {
                 ));
     }
 
-    private GoWriter.Writable deserializeDocument(Shape shape) {
+    private Writable deserializeDocument(Shape shape) {
         var unmarshaler = ProtocolDocumentGenerator.Utilities.getInternalDocumentSymbolBuilder(settings,
                 ProtocolDocumentGenerator.INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC).build();
         return goTemplate("""

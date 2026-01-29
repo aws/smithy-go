@@ -18,11 +18,12 @@ package software.amazon.smithy.go.codegen.server;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
-public final class OptionsStruct implements GoWriter.Writable {
+public final class OptionsStruct implements Writable {
     public static final String NAME = "Options";
 
     private final ServerProtocolGenerator protocolGenerator;
@@ -36,7 +37,7 @@ public final class OptionsStruct implements GoWriter.Writable {
         writer.write(generate());
     }
 
-    private GoWriter.Writable generate() {
+    private Writable generate() {
         return goTemplate("""
                 type $this:L struct {
                     $protocolOptions:W

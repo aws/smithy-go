@@ -34,6 +34,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.BooleanNode;
 import software.amazon.smithy.model.node.Node;
@@ -68,13 +69,13 @@ public final class EndpointTestsGenerator {
                 "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build());
     }
 
-    public GoWriter.Writable generate(Optional<EndpointRuleSet> ruleset, List<EndpointTestCase> testCases) {
+    public Writable generate(Optional<EndpointRuleSet> ruleset, List<EndpointTestCase> testCases) {
 
         if (!ruleset.isPresent()) {
             return emptyGoTemplate();
         }
         var parameters = ruleset.get().getParameters();
-        List<GoWriter.Writable> writables = new ArrayList<>();
+        List<Writable> writables = new ArrayList<>();
 
         for (int i = 0; i < testCases.size(); i++) {
             var testCase = testCases.get(i);
@@ -96,14 +97,14 @@ public final class EndpointTestsGenerator {
         return joinWritables(writables, "\n\n");
     }
 
-    private GoWriter.Writable generateTestCaseDocs(EndpointTestCase testCase) {
+    private Writable generateTestCaseDocs(EndpointTestCase testCase) {
         if (testCase.getDocumentation().isPresent()) {
             return goDocTemplate(testCase.getDocumentation().get());
         }
         return emptyGoTemplate();
     }
 
-    private GoWriter.Writable generateTestCase(Parameters parameters, EndpointTestCase testCase) {
+    private Writable generateTestCase(Parameters parameters, EndpointTestCase testCase) {
         return goTemplate("""
                 var params = $parametersType:T{
                     $parameterValues:W
@@ -126,8 +127,8 @@ public final class EndpointTestsGenerator {
                         "expectEndpoint", generateExpectEndpoint(testCase.getExpect().getEndpoint())));
     }
 
-    private GoWriter.Writable generateParameterValues(Parameters parameters, EndpointTestCase testCase) {
-        List<GoWriter.Writable> writables = new ArrayList<>();
+    private Writable generateParameterValues(Parameters parameters, EndpointTestCase testCase) {
+        List<Writable> writables = new ArrayList<>();
         // TODO filter keys based on actual modeled parameters
         Set<String> parameterNames = new TreeSet<>();
 
@@ -147,7 +148,7 @@ public final class EndpointTestsGenerator {
         return joinWritables(writables, "\n");
     }
 
-    private GoWriter.Writable generateParameterValue(Node value) {
+    private Writable generateParameterValue(Node value) {
         return switch (value.getType()) {
             case STRING -> goTemplate("$T($S)",
                     SmithyGoDependency.SMITHY_PTR.func("String"), value.expectStringNode().getValue());
@@ -159,7 +160,7 @@ public final class EndpointTestsGenerator {
         };
     }
 
-    GoWriter.Writable generateExpectError(Optional<String> expectErr) {
+    Writable generateExpectError(Optional<String> expectErr) {
         if (expectErr.isEmpty()) {
             return goTemplate("""
                     if err != nil {
@@ -182,7 +183,7 @@ public final class EndpointTestsGenerator {
                                 SmithyGoDependency.STRINGS).build()));
     }
 
-    GoWriter.Writable generateExpectEndpoint(Optional<ExpectedEndpoint> expectEndpoint) {
+    Writable generateExpectEndpoint(Optional<ExpectedEndpoint> expectEndpoint) {
         if (expectEndpoint.isEmpty()) {
             return emptyGoTemplate();
         }
@@ -216,7 +217,7 @@ public final class EndpointTestsGenerator {
                         "assertProperties", generateAssertProperties()));
     }
 
-    GoWriter.Writable generateHeaders(Map<String, List<String>> headers) {
+    Writable generateHeaders(Map<String, List<String>> headers) {
         Map<String, Object> commonArgs = MapUtils.of(
             "memberName", "Headers",
             "headerType", SymbolUtils.createPointableSymbolBuilder("Header",
@@ -237,7 +238,7 @@ public final class EndpointTestsGenerator {
                 """, commonArgs,
                 (w) -> {
                     headers.forEach((key, values) -> {
-                        List<GoWriter.Writable> valueWritables = new ArrayList<>();
+                        List<Writable> valueWritables = new ArrayList<>();
                         values.forEach((value) -> {
                             valueWritables.add((GoWriter ww) -> ww.write("$S", value));
                         });
@@ -250,7 +251,7 @@ public final class EndpointTestsGenerator {
                 });
     }
 
-    GoWriter.Writable generateAssertFields() {
+    Writable generateAssertFields() {
         return goTemplate("""
                 if !$T(expectEndpoint.Headers, result.Headers) {
                     t.Errorf("expect headers to match\\n%v != %v", expectEndpoint.Headers, result.Headers)
@@ -258,7 +259,7 @@ public final class EndpointTestsGenerator {
                 """, SmithyGoDependency.REFLECT.valueSymbol("DeepEqual"));
     }
 
-    GoWriter.Writable generateProperties(Map<String, Node> properties) {
+    Writable generateProperties(Map<String, Node> properties) {
         Map<String, Object> commonArgs = MapUtils.of(
                 "propertiesType",
                 SymbolUtils.createValueSymbolBuilder("Properties", SmithyGoDependency.SMITHY).build());
@@ -291,11 +292,11 @@ public final class EndpointTestsGenerator {
                 });
     }
 
-    GoWriter.Writable generateNodeValue(Node value) {
+    Writable generateNodeValue(Node value) {
         return value.accept(new NodeVisitor<>() {
             @Override
-            public GoWriter.Writable arrayNode(ArrayNode arrayNode) {
-                List<GoWriter.Writable> elements = new ArrayList<>();
+            public Writable arrayNode(ArrayNode arrayNode) {
+                List<Writable> elements = new ArrayList<>();
                 arrayNode.getElements().forEach((e) -> {
                     elements.add((GoWriter w) -> w.write("$W,", e.accept(this)));
                 });
@@ -310,23 +311,23 @@ public final class EndpointTestsGenerator {
             }
 
             @Override
-            public GoWriter.Writable booleanNode(BooleanNode booleanNode) {
+            public Writable booleanNode(BooleanNode booleanNode) {
                 return (GoWriter w) -> w.write("$L", booleanNode.getValue());
             }
 
             @Override
-            public GoWriter.Writable nullNode(NullNode nullNode) {
+            public Writable nullNode(NullNode nullNode) {
                 return (GoWriter w) -> w.write("nil");
             }
 
             @Override
-            public GoWriter.Writable numberNode(NumberNode numberNode) {
+            public Writable numberNode(NumberNode numberNode) {
                 return (GoWriter w) -> w.write("$L", numberNode.toString());
             }
 
             @Override
-            public GoWriter.Writable objectNode(ObjectNode objectNode) {
-                List<GoWriter.Writable> members = new ArrayList<>();
+            public Writable objectNode(ObjectNode objectNode) {
+                List<Writable> members = new ArrayList<>();
                 objectNode.getMembers().forEach((k, v) -> {
                     members.add((GoWriter w) -> w.write("$S: $W,", k.getValue(), v.accept(this)));
                 });
@@ -341,13 +342,13 @@ public final class EndpointTestsGenerator {
             }
 
             @Override
-            public GoWriter.Writable stringNode(StringNode stringNode) {
+            public Writable stringNode(StringNode stringNode) {
                 return (GoWriter w) -> w.write("$S", stringNode.getValue());
             }
         });
     }
 
-    GoWriter.Writable generateAssertProperties() {
+    Writable generateAssertProperties() {
         return goTemplate("""
                 if !$reflectDeepEqual:T(expectEndpoint.Properties, result.Properties) {
                     t.Errorf("expect properties to match\\n%v != %v", expectEndpoint.Properties, result.Properties)

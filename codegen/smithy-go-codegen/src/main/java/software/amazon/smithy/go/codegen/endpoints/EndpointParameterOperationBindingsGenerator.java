@@ -19,10 +19,11 @@ import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.utils.StringUtils.capitalize;
 
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -68,7 +69,7 @@ public class EndpointParameterOperationBindingsGenerator {
                 || operation.hasTrait(OperationContextParamsTrait.class);
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         if (!hasBindings()) {
             return goTemplate("");
         }
@@ -86,20 +87,20 @@ public class EndpointParameterOperationBindingsGenerator {
                 generateStaticContextParamBindings());
     }
 
-    private GoWriter.Writable generateOperationContextParamBindings() {
+    private Writable generateOperationContextParamBindings() {
         if (!operation.hasTrait(OperationContextParamsTrait.class)) {
             return emptyGoTemplate();
         }
 
         var params = operation.expectTrait(OperationContextParamsTrait.class);
-        return GoWriter.ChainWritable.of(
+        return ChainWritable.of(
                 params.getParameters().entrySet().stream()
                         .map(it -> generateOpContextParamBinding(it.getKey(), it.getValue()))
                         .toList()
         ).compose(false);
     }
 
-    private GoWriter.Writable generateOpContextParamBinding(String paramName, OperationContextParamDefinition def) {
+    private Writable generateOpContextParamBinding(String paramName, OperationContextParamDefinition def) {
         var expr = JmespathExpression.parse(def.getPath());
 
         return writer -> {
@@ -112,7 +113,7 @@ public class EndpointParameterOperationBindingsGenerator {
         };
     }
 
-    private GoWriter.Writable generateContextParamBindings() {
+    private Writable generateContextParamBindings() {
         return writer -> {
             input.getAllMembers().values().forEach(it -> {
                 if (!it.hasTrait(ContextParamTrait.class)) {
@@ -125,7 +126,7 @@ public class EndpointParameterOperationBindingsGenerator {
         };
     }
 
-    private GoWriter.Writable generateStaticContextParamBindings() {
+    private Writable generateStaticContextParamBindings() {
         if (!operation.hasTrait(StaticContextParamsTrait.class)) {
             return goTemplate("");
         }
@@ -138,7 +139,7 @@ public class EndpointParameterOperationBindingsGenerator {
         };
     }
 
-    private GoWriter.Writable generateStaticLiteral(StaticContextParamDefinition literal) {
+    private Writable generateStaticLiteral(StaticContextParamDefinition literal) {
         return writer -> {
             Node value = literal.getValue();
             if (value.isStringNode()) {
@@ -146,7 +147,7 @@ public class EndpointParameterOperationBindingsGenerator {
             } else if (value.isBooleanNode()) {
                 writer.writeInline("$T($L)", SmithyGoTypes.Ptr.Bool, value.expectBooleanNode().getValue());
             } else {
-                writer.writeInline("[]string{$W}", GoWriter.ChainWritable.of(
+                writer.writeInline("[]string{$W}", ChainWritable.of(
                         value.expectArrayNode().getElements().stream()
                                 .map(it -> goTemplate("$S,", it.expectStringNode().getValue()))
                                 .toList()

@@ -22,12 +22,14 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_METRIC
 import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_MIDDLEWARE;
 import static software.amazon.smithy.go.codegen.SmithyGoDependency.TIME;
 
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 
 /**
  * Writable operationMetrics structure that records operation-specific metrics.
  */
-public class OperationMetricsStruct implements GoWriter.Writable {
+public class OperationMetricsStruct implements Writable {
     private final String scope;
 
     public OperationMetricsStruct(String scope) {
@@ -36,12 +38,12 @@ public class OperationMetricsStruct implements GoWriter.Writable {
 
     @Override
     public void accept(GoWriter writer) {
-        writer.write(GoWriter.ChainWritable.of(
+        writer.write(ChainWritable.of(
                 useDependencies(), generateStruct(), generateHelpers(), generateContextApis()
         ).compose());
     }
 
-    private GoWriter.Writable useDependencies() {
+    private Writable useDependencies() {
         return writer -> writer
                 .addUseImports(CONTEXT)
                 .addUseImports(TIME)
@@ -49,7 +51,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 .addUseImports(SMITHY_MIDDLEWARE);
     }
 
-    private GoWriter.Writable generateStruct() {
+    private Writable generateStruct() {
         return goTemplate("""
                 type operationMetrics struct {
                     Duration                metrics.Float64Histogram
@@ -62,7 +64,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 """);
     }
 
-    private GoWriter.Writable generateContextApis() {
+    private Writable generateContextApis() {
         return goTemplate("""
                 type operationMetricsKey struct{}
 
@@ -128,7 +130,7 @@ public class OperationMetricsStruct implements GoWriter.Writable {
                 """, scope);
     }
 
-    private GoWriter.Writable generateHelpers() {
+    private Writable generateHelpers() {
         return goTemplate("""
                 func (m *operationMetrics) histogramFor(name string) metrics.Float64Histogram {
                     switch name {

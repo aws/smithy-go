@@ -19,10 +19,10 @@ import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.c
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -37,7 +37,7 @@ public class SignRequestMiddlewareGenerator {
         this.context = context;
     }
 
-    public static GoWriter.Writable generateAddToProtocolFinalizers() {
+    public static Writable generateAddToProtocolFinalizers() {
         return goTemplate("""
                 if err := stack.Finalize.Insert(&$L{options: options}, $S, $T); err != nil {
                     return $T("add $L: %w", err)
@@ -50,18 +50,18 @@ public class SignRequestMiddlewareGenerator {
                 MIDDLEWARE_ID);
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         return createFinalizeStepMiddleware(MIDDLEWARE_NAME, MiddlewareIdentifier.string(MIDDLEWARE_ID))
                 .asWritable(generateBody(), generateFields());
     }
 
-    private GoWriter.Writable generateFields() {
+    private Writable generateFields() {
         return goTemplate("""
                 options Options
                 """);
     }
 
-    private GoWriter.Writable generateBody() {
+    private Writable generateBody() {
         return goTemplate("""
                 _, span := $startSpan:T(ctx, "SignRequest")
                 defer span.End()

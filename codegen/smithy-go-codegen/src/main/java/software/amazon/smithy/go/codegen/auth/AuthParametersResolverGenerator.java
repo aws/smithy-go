@@ -19,7 +19,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -39,7 +39,7 @@ public class AuthParametersResolverGenerator {
         this.context = context;
     }
 
-    public GoWriter.Writable generate() {
+    public Writable generate() {
         loadResolvers();
 
         return goTemplate("""
@@ -61,7 +61,7 @@ public class AuthParametersResolverGenerator {
                 ));
     }
 
-    private GoWriter.Writable generateResolvers() {
+    private Writable generateResolvers() {
         return (writer) -> {
             for (var resolver: resolvers) {
                     writer.write("""

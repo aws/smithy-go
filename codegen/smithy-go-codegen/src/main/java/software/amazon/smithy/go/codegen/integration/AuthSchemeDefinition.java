@@ -20,7 +20,7 @@ package software.amazon.smithy.go.codegen.integration;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 
@@ -31,18 +31,18 @@ public interface AuthSchemeDefinition {
     /**
      * Generates the service default option for this scheme.
      */
-    GoWriter.Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service);
+    Writable generateServiceOption(ProtocolGenerator.GenerationContext context, ServiceShape service);
 
     /**
      * Generates an operation-specific option for this scheme. This will only be called when the generator encounters
      * an operation with auth overrides.
      */
-    GoWriter.Writable generateOperationOption(ProtocolGenerator.GenerationContext context, OperationShape operation);
+    Writable generateOperationOption(ProtocolGenerator.GenerationContext context, OperationShape operation);
 
     /**
      * Generates a default auth scheme. Called within a context where client Options are available.
      */
-    default GoWriter.Writable generateDefaultAuthScheme() {
+    default Writable generateDefaultAuthScheme() {
         return emptyGoTemplate();
     }
 
@@ -50,7 +50,7 @@ public interface AuthSchemeDefinition {
      * Generates the value to return from Options.GetIdentityResolver(schemeID). Called within a context where client
      * Options are available.
      */
-    default GoWriter.Writable generateOptionsIdentityResolver() {
+    default Writable generateOptionsIdentityResolver() {
         return goTemplate("nil");
     }
 }

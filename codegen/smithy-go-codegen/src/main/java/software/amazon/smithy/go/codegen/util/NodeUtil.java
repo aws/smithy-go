@@ -17,14 +17,15 @@ package software.amazon.smithy.go.codegen.util;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
-import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ChainWritable;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.node.ArrayNode;
 
 public final class NodeUtil {
     private NodeUtil() {}
 
-    public static GoWriter.Writable writableStringSlice(ArrayNode node) {
-        return goTemplate("[]string{$W}", GoWriter.ChainWritable.of(
+    public static Writable writableStringSlice(ArrayNode node) {
+        return goTemplate("[]string{$W}", ChainWritable.of(
                 node.getElements().stream()
                         .map(it -> goTemplate("$S,", it.expectStringNode().getValue()))
                         .toList()

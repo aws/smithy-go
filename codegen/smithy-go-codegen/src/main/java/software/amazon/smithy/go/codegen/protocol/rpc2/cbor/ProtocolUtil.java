@@ -18,12 +18,12 @@ package software.amazon.smithy.go.codegen.protocol.rpc2.cbor;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.utils.MapUtils;
 
 final class ProtocolUtil {
-    public static final GoWriter.Writable GET_PROTOCOL_ERROR_INFO = goTemplate("""
+    public static final Writable GET_PROTOCOL_ERROR_INFO = goTemplate("""
             func getProtocolErrorInfo(payload []byte) (typ, msg string, v $cborValue:T, err error) {
                 v, err = $cborDecode:T(payload)
                 if err != nil {
