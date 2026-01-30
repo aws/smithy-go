@@ -35,6 +35,9 @@ import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
+/**
+ * WARNING 1/29/26: AVOID any new usages of these.
+ */
 @SmithyInternalApi
 public final class SerdeUtil {
     private SerdeUtil() {}
