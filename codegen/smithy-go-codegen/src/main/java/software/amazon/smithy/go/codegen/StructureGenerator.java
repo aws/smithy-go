@@ -140,7 +140,7 @@ public final class StructureGenerator implements Runnable {
         writer.closeBlock("}").write("");
 
         if (useExperimentalSerde) {
-            // TODO generateSerializers();
+            generateSerializers();
         }
     }
 
@@ -203,5 +203,110 @@ public final class StructureGenerator implements Runnable {
             fault = "smithy.FaultServer";
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
+    }
+
+    private void generateSerializers() {
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+
+        var symbol = symbolProvider.toSymbol(shape);
+        var members = shape.members().stream()
+                .sorted(Comparator.comparing(MemberShape::getMemberName))
+                .toList();
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
+            writer.openBlock("s.WriteMap(schemas.$L, func() {", "})", SchemaGenerator.getSchemaName(shape), () -> {
+                writer.write("v.SerializeFields(s)");
+            });
+        });
+        writer.write("");
+        writer.openBlock("func (v *$L) SerializeFields(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
+            for (var member : members) {
+                var target = ShapeUtil.expectMember(model, shape, member.getMemberName());
+                var ident = String.format("v.%s", symbolProvider.toMemberName(member));
+                generateSerializeMember(0, member, target, ident, 0);
+            }
+        });
+    }
+
+    private void generateSerializeMember(int type, MemberShape member, Shape target, String ident, int depth) {
+        String schemaName;
+
+        // TODO this is stupid
+        if (type == 0) { // struct
+            schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        } else {
+            schemaName = "nil";
+        }
+
+        var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
+        switch (target.getType()) {
+            case BYTE ->
+                    writer.write("s.WriteInt8$L($L, $L)", ptrSuffix, schemaName, ident);
+            case SHORT ->
+                    writer.write("s.WriteInt16$L($L, $L)", ptrSuffix, schemaName, ident);
+            case INTEGER ->
+                    writer.write("s.WriteInt32$L($L, $L)", ptrSuffix, schemaName, ident);
+            case LONG ->
+                    writer.write("s.WriteInt64$L($L, $L)", ptrSuffix, schemaName, ident);
+
+            case FLOAT ->
+                    writer.write("s.WriteFloat32$L($L, $L)", ptrSuffix, schemaName, ident);
+            case DOUBLE ->
+                    writer.write("s.WriteFloat64$L($L, $L)", ptrSuffix, schemaName, ident);
+
+            case BOOLEAN ->
+                    writer.write("s.WriteBool$L($L, $L)", ptrSuffix, schemaName, ident);
+            case STRING ->
+                    writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
+
+            case TIMESTAMP -> writer.write("s.WriteTime($L, $L)", schemaName, ident);
+
+            case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
+
+            case ENUM -> writer.write("s.WriteString($L, string($L))", schemaName, ident);
+            case INT_ENUM -> writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
+
+            case STRUCTURE ->
+                writer.openBlock("s.WriteMap($L, func() {", " })", schemaName, () -> {
+                    writer.write("$L.SerializeFields(s)", ident);
+                });
+
+            case LIST, SET -> {
+                var elemIdent = "v" + depth;
+                writer.openBlock("s.WriteList($L, func() {", "})", schemaName, () -> {
+                    writer.openBlock("for _, $L := range $L {", "}", elemIdent, ident, () -> {
+                        var collection = (CollectionShape) target;
+                        generateSerializeMember(1, collection.getMember(), ShapeUtil.expectMember(model, collection), elemIdent, depth + 1);
+                    });
+                });
+            }
+
+            case MAP -> {
+                // TODO: sort fields
+                var elemIdent = "v" + depth;
+                var map = (MapShape) target;
+                writer.openBlock("s.WriteMap($L, func() {", "})", schemaName, () -> {
+                    writer.openBlock("for k, $L := range $L {", "}", elemIdent, ident, () -> {
+                        writer.openBlock("s.WriteKey(schemas.$L, k, func() {", "})", "" /* TODO */, () -> {
+                            generateSerializeMember(2, map.getValue(), ShapeUtil.expectMember(model, map), elemIdent, depth + 1);
+                        });
+                    });
+                });
+            }
+
+            case UNION -> writer.write("// TODO: union $L", ident);
+
+            case DOCUMENT -> writer.write("// TODO: document $L", ident);
+
+            // FUTURE(602)
+            case BIG_INTEGER, BIG_DECIMAL -> throw new UnsupportedShapeException(target.getType());
+
+            // invalid in this context
+            case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new UnsupportedShapeException(target.getType());
+        }
+    }
+
+    private static String sanitizeIdent(String str) {
+        return str.replace(".", "");
     }
 }

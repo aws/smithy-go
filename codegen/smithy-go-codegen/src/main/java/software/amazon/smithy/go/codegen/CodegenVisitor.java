@@ -364,6 +364,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
+
+        if (settings.useExperimentalSerde()) {
+            // TODO schema probably
+        }
         return null;
     }
 
