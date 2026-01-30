@@ -15,14 +15,20 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.CollectionShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
@@ -49,23 +55,26 @@ public final class StructureGenerator implements Runnable {
     private final Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
+    private final boolean useExperimentalSerde;
+    private final GoCodegenContext ctx;
+    private final GoPointableIndex nilIndex;
 
     public StructureGenerator(
-            Model model,
-            SymbolProvider symbolProvider,
+            GoCodegenContext ctx,
             GoWriter writer,
-            ServiceShape service,
             StructureShape shape,
-            Symbol symbol,
             ProtocolGenerator protocolGenerator
     ) {
-        this.model = model;
-        this.symbolProvider = symbolProvider;
+        this.ctx = ctx;
+        this.model = ctx.model();
+        this.symbolProvider = ctx.symbolProvider();
         this.writer = writer;
-        this.service = service;
+        this.service = ctx.service();
         this.shape = shape;
-        this.symbol = symbol;
+        this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
+        this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
+        this.nilIndex = GoPointableIndex.of(model);
     }
 
     @Override
@@ -129,6 +138,10 @@ public final class StructureGenerator implements Runnable {
         writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
 
         writer.closeBlock("}").write("");
+
+        if (useExperimentalSerde) {
+            // TODO generateSerializers();
+        }
     }
 
     /**

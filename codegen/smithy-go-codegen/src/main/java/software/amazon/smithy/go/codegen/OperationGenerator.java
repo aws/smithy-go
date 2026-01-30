@@ -121,9 +121,8 @@ public final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, protocolGenerator)
-                .renderStructure(() -> {
-                }, true);
+        new StructureGenerator(ctx, writer, inputShape, protocolGenerator)
+                .renderStructure(() -> {}, true);
 
         var rulesTrait = service.getTrait(EndpointRuleSetTrait.class);
         if (rulesTrait.isPresent()) {
@@ -139,7 +138,7 @@ public final class OperationGenerator implements Runnable {
                         outputShape.members().stream())
                 .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
 
-        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
+        new StructureGenerator(ctx, writer, outputShape, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
@@ -240,17 +239,21 @@ public final class OperationGenerator implements Runnable {
                     return err
                 }""");
 
-        // Add request serializer middleware
-        String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
-                operation.getId(), service, protocolGenerator.getProtocolName());
-        writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
-        writer.write("if err != nil { return err }");
+        if (!ctx.settings().useExperimentalSerde()) {
+            // Add request serializer middleware
+            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                    operation.getId(), service, protocolGenerator.getProtocolName());
+            writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+            writer.write("if err != nil { return err }");
 
-        // Adds response deserializer middleware
-        String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
-                operation.getId(), service, protocolGenerator.getProtocolName());
-        writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
-        writer.write("if err != nil { return err }");
+            // Adds response deserializer middleware
+            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                    operation.getId(), service, protocolGenerator.getProtocolName());
+            writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+            writer.write("if err != nil { return err }");
+        } else {
+            // TODO
+        }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
         writer.write("""
