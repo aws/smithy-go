@@ -154,6 +154,8 @@ func (ss *ShapeSerializer) WriteList(s *smithy.Schema, inner func()) {
 		ss.head.Push(ss.root.Array())
 	}
 	inner()
+
+	ss.head.Top().(*Array).Close()
 	ss.head.Pop()
 }
 
@@ -167,6 +169,8 @@ func (ss *ShapeSerializer) WriteMap(s *smithy.Schema, inner func()) {
 		ss.head.Push(ss.root.Object())
 	}
 	inner()
+
+	ss.head.Top().(*Object).Close()
 	ss.head.Pop()
 }
 
@@ -176,7 +180,7 @@ func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string, inner func()) 
 		ss.head.Push(enc.Key(key))
 		inner()
 		ss.head.Pop()
-	default: // ?
+	default:
 		panic("invariant")
 	}
 }
