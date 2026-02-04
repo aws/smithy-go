@@ -10,6 +10,24 @@ import (
 	"github.com/aws/smithy-go"
 )
 
+// Codec is a JSON codec.
+type Codec struct {
+	// Whether to respect smithy.api#jsonName on member shapes.
+	UseJSONName bool
+}
+
+var _ smithy.Codec = (*Codec)(nil)
+
+// Serializer returns a JSON shape serializer.
+func (c *Codec) Serializer() smithy.ShapeSerializer {
+	return &ShapeSerializer{}
+}
+
+// Deserializer returns a JSON shape deserializer.
+func (c *Codec) Deserializer() smithy.ShapeDeserializer {
+	return &ShapeDeserializer{}
+}
+
 type stack struct {
 	values []any
 }

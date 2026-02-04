@@ -287,7 +287,7 @@ public final class StructureGenerator implements Runnable {
                 var map = (MapShape) target;
                 writer.openBlock("s.WriteMap($L, func() {", "})", schemaName, () -> {
                     writer.openBlock("for k, $L := range $L {", "}", elemIdent, ident, () -> {
-                        writer.openBlock("s.WriteKey(schemas.$L, k, func() {", "})", "" /* TODO */, () -> {
+                        writer.openBlock("s.WriteKey(nil, k, func() {", "})", () -> {
                             generateSerializeMember(2, map.getValue(), ShapeUtil.expectMember(model, map), elemIdent, depth + 1);
                         });
                     });

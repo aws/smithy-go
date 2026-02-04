@@ -252,7 +252,14 @@ public final class OperationGenerator implements Runnable {
             writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
             writer.write("if err != nil { return err }");
         } else {
-            // TODO
+            writer.write("""
+                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options}, middleware.After); err != nil {
+                    return err
+                }""");
+            writer.write("""
+                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options}, middleware.After); err != nil {
+                    return err
+                }""");
         }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK

@@ -33,6 +33,8 @@ type Codec interface {
 // shape to an unspecified data format, which is determined by the
 // implementation.
 type ShapeSerializer interface {
+	Bytes() []byte
+
 	WriteInt8(*Schema, int8)
 	WriteInt16(*Schema, int16)
 	WriteInt32(*Schema, int32)
@@ -92,7 +94,7 @@ type ShapeDeserializer interface {
 // members to bytes (the HTTP request body) and others directly to fields on
 // the HTTP request itself (e.g. headers).
 type Serializable interface {
-	Serialize(ShapeSerializer) error
+	Serialize(ShapeSerializer)
 }
 
 // Deserializable is an entity that can unmarshal itself from a

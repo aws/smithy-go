@@ -418,7 +418,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         });
 
-        var clientOptions = new ClientOptions(context, protocol);
+        if (ctx.settings().useExperimentalSerde()) {
+            writers.useShapeWriter(shape, new Serde2SerializeRequestMiddleware());
+            writers.useShapeWriter(shape, new Serde2DeserializeResponseMiddleware());
+        }
+
+        var clientOptions = new ClientOptions(ctx, context, protocol);
         writers.useFileWriter("options.go", settings.getModuleName(), clientOptions);
         return null;
     }
