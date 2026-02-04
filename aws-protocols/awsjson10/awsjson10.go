@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	smithyjson "github.com/aws/smithy-go/encoding/json"
+	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -37,7 +38,7 @@ func (*Protocol) ID() string {
 // SerializeRequest serializes a request for AWS Json 1.0.
 func (p *Protocol) SerializeRequest(ctx context.Context, op *smithy.Schema, in smithy.Serializable, req *smithyhttp.Request) error {
 	req.Method = http.MethodPost
-	req.Header.Set("X-Amz-Target", op.ID().Name)
+	req.Header.Set("X-Amz-Target", middleware.GetOperationName(ctx))
 	req.Header.Set("Content-Type", "application/x-amz-json-1.0")
 	if p.UseQueryCompatible {
 		req.Header.Set("X-Amzn-Query-Compatible", "true")

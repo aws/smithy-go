@@ -177,6 +177,7 @@ func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string, inner func()) 
 		inner()
 		ss.head.Pop()
 	default: // ?
+		panic("invariant")
 	}
 }
 

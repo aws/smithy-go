@@ -20,7 +20,10 @@ var _ smithy.Codec = (*Codec)(nil)
 
 // Serializer returns a JSON shape serializer.
 func (c *Codec) Serializer() smithy.ShapeSerializer {
-	return &ShapeSerializer{}
+	return &ShapeSerializer{
+		root: NewEncoder(),
+		head: stack{},
+	}
 }
 
 // Deserializer returns a JSON shape deserializer.
