@@ -316,10 +316,10 @@ public final class StructureGenerator implements Runnable {
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", symbol.getName(), () -> {
-            writer.openBlock("return d.ReadStruct(schemas.$L, func(s *Schema) error {", "})", SchemaGenerator.getSchemaName(shape), () -> {
+            writer.openBlock("return d.ReadStruct(schemas.$L, func(s *smithy.Schema) error {", "})", SchemaGenerator.getSchemaName(shape), () -> {
                 writer.openBlock("switch s {", "}", () -> {
                     for (var member : members) {
-                        writer.write("case $L:", SchemaGenerator.getMemberSchemaName(shape, member));
+                        writer.write("case schemas.$L:", SchemaGenerator.getMemberSchemaName(shape, member));
                         writer.write("return nil");
                     }
                     writer.write("default:");

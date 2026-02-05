@@ -69,16 +69,27 @@ type ShapeSerializer interface {
 // ShapeSerializer implements the unmarshaling from some unspecified data
 // format to an encoded shape.
 type ShapeDeserializer interface {
-	ReadInt8(*Schema) (int8, error)
-	ReadInt16(*Schema) (int16, error)
-	ReadInt32(*Schema) (int32, error)
-	ReadInt64(*Schema) (int64, error)
+	ReadInt8(*Schema, *int8) error
+	ReadInt16(*Schema, *int16) error
+	ReadInt32(*Schema, *int32) error
+	ReadInt64(*Schema, *int64) error
 
-	ReadFloat32(*Schema) (float32, error)
-	ReadFloat64(*Schema) (float64, error)
+	//  ReadInt8Ptr(*Schema, **int8) error
+	//  ReadInt16Ptr(*Schema, **int16) error
+	//  ReadInt32Ptr(*Schema, **int32) error
+	//  ReadInt64Ptr(*Schema, **int64) error
 
-	ReadBool(*Schema) (bool, error)
-	ReadString(*Schema) (string, error)
+	ReadFloat32(*Schema, *float32) error
+	ReadFloat64(*Schema, *float64) error
+
+	// ReadFloat32Ptr(*Schema, **float32) error
+	// ReadFloat64Ptr(*Schema, **float64) error
+
+	ReadBool(*Schema, *bool) error
+	// ReadBoolPtr(*Schema, **bool) error
+
+	ReadString(*Schema, *string) error
+	ReadStringPtr(*Schema, **string) error
 
 	ReadList(*Schema, func() error) error
 	ReadMap(*Schema, func(string) error) error

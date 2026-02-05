@@ -78,54 +78,66 @@ func (ss *ShapeDeserializer) ReadList(s *smithy.Schema, visit func() error) erro
 	return nil
 }
 
-func (ss *ShapeDeserializer) ReadBool(s *smithy.Schema) (bool, error) {
+func (ss *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	if err := ss.init(); err != nil {
-		return false, err
+		return err
 	}
 
-	switch v := ss.head.Top().(type) {
-	case bool:
-		return v, nil
-	default:
-		return false, fmt.Errorf("expect bool, got %T", v)
+	if vv, ok := ss.head.Top().(bool); ok {
+		*v = vv
+		return nil
 	}
-
-	return false, nil
+	return fmt.Errorf("expect bool, got %T", v)
 }
 
-func (ss *ShapeDeserializer) ReadString(s *smithy.Schema) (string, error) {
+func (ss *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	if err := ss.init(); err != nil {
-		return "", err
+		return err
 	}
 
-	switch v := ss.head.Top().(type) {
-	case string:
-		return v, nil
-	default:
-		return "", fmt.Errorf("expect list, got %T", v)
+	if vv, ok := ss.head.Top().(string); ok {
+		*v = vv
+		return nil
 	}
-
-	return "", nil
+	return fmt.Errorf("expect string, got %T", v)
 }
 
-func (ss *ShapeDeserializer) ReadInt8(s *smithy.Schema) (int8, error) {
+func (ss *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
+	if *v == nil {
+		*v = new(string)
+	}
+	return ss.ReadString(s, *v)
+}
+
+func (ss *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	n, err := ss.readInt(s, math.MinInt8, math.MaxInt8)
-	return int8(n), err
+	*v = int8(n)
+	return err
 }
 
-func (ss *ShapeDeserializer) ReadInt16(s *smithy.Schema) (int16, error) {
-	n, err := ss.readInt(s, math.MinInt16, math.MaxInt16)
-	return int16(n), err
+func (ss *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
+	if *v == nil {
+		*v = new(int8)
+	}
+	return ss.ReadInt8(s, *v)
 }
 
-func (ss *ShapeDeserializer) ReadInt32(s *smithy.Schema) (int32, error) {
-	n, err := ss.readInt(s, math.MinInt32, math.MaxInt32)
-	return int32(n), err
+func (ss *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
+	n, err := ss.readInt(s, math.MinInt8, math.MaxInt8)
+	*v = int16(n)
+	return err
 }
 
-func (ss *ShapeDeserializer) ReadInt64(s *smithy.Schema) (int64, error) {
-	n, err := ss.readInt(s, math.MinInt64, math.MaxInt64)
-	return int64(n), err
+func (ss *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
+	n, err := ss.readInt(s, math.MinInt8, math.MaxInt8)
+	*v = int32(n)
+	return err
+}
+
+func (ss *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
+	n, err := ss.readInt(s, math.MinInt8, math.MaxInt8)
+	*v = n
+	return err
 }
 
 func (ss *ShapeDeserializer) readInt(s *smithy.Schema, min, max int64) (int64, error) {
@@ -151,13 +163,16 @@ func (ss *ShapeDeserializer) readInt(s *smithy.Schema, min, max int64) (int64, e
 	return 0, nil
 }
 
-func (ss *ShapeDeserializer) ReadFloat32(s *smithy.Schema) (float32, error) {
+func (ss *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	n, err := ss.readFloat(s)
-	return float32(n), err
+	*v = float32(n)
+	return err
 }
 
-func (ss *ShapeDeserializer) ReadFloat64(s *smithy.Schema) (float64, error) {
-	return ss.readFloat(s)
+func (ss *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
+	n, err := ss.readFloat(s)
+	*v = n
+	return err
 }
 
 func (ss *ShapeDeserializer) readFloat(s *smithy.Schema) (float64, error) {
