@@ -49,6 +49,8 @@ public final class OperationGenerator implements Runnable {
     private final Symbol operationSymbol;
     private final ProtocolGenerator protocolGenerator;
     private final List<RuntimeClientPlugin> runtimeClientPlugins;
+    private final StructureShape input;
+    private final StructureShape output;
 
     OperationGenerator(
             GoCodegenContext ctx,
@@ -66,6 +68,8 @@ public final class OperationGenerator implements Runnable {
         this.operationSymbol = ctx.symbolProvider().toSymbol(operation);
         this.protocolGenerator = protocolGenerator;
         this.runtimeClientPlugins = runtimeClientPlugins;
+        this.input = ctx.model().expectShape(operation.getInputShape(), StructureShape.class);
+        this.output = ctx.model().expectShape(operation.getOutputShape(), StructureShape.class);
     }
 
     @Override
@@ -257,9 +261,9 @@ public final class OperationGenerator implements Runnable {
                     return err
                 }""");
             writer.write("""
-                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options}, middleware.After); err != nil {
+                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, output: &$T{}}, middleware.After); err != nil {
                     return err
-                }""");
+                }""", symbolProvider.toSymbol(output));
         }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK

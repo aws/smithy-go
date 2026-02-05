@@ -22,7 +22,8 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
     @Override
     public Map<String, Symbol> getFields() {
         return Map.of(
-                "options", pointerTo(buildPackageSymbol("Options"))
+                "options", pointerTo(buildPackageSymbol("Options")),
+                "output", SmithyGoDependency.SMITHY.interfaceSymbol("Deserializable")
         );
     }
 

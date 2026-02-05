@@ -141,6 +141,7 @@ public final class StructureGenerator implements Runnable {
 
         if (useExperimentalSerde) {
             generateSerializers();
+            generateDeserializers();
         }
     }
 
@@ -306,7 +307,26 @@ public final class StructureGenerator implements Runnable {
         }
     }
 
-    private static String sanitizeIdent(String str) {
-        return str.replace(".", "");
+    private void generateDeserializers() {
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+
+        var symbol = symbolProvider.toSymbol(shape);
+        var members = shape.members().stream()
+                .sorted(Comparator.comparing(MemberShape::getMemberName))
+                .toList();
+        writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", symbol.getName(), () -> {
+            writer.openBlock("return d.ReadStruct(schemas.$L, func(s *Schema) error {", "})", SchemaGenerator.getSchemaName(shape), () -> {
+                writer.openBlock("switch s {", "}", () -> {
+                    for (var member : members) {
+                        writer.write("case $L:", SchemaGenerator.getMemberSchemaName(shape, member));
+                        writer.write("return nil");
+                    }
+                    writer.write("default:");
+                    writer.write("return nil");
+                });
+            });
+        });
     }
+
 }

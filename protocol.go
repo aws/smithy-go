@@ -26,7 +26,7 @@ type ClientProtocol[TRequest, TResponse any] interface {
 // used by a Protocol.
 type Codec interface {
 	Serializer() ShapeSerializer
-	Deserializer() ShapeDeserializer
+	Deserializer([]byte) ShapeDeserializer
 }
 
 // ShapeSerializer implements the marshaling of an in-code representation of a
@@ -82,6 +82,8 @@ type ShapeDeserializer interface {
 
 	ReadList(*Schema, func() error) error
 	ReadMap(*Schema, func(string) error) error
+
+	ReadStruct(*Schema, func(*Schema) error) error
 }
 
 // Serializable is an entity that can describe itself to a ShapeSerializer to
