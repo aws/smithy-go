@@ -43,6 +43,7 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.IntEnumShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -290,6 +291,18 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
                     Writable.map(sortedShapes, it -> new SchemaGenerator(ctx, it), true));
+
+            var maps = shapes.stream()
+                    .filter(Shape::isMapShape)
+                    .map(it -> (MapShape) it)
+                    .toList();
+
+            // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
+            // generate these twice since we don't want to export them
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
         }
 
         // TODO: With serde/schema decoupling, protocol generators are going away. Endpoint/auth resolution is going to

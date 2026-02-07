@@ -134,6 +134,13 @@ func (ss *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
 	return err
 }
 
+func (ss *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
+	if *v == nil {
+		*v = new(int32)
+	}
+	return ss.ReadInt32(s, *v)
+}
+
 func (ss *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	n, err := ss.readInt(s, math.MinInt8, math.MaxInt8)
 	*v = n

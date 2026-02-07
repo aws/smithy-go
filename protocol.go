@@ -74,9 +74,9 @@ type ShapeDeserializer interface {
 	ReadInt32(*Schema, *int32) error
 	ReadInt64(*Schema, *int64) error
 
-	//  ReadInt8Ptr(*Schema, **int8) error
+	ReadInt8Ptr(*Schema, **int8) error
 	//  ReadInt16Ptr(*Schema, **int16) error
-	//  ReadInt32Ptr(*Schema, **int32) error
+	ReadInt32Ptr(*Schema, **int32) error
 	//  ReadInt64Ptr(*Schema, **int64) error
 
 	ReadFloat32(*Schema, *float32) error
