@@ -51,7 +51,7 @@ public class StructureDeserializer implements Writable {
             case BOOLEAN ->
                     writer.write("return d.ReadBool$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
             case MAP ->
-                    writer.write("return deserialize$L(schemas.$L, &$L)", target.getId().getName(), schemaName, ident);
+                    writer.write("return deserialize$L(d, schemas.$L, &$L)", target.getId().getName(), schemaName, ident);
 
             // FUTURE(602)
             case BIG_INTEGER, BIG_DECIMAL -> throw new UnsupportedShapeException(target.getType());

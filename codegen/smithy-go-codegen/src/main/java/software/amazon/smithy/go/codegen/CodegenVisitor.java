@@ -300,6 +300,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
             // generate these twice since we don't want to export them
             ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
                     Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
             ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
                     Writable.map(maps, it -> new MapDeserializer(ctx, it), true));

@@ -1,6 +1,7 @@
 package json
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 
@@ -106,6 +107,9 @@ func (ss *ShapeSerializer) WriteInt32(s *smithy.Schema, v int32) {
 		enc.Key(s.ID().Member).Integer(v)
 	case *Array:
 		enc.Value().Integer(v)
+	case Value:
+		enc.Integer(v)
+		ss.head.Pop()
 	default:
 		ss.root.Integer(v)
 	}
@@ -128,6 +132,9 @@ func (ss *ShapeSerializer) WriteString(s *smithy.Schema, v string) {
 		enc.Key(s.ID().Member).String(v)
 	case *Array:
 		enc.Value().String(v)
+	case Value:
+		enc.String(v)
+		ss.head.Pop()
 	default:
 		ss.root.Value.String(v)
 	}
@@ -139,49 +146,59 @@ func (ss *ShapeSerializer) WriteBlob(s *smithy.Schema, v []byte) {
 		enc.Key(s.ID().Member).Base64EncodeBytes(v)
 	case *Array:
 		enc.Value().Base64EncodeBytes(v)
+	case Value:
+		enc.Base64EncodeBytes(v)
+		ss.head.Pop()
 	default:
 		ss.root.Value.Base64EncodeBytes(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteList(s *smithy.Schema, inner func()) {
-	switch enc := ss.head.Top().(type) {
-	case *Object:
-		ss.head.Push(enc.Key(s.ID().Member).Array())
-	case *Array:
-		ss.head.Push(enc.Value().Array())
-	default:
-		ss.head.Push(ss.root.Array())
-	}
-	inner()
-
-	ss.head.Top().(*Array).Close()
-	ss.head.Pop()
+func (ss *ShapeSerializer) WriteList(s *smithy.Schema) {
+	// TODO
 }
 
-func (ss *ShapeSerializer) WriteMap(s *smithy.Schema, inner func()) {
+func (ss *ShapeSerializer) CloseList() {
+	// TODO
+}
+
+func (ss *ShapeSerializer) WriteMap(s *smithy.Schema) {
 	switch enc := ss.head.Top().(type) {
 	case *Object:
 		ss.head.Push(enc.Key(s.ID().Member).Object())
 	case *Array:
 		ss.head.Push(enc.Value().Object())
+	case Value:
+		ss.head.Push(enc.Object())
 	default:
 		ss.head.Push(ss.root.Object())
 	}
-	inner()
-
-	ss.head.Top().(*Object).Close()
-	ss.head.Pop()
 }
 
-func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string, inner func()) {
-	switch enc := ss.head.Top().(type) {
-	case *Object:
+func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string) {
+	if enc, ok := ss.head.Top().(*Object); ok {
 		ss.head.Push(enc.Key(key))
-		inner()
+	}
+}
+
+func printstack(s stack) {
+	for _, v := range s.values {
+		fmt.Printf("%T ", v)
+	}
+	fmt.Println()
+}
+
+func (ss *ShapeSerializer) CloseMap() {
+	if enc, ok := ss.head.Top().(*Object); ok {
+		enc.Close()
 		ss.head.Pop()
-	default:
-		panic("invariant")
+
+		// if this is a map _inside_ a map, pop off the underlying key encoder
+		// as well (for scalar values that's not necessarily since we can
+		// deterministically do it there)
+		if _, ok := ss.head.Top().(Value); ok {
+			ss.head.Pop()
+		}
 	}
 }
 

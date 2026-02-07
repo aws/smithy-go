@@ -60,10 +60,13 @@ type ShapeSerializer interface {
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
 	WriteNil(*Schema)
-	WriteList(*Schema, func())
 
-	WriteMap(*Schema, func())
-	WriteKey(*Schema, string, func())
+	WriteList(*Schema)
+	CloseList()
+
+	WriteMap(*Schema)
+	WriteKey(*Schema, string)
+	CloseMap()
 }
 
 // ShapeSerializer implements the unmarshaling from some unspecified data

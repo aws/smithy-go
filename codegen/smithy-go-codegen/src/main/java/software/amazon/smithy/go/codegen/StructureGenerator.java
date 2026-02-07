@@ -215,18 +215,15 @@ public final class StructureGenerator implements Runnable {
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
-            writer.openBlock("s.WriteMap(schemas.$L, func() {", "})", SchemaGenerator.getSchemaName(shape), () -> {
-                writer.write("v.SerializeFields(s)");
-            });
-        });
-        writer.write("");
-        writer.openBlock("func (v *$L) SerializeFields(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
+            writer.write("s.WriteMap(schemas.$L)", SchemaGenerator.getSchemaName(shape));
             for (var member : members) {
                 var target = ShapeUtil.expectMember(model, shape, member.getMemberName());
                 var ident = String.format("v.%s", symbolProvider.toMemberName(member));
                 generateSerializeMember(0, member, target, ident, 0);
             }
+            writer.write("s.CloseMap()");
         });
+        writer.write("");
     }
 
     private void generateSerializeMember(int type, MemberShape member, Shape target, String ident, int depth) {
@@ -260,6 +257,9 @@ public final class StructureGenerator implements Runnable {
             case STRING ->
                     writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
 
+            case MAP -> // TODO: sort fields (or the option to?)
+                    writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
+
             case TIMESTAMP -> writer.write("s.WriteTime($L, $L)", schemaName, ident);
 
             case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
@@ -272,28 +272,7 @@ public final class StructureGenerator implements Runnable {
                     writer.write("$L.SerializeFields(s)", ident);
                 });
 
-            case LIST, SET -> {
-                var elemIdent = "v" + depth;
-                writer.openBlock("s.WriteList($L, func() {", "})", schemaName, () -> {
-                    writer.openBlock("for _, $L := range $L {", "}", elemIdent, ident, () -> {
-                        var collection = (CollectionShape) target;
-                        generateSerializeMember(1, collection.getMember(), ShapeUtil.expectMember(model, collection), elemIdent, depth + 1);
-                    });
-                });
-            }
-
-            case MAP -> {
-                // TODO: sort fields
-                var elemIdent = "v" + depth;
-                var map = (MapShape) target;
-                writer.openBlock("s.WriteMap($L, func() {", "})", schemaName, () -> {
-                    writer.openBlock("for k, $L := range $L {", "}", elemIdent, ident, () -> {
-                        writer.openBlock("s.WriteKey(nil, k, func() {", "})", () -> {
-                            generateSerializeMember(2, map.getValue(), ShapeUtil.expectMember(model, map), elemIdent, depth + 1);
-                        });
-                    });
-                });
-            }
+            case LIST, SET -> writer.write("// TODO: list $L", ident);
 
             case UNION -> writer.write("// TODO: union $L", ident);
 
