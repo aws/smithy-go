@@ -78,26 +78,39 @@ type ShapeDeserializer interface {
 	ReadInt64(*Schema, *int64) error
 
 	ReadInt8Ptr(*Schema, **int8) error
-	//  ReadInt16Ptr(*Schema, **int16) error
+	ReadInt16Ptr(*Schema, **int16) error
 	ReadInt32Ptr(*Schema, **int32) error
-	//  ReadInt64Ptr(*Schema, **int64) error
+	ReadInt64Ptr(*Schema, **int64) error
 
 	ReadFloat32(*Schema, *float32) error
 	ReadFloat64(*Schema, *float64) error
 
-	// ReadFloat32Ptr(*Schema, **float32) error
-	// ReadFloat64Ptr(*Schema, **float64) error
+	ReadFloat32Ptr(*Schema, **float32) error
+	ReadFloat64Ptr(*Schema, **float64) error
 
 	ReadBool(*Schema, *bool) error
-	// ReadBoolPtr(*Schema, **bool) error
+	ReadBoolPtr(*Schema, **bool) error
 
 	ReadString(*Schema, *string) error
 	ReadStringPtr(*Schema, **string) error
 
-	ReadList(*Schema, func() error) error
-	ReadMap(*Schema, func(string) error) error
+	ReadList(*Schema) error
+	// returns true if there's another item in the list, false at the end and
+	// an error if a decode error is encountered. use other deserializer
+	// methods to read the expected type from the deserializer
+	ReadListItem(*Schema) (bool, error)
 
-	ReadStruct(*Schema, func(*Schema) error) error
+	ReadMap(*Schema) error
+	// the bool will be true if there's another key in the list and the string
+	// will have the value of that key, with any decode error in the error. use
+	// other deserializer methods to read the expected type.
+	ReadMapKey(*Schema) (string, bool, error)
+
+	ReadStruct(*Schema) error
+	// returns the member schema for the given struct, nil when there are no
+	// more members, with any decode error in the error. use other deserializer
+	// methods to read the expected type.
+	ReadStructMember() (*Schema, error)
 }
 
 // Serializable is an entity that can describe itself to a ShapeSerializer to
