@@ -27,10 +27,12 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
@@ -104,13 +106,21 @@ public final class OperationGenerator implements Runnable {
                     }).orElse(defaultMessage));
                 });
         Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
+
+        boolean hasEventStream = Stream.concat(inputShape.members().stream(),
+                        outputShape.members().stream())
+                .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
+        boolean hasEventStreamOutput = EventStreamIndex.of(model).getOutputInfo(operation).isPresent();
+        boolean isV2EventStream = hasEventStream && !EventStreamGenerator.isLegacyEventStreamGenerator(this.operation) && hasEventStreamOutput;
+        String invokeOpString = isV2EventStream ? "invokeEventStreamOperation" : "invokeOperation";
+
         writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
                 serviceSymbol, operationSymbol, contextSymbol, inputSymbol, outputSymbol, () -> {
                     writer.write("if params == nil { params = &$T{} }", inputSymbol);
                     writer.write("");
 
-                    writer.write("result, metadata, err := c.invokeOperation(ctx, $S, params, optFns, c.$L)",
-                            operationSymbol.getName(), getAddOperationMiddlewareFuncName(operationSymbol));
+                    writer.write("result, metadata, err := c.$L(ctx, $S, params, optFns, c.$L)",
+                            invokeOpString, operationSymbol.getName(), getAddOperationMiddlewareFuncName(operationSymbol));
                     writer.write("if err != nil { return nil, err }");
                     writer.write("");
 
@@ -135,10 +145,6 @@ public final class OperationGenerator implements Runnable {
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
 
-        boolean hasEventStream = Stream.concat(inputShape.members().stream(),
-                        outputShape.members().stream())
-                .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
-
         new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
@@ -150,7 +156,10 @@ public final class OperationGenerator implements Runnable {
                                         EventStreamGenerator.getEventStreamOperationStructureSymbol(service, operation))
                                 .write("");
                     }
+                    if (isV2EventStream) {
+                        writer.write("initialReply chan $T", EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation));
 
+                    }
                     writer.writeDocs("Metadata pertaining to the operation's result.");
                     writer.write("ResultMetadata $T", metadataSymbol);
                 });
@@ -163,8 +172,24 @@ public final class OperationGenerator implements Runnable {
                          }
                          """, outputSymbol, EventStreamGenerator.getEventStreamOperationStructureSymbol(
                     service, operation));
-        }
+            if (isV2EventStream) {
+                Symbol initialReply = EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation);
+                var nonStreamingOutput = outputShape.members().stream().filter(member -> !StreamingTrait.isEventStream(model, member)).toList();
+                StructureShape initialReplyStruct = outputShape.toBuilder().clearMembers().members(nonStreamingOutput).build();
 
+                new StructureGenerator(model, symbolProvider, writer, service, initialReplyStruct, initialReply, protocolGenerator)
+                    .renderStructure(() -> {
+                        writer.writeDocs("Metadata pertaining to the operation's result.");
+                        writer.write("ResultMetadata $T", metadataSymbol);
+                    });
+                    writer.write("""
+                        func(o $P) GetInitialReply() <-chan $T {
+                            return o.initialReply
+                        }
+                    """, outputSymbol, EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation));
+
+            }
+        }
         // Generate operation protocol middleware helper function
         generateAddOperationMiddleware();
     }
@@ -233,7 +258,6 @@ public final class OperationGenerator implements Runnable {
             return;
         }
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-
         // persist operation input to context for internal build/finalize middleware access
         writer.write("""
                 if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {

@@ -18,6 +18,7 @@ package software.amazon.smithy.go.codegen;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -178,7 +179,6 @@ public final class EventStreamGenerator {
 
         var inputInfo = streamIndex.getInputInfo(operationShape);
         var outputInfo = streamIndex.getOutputInfo(operationShape);
-
 
         writer.write("""
                      // $T provides the event stream handling for the $L operation.
@@ -418,6 +418,15 @@ public final class EventStreamGenerator {
     ) {
         String name = StringUtils.capitalize(operationShape.getId().getName(serviceShape));
         return SymbolUtils.createPointableSymbolBuilder(name + "EventStream")
+                .build();
+    }
+
+    public static Symbol getEventStreamInitialReplyStructureSymbol(
+            ServiceShape serviceShape,
+            OperationShape operationShape
+    ) {
+        String name = StringUtils.capitalize(operationShape.getId().getName(serviceShape));
+        return SymbolUtils.createValueSymbolBuilder(name + "InitialReply")
                 .build();
     }
 
