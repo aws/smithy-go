@@ -89,7 +89,6 @@ public class AddEventStreamMiddleware implements GoIntegration {
                 String middlewareName = getMiddlewareName(operation);
                 String middlewareHelperName = getMiddlewareHelperName(operation);
                 writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-                // TODO make this not use openBlock
                 writer.openBlock("func $L(stack *middleware.Stack) error {", "}",
                         middlewareHelperName,
                         () -> {
@@ -97,8 +96,6 @@ public class AddEventStreamMiddleware implements GoIntegration {
                                     "return stack.Build.Add(&$L{}, middleware.Before)",
                                     middlewareName);
                         });
-
-                // writeInitialReplyType(writer, model, symbolProvider, operation);
             });
         });
     }
