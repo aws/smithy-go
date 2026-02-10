@@ -35,6 +35,30 @@ public final class EventStreamGenerator {
 
     private static final String EVENT_STREAM_FILE = "eventstream.go";
 
+    private static final Set<String> LEGACY_OPERATIONS = Set.of(
+            "com.amazonaws.bedrockagentcore#InvokeCodeInterpreter",
+            "com.amazonaws.sagemakerruntime#InvokeEndpointWithResponseStream",
+            "com.amazonaws.s3#SelectObjectContent",
+            "com.amazonaws.qbusiness#Chat",
+            "com.amazonaws.kinesis#SubscribeToShard",
+            "com.amazonaws.cloudwatchlogs#GetLogObject",
+            "com.amazonaws.cloudwatchlogs#StartLiveTail",
+            "com.amazonaws.bedrockruntime#ConverseStream",
+            "com.amazonaws.bedrockruntime#InvokeModelWithResponseStream",
+            "com.amazonaws.bedrockagentruntime#InvokeInlineAgent",
+            "com.amazonaws.bedrockagentruntime#InvokeAgent",
+            "com.amazonaws.bedrockagentruntime#OptimizePrompt",
+            "com.amazonaws.bedrockagentruntime#RetrieveAndGenerateStream",
+            "com.amazonaws.bedrockagentruntime#InvokeFlow",
+            "com.amazonaws.lexruntimev2#StartConversation",
+            "com.amazonaws.iotsitewise#InvokeAssistant",
+            "com.amazonaws.transcribestreaming#StartStreamTranscription",
+            "com.amazonaws.transcribestreaming#StartMedicalStreamTranscription",
+            "com.amazonaws.transcribestreaming#StartMedicalScribeStream",
+            "com.amazonaws.transcribestreaming#StartCallAnalyticsStreamTranscription",
+            "com.amazonaws.lambda#InvokeWithResponseStream"
+    );
+
     private final GoSettings settings;
     private final Model model;
     private final GoDelegator writers;
@@ -126,6 +150,10 @@ public final class EventStreamGenerator {
     public boolean hasEventStream(OperationShape operationShape) {
         EventStreamIndex index = EventStreamIndex.of(model);
         return hasEventStreamOperations(model, serviceShape, index);
+    }
+
+    public static boolean isLegacyEventStreamGenerator(OperationShape operationShape) {
+        return LEGACY_OPERATIONS.contains(operationShape.getId().toString());
     }
 
     public static boolean hasEventStream(Model model, OperationShape operationShape) {
