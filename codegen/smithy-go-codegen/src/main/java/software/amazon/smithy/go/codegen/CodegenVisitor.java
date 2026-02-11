@@ -15,10 +15,13 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static java.util.stream.Collectors.toSet;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +32,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
@@ -45,11 +47,13 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -219,7 +223,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         TopDownIndex.of(model).getContainedOperations(service)
                 .forEach(eventStreamGenerator::generateOperationEventStreamStructure);
 
-        if (protocolGenerator != null) {
+        if (!settings.useExperimentalSerde() && protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
                     .protocolName(protocolGenerator.getProtocolName())
@@ -251,6 +255,55 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 });
             }
 
+            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
+                    + " unit tests for " + service.getId());
+            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
+                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
+            });
+
+            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
+        }
+
+        if (settings.useExperimentalSerde()) {
+            var walker = new Walker(model);
+            var operations = TopDownIndex.of(model).getContainedOperations(service);
+
+            var shapes = new HashSet<Shape>();
+            shapes.addAll(operations.stream()
+                    .map(it -> model.expectShape(it.getInputShape()))
+                    .flatMap(it -> walker.walkShapes(it).stream())
+                    .collect(toSet()));
+            shapes.addAll(operations.stream()
+                    .map(it -> model.expectShape(it.getOutputShape()))
+                    .flatMap(it -> walker.walkShapes(it).stream())
+                    .collect(toSet()));
+            shapes.addAll(model.getStructureShapesWithTrait(ErrorTrait.class).stream()
+                    .flatMap(it -> walker.walkShapes(it).stream())
+                    .collect(toSet()));
+
+            var sortedShapes = new ArrayList<>(shapes.stream()
+                    .sorted()
+                    .filter(it -> it.getType() != ShapeType.MEMBER)
+                    .toList());
+
+            sortedShapes.add(StructureShape.builder().id("smithy.api#Unit").build());
+
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    Writable.map(sortedShapes, it -> new SchemaGenerator(ctx, it), true));
+        }
+
+        // TODO: With serde/schema decoupling, protocol generators are going away. Endpoint/auth resolution is going to
+        //       need to be decoupled from that and I don't really know how yet. Probably just separate integrations /
+        //       integration hooks.
+        if (protocolGenerator != null) {
+            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
+                    .protocolName(protocolGenerator.getProtocolName())
+                    .integrations(integrations)
+                    .model(model)
+                    .service(service)
+                    .settings(settings)
+                    .symbolProvider(symbolProvider)
+                    .delegator(writers);
             writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateEndpointResolution(context);
@@ -265,14 +318,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateEndpointResolutionTests(context);
             });
-
-            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                    + " unit tests for " + service.getId());
-            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
-                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
-            });
-
-            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
         LOGGER.fine("Flushing go writers");
@@ -300,9 +345,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return null;
         }
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+        writers.useShapeWriter(shape, writer ->
+                new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
+
         return null;
     }
 
