@@ -15,14 +15,18 @@
 
 package software.amazon.smithy.go.codegen.util;
 
+import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StringShape;
 
 public final class ShapeUtil {
@@ -39,6 +43,13 @@ public final class ShapeUtil {
             .build();
 
     private ShapeUtil() {}
+
+    public static boolean isExported(Shape shape) {
+        return switch (shape.getType()) {
+            case STRUCTURE, UNION, ENUM -> true;
+            default -> false;
+        };
+    }
 
     public static ListShape listOf(Shape member) {
         return ListShape.builder()

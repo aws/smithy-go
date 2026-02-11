@@ -24,6 +24,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolContainer;
@@ -997,5 +998,4 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
             return "";
         }
     }
-
 }

@@ -55,6 +55,7 @@ public final class GoSettings {
     private static final String MODULE_DESCRIPTION = "moduleDescription";
     private static final String MODULE_VERSION = "moduleVersion";
     private static final String GENERATE_GO_MOD = "generateGoMod";
+    private static final String USE_EXPERIMENTAL_SERDE = "useExperimentalSerde";
     private static final String GO_DIRECTIVE = "goDirective";
 
     private ShapeId service;
@@ -62,6 +63,7 @@ public final class GoSettings {
     private String moduleDescription = "";
     private String moduleVersion;
     private Boolean generateGoMod = false;
+    private Boolean useExperimentalSerde = false;
     private String goDirective = GoModuleInfo.DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
     private ArtifactType artifactType;
@@ -86,7 +88,7 @@ public final class GoSettings {
     public static GoSettings from(ObjectNode config, ArtifactType artifactType) {
         GoSettings settings = new GoSettings();
         config.warnIfAdditionalProperties(
-            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, GO_DIRECTIVE));
+            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, USE_EXPERIMENTAL_SERDE, GO_DIRECTIVE));
         settings.setArtifactType(artifactType);
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
@@ -94,6 +96,7 @@ public final class GoSettings {
                 MODULE_DESCRIPTION, settings.getModuleName() + " client"));
         settings.setModuleVersion(config.getStringMemberOrDefault(MODULE_VERSION, null));
         settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
+        settings.setUseExperimentalSerde(config.getBooleanMemberOrDefault(USE_EXPERIMENTAL_SERDE, false));
         settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, GoModuleInfo.DEFAULT_GO_DIRECTIVE));
         return settings;
     }
@@ -215,6 +218,14 @@ public final class GoSettings {
      */
     public void setGenerateGoMod(Boolean generateGoMod) {
         this.generateGoMod = Objects.requireNonNull(generateGoMod);
+    }
+
+    public Boolean useExperimentalSerde() {
+        return useExperimentalSerde;
+    }
+
+    public void setUseExperimentalSerde(Boolean value) {
+        this.useExperimentalSerde = Objects.requireNonNull(value);
     }
 
     /**
