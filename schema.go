@@ -53,92 +53,28 @@ func stoid(s string) ShapeID {
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	id  ShapeID
-	typ ShapeType
-
-	members map[string]*Schema // member name -> schema
-	traits  map[string]Trait   // trait ID -> trait
+	ID      ShapeID
+	Type    ShapeType
+	Members map[string]*Schema // member name -> schema
+	Traits  map[string]Trait   // trait ID -> trait
 }
 
-// SchemaOptions configures a new Schema.
-type SchemaOptions struct {
-	members []*Schema
-	traits  []Trait
-}
-
-// WithMember adds a member targeting the given Schema.
+// NewMember creates a member schema from a target schema, overriding traits.
 //
-// Traits provided for the member here override any traits on the target if
-// there is collision.
-func WithMember(name string, target *Schema, traits ...Trait) func(*SchemaOptions) {
-	return func(o *SchemaOptions) {
-		m := &Schema{
-			id:      ShapeID{Member: name},
-			typ:     target.typ,
-			members: target.members,
-			traits:  maps.Clone(target.traits),
-		}
-
-		for _, t := range traits {
-			m.traits[t.TraitID()] = t
-		}
-
-		o.members = append(o.members, m)
-	}
-}
-
-// WithTraits adds traits to the Schema.
-func WithTraits(traits ...Trait) func(*SchemaOptions) {
-	return func(o *SchemaOptions) {
-		o.traits = append(o.traits, traits...)
-	}
-}
-
-// NewSchema returns a schema with the provided members and traits.
-//
-// Generated clients include schemas for every shape that needs to be
-// (de)serialized as part of a service operation in a schemas/ package.
-func NewSchema(id string, typ ShapeType, opts ...func(*SchemaOptions)) *Schema {
-	var o SchemaOptions
-	for _, opt := range opts {
-		opt(&o)
+// Traits provided for the member override any traits on the target if there
+// is collision.
+func NewMember(name string, target *Schema, traits ...Trait) *Schema {
+	m := &Schema{
+		ID:      ShapeID{Member: name},
+		Type:    target.Type,
+		Members: target.Members,
+		Traits:  maps.Clone(target.Traits),
 	}
 
-	sid := stoid(id)
-	members := make(map[string]*Schema, len(o.members))
-	for _, m := range o.members {
-		m.id.Namespace = sid.Namespace
-		m.id.Name = sid.Name
-		members[m.id.Member] = m
+	for _, t := range traits {
+		m.Traits[t.TraitID()] = t
 	}
 
-	traits := make(map[string]Trait, len(o.traits))
-	for _, t := range o.traits {
-		traits[t.TraitID()] = t
-	}
-
-	return &Schema{
-		id:      sid,
-		typ:     typ,
-		members: members,
-		traits:  traits,
-	}
-}
-
-// ID returns the shape ID for this schema as it appears in the original
-// Smithy model.
-func (s *Schema) ID() ShapeID {
-	return s.id
-}
-
-// Type returns the schema's type.
-func (s *Schema) Type() ShapeType {
-	return s.typ
-}
-
-// Member returns the named member from the schema.
-func (s *Schema) Member(name string) *Schema {
-	m, _ := s.members[name]
 	return m
 }
 
@@ -146,7 +82,7 @@ func (s *Schema) Member(name string) *Schema {
 func SchemaTrait[T Trait](s *Schema) (T, bool) {
 	var trait T
 
-	opaque, ok := s.traits[trait.TraitID()]
+	opaque, ok := s.Traits[trait.TraitID()]
 	if !ok {
 		return trait, false
 	}
