@@ -36,6 +36,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.CodegenUtils;
 import software.amazon.smithy.go.codegen.GoEventStreamIndex;
+import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.GoValueAccessUtils;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -416,10 +417,14 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             });
 
             Shape outputShape = model.expectShape(operation.getOutput()
-                    .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
+                .orElseThrow(() -> new CodegenException("expect output shape for operation: " + operation.getId()))
             );
-
-            Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
+            Symbol outputSymbol;
+            if (EventStreamGenerator.isV2EventStream(model, operation)) {
+                outputSymbol = EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation);
+            } else {
+                outputSymbol = symbolProvider.toSymbol(outputShape);
+            }
 
             // initialize out.Result as output structure shape
             writer.write("output := &$T{}", outputSymbol);
@@ -1166,8 +1171,12 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         if (shape.isOperationShape()) {
             targetShape = ProtocolUtils.expectOutput(model, shape.asOperationShape().get());
         }
-
-        Symbol targetSymbol = symbolProvider.toSymbol(targetShape);
+        Symbol targetSymbol;
+        if (shape.isOperationShape() && EventStreamGenerator.isV2EventStream(model, shape.asOperationShape().get())) {
+            targetSymbol = EventStreamGenerator.getEventStreamInitialReplyPointableSymbol(context.getService(), shape.asOperationShape().get());
+        } else {
+            targetSymbol = symbolProvider.toSymbol(targetShape);
+        }
         Symbol smithyHttpResponsePointableSymbol = SymbolUtils.createPointableSymbolBuilder(
                 "Response", SmithyGoDependency.SMITHY_HTTP_TRANSPORT).build();
 

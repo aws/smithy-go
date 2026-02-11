@@ -451,6 +451,15 @@ public final class EventStreamGenerator {
                 .build();
     }
 
+    public static Symbol getEventStreamInitialReplyPointableSymbol(
+            ServiceShape serviceShape,
+            OperationShape operationShape
+    ) {
+        String name = StringUtils.capitalize(operationShape.getId().getName(serviceShape));
+        return SymbolUtils.createPointableSymbolBuilder(name + "InitialReply")
+                .build();
+    }
+
     public static String getEventStreamWriterInterfaceName(ServiceShape serviceShape, ToShapeId shape) {
         String name = StringUtils.capitalize(shape.toShapeId().getName(serviceShape));
         return name + "Writer";

@@ -18,6 +18,8 @@ package software.amazon.smithy.go.codegen.integration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -31,9 +33,12 @@ import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.StructureShape;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
@@ -110,18 +115,13 @@ public class AddEventStreamMiddleware implements GoIntegration {
     public static List<OperationShape> getOperationsWithV2EventStream(Model model, ServiceShape service) {
         List<OperationShape> operations = new ArrayList<>();
         TopDownIndex.of(model).getContainedOperations(service).stream().forEach((operation) -> {
-            if (!operationHasEventStream(model, service, operation)) {
+            if (!EventStreamGenerator.isV2EventStream(model, operation)) {
                 return;
             }
 
             operations.add(operation);
         });
         return operations;
-    }
-
-    private static boolean operationHasEventStream(Model model, ServiceShape service, OperationShape operation) {
-         var outputInfo = EventStreamIndex.of(model).getOutputInfo(operation);
-        return EventStreamGenerator.hasEventStream(model, operation) && !EventStreamGenerator.isLegacyEventStreamGenerator(operation) && outputInfo.isPresent();
     }
 
     private static void writeMiddleware(
@@ -138,31 +138,53 @@ public class AddEventStreamMiddleware implements GoIntegration {
 
         middlewareGenerator.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
-            w.write(addMiddleware(operation.getId().getName()));
+            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+            var outputShape = OperationIndex.of(model).getOutput(operation);
+            w.write(addMiddleware(operation.getId().getName(), model, outputShape));
         });
     }
 
-    private static Writable addMiddleware(String opName) {
+    private static Writable addMiddleware(String opName, Model model, Optional<StructureShape> output) {
         return goTemplate("""
 				       out, metadata, err = next.HandleBuild(ctx, in)
-				       response := $opName:LInitialReply{
-				               ResultMetadata: metadata,
-				       }
-				       res, ok := out.Result.(*$opName:LOutput)
+				       initialReply, ok := out.Result.(*$opName:LInitialReply)
+                       _ = initialReply
 				       if !ok {
-				               // we have this as error, but really no one will be listening to it
-				               return out, metadata, fmt.Errorf("unexpected type of result. expected $opName:LOutput, got %T. Additionally %w", out.Result, err)
+				               return out, metadata, fmt.Errorf("unexpected type of result. expected $opName:LInitialReply, got %T. Additionally %w", out.Result, err)
 				       }
+				       res, ok := middleware.GetEventStreamOutputToMetadata[$opName:LOutput](&metadata)
+	                   if !ok {
+		                       return out, metadata, fmt.Errorf("expected to find an object of type $opName:LOutput on metadata, none was found. Metadata %v. Additionally %w", metadata, err)
+	                   }
 				       if err != nil {
 				               // fail the event stream because the middleware failed
 				               res.eventStream.err.SetError(err)
 				               res.GetStream().Close()
 				       }
+                	   response := $opName:LInitialReply{
+                			   ResultMetadata: metadata,
+                			   $memberMapping:L
+                		}
 				       res.initialReply <- response
                        return out, metadata, err
                 """, Map.of(
-                    "opName", opName
+                    "opName", opName,
+                    "memberMapping", generateMemberMapping(model, output)
                 ));
+    }
+
+    private static String generateMemberMapping(Model model, Optional<StructureShape> outputShape) {
+        if (outputShape.isEmpty()) {
+            return "";
+        }
+        var nonStreamingOutput = outputShape.get().members().stream()
+            .filter(member -> !StreamingTrait.isEventStream(model, member))
+            .toList();
+        return nonStreamingOutput.stream()
+            .map(member -> member.getMemberName())
+            .sorted()
+            .map(member -> String.format("%s: initialReply.%s,", member, member))
+            .collect(Collectors.joining("\n"));
     }
 
 

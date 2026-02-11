@@ -29,8 +29,10 @@ import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
@@ -110,8 +112,7 @@ public final class OperationGenerator implements Runnable {
         boolean hasEventStream = Stream.concat(inputShape.members().stream(),
                         outputShape.members().stream())
                 .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
-        boolean hasEventStreamOutput = EventStreamIndex.of(model).getOutputInfo(operation).isPresent();
-        boolean isV2EventStream = hasEventStream && !EventStreamGenerator.isLegacyEventStreamGenerator(this.operation) && hasEventStreamOutput;
+        boolean isV2EventStream = EventStreamGenerator.isV2EventStream(model, operation);
         String invokeOpString = isV2EventStream ? "invokeEventStreamOperation" : "invokeOperation";
 
         writer.openBlock("func (c $P) $T(ctx $T, params $P, optFns ...func(*Options)) ($P, error) {", "}",
@@ -145,7 +146,18 @@ public final class OperationGenerator implements Runnable {
         Symbol metadataSymbol = SymbolUtils.createValueSymbolBuilder("Metadata", SmithyGoDependency.SMITHY_MIDDLEWARE)
                 .build();
 
-        new StructureGenerator(model, symbolProvider, writer, service, outputShape, outputSymbol, protocolGenerator)
+        StructureShape structOutputShape;
+        Symbol structOutputSymbol;
+        
+        if (EventStreamGenerator.isV2EventStream(model, operation)) {
+            List<MemberShape> onlyEventStreamMembers = outputShape.members().stream().filter(member -> StreamingTrait.isEventStream(model, member)).toList();
+            structOutputShape = buildShape(onlyEventStreamMembers);
+            structOutputSymbol = symbolProvider.toSymbol(outputShape);
+        } else {
+            structOutputShape = outputShape;
+            structOutputSymbol = outputSymbol;
+        }
+        new StructureGenerator(model, symbolProvider, writer, service, structOutputShape, structOutputSymbol, protocolGenerator)
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
@@ -295,5 +307,17 @@ public final class OperationGenerator implements Runnable {
      */
     public static String getAddOperationMiddlewareFuncName(Symbol operation) {
         return String.format("addOperation%sMiddlewares", operation.getName());
+    }
+
+    private StructureShape buildShape(List<MemberShape> members) {
+        var struct = StructureShape.builder().id(ShapeId.from("synthetic#throwaway"));
+            members.stream().forEach(member -> struct.addMember(
+                MemberShape.builder()
+                .id(struct.getId().withMember(member.getMemberName()))
+                .target(member.getTarget())
+                .addTraits(member.getAllTraits().values())
+                .build()
+            ));
+            return struct.build();
     }
 }
