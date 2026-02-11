@@ -11,6 +11,8 @@ import software.amazon.smithy.utils.ListUtils;
  * Chains together multiple Writables that can be composed into one Writable.
  */
 public final class ChainWritable {
+    // FUTURE: move statics to Writable, make this file- or package-private
+
     private final List<Writable> writables;
 
     public ChainWritable() {
@@ -26,6 +28,14 @@ public final class ChainWritable {
     public static ChainWritable of(Collection<Writable> writables) {
         var chain = new ChainWritable();
         chain.writables.addAll(writables);
+        return chain;
+    }
+
+    public static <T> ChainWritable of(Collection<T> values, Function<T, Writable> mapper) {
+        var chain = new ChainWritable();
+        chain.writables.addAll(values.stream()
+                .map(mapper)
+                .toList());
         return chain;
     }
 

@@ -22,6 +22,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
@@ -32,4 +33,8 @@ public record GoCodegenContext(
         FileManifest fileManifest,
         WriterDelegator<GoWriter> writerDelegator,
         List<GoIntegration> integrations
-) implements CodegenContext<GoSettings, GoWriter, GoIntegration> {}
+) implements CodegenContext<GoSettings, GoWriter, GoIntegration> {
+    public ServiceShape service() {
+        return settings.getService(model);
+    }
+}
