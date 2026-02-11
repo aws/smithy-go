@@ -18,17 +18,21 @@ package software.amazon.smithy.go.codegen;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.StringUtils;
 
 public final class EventStreamGenerator {
@@ -155,6 +159,23 @@ public final class EventStreamGenerator {
 
     public static boolean isLegacyEventStreamGenerator(OperationShape operationShape) {
         return LEGACY_OPERATIONS.contains(operationShape.getId().toString());
+    }
+
+    // An operation is considered V2 event stream if:
+    // 1. It has an event stream member in the input or output
+    // 2. Has event stream output
+    // 3. Has not been already generated as a legacy event stream
+    public static boolean isV2EventStream(Model model, OperationShape operation) {
+        OperationIndex operationIndex = OperationIndex.of(model);
+        StructureShape inputShape = operationIndex.getInput(operation).get();
+        StructureShape outputShape = operationIndex.getOutput(operation).get();
+        boolean hasEventStream = Stream.concat(
+                        inputShape.members().stream(),
+                        outputShape.members().stream()
+                    )
+                    .anyMatch(memberShape -> StreamingTrait.isEventStream(model, memberShape));
+        boolean hasEventStreamOutput = EventStreamIndex.of(model).getOutputInfo(operation).isPresent();
+        return hasEventStream && hasEventStreamOutput && !isLegacyEventStreamGenerator(operation);
     }
 
     public static boolean hasEventStream(Model model, OperationShape operationShape) {
