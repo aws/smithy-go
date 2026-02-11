@@ -5,6 +5,7 @@ import "context"
 type (
 	serviceIDKey     struct{}
 	operationNameKey struct{}
+	serviceNameKey   struct{}
 )
 
 // WithServiceID adds a service ID to the context, scoped to middleware stack
@@ -37,5 +38,21 @@ func WithOperationName(parent context.Context, id string) context.Context {
 // typically the operation shape's name from its Smithy model.
 func GetOperationName(ctx context.Context) string {
 	name, _ := GetStackValue(ctx, operationNameKey{}).(string)
+	return name
+}
+
+// WithOperationName adds the operation name to the context, scoped to
+// middleware stack values.
+//
+// This API is called in the client runtime when bootstrapping an operation and
+// should not typically be used directly.
+func WithServiceName(parent context.Context, id string) context.Context {
+	return WithStackValue(parent, serviceNameKey{}, id)
+}
+
+// GetOperationName retrieves the operation name from the context. This is
+// ALWAYS the service shape's name from its Smithy model.
+func GetServiceName(ctx context.Context) string {
+	name, _ := GetStackValue(ctx, serviceNameKey{}).(string)
 	return name
 }

@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
@@ -39,13 +40,15 @@ import software.amazon.smithy.utils.MapUtils;
 public class ClientOptions implements Writable {
     public static final String NAME = "Options";
 
+    private final GoCodegenContext ctx;
     private final ProtocolGenerator.GenerationContext context;
     private final ApplicationProtocol protocol;
 
     private final List<ConfigField> fields;
     private final Map<ShapeId, AuthSchemeDefinition> authSchemes;
 
-    public ClientOptions(ProtocolGenerator.GenerationContext context, ApplicationProtocol protocol) {
+    public ClientOptions(GoCodegenContext ctx, ProtocolGenerator.GenerationContext context, ApplicationProtocol protocol) {
+        this.ctx = ctx;
         this.context = context;
         this.protocol = protocol;
 
@@ -81,6 +84,8 @@ public class ClientOptions implements Writable {
 
                     $fields:W
 
+                    $experimentalSerdeProtocolFields:W
+
                     $protocolFields:W
                 }
 
@@ -99,8 +104,19 @@ public class ClientOptions implements Writable {
                         "protocolFields", generateProtocolFields(),
                         "copy", generateCopy(),
                         "getIdentityResolver", generateGetIdentityResolver(),
-                        "helpers", generateHelpers()
+                        "helpers", generateHelpers(),
+                        "experimentalSerdeProtocolFields", ctx.settings().useExperimentalSerde()
+                                ? generateExperimentalSerdeProtocolFields()
+                                : emptyGoTemplate()
                 ));
+    }
+
+    private Writable generateExperimentalSerdeProtocolFields() {
+        ensureSupportedProtocol();
+        return goTemplate("""
+                $D $D
+                Protocol smithy.ClientProtocol[*smithyhttp.Request, *smithyhttp.Response]
+                """, SmithyGoDependency.SMITHY, SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
     }
 
     private Writable generateProtocolTypes() {

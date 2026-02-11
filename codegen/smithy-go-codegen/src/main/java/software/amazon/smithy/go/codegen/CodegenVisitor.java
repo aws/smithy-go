@@ -15,13 +15,10 @@
 
 package software.amazon.smithy.go.codegen;
 
-import static java.util.stream.Collectors.toSet;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,22 +35,28 @@ import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.serde2.ListDeserializer;
+import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
+import software.amazon.smithy.go.codegen.serde2.MapSerializer;
+import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
+import software.amazon.smithy.go.codegen.serde2.Serde2SerializeRequestMiddleware;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.IntEnumShape;
+import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.ShapeVisitor;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
-import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -265,31 +268,36 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
 
         if (settings.useExperimentalSerde()) {
-            var walker = new Walker(model);
-            var operations = TopDownIndex.of(model).getContainedOperations(service);
+            var shapes = new ArrayList<>(ctx.serdeShapes());
+            shapes.add(ShapeUtil.UNIT); // targeted by enum members, just generate a blank schema for it
 
-            var shapes = new HashSet<Shape>();
-            shapes.addAll(operations.stream()
-                    .map(it -> model.expectShape(it.getInputShape()))
-                    .flatMap(it -> walker.walkShapes(it).stream())
-                    .collect(toSet()));
-            shapes.addAll(operations.stream()
-                    .map(it -> model.expectShape(it.getOutputShape()))
-                    .flatMap(it -> walker.walkShapes(it).stream())
-                    .collect(toSet()));
-            shapes.addAll(model.getStructureShapesWithTrait(ErrorTrait.class).stream()
-                    .flatMap(it -> walker.walkShapes(it).stream())
-                    .collect(toSet()));
-
-            var sortedShapes = new ArrayList<>(shapes.stream()
-                    .sorted()
-                    .filter(it -> it.getType() != ShapeType.MEMBER)
-                    .toList());
-
-            sortedShapes.add(StructureShape.builder().id("smithy.api#Unit").build());
+            ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
-                    Writable.map(sortedShapes, it -> new SchemaGenerator(ctx, it), true));
+                    Writable.map(shapes, it -> new SchemaGenerator(ctx, it), true));
+
+            var lists = ctx.serdeShapes(ListShape.class);
+            var maps = ctx.serdeShapes(MapShape.class);
+
+            // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
+            // generate these twice since we don't want to export them
+            //
+            // also rn we don't check for what's actually used in either package at all but DCE should take care of that
+
+            // TODO ListSerializer
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(lists, it -> new ListDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(lists, it -> new ListDeserializer(ctx, it), true));
+
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
         }
 
         // TODO: With serde/schema decoupling, protocol generators are going away. Endpoint/auth resolution is going to
@@ -364,6 +372,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
+
+        if (settings.useExperimentalSerde()) {
+            // TODO schema probably
+        }
         return null;
     }
 
@@ -414,7 +426,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         });
 
-        var clientOptions = new ClientOptions(context, protocol);
+        if (ctx.settings().useExperimentalSerde()) {
+            writers.useShapeWriter(shape, new Serde2SerializeRequestMiddleware());
+            writers.useShapeWriter(shape, new Serde2DeserializeResponseMiddleware());
+        }
+
+        var clientOptions = new ClientOptions(ctx, context, protocol);
         writers.useFileWriter("options.go", settings.getModuleName(), clientOptions);
         return null;
     }

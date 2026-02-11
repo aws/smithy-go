@@ -28,6 +28,7 @@ import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StringShape;
+import software.amazon.smithy.model.shapes.StructureShape;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
@@ -40,6 +41,10 @@ public final class ShapeUtil {
 
     public static final BooleanShape BOOL_SHAPE = BooleanShape.builder()
             .id("smithy.api#PrimitiveBoolean")
+            .build();
+
+    public static final StructureShape UNIT = StructureShape.builder()
+            .id("smithy.api#Unit")
             .build();
 
     private ShapeUtil() {}
