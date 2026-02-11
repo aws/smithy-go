@@ -1,6 +1,7 @@
 package smithy
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 )
@@ -42,6 +43,14 @@ type ShapeID struct {
 	Namespace, Name, Member string
 }
 
+// String returns the IDL microformat for the shape ID.
+func (s *ShapeID) String() string {
+	if s.Member == "" {
+		return fmt.Sprintf("%s#%s", s.Namespace, s.Name)
+	}
+	return fmt.Sprintf("%s#%s$%s", s.Namespace, s.Name, s.Member)
+}
+
 func stoid(s string) ShapeID {
 	ns, n, _ := strings.Cut(s, "#")
 	n, m, _ := strings.Cut(n, "$")
@@ -71,6 +80,9 @@ func NewMember(name string, target *Schema, traits ...Trait) *Schema {
 		Traits:  maps.Clone(target.Traits),
 	}
 
+	if len(m.Traits) == 0 && len(traits) != 0 {
+		m.Traits = map[string]Trait{}
+	}
 	for _, t := range traits {
 		m.Traits[t.TraitID()] = t
 	}
