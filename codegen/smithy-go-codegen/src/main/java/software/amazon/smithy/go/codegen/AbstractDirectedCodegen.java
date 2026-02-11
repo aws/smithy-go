@@ -89,12 +89,9 @@ public abstract class AbstractDirectedCodegen implements DirectedCodegen<GoCodeg
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
                 new StructureGenerator(
-                        directive.model(),
-                        directive.symbolProvider(),
+                        directive.context(),
                         writer,
-                        directive.service(),
                         directive.shape(),
-                        directive.symbolProvider().toSymbol(directive.shape()),
                         null
                 ).run()
         );
@@ -105,12 +102,9 @@ public abstract class AbstractDirectedCodegen implements DirectedCodegen<GoCodeg
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
                 new StructureGenerator(
-                        directive.model(),
-                        directive.symbolProvider(),
+                        directive.context(),
                         writer,
-                        directive.service(),
                         directive.shape(),
-                        directive.symbolProvider().toSymbol(directive.shape()),
                         null
                 ).run()
         );
