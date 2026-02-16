@@ -272,7 +272,7 @@ public final class StructureGenerator implements Runnable {
             case MAP -> // TODO: sort fields (or the option to?)
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
 
-            case TIMESTAMP -> writer.write("s.WriteTime($L, $L)", schemaName, ident);
+            case TIMESTAMP -> writer.write("s.WriteTime($L, *$L)", schemaName, ident);
 
             case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
 
@@ -280,9 +280,7 @@ public final class StructureGenerator implements Runnable {
             case INT_ENUM -> writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
 
             case STRUCTURE ->
-                writer.openBlock("s.WriteMap($L, func() {", " })", schemaName, () -> {
-                    writer.write("$L.SerializeFields(s)", ident);
-                });
+                    writer.write("$L.Serialize(s)", ident);
 
             case LIST, SET -> writer.write("// TODO: list $L", ident);
 

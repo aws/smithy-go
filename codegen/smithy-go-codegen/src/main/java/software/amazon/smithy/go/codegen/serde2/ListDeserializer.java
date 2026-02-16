@@ -50,10 +50,11 @@ public class ListDeserializer implements Writable {
 
     private Writable renderDeserializeMember() {
         return switch (member.getType()) {
-            case STRING -> goTemplate("d.ReadString(nil, &vv)");
+            case STRING, ENUM -> goTemplate("d.ReadString(nil, &vv)");
             case STRUCTURE -> goTemplate("vv.Deserialize(d)");
             case BLOB -> goTemplate("d.ReadBlob(nil, &vv)");
-            case ENUM -> goTemplate("d.ReadString(nil, &vv)");
+            case INTEGER -> goTemplate("d.ReadInt32(nil, &vv)");
+            case LONG -> goTemplate("d.ReadInt64(nil, &vv)");
             default -> emptyGoTemplate();
         };
     }
