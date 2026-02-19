@@ -36,6 +36,7 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.go.codegen.serde2.ListDeserializer;
+import software.amazon.smithy.go.codegen.serde2.ListSerializer;
 import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
 import software.amazon.smithy.go.codegen.serde2.MapSerializer;
 import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
@@ -284,7 +285,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             //
             // also rn we don't check for what's actually used in either package at all but DCE should take care of that
 
-            // TODO ListSerializer
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(lists, it -> new ListSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(lists, it -> new ListSerializer(ctx, it), true));
             ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
                     Writable.map(lists, it -> new ListDeserializer(ctx, it), true));
             ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
