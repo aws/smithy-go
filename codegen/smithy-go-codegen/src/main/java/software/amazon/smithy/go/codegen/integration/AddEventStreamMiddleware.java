@@ -147,19 +147,24 @@ public class AddEventStreamMiddleware implements GoIntegration {
     private static Writable addMiddleware(String opName, Model model, Optional<StructureShape> output) {
         return goTemplate("""
 				       out, metadata, err = next.HandleBuild(ctx, in)
-				       initialReply, ok := out.Result.(*$opName:LInitialReply)
-                       _ = initialReply
-				       if !ok {
-				               return out, metadata, fmt.Errorf("unexpected type of result. expected $opName:LInitialReply, got %T. Additionally %w", out.Result, err)
-				       }
-				       res, ok := middleware.GetEventStreamOutputToMetadata[$opName:LOutput](&metadata)
+                       res, ok := middleware.GetEventStreamOutputToMetadata[$opName:LOutput](&metadata)
 	                   if !ok {
 		                       return out, metadata, fmt.Errorf("expected to find an object of type $opName:LOutput on metadata, none was found. Metadata %v. Additionally %w", metadata, err)
 	                   }
-				       if err != nil {
+                       if err != nil {
 				               // fail the event stream because the middleware failed
 				               res.eventStream.err.SetError(err)
 				               res.GetStream().Close()
+				       }
+				       initialReply, ok := out.Result.(*$opName:LInitialReply)
+                       _ = initialReply
+				       if !ok {
+                            // set an initial reply with just the metadata. Error was set above
+                            response := $opName:LInitialReply{
+                			    ResultMetadata: metadata,
+                		    }
+                            res.initialReply <- response
+				            return out, metadata, fmt.Errorf("unexpected type of result. expected $opName:LInitialReply, got %T. Additionally %w", out.Result, err)
 				       }
                 	   response := $opName:LInitialReply{
                 			   ResultMetadata: metadata,
