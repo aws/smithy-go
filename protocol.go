@@ -61,6 +61,8 @@ type ShapeSerializer interface {
 	WriteBigDecimal(*Schema, big.Float)
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
+
+	WriteStruct(*Schema, Serializable)
 	WriteNil(*Schema)
 
 	WriteList(*Schema)

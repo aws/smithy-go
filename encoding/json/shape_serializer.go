@@ -1,7 +1,6 @@
 package json
 
 import (
-	"fmt"
 	"math/big"
 	"time"
 
@@ -155,11 +154,23 @@ func (ss *ShapeSerializer) WriteBlob(s *smithy.Schema, v []byte) {
 }
 
 func (ss *ShapeSerializer) WriteList(s *smithy.Schema) {
-	// TODO
+	switch enc := ss.head.Top().(type) {
+	case *Object:
+		ss.head.Push(enc.Key(s.ID.Member).Array())
+	case *Array:
+		ss.head.Push(enc.Value().Array())
+	case Value:
+		ss.head.Push(enc.Array())
+	default:
+		ss.head.Push(ss.root.Array())
+	}
 }
 
 func (ss *ShapeSerializer) CloseList() {
-	// TODO
+	if enc, ok := ss.head.Top().(*Array); ok {
+		enc.Close()
+		ss.head.Pop()
+	}
 }
 
 func (ss *ShapeSerializer) WriteMap(s *smithy.Schema) {
@@ -181,13 +192,6 @@ func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string) {
 	}
 }
 
-func printstack(s stack) {
-	for _, v := range s.values {
-		fmt.Printf("%T ", v)
-	}
-	fmt.Println()
-}
-
 func (ss *ShapeSerializer) CloseMap() {
 	if enc, ok := ss.head.Top().(*Object); ok {
 		enc.Close()
@@ -203,11 +207,25 @@ func (ss *ShapeSerializer) CloseMap() {
 }
 
 func (ss *ShapeSerializer) WriteFloat32(s *smithy.Schema, v float32) {
-	panic("TODO")
+	switch enc := ss.head.Top().(type) {
+	case *Object:
+		enc.Key(s.ID.Member).Float(v)
+	case *Array:
+		enc.Value().Float(v)
+	default:
+		ss.root.Float(v)
+	}
 }
 
 func (ss *ShapeSerializer) WriteFloat64(s *smithy.Schema, v float64) {
-	panic("TODO")
+	switch enc := ss.head.Top().(type) {
+	case *Object:
+		enc.Key(s.ID.Member).Double(v)
+	case *Array:
+		enc.Value().Double(v)
+	default:
+		ss.root.Double(v)
+	}
 }
 
 func (ss *ShapeSerializer) WriteTime(s *smithy.Schema, v time.Time) {
@@ -218,8 +236,34 @@ func (ss *ShapeSerializer) WriteDocument(s *smithy.Schema, v any) {
 	panic("TODO")
 }
 
+func (ss *ShapeSerializer) WriteStruct(s *smithy.Schema, v smithy.Serializable) {
+	switch enc := ss.head.Top().(type) {
+	case *Object:
+		ss.head.Push(enc.Key(s.ID.Member).Object())
+	case *Array:
+		ss.head.Push(enc.Value().Object())
+	case Value:
+		ss.head.Push(enc.Object())
+	default:
+		ss.head.Push(ss.root.Object())
+	}
+
+	v.Serialize(ss)
+	ss.head.Pop()
+}
+
 func (ss *ShapeSerializer) WriteNil(s *smithy.Schema) {
-	panic("TODO")
+	switch enc := ss.head.Top().(type) {
+	case *Object:
+		enc.Key(s.ID.Member).Null()
+	case *Array:
+		enc.Value().Null()
+	case Value:
+		enc.Null()
+		ss.head.Pop()
+	default:
+		ss.root.Null()
+	}
 }
 
 func (ss *ShapeSerializer) WriteBigInteger(s *smithy.Schema, v big.Int) {
