@@ -140,11 +140,11 @@ public class AddEventStreamMiddleware implements GoIntegration {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
             var outputShape = OperationIndex.of(model).getOutput(operation);
-            w.write(addMiddleware(operation.getId().getName(), model, outputShape));
+            w.write(addMiddleware(operation.getId().getName(), model, symbolProvider, outputShape));
         });
     }
 
-    private static Writable addMiddleware(String opName, Model model, Optional<StructureShape> output) {
+    private static Writable addMiddleware(String opName, Model model, SymbolProvider symbolProvider, Optional<StructureShape> output) {
         return goTemplate("""
 				       out, metadata, err = next.HandleBuild(ctx, in)
                        res, ok := middleware.GetEventStreamOutputToMetadata[$opName:LOutput](&metadata)
@@ -174,11 +174,11 @@ public class AddEventStreamMiddleware implements GoIntegration {
                        return out, metadata, err
                 """, Map.of(
                     "opName", opName,
-                    "memberMapping", generateMemberMapping(model, output)
+                    "memberMapping", generateMemberMapping(model, symbolProvider, output)
                 ));
     }
 
-    private static String generateMemberMapping(Model model, Optional<StructureShape> outputShape) {
+    private static String generateMemberMapping(Model model, SymbolProvider symbolProvider, Optional<StructureShape> outputShape) {
         if (outputShape.isEmpty()) {
             return "";
         }
@@ -186,9 +186,11 @@ public class AddEventStreamMiddleware implements GoIntegration {
             .filter(member -> !StreamingTrait.isEventStream(model, member))
             .toList();
         return nonStreamingOutput.stream()
-            .map(member -> member.getMemberName())
+            .map(member -> {
+                String goMemberName = symbolProvider.toMemberName(member);
+                return String.format("%s: initialReply.%s,", goMemberName, goMemberName);
+            })
             .sorted()
-            .map(member -> String.format("%s: initialReply.%s,", member, member))
             .collect(Collectors.joining("\n"));
     }
 
