@@ -174,7 +174,7 @@ public final class OperationGenerator implements Runnable {
                     }
                     writer.writeDocs("Metadata pertaining to the operation's result.");
                     writer.write("ResultMetadata $T", metadataSymbol);
-                }, true);
+                });
 
         if (hasEventStream) {
             writer.write("""
