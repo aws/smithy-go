@@ -41,6 +41,7 @@ import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.utils.MapUtils;
@@ -100,6 +101,8 @@ final class ServiceGenerator implements Runnable {
                 generateNew(),
                 generateGetOptions(),
                 generateInvokeOperation(),
+                generateEventStreamInvokeOperation(),
+                asyncStreamReaders(),
                 generateInputContextFuncs(),
                 generateAddProtocolFinalizerMiddleware()
         ).compose();
@@ -448,6 +451,181 @@ final class ServiceGenerator implements Runnable {
                 ));
     }
 
+    private Writable generateEventStreamInvokeOperation() {
+         if (!hasV2EventStreamOperations()) {
+            return emptyGoTemplate();
+        }
+        return goTemplate("""
+                $middleware:D $tracing:D
+                func (c *Client) invokeEventStreamOperation(
+                    ctx context.Context, opID string, params interface{}, optFns []func(*Options), stackFns ...func(*middleware.Stack, Options) error,
+                ) (
+                    result interface{}, metadata middleware.Metadata, err error,
+                ) {
+                    ctx = middleware.ClearStackValues(ctx)
+                    ctx = middleware.WithServiceID(ctx, ServiceID)
+                    ctx = middleware.WithOperationName(ctx, opID)
+
+                    $newStack:W
+                    options := c.options.Copy()
+                    $resolvers:W
+
+                    for _, fn := range optFns {
+                        fn(&options)
+                    }
+
+                    $finalizers:W
+
+                    for _, fn := range stackFns {
+                        if err := fn(stack, options); err != nil {
+                            return nil, metadata, err
+                        }
+                    }
+
+                    for _, fn := range options.APIOptions {
+                        if err := fn(stack); err != nil {
+                            return nil, metadata, err
+                        }
+                    }
+
+                    ctx, err = withOperationMetrics(ctx, options.MeterProvider)
+                    if err != nil {
+                        return nil, metadata, err
+                    }
+
+                    tracer := operationTracer(options.TracerProvider)
+                    spanName := fmt.Sprintf("%s.%s", ServiceID, opID)
+
+                    ctx = tracing.WithOperationTracer(ctx, tracer)
+
+                    ctx, span := tracer.StartSpan(ctx, spanName, func (o *tracing.SpanOptions) {
+                        o.Kind = tracing.SpanKindClient
+                        o.Properties.Set("rpc.system", "aws-api")
+                        o.Properties.Set("rpc.method", opID)
+                        o.Properties.Set("rpc.service", ServiceID)
+                    })
+                    endTimer := startMetricTimer(ctx, "client.call.duration")
+                    defer endTimer()
+                    defer span.End()
+
+                    handler := $newClientHandler:T(options.HTTPClient, func(o *smithyhttp.ClientHandler) {
+                        o.Meter = options.MeterProvider.Meter($scope:S)
+                    })
+                    decorated := middleware.DecorateHandler(handler, stack)
+                    // create a channel that returns immediately as soon as the request to the server is made
+                    results := make(chan PartialResult, 1)
+                    ctx = context.WithValue(ctx, partialResultChan{}, results)
+                    go func() {
+                           _, _, asyncErr := decorated.Handle(ctx, params)
+                           if asyncErr != nil {
+                                   span.SetProperty("exception.type", fmt.Sprintf("%T", asyncErr))
+                                   span.SetProperty("exception.message", asyncErr.Error())
+
+                                   var aerr smithy.APIError
+                                   if errors.As(asyncErr, &aerr) {
+                                           span.SetProperty("api.error_code", aerr.ErrorCode())
+                                           span.SetProperty("api.error_message", aerr.ErrorMessage())
+                                           span.SetProperty("api.error_fault", aerr.ErrorFault().String())
+                                   }
+
+                                   asyncErr = &smithy.OperationError{
+                                           ServiceID:     ServiceID,
+                                           OperationName: opID,
+                                           Err:           asyncErr,
+                                   }
+                           }
+                           span.SetProperty("error", asyncErr != nil)
+                           if asyncErr == nil {
+                                   span.SetStatus(tracing.SpanStatusOK)
+                           } else {
+                                   span.SetStatus(tracing.SpanStatusError)
+                           }
+                    }()
+                    res := <-results
+                    return res.Output, res.Metadata, res.Error
+                }
+                """,
+                MapUtils.of(
+                        "middleware", SmithyGoDependency.SMITHY_MIDDLEWARE,
+                        "tracing", SmithyGoDependency.SMITHY_TRACING,
+                        "newStack", generateNewStack(),
+                        "operationError", SmithyGoTypes.Smithy.OperationError,
+                        "resolvers", ChainWritable.of(
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.OPERATION,
+                                        ConfigFieldResolver.Target.INITIALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
+                        ).compose(),
+                        "finalizers", ChainWritable.of(
+                                getConfigResolvers(
+                                        ConfigFieldResolver.Location.OPERATION,
+                                        ConfigFieldResolver.Target.FINALIZATION
+                                ).map(this::generateConfigFieldResolver).toList()
+                        ).compose(),
+                        "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandlerWithOptions"),
+                        "scope", settings.getModuleName()
+                ));
+    }
+
+    private Writable asyncStreamReaders() {
+        if (!hasV2EventStreamOperations()) {
+            return emptyGoTemplate();
+        }
+
+        return goTemplate("""
+                $D $D
+
+                type partialResultChan struct{
+                }
+
+				type deserializeResult struct {
+				       reader io.ReadCloser
+				       err    error
+				}
+
+				type asyncEventStreamReader struct {
+				       pipeReader *io.PipeReader
+				       pipeWriter *io.PipeWriter
+				}
+
+				func newAsyncEventStreamReader(resultChan <-chan deserializeResult) *asyncEventStreamReader {
+				       pipeReader, pipeWriter := io.Pipe()
+
+				       reader := &asyncEventStreamReader{
+				               pipeReader: pipeReader,
+				               pipeWriter: pipeWriter,
+				       }
+
+				       // Start background copying
+				       go func() {
+				               for result := range resultChan {
+				                       if result.err != nil {
+				                               // consume the error, this can be retried
+				                               // and if we close the pipeline, it will prevent us
+				                               // from retrying
+				                               continue
+				                       }
+
+				                       // Copy response body to pipe
+				                       _, err := io.Copy(pipeWriter, result.reader)
+				                       pipeWriter.CloseWithError(err)
+				               }
+				       }()
+
+				       return reader
+				}
+
+				// PartialResult represents a placeholder value to return
+				// immediately when calling an event streaming operation. This contains no
+				// meaningful result for the caller
+				type PartialResult struct {
+				       Output   any
+				       Metadata middleware.Metadata
+				       Error    error
+				}
+            """, SmithyGoDependency.SMITHY_MIDDLEWARE, SmithyGoDependency.IO);
+    }
+
     private Writable generateNewStack() {
         ensureSupportedProtocol();
         return goTemplate("stack := $T(opID, $T)",
@@ -506,5 +684,14 @@ final class ServiceGenerator implements Runnable {
                         EndpointMiddlewareGenerator.generateAddToProtocolFinalizers(),
                         SignRequestMiddlewareGenerator.generateAddToProtocolFinalizers()
                 ).compose(false));
+    }
+
+    /**
+     * Checks if the service has any v2 (non-legacy) event stream operations.
+     */
+    private boolean hasV2EventStreamOperations() {
+        return TopDownIndex.of(model).getContainedOperations(service).stream()
+                .anyMatch(operation -> EventStreamGenerator.hasEventStream(model, operation)
+                        && !EventStreamGenerator.isLegacyEventStreamGenerator(operation));
     }
 }
