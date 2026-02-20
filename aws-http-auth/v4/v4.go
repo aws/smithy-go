@@ -28,6 +28,12 @@ type SignerOptions struct {
 	// UNSIGNED-PAYLOAD sentinel if a hash is not explicitly provided.
 	DisableImplicitPayloadHashing bool
 
+	// Prevent signer from adding UNSIGNED-PAYLOAD sentinel when payload is empty.
+	//
+	// AWS CodeCommit Git HTTPS request signing is an example of a service that uses
+	// empty payloads, and does not want the UNSIGNED-PAYLOAD sentinel.
+	DisableUnsignedPayloadSentinel bool
+
 	// Disables the automatic escaping of the URI path of the request for the
 	// siganture's canonical string's path.
 	//
@@ -38,6 +44,12 @@ type SignerOptions struct {
 	//
 	// Amazon S3 is an example of a service that requires this setting.
 	AddPayloadHashHeader bool
+
+	// Allow customization of the canonical time format used in the X-Amz-Date header and the string to sign.
+	//
+	// AWS CodeCommit Git HTTPS request signing is an example of a service that requires
+	// a custom time format - "20060102T150405"
+	CanonicalTimeFormat string
 }
 
 // SignedHeaderRules determines whether a request header should be included in
