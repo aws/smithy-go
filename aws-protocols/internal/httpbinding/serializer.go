@@ -1,23 +1,20 @@
 package httpbinding
 
 import (
-	"bytes"
 	"encoding/base64"
-	"fmt"
 	"math/big"
 	"strconv"
 	"time"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/encoding"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/aws/smithy-go/traits"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // ShapeSerializer serializes shapes to HTTP request components based on HTTP binding traits.
 type ShapeSerializer struct {
 	req     *smithyhttp.Request
-	payload *bytes.Buffer
 	scratch []byte
 }
 
@@ -27,14 +24,12 @@ var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
 func New(req *smithyhttp.Request) *ShapeSerializer {
 	return &ShapeSerializer{
 		req:     req,
-		payload: &bytes.Buffer{},
 		scratch: make([]byte, 64),
 	}
 }
 
-// Bytes returns the payload bytes.
 func (s *ShapeSerializer) Bytes() []byte {
-	return s.payload.Bytes()
+	return nil
 }
 
 func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
@@ -146,21 +141,11 @@ func (s *ShapeSerializer) WriteStringPtr(schema *smithy.Schema, v *string) {
 }
 
 func (s *ShapeSerializer) WriteBigInteger(schema *smithy.Schema, v big.Int) {
-	str := v.Text(10)
-	if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](schema); ok {
-		s.req.Header.Set(h.Name, str)
-	} else if q, ok := smithy.SchemaTrait[*traits.HTTPQuery](schema); ok {
-		s.req.URL.Query().Set(q.Name, str)
-	}
+	panic("BigInteger is not supported")
 }
 
 func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v big.Float) {
-	str := v.Text('e', -1)
-	if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](schema); ok {
-		s.req.Header.Set(h.Name, str)
-	} else if q, ok := smithy.SchemaTrait[*traits.HTTPQuery](schema); ok {
-		s.req.URL.Query().Set(q.Name, str)
-	}
+	panic("BigDecimal is not supported")
 }
 
 func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
@@ -211,22 +196,3 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {}
 func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, key string) {}
 
 func (s *ShapeSerializer) CloseMap() {}
-
-// EncodeQueryString encodes the query string from the request URL.
-func (s *ShapeSerializer) EncodeQueryString() error {
-	query := s.req.URL.Query()
-	s.req.URL.RawQuery = query.Encode()
-	return nil
-}
-
-// SetPayload sets the request body from the serialized payload.
-func (s *ShapeSerializer) SetPayload() error {
-	if s.payload.Len() > 0 {
-		req, err := s.req.SetStream(bytes.NewReader(s.payload.Bytes()))
-		if err != nil {
-			return fmt.Errorf("set stream: %w", err)
-		}
-		*s.req = *req
-	}
-	return nil
-}
