@@ -63,6 +63,9 @@ type ShapeSerializer interface {
 	WriteTime(*Schema, time.Time)
 
 	WriteStruct(*Schema, Serializable)
+
+	WriteUnion(schema, variant *Schema, v Serializable)
+
 	WriteNil(*Schema)
 
 	WriteList(*Schema)

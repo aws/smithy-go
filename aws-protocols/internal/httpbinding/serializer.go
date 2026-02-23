@@ -33,6 +33,10 @@ func (s *ShapeSerializer) Bytes() []byte {
 	return nil
 }
 
+// WriteUnion serializers a union to an HTTP binding.
+func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
+}
+
 // WriteInt8 serializes an int8 value to HTTP headers or query parameters.
 func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
 	s.writeInt(schema, int64(v))

@@ -236,6 +236,26 @@ func (ss *ShapeSerializer) WriteDocument(s *smithy.Schema, v any) {
 	panic("TODO")
 }
 
+func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
+	switch enc := s.head.Top().(type) {
+	case *Object:
+		s.head.Push(enc.Key(schema.ID.Member).Object())
+	case *Array:
+		s.head.Push(enc.Value().Object())
+	case Value:
+		s.head.Push(enc.Object())
+	default:
+		s.head.Push(s.root.Object())
+	}
+
+	top := s.head.Top().(*Object)
+	s.head.Push(top.Key(variant.ID.Member))
+
+	v.Serialize(s)
+
+	s.head.Pop()
+}
+
 func (ss *ShapeSerializer) WriteStruct(s *smithy.Schema, v smithy.Serializable) {
 	switch enc := ss.head.Top().(type) {
 	case *Object:
