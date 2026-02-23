@@ -27,6 +27,8 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.InputTrait;
+import software.amazon.smithy.model.traits.OutputTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -145,8 +147,14 @@ public final class StructureGenerator implements Runnable {
         writer.closeBlock("}").write("");
 
         if (useExperimentalSerde) {
-            writer.write(new StructureSerializer(ctx, shape));
-            writer.write(new StructureDeserializer(ctx, shape));
+            if (shape.hasTrait(InputTrait.class)) {
+                writer.write(new StructureSerializer(ctx, shape));
+            } else if (shape.hasTrait(OutputTrait.class)) {
+                writer.write(new StructureDeserializer(ctx, shape));
+            } else {
+                writer.write(new StructureSerializer(ctx, shape));
+                writer.write(new StructureDeserializer(ctx, shape));
+            }
         }
     }
 
