@@ -121,6 +121,9 @@ type ShapeDeserializer interface {
 	// more members, with any decode error in the error. use other deserializer
 	// methods to read the expected type.
 	ReadStructMember() (*Schema, error)
+
+	// returns the schema for the variant that the union is
+	ReadUnion(*Schema) (*Schema, error)
 }
 
 // Serializable is an entity that can describe itself to a ShapeSerializer to

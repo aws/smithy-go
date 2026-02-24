@@ -331,6 +331,39 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	return member, nil
 }
 
+func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
+	tok, err := d.token()
+	if err != nil {
+		return nil, err
+	}
+
+	delim, ok := tok.(json.Delim)
+	if !ok || delim != '{' {
+		return nil, fmt.Errorf("expected '{', got %v", tok)
+	}
+
+	if !d.dec.More() {
+		return nil, fmt.Errorf("union must have exactly one member")
+	}
+
+	tok, err = d.token()
+	if err != nil {
+		return nil, err
+	}
+
+	key, ok := tok.(string)
+	if !ok {
+		return nil, fmt.Errorf("expected string key, got %T", tok)
+	}
+
+	member := s.Members[key]
+	if member == nil {
+		return nil, fmt.Errorf("unknown union variant: %s", key)
+	}
+
+	return member, nil
+}
+
 // used to skip over a struct member that we didn't have a schema for, though
 // it also calls itself
 func (d *ShapeDeserializer) skip() error {

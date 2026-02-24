@@ -101,6 +101,7 @@ public class UnionGenerator {
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
 
             generateMemberSerializer(writer, exportedMemberName, target);
+            generateMemberDeserializer(writer, exportedMemberName, target);
         }
     }
     
@@ -125,6 +126,39 @@ public class UnionGenerator {
                 case STRUCTURE -> writer.write("v.Value.Serialize(s)");
                 case LIST, SET, MAP -> writer.write("serialize$L(s, nil, v.Value)", target.getId().getName());
                 default -> writer.write("// TODO: serialize union member type $L", target.getType());
+            }
+        });
+    }
+
+    private void generateMemberDeserializer(GoWriter writer, String memberName, Shape target) {
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", memberName, () -> {
+            switch (target.getType()) {
+                case BYTE -> writer.write("return d.ReadInt8(nil, &v.Value)");
+                case SHORT -> writer.write("return d.ReadInt16(nil, &v.Value)");
+                case INTEGER -> writer.write("return d.ReadInt32(nil, &v.Value)");
+                case LONG -> writer.write("return d.ReadInt64(nil, &v.Value)");
+                case FLOAT -> writer.write("return d.ReadFloat32(nil, &v.Value)");
+                case DOUBLE -> writer.write("return d.ReadFloat64(nil, &v.Value)");
+                case BOOLEAN -> writer.write("return d.ReadBool(nil, &v.Value)");
+                case STRING -> writer.write("return d.ReadString(nil, &v.Value)");
+                case BLOB -> writer.write("return d.ReadBlob(nil, &v.Value)");
+                case TIMESTAMP -> writer.write("return d.ReadTime(nil, &v.Value)");
+                case ENUM -> {
+                    writer.write("var s string");
+                    writer.write("if err := d.ReadString(nil, &s); err != nil { return err }");
+                    writer.write("v.Value = $T(s)", symbolProvider.toSymbol(target));
+                    writer.write("return nil");
+                }
+                case INT_ENUM -> {
+                    writer.write("var i int32");
+                    writer.write("if err := d.ReadInt32(nil, &i); err != nil { return err }");
+                    writer.write("v.Value = $T(i)", symbolProvider.toSymbol(target));
+                    writer.write("return nil");
+                }
+                case STRUCTURE -> writer.write("return v.Value.Deserialize(d)");
+                case LIST, MAP, UNION -> writer.write("return deserialize$L(d, nil, &v.Value)", target.getId().getName());
+                default -> writer.write("return nil // TODO: deserialize union member type $L", target.getType());
             }
         });
     }
