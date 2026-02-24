@@ -68,6 +68,26 @@ type Schema struct {
 	Traits  map[string]Trait   // trait ID -> trait
 }
 
+// NewSchema new schema.
+func NewSchema(id ShapeID, typ ShapeType, members []*Schema, traits ...Trait) *Schema {
+	memberMap := make(map[string]*Schema, len(members))
+	for _, m := range members {
+		memberMap[m.ID.Member] = m
+	}
+
+	traitMap := make(map[string]Trait, len(traits))
+	for _, t := range traits {
+		traitMap[t.TraitID()] = t
+	}
+
+	return &Schema{
+		ID:      id,
+		Type:    typ,
+		Members: memberMap,
+		Traits:  traitMap,
+	}
+}
+
 // NewMember creates a member schema from a target schema, overriding traits.
 //
 // Traits provided for the member override any traits on the target if there

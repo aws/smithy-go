@@ -41,6 +41,7 @@ import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
 import software.amazon.smithy.go.codegen.serde2.MapSerializer;
 import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
 import software.amazon.smithy.go.codegen.serde2.Serde2SerializeRequestMiddleware;
+import software.amazon.smithy.go.codegen.serde2.UnionSerializer;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
@@ -274,11 +275,29 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
-            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
-                    Writable.map(shapes, it -> new SchemaGenerator(ctx, it), true));
+            // Two-phase schema generation to avoid initialization cycles
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
+                // Phase 1: Declare all schemas
+                for (Shape shape : shapes) {
+                    new SchemaGenerator(ctx, shape).accept(writer);
+                }
+                
+                // Phase 2: Initialize members (after all schemas are declared)
+                writer.write("");
+                writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
+                writer.openBlock("func init() {", "}", () -> {
+                    for (Shape shape : shapes) {
+                        new SchemaGenerator(ctx, shape).acceptMembersInit(writer);
+                    }
+                });
+            });
 
             var lists = ctx.serdeShapes(ListShape.class);
             var maps = ctx.serdeShapes(MapShape.class);
+            var unionSerdes = ctx.serdeShapes(UnionShape.class);
+
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
 
             // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
             // generate these twice since we don't want to export them

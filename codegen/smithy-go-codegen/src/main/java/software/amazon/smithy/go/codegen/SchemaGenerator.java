@@ -42,30 +42,54 @@ public class SchemaGenerator implements Writable {
                                 Name: $name:S,
                             },
                             Type: smithy.ShapeType$type:L,
-                            $members:W
                             $traits:W
                         }
-                        $memberVars:W
+                        $memberVarDecls:W
                         """,
                 Map.of(
                         "ident", getSchemaName(shape),
                         "namespace", shape.getId().getNamespace(),
                         "name", shape.getId().getName(),
                         "type", StringUtils.capitalize(shape.getType().toString()),
-                        "members", renderMembers(),
                         "traits", renderTraits(),
-                        "memberVars", Writable.map(shape.members(), this::renderMemberIdent, true)
+                        "memberVarDecls", Writable.map(shape.members(), this::renderMemberVarDecl, true)
                 ));
     }
 
-    private Writable renderMembers() {
+    public void acceptMembersInit(GoWriter writer) {
         if (shape.members().isEmpty()) {
-            return emptyGoTemplate();
+            return;
         }
+        writer.writeGoTemplate("""
+                        $ident:L.Members = map[string]*smithy.Schema{
+                            $members:W
+                        }
+                        $memberVarAssigns:W
+                        """,
+                Map.of(
+                        "ident", getSchemaName(shape),
+                        "members", Writable.map(shape.members(), this::renderMemberMapEntry),
+                        "memberVarAssigns", Writable.map(shape.members(), this::renderMemberVarAssign, true)
+                ));
+    }
+
+    private Writable renderMemberVarDecl(MemberShape member) {
         return goTemplate("""
-                Members: map[string]*smithy.Schema{
-                    $W
-                },""", Writable.map(shape.members(), this::renderMemberMapEntry));
+                        var $ident:L *smithy.Schema
+                        """,
+                Map.of("ident", getMemberSchemaName(shape, member)));
+    }
+
+    private Writable renderMemberVarAssign(MemberShape member) {
+        var memberName = member.getMemberName();
+        return goTemplate("""
+                        $ident:L = $schema:L.Members[$name:S]
+                        """,
+                Map.of(
+                        "ident", getMemberSchemaName(shape, member),
+                        "schema", getSchemaName(shape),
+                        "name", memberName
+                ));
     }
 
     private Writable renderTraits() {
@@ -79,6 +103,7 @@ public class SchemaGenerator implements Writable {
     }
 
     private Writable renderMemberIdent(MemberShape member) {
+        // This method is no longer used - replaced by renderMemberVarDecl and renderMemberVarAssign
         var memberName = member.getMemberName();
         return goTemplate("""
                         var $ident:L = $schema:L.Members[$name:S]
