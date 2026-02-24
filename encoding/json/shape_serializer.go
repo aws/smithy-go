@@ -232,6 +232,12 @@ func (ss *ShapeSerializer) WriteTime(s *smithy.Schema, v time.Time) {
 	panic("TODO")
 }
 
+func (ss *ShapeSerializer) WriteTimePtr(s *smithy.Schema, v *time.Time) {
+	if v != nil {
+		ss.WriteTime(s, *v)
+	}
+}
+
 func (ss *ShapeSerializer) WriteDocument(s *smithy.Schema, v any) {
 	panic("TODO")
 }

@@ -44,8 +44,21 @@ public class MapSerializer implements Writable {
 
     private Writable renderSerializeValue() {
         return switch (value.getType()) {
+            case BYTE -> goTemplate("s.WriteInt8(nil, vv)");
+            case SHORT -> goTemplate("s.WriteInt16(nil, vv)");
+            case INTEGER -> goTemplate("s.WriteInt32(nil, vv)");
+            case LONG -> goTemplate("s.WriteInt64(nil, vv)");
+            case FLOAT -> goTemplate("s.WriteFloat32(nil, vv)");
+            case DOUBLE -> goTemplate("s.WriteFloat64(nil, vv)");
+            case BOOLEAN -> goTemplate("s.WriteBool(nil, vv)");
             case STRING -> goTemplate("s.WriteString(nil, vv)");
+            case ENUM -> goTemplate("s.WriteString(nil, string(vv))");
+            case BLOB -> goTemplate("s.WriteBlob(nil, vv)");
+            case TIMESTAMP -> goTemplate("s.WriteTime(nil, vv)");
+            case BIG_INTEGER -> goTemplate("s.WriteBigInteger(nil, vv)");
+            case BIG_DECIMAL -> goTemplate("s.WriteBigDecimal(nil, vv)");
             case STRUCTURE -> goTemplate("vv.Serialize(s)");
+            case LIST, MAP, UNION -> goTemplate("serialize$L(s, nil, vv)", value.getId().getName());
             default -> emptyGoTemplate();
         };
     }

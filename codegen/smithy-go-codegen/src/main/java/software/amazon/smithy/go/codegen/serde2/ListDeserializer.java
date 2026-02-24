@@ -55,6 +55,10 @@ public class ListDeserializer implements Writable {
             case BLOB -> goTemplate("d.ReadBlob(nil, &vv)");
             case INTEGER -> goTemplate("d.ReadInt32(nil, &vv)");
             case LONG -> goTemplate("d.ReadInt64(nil, &vv)");
+            case FLOAT -> goTemplate("d.ReadFloat32(nil, &vv)");
+            case DOUBLE -> goTemplate("d.ReadFloat64(nil, &vv)");
+            case BOOLEAN -> goTemplate("d.ReadBool(nil, &vv)");
+            case UNION, MAP -> goTemplate("deserialize$L(d, nil, &vv)", member.getId().getName());
             default -> emptyGoTemplate();
         };
     }

@@ -75,7 +75,7 @@ public final class StructureSerializer implements Writable {
             case LIST, SET, MAP ->
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
 
-            case TIMESTAMP -> writer.write("s.WriteTime$L($L, *$L)", ptrSuffix, schemaName, ident);
+            case TIMESTAMP -> writer.write("s.WriteTime$L($L, $L)", ptrSuffix, schemaName, ident);
 
             case BLOB -> writer.write("s.WriteBlob($L, $L)", schemaName, ident);
 

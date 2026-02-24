@@ -99,7 +99,34 @@ public class UnionGenerator {
             });
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
+
+            generateMemberSerializer(writer, exportedMemberName, target);
         }
+    }
+    
+    private void generateMemberSerializer(GoWriter writer, String memberName, Shape target) {
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", memberName, () -> {
+            switch (target.getType()) {
+                case BYTE -> writer.write("s.WriteInt8(nil, v.Value)");
+                case SHORT -> writer.write("s.WriteInt16(nil, v.Value)");
+                case INTEGER -> writer.write("s.WriteInt32(nil, v.Value)");
+                case LONG -> writer.write("s.WriteInt64(nil, v.Value)");
+                case FLOAT -> writer.write("s.WriteFloat32(nil, v.Value)");
+                case DOUBLE -> writer.write("s.WriteFloat64(nil, v.Value)");
+                case BOOLEAN -> writer.write("s.WriteBool(nil, v.Value)");
+                case STRING -> writer.write("s.WriteString(nil, v.Value)");
+                case BLOB -> writer.write("s.WriteBlob(nil, v.Value)");
+                case TIMESTAMP -> writer.write("s.WriteTime(nil, v.Value)");
+                case ENUM -> writer.write("s.WriteString(nil, string(v.Value))");
+                case INT_ENUM -> writer.write("s.WriteInt32(nil, int32(v.Value))");
+                case BIG_INTEGER -> writer.write("s.WriteBigInteger(nil, v.Value)");
+                case BIG_DECIMAL -> writer.write("s.WriteBigDecimal(nil, v.Value)");
+                case STRUCTURE -> writer.write("v.Value.Serialize(s)");
+                case LIST, SET, MAP -> writer.write("serialize$L(s, nil, v.Value)", target.getId().getName());
+                default -> writer.write("// TODO: serialize union member type $L", target.getType());
+            }
+        });
     }
 
     private boolean isEventStreamErrorMember(MemberShape memberShape) {

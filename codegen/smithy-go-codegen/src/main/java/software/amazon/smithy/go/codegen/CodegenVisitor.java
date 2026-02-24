@@ -41,6 +41,7 @@ import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
 import software.amazon.smithy.go.codegen.serde2.MapSerializer;
 import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
 import software.amazon.smithy.go.codegen.serde2.Serde2SerializeRequestMiddleware;
+import software.amazon.smithy.go.codegen.serde2.UnionDeserializer;
 import software.amazon.smithy.go.codegen.serde2.UnionSerializer;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
@@ -296,13 +297,19 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             var maps = ctx.serdeShapes(MapShape.class);
             var unionSerdes = ctx.serdeShapes(UnionShape.class);
 
-            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
-                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
-
             // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
             // generate these twice since we don't want to export them
             //
             // also rn we don't check for what's actually used in either package at all but DCE should take care of that
+
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(unionSerdes, it -> new UnionDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(unionSerdes, it -> new UnionDeserializer(ctx, it), true));
 
             ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
                     Writable.map(lists, it -> new ListSerializer(ctx, it), true));

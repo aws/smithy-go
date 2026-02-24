@@ -3,7 +3,9 @@ package software.amazon.smithy.go.codegen.serde2;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SchemaGenerator;
@@ -34,7 +36,7 @@ public class UnionSerializer implements Writable {
         writer.writeGoTemplate("""
                 func serialize$shapeName:L(s smithy.ShapeSerializer, schema *smithy.Schema, v $symbol:T) {
                     switch vv := v.(type) {
-                    $cases:W
+                        $cases:W
                     }
                 }
                 """, Map.of(
@@ -44,13 +46,15 @@ public class UnionSerializer implements Writable {
         ));
     }
 
-    private Writable renderCases(java.util.List<MemberShape> members) {
+    private Writable renderCases(List<MemberShape> members) {
         return (GoWriter w) -> {
-            var unionSymbol = ctx.symbolProvider().toSymbol(shape);
             for (var member : members) {
-                var memberName = ctx.symbolProvider().toMemberName(member);
+                var variantSymbol = Symbol.builder()
+                        .name(ctx.symbolProvider().toMemberName(member))
+                        .namespace(ctx.settings().getModuleName() + "/types", ".")
+                        .build();
                 var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member);
-                w.write("case *$L:", memberName);
+                w.write("case *$T:", variantSymbol);
                 w.write("    s.WriteUnion(schema, schemas.$L, vv)", variantSchema);
             }
         };
