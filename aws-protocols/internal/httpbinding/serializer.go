@@ -195,6 +195,13 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	}
 }
 
+// WriteTimePtr serializes a time pointer to HTTP headers or query parameters.
+func (s *ShapeSerializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
+	if v != nil {
+		s.WriteTime(schema, *v)
+	}
+}
+
 func formatTime(v time.Time, format string) string {
 	switch format {
 	case "date-time":
@@ -221,3 +228,6 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {}
 func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, key string) {}
 
 func (s *ShapeSerializer) CloseMap() {}
+
+func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v smithy.Document2) {}
+

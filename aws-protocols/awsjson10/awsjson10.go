@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	smithyjson "github.com/aws/smithy-go/encoding/json"
+	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -17,18 +17,12 @@ import (
 
 // New returns an instance of the awsJson 1.0 protocol.
 func New() *Protocol {
-	return &Protocol{
-		codec: &smithyjson.Codec{
-			UseJSONName: false, // awsJson1.0 ignores this
-		},
-	}
+	return &Protocol{}
 }
 
 // Protocol implements aws.protocols#awsJson10.
 type Protocol struct {
 	UseQueryCompatible bool
-
-	codec *smithyjson.Codec
 }
 
 var _ smithy.ClientProtocol[*smithyhttp.Request, *smithyhttp.Response] = (*Protocol)(nil)
@@ -51,7 +45,7 @@ func (p *Protocol) SerializeRequest(
 		req.Header.Set("X-Amzn-Query-Compatible", "true")
 	}
 
-	ss := p.codec.Serializer()
+	ss := awsjson.NewShapeSerializer()
 	in.Serialize(ss)
 
 	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
@@ -79,7 +73,7 @@ func (p *Protocol) DeserializeResponse(
 		return &smithy.DeserializationError{Err: err}
 	}
 
-	sd := p.codec.Deserializer(payload)
+	sd := awsjson.NewShapeDeserializer(payload)
 	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
@@ -140,7 +134,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 
 	errorBody.Seek(0, io.SeekStart)
 	errorBytes, _ := io.ReadAll(errorBody)
-	deser := p.codec.Deserializer(errorBytes)
+	deser := awsjson.NewShapeDeserializer(errorBytes)
 	if err := perr.Deserialize(deser); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
