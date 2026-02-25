@@ -238,10 +238,6 @@ func (ss *ShapeSerializer) WriteTimePtr(s *smithy.Schema, v *time.Time) {
 	}
 }
 
-func (ss *ShapeSerializer) WriteDocument(s *smithy.Schema, v any) {
-	panic("TODO")
-}
-
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
 	switch enc := s.head.Top().(type) {
 	case *Object:
@@ -292,10 +288,16 @@ func (ss *ShapeSerializer) WriteNil(s *smithy.Schema) {
 	}
 }
 
+// WriteBigInteger is unimplemented and will panic.
 func (ss *ShapeSerializer) WriteBigInteger(s *smithy.Schema, v big.Int) {
 	panic("unimplemented")
 }
 
+// WriteBigDecimal is unimplemented and will panic.
 func (ss *ShapeSerializer) WriteBigDecimal(s *smithy.Schema, v big.Float) {
 	panic("unimplemented")
+}
+
+// WriteDocument writes the opaque value of a document type to JSON.
+func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v smithy.Document2) {
 }

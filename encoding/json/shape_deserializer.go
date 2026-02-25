@@ -401,3 +401,8 @@ func (d *ShapeDeserializer) skip() error {
 		return nil // scalar, don't have to do anything else
 	}
 }
+
+func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *smithy.Document2) error {
+	panic("TODO")
+	return nil
+}

@@ -67,6 +67,8 @@ type ShapeSerializer interface {
 
 	WriteUnion(schema, variant *Schema, v Serializable)
 
+	WriteDocument(*Schema, Document2)
+
 	WriteNil(*Schema)
 
 	WriteList(*Schema)
@@ -124,6 +126,8 @@ type ShapeDeserializer interface {
 
 	// returns the schema for the variant that the union is
 	ReadUnion(*Schema) (*Schema, error)
+
+	ReadDocument(*Schema, *Document2) error
 }
 
 // Serializable is an entity that can describe itself to a ShapeSerializer to
