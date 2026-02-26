@@ -57,7 +57,7 @@ public class ListSerializer implements Writable {
             case TIMESTAMP -> goTemplate("s.WriteTime(nil, vv)");
             case BIG_INTEGER -> goTemplate("s.WriteBigInteger(nil, vv)");
             case BIG_DECIMAL -> goTemplate("s.WriteBigDecimal(nil, vv)");
-            case STRUCTURE -> goTemplate("s.WriteStruct(nil, &vv)");
+            case STRUCTURE -> goTemplate("vv.Serialize(s)");
             case LIST, MAP, UNION -> goTemplate("serialize$L(s, nil, vv)", member.getId().getName());
             default -> goTemplate("// TODO: $L", member.getType());
         };

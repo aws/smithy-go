@@ -1,6 +1,7 @@
 package json
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 
@@ -267,6 +268,13 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 }
 
 func (ss *ShapeSerializer) WriteStruct(s *smithy.Schema, v smithy.Serializable) {
+	fmt.Println("nil?")
+	if v == nil {
+		fmt.Println("yes")
+		return
+	}
+	fmt.Println("no")
+
 	switch enc := ss.head.Top().(type) {
 	case *smithyjson.Object:
 		ss.head.Push(enc.Key(s.ID.Member).Object())

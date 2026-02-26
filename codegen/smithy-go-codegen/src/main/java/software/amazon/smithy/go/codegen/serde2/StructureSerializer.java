@@ -82,7 +82,7 @@ public final class StructureSerializer implements Writable {
             case ENUM -> writer.write("s.WriteString($L, string($L))", schemaName, ident);
             case INT_ENUM -> writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
 
-            case STRUCTURE -> writer.write("$L.Serialize(s)", ident);
+            case STRUCTURE -> writer.write("if ($2L != nil) { s.WriteStruct($1L, $2L) }", schemaName, ident);
 
             case UNION -> writer.write("// TODO: union $L", ident);
 
