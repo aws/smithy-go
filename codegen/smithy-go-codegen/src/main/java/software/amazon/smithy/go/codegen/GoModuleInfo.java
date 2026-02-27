@@ -27,7 +27,7 @@ import software.amazon.smithy.utils.SmithyBuilder;
 
 public final class GoModuleInfo {
 
-    public static final String DEFAULT_GO_DIRECTIVE = "1.23";
+    public static final String DEFAULT_GO_DIRECTIVE = "1.24";
 
     private List<SymbolDependency> dependencies;
 
