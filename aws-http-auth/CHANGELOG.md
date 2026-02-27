@@ -1,3 +1,7 @@
+# v1.1.2 (2026-02-27)
+
+* **Dependency Update**: Bump minimum go version to 1.24.
+
 # v1.1.1 (2025-10-15)
 
 * **Dependency Update**: Bump minimum go version to 1.23.

@@ -1,3 +1,8 @@
+# Release (2026-02-27)
+
+## General Highlights
+* **Dependency Update**: Bump minimum go version to 1.24.
+
 # Release (2026-02-20)
 
 ## General Highlights
