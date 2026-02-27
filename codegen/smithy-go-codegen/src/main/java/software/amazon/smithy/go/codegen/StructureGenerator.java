@@ -52,7 +52,7 @@ public final class StructureGenerator implements Runnable {
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
     private final StructureShape shape;
-    private final Symbol symbol;
+    private Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
     private final boolean useExperimentalSerde;
@@ -75,6 +75,17 @@ public final class StructureGenerator implements Runnable {
         this.protocolGenerator = protocolGenerator;
         this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
         this.nilIndex = GoPointableIndex.of(model);
+    }
+
+    public StructureGenerator(
+            GoCodegenContext ctx,
+            GoWriter writer,
+            StructureShape shape,
+            ProtocolGenerator protocolGenerator,
+            Symbol symbolOverride
+    ) {
+        this(ctx, writer, shape, protocolGenerator);
+        this.symbol = symbolOverride;
     }
 
     @Override
