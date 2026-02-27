@@ -153,7 +153,7 @@ public final class OperationGenerator implements Runnable {
         } else {
             structOutputShape = outputShape;
         }
-        new StructureGenerator(ctx, writer, structOutputShape, protocolGenerator)
+        new StructureGenerator(ctx, writer, structOutputShape, protocolGenerator, symbolProvider.toSymbol(outputShape))
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
@@ -185,7 +185,7 @@ public final class OperationGenerator implements Runnable {
                 var nonStreamingOutput = outputShape.members().stream().filter(member -> !StreamingTrait.isEventStream(model, member)).toList();
                 StructureShape initialReplyStruct = outputShape.toBuilder().clearMembers().members(nonStreamingOutput).build();
 
-                new StructureGenerator(model, symbolProvider, writer, service, initialReplyStruct, initialReply, protocolGenerator)
+                new StructureGenerator(ctx, writer, initialReplyStruct, protocolGenerator, initialReply)
                     .renderStructure(() -> {
                         writer.writeDocs("Metadata pertaining to the operation's result.");
                         writer.write("ResultMetadata $T", metadataSymbol);
