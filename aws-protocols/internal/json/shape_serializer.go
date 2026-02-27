@@ -14,11 +14,16 @@ import (
 type ShapeSerializer struct {
 	root *smithyjson.Encoder
 	head stack
+
+	opts ShapeSerializerOptions
 }
+
+// ShapeSerializerOptions configures ShapeSerializer.
+type ShapeSerializerOptions struct{}
 
 var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
 
-func NewShapeSerializer() *ShapeSerializer {
+func NewShapeSerializer(opts ...func(*ShapeSerializerOptions)) *ShapeSerializer {
 	return &ShapeSerializer{
 		root: smithyjson.NewEncoder(),
 	}
