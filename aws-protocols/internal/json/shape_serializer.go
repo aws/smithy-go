@@ -19,236 +19,278 @@ type ShapeSerializer struct {
 }
 
 // ShapeSerializerOptions configures ShapeSerializer.
-type ShapeSerializerOptions struct{}
+type ShapeSerializerOptions struct {
+	// Controls whether scalar zero values (numbers, strings, bools) are
+	// written. If false (the default), zero values are not encoded.
+	//
+	// Pointer write methods are NOT affected by this option.
+	WriteZeroValues bool
+}
 
 var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
 
 func NewShapeSerializer(opts ...func(*ShapeSerializerOptions)) *ShapeSerializer {
+	o := ShapeSerializerOptions{}
+	for _, fn := range opts {
+		fn(&o)
+	}
 	return &ShapeSerializer{
 		root: smithyjson.NewEncoder(),
+		opts: o,
 	}
 }
 
-func (ss *ShapeSerializer) Bytes() []byte {
-	return ss.root.Bytes()
+func (s *ShapeSerializer) Bytes() []byte {
+	return s.root.Bytes()
 }
 
-func (ss *ShapeSerializer) WriteInt8Ptr(s *smithy.Schema, v *int8) {
+func (s *ShapeSerializer) WriteInt8Ptr(schema *smithy.Schema, v *int8) {
 	if v != nil {
-		ss.WriteInt8(s, *v)
+		s.withWriteZero(func() { s.WriteInt8(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt16Ptr(s *smithy.Schema, v *int16) {
+func (s *ShapeSerializer) WriteInt16Ptr(schema *smithy.Schema, v *int16) {
 	if v != nil {
-		ss.WriteInt16(s, *v)
+		s.withWriteZero(func() { s.WriteInt16(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt32Ptr(s *smithy.Schema, v *int32) {
+func (s *ShapeSerializer) WriteInt32Ptr(schema *smithy.Schema, v *int32) {
 	if v != nil {
-		ss.WriteInt32(s, *v)
+		s.withWriteZero(func() { s.WriteInt32(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt64Ptr(s *smithy.Schema, v *int64) {
+func (s *ShapeSerializer) WriteInt64Ptr(schema *smithy.Schema, v *int64) {
 	if v != nil {
-		ss.WriteInt64(s, *v)
+		s.withWriteZero(func() { s.WriteInt64(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteFloat32Ptr(s *smithy.Schema, v *float32) {
+func (s *ShapeSerializer) WriteFloat32Ptr(schema *smithy.Schema, v *float32) {
 	if v != nil {
-		ss.WriteFloat32(s, *v)
+		s.withWriteZero(func() { s.WriteFloat32(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteFloat64Ptr(s *smithy.Schema, v *float64) {
+func (s *ShapeSerializer) WriteFloat64Ptr(schema *smithy.Schema, v *float64) {
 	if v != nil {
-		ss.WriteFloat64(s, *v)
+		s.withWriteZero(func() { s.WriteFloat64(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteBoolPtr(s *smithy.Schema, v *bool) {
+func (s *ShapeSerializer) WriteBoolPtr(schema *smithy.Schema, v *bool) {
 	if v != nil {
-		ss.WriteBool(s, *v)
+		s.withWriteZero(func() { s.WriteBool(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteStringPtr(s *smithy.Schema, v *string) {
+func (s *ShapeSerializer) WriteStringPtr(schema *smithy.Schema, v *string) {
 	if v != nil {
-		ss.WriteString(s, *v)
+		s.withWriteZero(func() { s.WriteString(schema, *v) })
 	}
 }
 
-func (ss *ShapeSerializer) WriteBool(s *smithy.Schema, v bool) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) withWriteZero(fn func()) {
+	prev := s.opts.WriteZeroValues
+	s.opts.WriteZeroValues = true
+	fn()
+	s.opts.WriteZeroValues = prev
+}
+
+func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
+	if !s.opts.WriteZeroValues && !v {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Boolean(v)
+		enc.Key(schema.ID.Member).Boolean(v)
 	case *smithyjson.Array:
 		enc.Value().Boolean(v)
 	default:
-		ss.root.Boolean(v)
+		s.root.Boolean(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt8(s *smithy.Schema, v int8) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Byte(v)
+		enc.Key(schema.ID.Member).Byte(v)
 	case *smithyjson.Array:
 		enc.Value().Byte(v)
 	default:
-		ss.root.Byte(v)
+		s.root.Byte(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt16(s *smithy.Schema, v int16) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Short(v)
+		enc.Key(schema.ID.Member).Short(v)
 	case *smithyjson.Array:
 		enc.Value().Short(v)
 	default:
-		ss.root.Short(v)
+		s.root.Short(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt32(s *smithy.Schema, v int32) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Integer(v)
+		enc.Key(schema.ID.Member).Integer(v)
 	case *smithyjson.Array:
 		enc.Value().Integer(v)
 	case smithyjson.Value:
 		enc.Integer(v)
-		ss.head.Pop()
+		s.head.Pop()
 	default:
-		ss.root.Integer(v)
+		s.root.Integer(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteInt64(s *smithy.Schema, v int64) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Long(v)
+		enc.Key(schema.ID.Member).Long(v)
 	case *smithyjson.Array:
 		enc.Value().Long(v)
 	default:
-		ss.root.Long(v)
+		s.root.Long(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteString(s *smithy.Schema, v string) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).String(v)
+		enc.Key(schema.ID.Member).Float(v)
+	case *smithyjson.Array:
+		enc.Value().Float(v)
+	default:
+		s.root.Float(v)
+	}
+}
+
+func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
+	if !s.opts.WriteZeroValues && v == 0 {
+		return
+	}
+	switch enc := s.head.Top().(type) {
+	case *smithyjson.Object:
+		enc.Key(schema.ID.Member).Double(v)
+	case *smithyjson.Array:
+		enc.Value().Double(v)
+	default:
+		s.root.Double(v)
+	}
+}
+
+func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
+	if !s.opts.WriteZeroValues && v == "" {
+		return
+	}
+	switch enc := s.head.Top().(type) {
+	case *smithyjson.Object:
+		enc.Key(schema.ID.Member).String(v)
 	case *smithyjson.Array:
 		enc.Value().String(v)
 	case smithyjson.Value:
 		enc.String(v)
-		ss.head.Pop()
+		s.head.Pop()
 	default:
-		ss.root.Value.String(v)
+		s.root.Value.String(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteBlob(s *smithy.Schema, v []byte) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Base64EncodeBytes(v)
+		enc.Key(schema.ID.Member).Base64EncodeBytes(v)
 	case *smithyjson.Array:
 		enc.Value().Base64EncodeBytes(v)
 	case smithyjson.Value:
 		enc.Base64EncodeBytes(v)
-		ss.head.Pop()
+		s.head.Pop()
 	default:
-		ss.root.Value.Base64EncodeBytes(v)
+		s.root.Value.Base64EncodeBytes(v)
 	}
 }
 
-func (ss *ShapeSerializer) WriteList(s *smithy.Schema) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		ss.head.Push(enc.Key(s.ID.Member).Array())
+		s.head.Push(enc.Key(schema.ID.Member).Array())
 	case *smithyjson.Array:
-		ss.head.Push(enc.Value().Array())
+		s.head.Push(enc.Value().Array())
 	case smithyjson.Value:
-		ss.head.Push(enc.Array())
+		s.head.Push(enc.Array())
 	default:
-		ss.head.Push(ss.root.Array())
+		s.head.Push(s.root.Array())
 	}
 }
 
-func (ss *ShapeSerializer) CloseList() {
-	if enc, ok := ss.head.Top().(*smithyjson.Array); ok {
+func (s *ShapeSerializer) CloseList() {
+	if enc, ok := s.head.Top().(*smithyjson.Array); ok {
 		enc.Close()
-		ss.head.Pop()
+		s.head.Pop()
 	}
 }
 
-func (ss *ShapeSerializer) WriteMap(s *smithy.Schema) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		ss.head.Push(enc.Key(s.ID.Member).Object())
+		s.head.Push(enc.Key(schema.ID.Member).Object())
 	case *smithyjson.Array:
-		ss.head.Push(enc.Value().Object())
+		s.head.Push(enc.Value().Object())
 	case smithyjson.Value:
-		ss.head.Push(enc.Object())
+		s.head.Push(enc.Object())
 	default:
-		ss.head.Push(ss.root.Object())
+		s.head.Push(s.root.Object())
 	}
 }
 
-func (ss *ShapeSerializer) WriteKey(s *smithy.Schema, key string) {
-	if enc, ok := ss.head.Top().(*smithyjson.Object); ok {
-		ss.head.Push(enc.Key(key))
+func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, key string) {
+	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
+		s.head.Push(enc.Key(key))
 	}
 }
 
-func (ss *ShapeSerializer) CloseMap() {
-	if enc, ok := ss.head.Top().(*smithyjson.Object); ok {
+func (s *ShapeSerializer) CloseMap() {
+	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
 		enc.Close()
-		ss.head.Pop()
+		s.head.Pop()
 
 		// if this is a map _inside_ a map, pop off the underlying key encoder
 		// as well (for scalar values that's not necessarily since we can
 		// deterministically do it there)
-		if _, ok := ss.head.Top().(smithyjson.Value); ok {
-			ss.head.Pop()
+		if _, ok := s.head.Top().(smithyjson.Value); ok {
+			s.head.Pop()
 		}
 	}
 }
 
-func (ss *ShapeSerializer) WriteFloat32(s *smithy.Schema, v float32) {
-	switch enc := ss.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Float(v)
-	case *smithyjson.Array:
-		enc.Value().Float(v)
-	default:
-		ss.root.Float(v)
-	}
-}
-
-func (ss *ShapeSerializer) WriteFloat64(s *smithy.Schema, v float64) {
-	switch enc := ss.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Double(v)
-	case *smithyjson.Array:
-		enc.Value().Double(v)
-	default:
-		ss.root.Double(v)
-	}
-}
-
-func (ss *ShapeSerializer) WriteTime(s *smithy.Schema, v time.Time) {
+func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	panic("TODO")
 }
 
-func (ss *ShapeSerializer) WriteTimePtr(s *smithy.Schema, v *time.Time) {
+func (s *ShapeSerializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
 	if v != nil {
-		ss.WriteTime(s, *v)
+		s.WriteTime(schema, *v)
 	}
 }
 
@@ -272,7 +314,7 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 	s.head.Pop()
 }
 
-func (ss *ShapeSerializer) WriteStruct(s *smithy.Schema, v smithy.Serializable) {
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
 	fmt.Println("nil?")
 	if v == nil {
 		fmt.Println("yes")
@@ -280,42 +322,42 @@ func (ss *ShapeSerializer) WriteStruct(s *smithy.Schema, v smithy.Serializable) 
 	}
 	fmt.Println("no")
 
-	switch enc := ss.head.Top().(type) {
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		ss.head.Push(enc.Key(s.ID.Member).Object())
+		s.head.Push(enc.Key(schema.ID.Member).Object())
 	case *smithyjson.Array:
-		ss.head.Push(enc.Value().Object())
+		s.head.Push(enc.Value().Object())
 	case smithyjson.Value:
-		ss.head.Push(enc.Object())
+		s.head.Push(enc.Object())
 	default:
-		ss.head.Push(ss.root.Object())
+		s.head.Push(s.root.Object())
 	}
 
-	v.Serialize(ss)
-	ss.head.Pop()
+	v.Serialize(s)
+	s.head.Pop()
 }
 
-func (ss *ShapeSerializer) WriteNil(s *smithy.Schema) {
-	switch enc := ss.head.Top().(type) {
+func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
+	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		enc.Key(s.ID.Member).Null()
+		enc.Key(schema.ID.Member).Null()
 	case *smithyjson.Array:
 		enc.Value().Null()
 	case smithyjson.Value:
 		enc.Null()
-		ss.head.Pop()
+		s.head.Pop()
 	default:
-		ss.root.Null()
+		s.root.Null()
 	}
 }
 
 // WriteBigInteger is unimplemented and will panic.
-func (ss *ShapeSerializer) WriteBigInteger(s *smithy.Schema, v big.Int) {
+func (s *ShapeSerializer) WriteBigInteger(schema *smithy.Schema, v big.Int) {
 	panic("unimplemented")
 }
 
 // WriteBigDecimal is unimplemented and will panic.
-func (ss *ShapeSerializer) WriteBigDecimal(s *smithy.Schema, v big.Float) {
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v big.Float) {
 	panic("unimplemented")
 }
 
