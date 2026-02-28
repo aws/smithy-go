@@ -270,20 +270,20 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
+
         if (settings.useExperimentalSerde()) {
+            protocolDocumentGenerator.generateLegacyInternalDocumentTypes(ctx);
+
             var shapes = new ArrayList<>(ctx.serdeShapes());
             shapes.add(ShapeUtil.UNIT); // targeted by enum members, just generate a blank schema for it
 
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
-            // Two-phase schema generation to avoid initialization cycles
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
-                // Phase 1: Declare all schemas
                 for (Shape shape : shapes) {
                     new SchemaGenerator(ctx, shape).accept(writer);
                 }
                 
-                // Phase 2: Initialize members (after all schemas are declared)
                 writer.write("");
                 writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
                 writer.openBlock("func init() {", "}", () -> {
@@ -399,7 +399,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void unionShape(UnionShape shape) {
-        UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
+        UnionGenerator generator = new UnionGenerator(ctx, model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
 

@@ -353,6 +353,62 @@ public final class ProtocolDocumentGenerator {
         });
     }
 
+    // Used for schema-serde, generates legacy JSON-based document support to preserve existing APIs/behavior.
+    // Copied from above generateInternalDocumentTypes which will eventually be deleted when schema-serde is complete.
+    public void generateLegacyInternalDocumentTypes(GoCodegenContext ctx) {
+        if (!this.hasDocumentShapes) {
+            return;
+        }
+
+        writeInternalDocumentPackage("document.go", writer -> {
+            Symbol marshalerSymbol = getInternalDocumentSymbol("documentMarshaler",
+                    true);
+            Symbol unmarshalerSymbol = getInternalDocumentSymbol("documentUnmarshaler", true);
+
+            Symbol isDocumentInterface = getInternalDocumentSymbol(INTERNAL_IS_DOCUMENT_INTERFACE);
+
+            writeInternalDocumentImplementation(
+                    writer,
+                    marshalerSymbol,
+                    () -> LegacyJsonProtocolDocumentUtils.generateProtocolDocumentMarshalerUnmarshalDocument(ctx, writer),
+                    () -> LegacyJsonProtocolDocumentUtils.generateProtocolDocumentMarshalerMarshalDocument(ctx, writer));
+            writeInternalDocumentImplementation(writer,
+                    unmarshalerSymbol,
+                    () -> LegacyJsonProtocolDocumentUtils.generateProtocolDocumentUnmarshalerUnmarshalDocument(ctx, writer),
+                    () -> LegacyJsonProtocolDocumentUtils.generateProtocolDocumentUnmarshalerMarshalDocument(ctx, writer));
+
+            Symbol documentInterfaceSymbol = getInternalDocumentSymbol(DOCUMENT_INTERFACE_NAME);
+
+            writer.writeDocs(String.format("%s creates a new document marshaler for the given input type",
+                    INTERNAL_NEW_DOCUMENT_MARSHALER_FUNC));
+            writer.openBlock("func $L(v interface{}) $T {", "}", INTERNAL_NEW_DOCUMENT_MARSHALER_FUNC,
+                    documentInterfaceSymbol, () -> {
+                        writer.openBlock("return &$T{", "}", marshalerSymbol, () -> {
+                            writer.write("value: v,");
+                        });
+                    }).write("");
+
+            writer.writeDocs(String.format("%s creates a new document unmarshaler for the given service response",
+                    INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC));
+            writer.openBlock("func $L(v interface{}) $T {", "}", INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC,
+                    documentInterfaceSymbol, () -> {
+                        writer.openBlock("return &$T{", "}", unmarshalerSymbol, () -> {
+                            writer.write("value: v,");
+                        });
+                    }).write("");
+
+            writer.writeDocs(String.format("%s returns whether the given Interface implementation is"
+                    + " a valid client implementation", isDocumentInterface));
+            writer.openBlock("func $T(v Interface) (ok bool) {", "}", isDocumentInterface, () -> {
+                writer.openBlock("defer func() {", "}()", () -> {
+                    writer.openBlock("if err := recover(); err != nil {", "}", () -> writer.write("ok = false"));
+                });
+                writer.write("v.$L()", IS_SMITHY_DOCUMENT_METHOD);
+                writer.write("return true");
+            }).write("");
+        });
+    }
+
     private void writeInternalDocumentImplementation(
             GoWriter writer,
             Symbol typeSymbol,

@@ -4,6 +4,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -11,6 +12,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 public class ListDeserializer implements Writable {
@@ -42,9 +44,16 @@ public class ListDeserializer implements Writable {
                 """, Map.of(
                 "shapeName", shape.getId().getName(),
                 "symbol", ctx.symbolProvider().toSymbol(shape),
-                "memberSymbol", member.isEnumShape() ? GoUniverseTypes.String : ctx.symbolProvider().toSymbol(member),
+                "memberSymbol", switch (member.getType()) {
+                    case ENUM -> GoUniverseTypes.String;
+                    case INT_ENUM -> GoUniverseTypes.Int32;
+                    default -> ctx.symbolProvider().toSymbol(member);
+                },
                 "deserializeMember", renderDeserializeMember(),
-                "cast", member.isEnumShape() ? goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(member)) : goTemplate("vv")
+                "cast", switch (member.getType()) {
+                    case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(member));
+                    default -> goTemplate("vv");
+                }
         ));
     }
 
@@ -53,12 +62,12 @@ public class ListDeserializer implements Writable {
             case STRING, ENUM -> goTemplate("d.ReadString(nil, &vv)");
             case STRUCTURE -> goTemplate("vv.Deserialize(d)");
             case BLOB -> goTemplate("d.ReadBlob(nil, &vv)");
-            case INTEGER -> goTemplate("d.ReadInt32(nil, &vv)");
+            case INTEGER, INT_ENUM -> goTemplate("d.ReadInt32(nil, &vv)");
             case LONG -> goTemplate("d.ReadInt64(nil, &vv)");
             case FLOAT -> goTemplate("d.ReadFloat32(nil, &vv)");
             case DOUBLE -> goTemplate("d.ReadFloat64(nil, &vv)");
             case BOOLEAN -> goTemplate("d.ReadBool(nil, &vv)");
-            case UNION, MAP -> goTemplate("deserialize$L(d, nil, &vv)", member.getId().getName());
+            case LIST, MAP, UNION -> goTemplate("deserialize$L(d, nil, &vv)", member.getId().getName());
             default -> emptyGoTemplate();
         };
     }

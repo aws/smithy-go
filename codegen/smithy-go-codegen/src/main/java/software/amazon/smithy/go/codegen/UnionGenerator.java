@@ -38,12 +38,14 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public class UnionGenerator {
     public static final String UNKNOWN_MEMBER_NAME = "UnknownUnionMember";
 
+    private final GoCodegenContext ctx;
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final UnionShape shape;
     private final boolean isEventStream;
 
-    public UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
+    public UnionGenerator(GoCodegenContext ctx, Model model, SymbolProvider symbolProvider, UnionShape shape) {
+        this.ctx = ctx;
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.shape = shape;
@@ -100,8 +102,10 @@ public class UnionGenerator {
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
 
-            generateMemberSerializer(writer, exportedMemberName, target);
-            generateMemberDeserializer(writer, exportedMemberName, target);
+            if (ctx.settings().useExperimentalSerde()) {
+                generateMemberSerializer(writer, exportedMemberName, target);
+                generateMemberDeserializer(writer, exportedMemberName, target);
+            }
         }
     }
     
