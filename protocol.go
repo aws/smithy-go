@@ -104,6 +104,9 @@ type ShapeDeserializer interface {
 	ReadString(*Schema, *string) error
 	ReadStringPtr(*Schema, **string) error
 
+	ReadTime(*Schema, *time.Time) error
+	ReadTimePtr(*Schema, **time.Time) error
+
 	ReadBlob(*Schema, *[]byte) error
 
 	ReadList(*Schema) error

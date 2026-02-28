@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/aws/smithy-go"
+	smithytime "github.com/aws/smithy-go/time"
+	"github.com/aws/smithy-go/traits"
 )
 
 // ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
@@ -212,6 +215,54 @@ func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 		*v = new(string)
 	}
 	return d.ReadString(s, *v)
+}
+
+func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error {
+	format := "epoch-seconds"
+	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
+		format = t.Format
+	}
+
+	switch format {
+	case "epoch-seconds":
+		n, err := d.readFloat()
+		if err != nil {
+			return err
+		}
+		*v = smithytime.ParseEpochSeconds(n)
+		return nil
+	case "date-time":
+		var s string
+		if err := d.ReadString(schema, &s); err != nil {
+			return err
+		}
+		t, err := smithytime.ParseDateTime(s)
+		if err != nil {
+			return err
+		}
+		*v = t
+		return nil
+	case "http-date":
+		var s string
+		if err := d.ReadString(schema, &s); err != nil {
+			return err
+		}
+		t, err := smithytime.ParseHTTPDate(s)
+		if err != nil {
+			return err
+		}
+		*v = t
+		return nil
+	default:
+		return fmt.Errorf("unknown timestamp format: %s", format)
+	}
+}
+
+func (d *ShapeDeserializer) ReadTimePtr(schema *smithy.Schema, v **time.Time) error {
+	if *v == nil {
+		*v = new(time.Time)
+	}
+	return d.ReadTime(schema, *v)
 }
 
 func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {

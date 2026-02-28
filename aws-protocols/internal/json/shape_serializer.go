@@ -8,6 +8,8 @@ import (
 	"github.com/aws/smithy-go"
 	smithydocumentjson "github.com/aws/smithy-go/document/json"
 	smithyjson "github.com/aws/smithy-go/encoding/json"
+	smithytime "github.com/aws/smithy-go/time"
+	"github.com/aws/smithy-go/traits"
 )
 
 // ShapeSerializer implements marshaling of Smithy shapes to JSON.
@@ -285,7 +287,19 @@ func (s *ShapeSerializer) CloseMap() {
 }
 
 func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
-	panic("TODO")
+	format := "epoch-seconds"
+	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
+		format = t.Format
+	}
+
+	switch format {
+	case "date-time":
+		s.WriteString(schema, smithytime.FormatDateTime(v))
+	case "http-date":
+		s.WriteString(schema, smithytime.FormatHTTPDate(v))
+	default:
+		s.WriteFloat64(schema, smithytime.FormatEpochSeconds(v))
+	}
 }
 
 func (s *ShapeSerializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
