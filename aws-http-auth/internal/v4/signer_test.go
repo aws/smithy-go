@@ -42,14 +42,14 @@ func TestQueryStringAuth_IncludesSignedHeadersInCanonicalRequest(t *testing.T) {
 	req.URL.RawQuery = "existing=param"
 
 	s := &Signer{
-		Request:              req,
-		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
-		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
-		Algorithm:            "AWS4-HMAC-SHA256",
-		CredentialScope:      "20240101/us-east-1/service/aws4_request",
-		Finalizer:            identityFinalizer{},
-		SignatureType: v4.SignatureTypeQueryString,
+		Request:         req,
+		PayloadHash:     []byte("UNSIGNED-PAYLOAD"),
+		Time:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:     credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
+		Algorithm:       "AWS4-HMAC-SHA256",
+		CredentialScope: "20240101/us-east-1/service/aws4_request",
+		Finalizer:       identityFinalizer{},
+		SignatureType:   v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()
@@ -85,14 +85,14 @@ func TestQueryStringAuth_WithSessionToken(t *testing.T) {
 	}
 
 	s := &Signer{
-		Request:              req,
-		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
-		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET", SessionToken: "TOKEN123"},
-		Algorithm:            "AWS4-HMAC-SHA256",
-		CredentialScope:      "20240101/us-east-1/service/aws4_request",
-		Finalizer:            identityFinalizer{},
-		SignatureType: v4.SignatureTypeQueryString,
+		Request:         req,
+		PayloadHash:     []byte("UNSIGNED-PAYLOAD"),
+		Time:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:     credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET", SessionToken: "TOKEN123"},
+		Algorithm:       "AWS4-HMAC-SHA256",
+		CredentialScope: "20240101/us-east-1/service/aws4_request",
+		Finalizer:       identityFinalizer{},
+		SignatureType:   v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()
@@ -121,14 +121,14 @@ func TestQueryStringAuth_WithRegionSet(t *testing.T) {
 	req.URL.RawQuery = query.Encode()
 
 	s := &Signer{
-		Request:              req,
-		PayloadHash:          []byte("UNSIGNED-PAYLOAD"),
-		Time:                 time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Credentials:          credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
-		Algorithm:            "AWS4-ECDSA-P256-SHA256",
-		CredentialScope:      "20240101/service/aws4_request",
-		Finalizer:            identityFinalizer{},
-		SignatureType: v4.SignatureTypeQueryString,
+		Request:         req,
+		PayloadHash:     []byte("UNSIGNED-PAYLOAD"),
+		Time:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Credentials:     credentials.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
+		Algorithm:       "AWS4-ECDSA-P256-SHA256",
+		CredentialScope: "20240101/service/aws4_request",
+		Finalizer:       identityFinalizer{},
+		SignatureType:   v4.SignatureTypeQueryString,
 	}
 
 	err = s.Do()
@@ -517,5 +517,103 @@ func TestSetRequiredHeaders_UnsignedPayload(t *testing.T) {
 	}
 	if expect, actual := "UNSIGNED-PAYLOAD", s.Request.Header.Get("X-Amz-Content-Sha256"); expect != actual {
 		t.Errorf("sha256 header %q != %q", expect, actual)
+	}
+}
+
+func TestEmptyPayloadWithoutSentinel(t *testing.T) {
+	req, err := http.NewRequest("GIT",
+		"https://service.region.amazonaws.com/v1/repos/test",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Signer{
+		Request:     req,
+		PayloadHash: nil,
+		Time:        time.Unix(0, 0).UTC(),
+		Credentials: credentials.Credentials{},
+		Options: v4.SignerOptions{
+			HeaderRules:                    defaultHeaderRules{},
+			DisableUnsignedPayloadSentinel: true,
+		},
+	}
+
+	s.setRequiredHeaders()
+
+	if actual := s.Request.Header.Get("Host"); s.Request.Host != actual {
+		t.Errorf("region header %q != %q", s.Request.Host, actual)
+	}
+
+	if expect, actual := "19700101T000000Z", s.Request.Header.Get("X-Amz-Date"); expect != actual {
+		t.Errorf("date header %q != %q", expect, actual)
+	}
+	if expect, actual := "", s.Request.Header.Get("X-Amz-Security-Token"); expect != actual {
+		t.Errorf("token header %q != %q", expect, actual)
+	}
+	if expect, actual := "", s.Request.Header.Get("X-Amz-Content-Sha256"); expect != actual {
+		t.Errorf("sha256 header %q != %q", expect, actual)
+	}
+
+	canonicalRequest, _ := s.buildCanonicalRequest()
+
+	if expect := `GIT
+/v1/repos/test
+
+host:service.region.amazonaws.com
+x-amz-date:19700101T000000Z
+
+host;x-amz-date
+`; expect != canonicalRequest {
+		t.Errorf("canonical request %q != %q", expect, canonicalRequest)
+	}
+}
+
+func TestCanonicalTimeFormat(t *testing.T) {
+	req, err := http.NewRequest("GIT",
+		"https://service.region.amazonaws.com/v1/repos/test",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Signer{
+		Request:     req,
+		PayloadHash: []byte("UNSIGNED-PAYLOAD"),
+		Time:        time.Unix(0, 0).UTC(),
+		Credentials: credentials.Credentials{},
+		Options: v4.SignerOptions{
+			AddPayloadHashHeader: true,
+			CanonicalTimeFormat:  time.RFC1123,
+			HeaderRules:          defaultHeaderRules{},
+		},
+	}
+
+	s.setRequiredHeaders()
+	if actual := s.Request.Header.Get("Host"); s.Request.Host != actual {
+		t.Errorf("region header %q != %q", s.Request.Host, actual)
+	}
+	if expect, actual := "Thu, 01 Jan 1970 00:00:00 UTC", s.Request.Header.Get("X-Amz-Date"); expect != actual {
+		t.Errorf("date header %q != %q", expect, actual)
+	}
+	if expect, actual := "", s.Request.Header.Get("X-Amz-Security-Token"); expect != actual {
+		t.Errorf("token header %q != %q", expect, actual)
+	}
+	if expect, actual := "UNSIGNED-PAYLOAD", s.Request.Header.Get("X-Amz-Content-Sha256"); expect != actual {
+		t.Errorf("sha256 header %q != %q", expect, actual)
+	}
+
+	canonicalRequest, _ := s.buildCanonicalRequest()
+
+	if expect := `GIT
+/v1/repos/test
+
+host:service.region.amazonaws.com
+x-amz-content-sha256:UNSIGNED-PAYLOAD
+x-amz-date:Thu, 01 Jan 1970 00:00:00 UTC
+
+host;x-amz-content-sha256;x-amz-date
+UNSIGNED-PAYLOAD`; expect != canonicalRequest {
+		t.Errorf("canonical request %q != %q", expect, canonicalRequest)
 	}
 }
