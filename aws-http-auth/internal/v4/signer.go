@@ -221,7 +221,6 @@ func (s *Signer) buildStringToSign(canonicalRequest string) string {
 }
 
 func (s *Signer) buildAuthorizationHeader(signature, headers string) string {
-	// Update Time Format
 	return fmt.Sprintf("%s Credential=%s, SignedHeaders=%s, Signature=%s",
 		s.Algorithm,
 		s.Credentials.AccessKeyID+"/"+s.CredentialScope,
