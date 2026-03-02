@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen.endpoints;
 
+import static software.amazon.smithy.go.codegen.SymbolUtils.buildPackageSymbol;
 import static software.amazon.smithy.go.codegen.endpoints.EndpointParametersGenerator.parameterAsSymbol;
 
 import java.util.ArrayList;
@@ -60,6 +61,12 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
                         to modifications by the processing EndpointResolverV2.
                         """
                     )
+                    .build(),
+            ConfigField.builder()
+                    .name(EndpointResolutionGenerator.RESOLVER_INTERFACE_NAME)
+                    .type(buildPackageSymbol(EndpointResolutionGenerator.RESOLVER_INTERFACE_NAME))
+                    .documentation("Resolves the endpoint used for a particular service operation.")
+                    .withHelper(true)
                     .build()
         ))
         .build());

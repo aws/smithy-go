@@ -48,10 +48,6 @@ public class EndpointParameterBindingsGenerator {
     }
 
     public Writable generate() {
-        if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
-            return emptyGoTemplate();
-        }
-
         return goTemplate("""
                 type endpointParamsBinder interface {
                     bindEndpointParams(*EndpointParameters)
@@ -73,7 +69,9 @@ public class EndpointParameterBindingsGenerator {
                 """,
                 MapUtils.of(
                         "context", GoStdlibTypes.Context.Context,
-                        "builtinBindings", generateBuiltinBindings(),
+                        "builtinBindings", context.getService().hasTrait(EndpointRuleSetTrait.class)
+                                ? generateBuiltinBindings()
+                                : emptyGoTemplate(),
                         "clientContextBindings", generateClientContextBindings()
                 ));
     }
