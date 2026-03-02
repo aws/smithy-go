@@ -104,7 +104,9 @@ func (s *Signer) resolvePayloadHash() error {
 
 	rs, ok := s.Request.Body.(io.ReadSeeker)
 	if !ok || s.Options.DisableImplicitPayloadHashing {
-		s.PayloadHash = v4.UnsignedPayload()
+		if !s.Options.DisableUnsignedPayloadSentinel {
+			s.PayloadHash = v4.UnsignedPayload()
+		}
 		return nil
 	}
 
@@ -124,7 +126,7 @@ func (s *Signer) setRequiredHeaders() {
 
 	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using a header signature type
 	if s.SignatureType == v4.SignatureTypeHeader {
-		s.Request.Header.Set("X-Amz-Date", s.Time.Format(TimeFormat))
+		s.Request.Header.Set("X-Amz-Date", s.formatTime())
 		if len(s.Credentials.SessionToken) > 0 {
 			s.Request.Header.Set("X-Amz-Security-Token", s.Credentials.SessionToken)
 		}
@@ -212,7 +214,7 @@ func (s *Signer) buildCanonicalHeaders() (canon, signed string) {
 func (s *Signer) buildStringToSign(canonicalRequest string) string {
 	return strings.Join([]string{
 		s.Algorithm,
-		s.Time.Format(TimeFormat),
+		s.formatTime(),
 		s.CredentialScope,
 		hex.EncodeToString(Stosha(canonicalRequest)),
 	}, "\n")
@@ -230,7 +232,7 @@ func (s *Signer) addSignatureParametersToQuery(signedHeaders string) {
 	query := s.Request.URL.Query()
 	query.Set("X-Amz-Algorithm", s.Algorithm)
 	query.Set("X-Amz-Credential", s.Credentials.AccessKeyID+"/"+s.CredentialScope)
-	query.Set("X-Amz-Date", s.Time.Format(TimeFormat))
+	query.Set("X-Amz-Date", s.formatTime())
 	query.Set("X-Amz-SignedHeaders", signedHeaders)
 
 	if len(s.Credentials.SessionToken) > 0 {
@@ -261,6 +263,13 @@ func ResolveTime(t time.Time) time.Time {
 		return time.Now().UTC()
 	}
 	return t.UTC()
+}
+
+func (s *Signer) formatTime() string {
+	if s.Options.CanonicalTimeFormat != "" {
+		return s.Time.Format(s.Options.CanonicalTimeFormat)
+	}
+	return s.Time.Format(TimeFormat)
 }
 
 type defaultHeaderRules struct{}

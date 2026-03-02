@@ -1,6 +1,7 @@
 package sigv4
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -26,6 +27,12 @@ var credsNoSession = credentials.Credentials{
 type signAll struct{}
 
 func (signAll) IsSigned(string) bool { return true }
+
+type onlySignHost struct{}
+
+func (r onlySignHost) IsSigned(header string) bool {
+	return header == "host"
+}
 
 func seekable(v string) io.ReadSeekCloser {
 	return readseekcloser{strings.NewReader(v)}
@@ -190,6 +197,34 @@ func TestSignRequest(t *testing.T) {
 			ExpectDate:      "19700101T000000Z",
 			ExpectToken:     "SESSION",
 		},
+		"codecommit git https settings": {
+			Input: &SignRequestInput{
+				Request: func() *http.Request {
+					region := "us-east-1"
+					repository := "test-repo"
+					host := fmt.Sprintf("git-codecommit.%s.amazonaws.com", region)
+					path := fmt.Sprintf("https://%s/v1/repos/%s", host, repository)
+
+					req, err := http.NewRequest("GIT", path, nil)
+					if err != nil {
+						t.Errorf("failed to prepare request: %s", err)
+					}
+					return req
+				}(),
+				Credentials: credsSession,
+				Service:     "codecommit",
+				Region:      "us-east-1",
+				Time:        time.Unix(0, 0),
+			},
+			Opts: func(o *v4.SignerOptions) {
+				o.DisableUnsignedPayloadSentinel = true
+				o.CanonicalTimeFormat = "20060102T150405"
+				o.HeaderRules = onlySignHost{}
+			},
+			ExpectSignature: "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/codecommit/aws4_request, SignedHeaders=host, Signature=379532994be81836b18b45cffb53c785068feeb223e8b52445f41b41181639dc",
+			ExpectDate:      "19700101T000000",
+			ExpectToken:     "SESSION",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			opt := tt.Opts
@@ -216,11 +251,11 @@ func TestSignRequestQueryString(t *testing.T) {
 	req.URL.RawQuery = "existing=param"
 
 	err := signer.SignRequest(&SignRequestInput{
-		Request:              req,
-		Credentials:          credsNoSession,
-		Service:              "s3",
-		Region:               "us-east-1",
-		Time:                 time.Unix(1375315200, 0),
+		Request:       req,
+		Credentials:   credsNoSession,
+		Service:       "s3",
+		Region:        "us-east-1",
+		Time:          time.Unix(1375315200, 0),
 		SignatureType: v4.SignatureTypeQueryString,
 	})
 
@@ -264,12 +299,12 @@ func TestSignRequestQueryStringWithSession(t *testing.T) {
 	req := newRequest(nil)
 
 	err := signer.SignRequest(&SignRequestInput{
-		Request:              req,
-		Credentials:          credsSession,
-		Service:              "s3",
-		Region:               "us-east-1",
-		Time:                 time.Unix(1375315200, 0),
-	SignatureType: v4.SignatureTypeQueryString,
+		Request:       req,
+		Credentials:   credsSession,
+		Service:       "s3",
+		Region:        "us-east-1",
+		Time:          time.Unix(1375315200, 0),
+		SignatureType: v4.SignatureTypeQueryString,
 	})
 
 	if err != nil {
@@ -296,12 +331,12 @@ func TestSignRequestHeaderDoesNotAlterQueryString(t *testing.T) {
 	originalQuery := req.URL.RawQuery
 
 	err := signer.SignRequest(&SignRequestInput{
-		Request:              req,
-		Credentials:          credsNoSession,
-		Service:              "s3",
-		Region:               "us-east-1",
-		Time:                 time.Unix(1375315200, 0),
-	SignatureType: v4.SignatureTypeHeader,
+		Request:       req,
+		Credentials:   credsNoSession,
+		Service:       "s3",
+		Region:        "us-east-1",
+		Time:          time.Unix(1375315200, 0),
+		SignatureType: v4.SignatureTypeHeader,
 	})
 
 	if err != nil {
