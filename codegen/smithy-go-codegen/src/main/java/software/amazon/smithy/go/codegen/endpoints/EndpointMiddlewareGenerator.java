@@ -69,10 +69,6 @@ public final class EndpointMiddlewareGenerator {
     }
 
     private Writable generateBody() {
-        if (!context.getService().hasTrait(EndpointRuleSetTrait.class)) {
-            return goTemplate("return next.HandleFinalize(ctx, in)");
-        }
-
         return goTemplate("""
                 _, span := $startSpan:T(ctx, "ResolveEndpoint")
                 defer span.End()

@@ -244,9 +244,15 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
             clientName, opSymbol, () -> {
                 writer.openBlock("options.APIOptions = append(options.APIOptions, func(stack $P) error {", "})",
                     stackSymbol, () -> {
-                            writer.write("return $T(stack, actualReq)",
-                            SymbolUtils.createValueSymbolBuilder("AddCaptureRequestMiddleware",
-                            SmithyGoDependency.SMITHY_PRIVATE_PROTOCOL).build());
+                            writer.addUseImports(SmithyGoDependency.ERRORS);
+                            writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                            writer.write("""
+                                    return errors.Join(
+                                        stack.Finalize.Add(&resolveAuthSchemeMiddleware{"", *options}, middleware.After),
+                                        stack.Finalize.Add(&resolveEndpointV2Middleware{*options}, middleware.After),
+                                        stack.Finalize.Add(&captureRequestMiddleware{actualReq}, middleware.After),
+                                    )
+                                    """);
                 });
                 if (operation.hasTrait(RequestCompressionTrait.class)) {
                     writer.write(goTemplate("""

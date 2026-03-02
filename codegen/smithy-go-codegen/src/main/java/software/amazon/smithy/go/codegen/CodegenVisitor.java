@@ -266,11 +266,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 protocolGenerator.generateEndpointResolutionTests(context);
             });
 
-            LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
-                    + " unit tests for " + service.getId());
-            writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
-                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
-            });
+            LOGGER.info("Generating protocol tests for " + service.getId());
+            ProtocolUtils.generateHttpProtocolTests(ctx);
 
             protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
