@@ -114,7 +114,7 @@ public abstract class AbstractDirectedCodegen implements DirectedCodegen<GoCodeg
     public void generateUnion(GenerateUnionDirective<GoCodegenContext, GoSettings> directive) {
         var delegator = directive.context().writerDelegator();
         delegator.useShapeWriter(directive.shape(), writer ->
-                new UnionGenerator(directive.model(), directive.symbolProvider(), directive.shape())
+                new UnionGenerator(directive.context(), directive.model(), directive.symbolProvider(), directive.shape())
                         .generateUnion(writer)
         );
     }
