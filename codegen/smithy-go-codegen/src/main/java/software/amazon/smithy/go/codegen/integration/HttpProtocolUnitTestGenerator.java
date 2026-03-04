@@ -115,6 +115,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     abstract Object[] unitTestFuncNameArgs();
 
+    abstract String benchmarkFuncNameFormat();
+
+    abstract Object[] benchmarkFuncNameArgs();
+
 
     /**
      * Hook to provide custom generated code within a test function before test cases are defined.
@@ -201,6 +205,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     abstract void generateTestInvokeClientOperation(GoWriter writer, String clientName);
 
+    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
+        generateTestInvokeClientOperation(writer, clientName);
+    }
+
     /**
      * Hook to generate the assertions for the operation's test cases. Will be in the same scope as the test body.
      *
@@ -261,6 +269,48 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             generateTestClient(writer, "client");
                             generateTestInvokeClientOperation(writer, "client");
                             generateTestAssertions(writer);
+                        });
+                    });
+                });
+    }
+
+    protected void generateBenchmarkBodySetup(GoWriter writer) {
+        generateTestBodySetup(writer);
+    }
+
+    protected void generateBenchmarkServer(GoWriter writer) {
+        generateTestServer(writer, "server", this::generateTestServerHandler);
+    }
+
+    public void generateBenchmarkFunction(GoWriter writer) {
+        writer.addUseImports(SmithyGoDependency.TESTING);
+        writer.openBlock("func " + benchmarkFuncNameFormat() + "(b *testing.B) {", "}", benchmarkFuncNameArgs(),
+                () -> {
+                    generateTestSetup(writer);
+
+                    writer.write("cases := map[string]struct {");
+                    generateTestCaseParams(writer);
+                    writer.openBlock("}{", "}", () -> {
+                        for (T testCase : testCases) {
+                            Optional<AppliesTo> appliesTo = testCase.getAppliesTo();
+                            if (appliesTo.isPresent() && !(appliesTo.get().equals(AppliesTo.CLIENT))) {
+                                continue;
+                            }
+
+                            writer.openBlock("$S: {", "},", testCase.getId(), () -> {
+                                generateTestCaseValues(writer, testCase);
+                            });
+                        }
+                    });
+
+                    writer.openBlock("for name, c := range cases {", "}", () -> {
+                        writer.openBlock("b.Run(name, func(b *testing.B) {", "})", () -> {
+                            generateBenchmarkBodySetup(writer);
+                            generateBenchmarkServer(writer);
+                            generateTestClient(writer, "client");
+                            writer.openBlock("for i := 0; i < b.N; i++ {", "}", () -> {
+                                generateBenchmarkInvokeClientOperation(writer, "client");
+                            });
                         });
                     });
                 });

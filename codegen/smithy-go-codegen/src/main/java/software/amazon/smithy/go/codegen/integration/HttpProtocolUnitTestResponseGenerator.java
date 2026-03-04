@@ -58,6 +58,16 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         return new Object[]{opSymbol.getName(), protocolName};
     }
 
+    @Override
+    protected String benchmarkFuncNameFormat() {
+        return "BenchmarkClient_$L_$LDeserialize";
+    }
+
+    @Override
+    protected Object[] benchmarkFuncNameArgs() {
+        return new Object[]{opSymbol.getName(), protocolName};
+    }
+
     /**
      * Hook to generate the parameter declarations as struct parameters into the test case's struct definition.
      * Must generate all test case parameters before returning.
@@ -184,6 +194,17 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("var params $T", inputSymbol);
         writer.write("result, err := $L.$T(context.Background(), &params)", clientName, opSymbol);
+    }
+
+    @Override
+    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.write("$L.$T(context.Background(), &params)", clientName, opSymbol);
+    }
+
+    @Override
+    protected void generateBenchmarkBodySetup(GoWriter writer) {
+        writer.write("var params $T", inputSymbol);
     }
 
     /**

@@ -71,6 +71,16 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         return new Object[]{opSymbol.getName(), protocolName};
     }
 
+    @Override
+    protected String benchmarkFuncNameFormat() {
+        return "BenchmarkClient_$L_$LSerialize";
+    }
+
+    @Override
+    protected Object[] benchmarkFuncNameArgs() {
+        return new Object[]{opSymbol.getName(), protocolName};
+    }
+
     /**
      * Hook to generate the parameter declarations as struct parameters into the test case's struct definition.
      * Must generate all test case parameters before returning.
@@ -220,6 +230,31 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
         }
     }
 
+    @Override
+    protected void generateBenchmarkBodySetup(GoWriter writer) {
+        // No request capture needed for benchmarks.
+    }
+
+    @Override
+    protected void generateBenchmarkServer(GoWriter writer) {
+        writer.write("serverURL := \"http://localhost:8888/\"");
+        writer.pushState();
+        writer.putContext("parse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL)
+                .build());
+        writer.write("""
+                     if c.Host != nil {
+                         u, err := $parse:T(serverURL)
+                         if err != nil {
+                             panic(err)
+                         }
+                         u.Path = c.Host.Path
+                         u.RawPath = c.Host.RawPath
+                         u.RawQuery = c.Host.RawQuery
+                         serverURL = u.String()
+                     }""");
+        writer.popState();
+    }
+
     /**
      * Hook to generate the HTTP response body of the protocol test.
      *
@@ -276,6 +311,12 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                     "client", clientName
                     )));
         }
+    }
+
+    @Override
+    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.write("$L.$T(context.Background(), c.Params)", clientName, opSymbol);
     }
 
     /**
