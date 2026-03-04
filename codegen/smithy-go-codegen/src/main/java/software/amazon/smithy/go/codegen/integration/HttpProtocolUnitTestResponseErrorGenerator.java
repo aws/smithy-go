@@ -67,6 +67,16 @@ public class HttpProtocolUnitTestResponseErrorGenerator extends HttpProtocolUnit
         return new Object[]{opSymbol.getName(), errorSymbol.getName(), protocolName};
     }
 
+    @Override
+    protected String benchmarkFuncNameFormat() {
+        return "BenchmarkClient_$L_$L_$LDeserialize";
+    }
+
+    @Override
+    protected Object[] benchmarkFuncNameArgs() {
+        return new Object[]{opSymbol.getName(), errorSymbol.getName(), protocolName};
+    }
+
     /**
      * Hook to generate the parameter declarations as struct parameters into the test case's struct definition.
      * Must generate all test case parameters before returning.
