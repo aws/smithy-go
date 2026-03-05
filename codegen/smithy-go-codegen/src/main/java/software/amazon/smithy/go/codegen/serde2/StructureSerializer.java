@@ -13,6 +13,7 @@ import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 @SmithyInternalApi
@@ -34,11 +35,12 @@ public final class StructureSerializer implements Writable {
 
         var symbol = ctx.symbolProvider().toSymbol(shape);
         var members = shape.members().stream()
+                .filter(StreamingTrait::isEventStream)
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
-            writer.write("s.WriteMap(schemas.$L)", SchemaGenerator.getSchemaName(shape));
+            writer.write("s.WriteMap(schemas.$L)", SchemaGenerator.getSchemaName(shape, ctx.service()));
             for (var member : members) {
                 var target = ShapeUtil.expectMember(ctx.model(), shape, member.getMemberName());
                 var ident = String.format("v.%s", ctx.symbolProvider().toMemberName(member));
@@ -50,7 +52,7 @@ public final class StructureSerializer implements Writable {
     }
 
     private void generateSerializeMember(GoWriter writer, MemberShape member, Shape target, String ident) {
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
         var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
             case BYTE ->

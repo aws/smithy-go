@@ -29,6 +29,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.UnitTypeTrait;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
@@ -45,6 +46,7 @@ public final class ShapeUtil {
 
     public static final StructureShape UNIT = StructureShape.builder()
             .id("smithy.api#Unit")
+            .addTrait(new UnitTypeTrait())
             .build();
 
     private ShapeUtil() {}

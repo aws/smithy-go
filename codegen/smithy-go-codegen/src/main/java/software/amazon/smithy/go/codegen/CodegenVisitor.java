@@ -60,6 +60,7 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -268,6 +269,36 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
+        // TODO(serde2): event streams still need all the old stuff as we're migrating over to schema-serde, once we've
+        // done that for event streams remove this
+        if (settings.useExperimentalSerde() && protocolGenerator != null && eventStreamGenerator.hasEventStreamOperations()) {
+            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
+                    .protocolName(protocolGenerator.getProtocolName())
+                    .integrations(integrations)
+                    .model(model)
+                    .service(service)
+                    .settings(settings)
+                    .symbolProvider(symbolProvider)
+                    .delegator(writers);
+
+            writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                protocolGenerator.generateRequestSerializers(context);
+                protocolGenerator.generateSharedSerializerComponents(context);
+            });
+
+            writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                protocolGenerator.generateResponseDeserializers(context);
+                protocolGenerator.generateSharedDeserializerComponents(context);
+            });
+
+            eventStreamGenerator.writeEventStreamImplementation(writer -> {
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
+                protocolGenerator.generateEventStreamComponents(context);
+            });
+        }
+
         LOGGER.info("Generating protocol tests for " + service.getId());
         ProtocolUtils.generateHttpProtocolTests(ctx);
 
@@ -275,7 +306,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             protocolDocumentGenerator.generateLegacyInternalDocumentTypes(ctx);
 
             var shapes = new ArrayList<>(ctx.serdeShapes());
-            shapes.add(ShapeUtil.UNIT); // targeted by enum members, just generate a blank schema for it
+            if (!shapes.contains(ShapeUtil.UNIT)) {
+                shapes.add(ShapeUtil.UNIT); // targeted by enum members, just generate a blank schema for it
+            }
 
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
@@ -300,7 +333,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
             var lists = ctx.serdeShapes(ListShape.class);
             var maps = ctx.serdeShapes(MapShape.class);
-            var unionSerdes = ctx.serdeShapes(UnionShape.class);
+            var unionSerdes = ctx.serdeShapes(UnionShape.class).stream()
+                    .filter(it -> !it.hasTrait(StreamingTrait.class))
+                    .toList();
 
             // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
             // generate these twice since we don't want to export them

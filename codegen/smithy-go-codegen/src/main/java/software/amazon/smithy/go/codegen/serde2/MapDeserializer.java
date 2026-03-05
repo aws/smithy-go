@@ -7,6 +7,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
@@ -55,13 +56,11 @@ public class MapDeserializer implements Writable {
                 "valueSymbol", switch (value.getType()) {
                     case ENUM -> GoUniverseTypes.String;
                     case INT_ENUM -> GoUniverseTypes.Int32;
+                    case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
                 },
                 "deserializeValue", renderDeserializeValue(),
-                "cast", switch (value.getType()) {
-                    case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(value));
-                    default -> goTemplate("vv");
-                }
+                "cast", renderDenseCast()
         ));
     }
 
@@ -92,6 +91,7 @@ public class MapDeserializer implements Writable {
                 "valueSymbol", switch (value.getType()) {
                     case ENUM -> GoUniverseTypes.String;
                     case INT_ENUM -> GoUniverseTypes.Int32;
+                    case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
                 },
                 "deserializeValue", renderDeserializeValue(),
@@ -108,11 +108,33 @@ public class MapDeserializer implements Writable {
                     }()""", ctx.symbolProvider().toSymbol(value));
 
             // don't need the address-of
-            case BLOB, LIST, SET, MAP, UNION, DOCUMENT ->
+            case BLOB, LIST, SET, MAP, UNION ->
                     goTemplate("vv");
+
+            case DOCUMENT -> renderDocumentCast();
 
             default -> goTemplate("&vv");
         };
+    }
+
+    private Writable renderDenseCast() {
+        return switch (value.getType()) {
+            case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(value));
+            case DOCUMENT -> renderDocumentCast();
+            default -> goTemplate("vv");
+        };
+    }
+
+    private Writable renderDocumentCast() {
+        var unmarshaler = ProtocolDocumentGenerator.Utilities.getInternalDocumentSymbolBuilder(
+                ctx.settings(), ProtocolDocumentGenerator.INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC).build();
+        return goTemplate("""
+                func() $T {
+                    if ov, ok := vv.(smithydocument.Opaque); ok {
+                        return $T(ov.Value)
+                    }
+                    return nil
+                }()""", ctx.symbolProvider().toSymbol(value), unmarshaler);
     }
 
     private Writable renderDeserializeValue() {

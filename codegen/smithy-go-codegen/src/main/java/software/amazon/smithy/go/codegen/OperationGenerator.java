@@ -288,7 +288,7 @@ public final class OperationGenerator implements Runnable {
             writer.write("if err != nil { return err }");
         } else {
             writer.addUseImports(SmithyGoDependency.SMITHY);
-            var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation);
+            var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation, service);
             writer.write("""
                 if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: $L}, middleware.After); err != nil {
                     return err

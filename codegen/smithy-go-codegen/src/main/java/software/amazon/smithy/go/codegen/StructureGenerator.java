@@ -146,7 +146,10 @@ public final class StructureGenerator implements Runnable {
 
         writer.closeBlock("}").write("");
 
-        if (useExperimentalSerde) {
+        // Only generate serde methods when the symbol matches the shape's natural symbol.
+        // When a symbol override is provided (e.g. for synthetic shapes like event stream
+        // initial reply structs), skip serde to avoid duplicate method declarations.
+        if (useExperimentalSerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
             if (shape.hasTrait(InputTrait.class)) {
                 writer.write(new StructureSerializer(ctx, shape));
             } else if (shape.hasTrait(OutputTrait.class)) {
