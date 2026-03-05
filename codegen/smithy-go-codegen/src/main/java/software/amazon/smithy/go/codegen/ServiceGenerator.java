@@ -133,7 +133,8 @@ final class ServiceGenerator implements Runnable {
         return goTemplate("""
                 const ServiceID = $S
                 const ServiceAPIVersion = $S
-                """, serviceId, service.getVersion());
+                const serviceName = $S
+                """, serviceId, service.getVersion(), service.getId().getName());
     }
 
     private Writable generateClient() {
@@ -195,6 +196,8 @@ final class ServiceGenerator implements Runnable {
 
                     $protocolResolvers:W
 
+                    $experimentalSerdeResolvers:W
+
                     for _, fn := range optFns {
                         fn(&options)
                     }
@@ -242,8 +245,15 @@ final class ServiceGenerator implements Runnable {
                                         .flatMap(it -> it.getClientMemberResolvers().stream())
                                         .map(this::generateClientMemberResolver)
                                         .toList()
-                        ).compose()
+                        ).compose(),
+                    "experimentalSerdeResolvers", settings.useExperimentalSerde()? generateExperimentalSerdeResolvers() : emptyGoTemplate()
                 ));
+    }
+
+    private Writable generateExperimentalSerdeResolvers() {
+        ensureSupportedProtocol();
+        // TODO(serde2) dynamically resolve a symbol based on traits
+        return goTemplate("options.Protocol = $T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New"));
     }
 
     private Writable generateGetOptions() {
@@ -352,6 +362,7 @@ final class ServiceGenerator implements Runnable {
                 ) {
                     ctx = middleware.ClearStackValues(ctx)
                     ctx = middleware.WithServiceID(ctx, ServiceID)
+                    ctx = middleware.WithServiceName(ctx, serviceName)
                     ctx = middleware.WithOperationName(ctx, opID)
 
                     $newStack:W

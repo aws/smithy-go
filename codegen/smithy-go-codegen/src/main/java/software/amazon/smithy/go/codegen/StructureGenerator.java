@@ -15,22 +15,20 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
-import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
-import software.amazon.smithy.go.codegen.util.ShapeUtil;
+import software.amazon.smithy.go.codegen.serde2.StructureDeserializer;
+import software.amazon.smithy.go.codegen.serde2.StructureSerializer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.CollectionShape;
-import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
-import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.InputTrait;
+import software.amazon.smithy.model.traits.OutputTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -57,7 +55,6 @@ public final class StructureGenerator implements Runnable {
     private final ProtocolGenerator protocolGenerator;
     private final boolean useExperimentalSerde;
     private final GoCodegenContext ctx;
-    private final GoPointableIndex nilIndex;
 
     public StructureGenerator(
             GoCodegenContext ctx,
@@ -74,7 +71,6 @@ public final class StructureGenerator implements Runnable {
         this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
         this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
-        this.nilIndex = GoPointableIndex.of(model);
     }
 
     public StructureGenerator(
@@ -151,7 +147,14 @@ public final class StructureGenerator implements Runnable {
         writer.closeBlock("}").write("");
 
         if (useExperimentalSerde) {
-            // TODO generateSerializers();
+            if (shape.hasTrait(InputTrait.class)) {
+                writer.write(new StructureSerializer(ctx, shape));
+            } else if (shape.hasTrait(OutputTrait.class)) {
+                writer.write(new StructureDeserializer(ctx, shape));
+            } else {
+                writer.write(new StructureSerializer(ctx, shape));
+                writer.write(new StructureDeserializer(ctx, shape));
+            }
         }
     }
 
@@ -214,5 +217,9 @@ public final class StructureGenerator implements Runnable {
             fault = "smithy.FaultServer";
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
+
+        if (useExperimentalSerde) {
+            writer.write(new StructureDeserializer(ctx, shape));
+        }
     }
 }
