@@ -86,8 +86,6 @@ func (p *Protocol) DeserializeResponse(
 	return nil
 }
 
-// TODO get the intermediate reader out of this thing and just operate on the
-// bytes, it's way easier
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {
 	var errorBuffer bytes.Buffer
 	if _, err := io.Copy(&errorBuffer, response.Body); err != nil {
