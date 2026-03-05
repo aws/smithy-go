@@ -213,10 +213,10 @@ func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 		jv.String("-Infinity")
 	} else if math.IsNaN(float64(v)) {
 		jv.String("NaN")
+	} else {
+		jv.Float(v)
 	}
 }
-
-// WriteFloat64 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 	if !s.opts.WriteZeroValues && v == 0 {
 		return
@@ -239,6 +239,8 @@ func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 		jv.String("-Infinity")
 	} else if math.IsNaN(v) {
 		jv.String("NaN")
+	} else {
+		jv.Double(v)
 	}
 }
 

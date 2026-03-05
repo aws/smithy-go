@@ -35,7 +35,8 @@ public final class StructureSerializer implements Writable {
 
         var symbol = ctx.symbolProvider().toSymbol(shape);
         var members = shape.members().stream()
-                .filter(StreamingTrait::isEventStream)
+                .filter(m -> !StreamingTrait.isEventStream(ctx.model(), m))
+                .filter(m -> !ctx.model().expectShape(m.getTarget()).hasTrait(StreamingTrait.class))
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);

@@ -91,10 +91,13 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Sche
 // reference.
 func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
 	m := &Schema{
-		id:      ShapeID{Member: name},
-		typ:     target.typ,
-		members: target.members,
-		traits:  maps.Clone(target.traits),
+		id:         ShapeID{Member: name},
+		typ:        target.typ,
+		members:    target.members,
+		traits:     maps.Clone(target.traits),
+		listMember: target.listMember,
+		mapKey:     target.mapKey,
+		mapValue:   target.mapValue,
 	}
 
 	if len(m.traits) == 0 && len(traits) != 0 {
