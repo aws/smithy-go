@@ -289,14 +289,16 @@ public final class OperationGenerator implements Runnable {
             writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
             writer.write("if err != nil { return err }");
         } else {
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation);
             writer.write("""
-                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options}, middleware.After); err != nil {
+                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: $L}, middleware.After); err != nil {
                     return err
-                }""");
+                }""", opSchemaName);
             writer.write("""
-                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, output: &$T{}}, middleware.After); err != nil {
+                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: $L, output: &$T{}}, middleware.After); err != nil {
                     return err
-                }""", symbolProvider.toSymbol(output));
+                }""", opSchemaName, symbolProvider.toSymbol(output));
         }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK

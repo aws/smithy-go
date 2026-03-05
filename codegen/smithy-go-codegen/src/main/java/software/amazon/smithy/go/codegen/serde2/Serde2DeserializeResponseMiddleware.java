@@ -25,6 +25,7 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
     public Map<String, Symbol> getFields() {
         return Map.of(
                 "options", pointerTo(buildPackageSymbol("Options")),
+                "operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("Schema"),
                 "output", SmithyGoDependency.SMITHY.interfaceSymbol("Deserializable")
         );
     }
@@ -45,7 +46,7 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
                 _, span := tracing.StartSpan(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
 
-                err = m.options.Protocol.DeserializeResponse(ctx, TypeRegistry, resp, m.output)
+                err = m.options.Protocol.DeserializeResponse(ctx, m.operationSchema, TypeRegistry, resp, m.output)
                 out.Result = m.output
 
                 endTimer()

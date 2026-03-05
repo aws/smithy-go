@@ -2,6 +2,7 @@ package smithy
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"strings"
 )
@@ -138,6 +139,18 @@ func (s *Schema) MemberName() string {
 // Member returns the member schema for the given name, or nil.
 func (s *Schema) Member(name string) *Schema {
 	return s.members[name]
+}
+
+// Members returns an iterator over the schema's members as (name, schema)
+// pairs.
+func (s *Schema) Members() iter.Seq2[string, *Schema] {
+	return func(yield func(string, *Schema) bool) {
+		for name, member := range s.members {
+			if !yield(name, member) {
+				return
+			}
+		}
+	}
 }
 
 // Trait returns the target trait on the schema if it exists.

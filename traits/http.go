@@ -47,3 +47,22 @@ type HTTPResponseCode struct{}
 
 // TraitID identifies the trait.
 func (*HTTPResponseCode) TraitID() string { return "smithy.api#httpResponseCode" }
+
+// HTTP represents smithy.api#http, applied to operations to define the HTTP
+// method, URI, and status code.
+type HTTP struct {
+	Method string
+	URI    string
+	Code   int
+}
+
+// TraitID identifies the trait.
+func (*HTTP) TraitID() string { return "smithy.api#http" }
+
+// HTTPError represents smithy.api#httpError.
+type HTTPError struct {
+	Code int
+}
+
+// TraitID identifies the trait.
+func (*HTTPError) TraitID() string { return "smithy.api#httpError" }

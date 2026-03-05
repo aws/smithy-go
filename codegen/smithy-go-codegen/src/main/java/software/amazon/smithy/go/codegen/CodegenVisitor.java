@@ -284,6 +284,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     new SchemaGenerator(ctx, shape).accept(writer);
                 }
 
+                var operations = TopDownIndex.of(model).getContainedOperations(service);
+                for (OperationShape op : operations) {
+                    new SchemaGenerator(ctx, op).accept(writer);
+                }
+
                 writer.write("");
                 writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
                 writer.openBlock("func init() {", "}", () -> {

@@ -25,7 +25,8 @@ public class Serde2SerializeRequestMiddleware extends SerializeStepMiddleware {
     @Override
     public Map<String, Symbol> getFields() {
         return Map.of(
-                "options", pointerTo(buildPackageSymbol("Options"))
+                "options", pointerTo(buildPackageSymbol("Options")),
+                "operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("Schema")
         );
     }
 
@@ -46,7 +47,7 @@ public class Serde2SerializeRequestMiddleware extends SerializeStepMiddleware {
                 _, span := tracing.StartSpan(ctx, "OperationSerializer")
                 endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
 
-                err := m.options.Protocol.SerializeRequest(ctx, input, req)
+                err := m.options.Protocol.SerializeRequest(ctx, m.operationSchema, input, req)
 
                 endTimer()
                 span.End()

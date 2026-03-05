@@ -1,4 +1,4 @@
-package awsjson10
+package restjson1
 
 import (
 	"bytes"
@@ -6,63 +6,95 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/aws/smithy-go"
 	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	httpbindingser "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
+	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
 	smithyio "github.com/aws/smithy-go/io"
-	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/aws/smithy-go/traits"
 )
 
-// New returns an instance of the awsJson 1.0 protocol.
+// New returns an instance of the aws.protocols#restJson1 protocol.
 func New() *Protocol {
 	return &Protocol{}
 }
 
-// Protocol implements aws.protocols#awsJson10.
-type Protocol struct {
-	UseQueryCompatible bool
-}
+// Protocol implements aws.protocols#restJson1.
+type Protocol struct{}
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
 // ID identifies the protocol.
 func (*Protocol) ID() string {
-	return "aws.protocols#awsJson10"
+	return "aws.protocols#restJson1"
 }
 
-// SerializeRequest serializes a request for AWS Json 1.0.
+// SerializeRequest serializes a request for restJson1.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
-	schema *smithy.Schema,
+	opSchema *smithy.Schema,
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
-	req.Method = http.MethodPost
-	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", middleware.GetServiceName(ctx), middleware.GetOperationName(ctx)))
-	req.Header.Set("Content-Type", "application/x-amz-json-1.0")
-	if p.UseQueryCompatible {
-		req.Header.Set("X-Amzn-Query-Compatible", "true")
+	// Resolve the HTTP method and URI from the operation's smithy.api#http trait.
+	httpTrait, ok := smithy.SchemaTrait[*traits.HTTP](opSchema)
+	if !ok {
+		return fmt.Errorf("restjson1: operation schema missing smithy.api#http trait")
 	}
 
-	ss := awsjson.NewShapeSerializer()
-	in.Serialize(ss)
-
-	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
+	req.Method = httpTrait.Method
+	path, query := httpbinding.SplitURI(httpTrait.URI)
+	enc, err := httpbinding.NewEncoder(path, query, req.Header)
 	if err != nil {
-		return fmt.Errorf("set stream: %w", err)
+		return fmt.Errorf("restjson1: new encoder: %w", err)
 	}
 
-	*req = *sreq
+	body := awsjson.NewShapeSerializer()
+	ser := &httpbindingser.Serializer{
+		Request: req,
+		Encoder: enc,
+		Body:    body,
+	}
+
+	in.Serialize(ser)
+
+	// Apply the encoder (URI labels, query, headers) to the request.
+	built, err := enc.Encode(req.Request)
+	if err != nil {
+		return fmt.Errorf("restjson1: encode bindings: %w", err)
+	}
+	req.Request = built
+
+	// Set the body. Raw payload (blob/string httpPayload) takes precedence
+	// over the JSON body serializer.
+	var payload []byte
+	var contentType string
+	if ser.PayloadBytes != nil {
+		payload = ser.PayloadBytes
+		contentType = ser.PayloadContentType
+	} else {
+		payload = body.Bytes()
+		contentType = "application/json"
+	}
+	if len(payload) > 0 {
+		req.Header.Set("Content-Type", contentType)
+		sreq, err := req.SetStream(bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("restjson1: set stream: %w", err)
+		}
+		*req = *sreq
+	}
+
 	return nil
 }
 
-// DeserializeResponse deserializes a response for AWS Json 1.0.
+// DeserializeResponse deserializes a response for restJson1.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
-	schema *smithy.Schema,
+	opSchema *smithy.Schema,
 	types *smithy.TypeRegistry,
 	resp *smithyhttp.Response,
 	out smithy.Deserializable,
@@ -76,12 +108,19 @@ func (p *Protocol) DeserializeResponse(
 		return &smithy.DeserializationError{Err: err}
 	}
 
-	if len(payload) == 0 {
-		return nil
+	var bodyDeser smithy.ShapeDeserializer
+	if len(payload) > 0 {
+		bodyDeser = awsjson.NewShapeDeserializer(payload)
+	} else {
+		bodyDeser = awsjson.NewShapeDeserializer([]byte("{}"))
 	}
 
-	sd := awsjson.NewShapeDeserializer(payload)
-	if err := out.Deserialize(sd); err != nil {
+	deser := &httpbindingser.Deserializer{
+		Response: resp.Response,
+		Body:     bodyDeser,
+		Payload:  payload,
+	}
+	if err := out.Deserialize(deser); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
 
@@ -98,8 +137,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	errorCode := "UnknownError"
 	errorMessage := errorCode
 
-	var headerCode string
-	headerCode = response.Header.Get("X-Amzn-ErrorType")
+	headerCode := response.Header.Get("X-Amzn-ErrorType")
 
 	var buff [1024]byte
 	ringBuffer := smithyio.NewRingBuffer(buff[:])
@@ -111,11 +149,10 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	if err != nil {
 		var snapshot bytes.Buffer
 		io.Copy(&snapshot, ringBuffer)
-		err = &smithy.DeserializationError{
+		return &smithy.DeserializationError{
 			Err:      fmt.Errorf("failed to decode response body, %w", err),
 			Snapshot: snapshot.Bytes(),
 		}
-		return err
 	}
 
 	errorBody.Seek(0, io.SeekStart)
@@ -134,16 +171,27 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 			Code:    errorCode,
 			Message: errorMessage,
 		}
-
 	}
 
 	errorBody.Seek(0, io.SeekStart)
 	errorBytes, _ := io.ReadAll(errorBody)
+
+	var bodyDeser smithy.ShapeDeserializer
 	if len(errorBytes) > 0 {
-		deser := awsjson.NewShapeDeserializer(errorBytes)
-		if err := perr.Deserialize(deser); err != nil {
-			return &smithy.DeserializationError{Err: err}
-		}
+		bodyDeser = awsjson.NewShapeDeserializer(errorBytes)
+	} else {
+		bodyDeser = awsjson.NewShapeDeserializer([]byte("{}"))
+	}
+
+	// Use the HTTP binding deserializer so error shapes with httpHeader
+	// traits are deserialized from response headers.
+	deser := &httpbindingser.Deserializer{
+		Response: response.Response,
+		Body:     bodyDeser,
+		Payload:  errorBytes,
+	}
+	if err := perr.Deserialize(deser); err != nil {
+		return &smithy.DeserializationError{Err: err}
 	}
 
 	return perr
@@ -152,9 +200,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 type protocolErrorInfo struct {
 	Type    string `json:"__type"`
 	Message string
-
-	// nonstandard, but some AWS services do present the type here
-	Code any
+	Code    any
 }
 
 func getProtocolErrorInfo(decoder *json.Decoder) (protocolErrorInfo, error) {
@@ -165,7 +211,6 @@ func getProtocolErrorInfo(decoder *json.Decoder) (protocolErrorInfo, error) {
 		}
 		return errInfo, err
 	}
-
 	return errInfo, nil
 }
 
@@ -180,8 +225,6 @@ func resolveProtocolErrorType(headerType string, bodyInfo protocolErrorInfo) (st
 	return "", false
 }
 
-// sanitizeErrorCode strips namespace prefixes and URI suffixes from error
-// codes received on the wire.
 func sanitizeErrorCode(code string) string {
 	if idx := strings.Index(code, ":"); idx != -1 {
 		code = code[:idx]
