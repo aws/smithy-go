@@ -81,6 +81,9 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_TRACING = smithy("tracing");
     public static final GoDependency SMITHY_METRICS = smithy("metrics");
 
+    public static final GoDependency SMITHY_AWS_PROTOCOLS = relativePackage( "github.com/aws/smithy-go/aws-protocols", null, "v1.0.0", null);
+    public static final GoDependency SMITHY_AWS_PROTOCOLS_JSON10 = relativePackage( "github.com/aws/smithy-go/aws-protocols", "awsjson10", "v1.0.0", null);
+
     public static final GoDependency MATH = stdlib("math");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/aws/smithy-go";
