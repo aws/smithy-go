@@ -19,6 +19,11 @@ import (
 type ShapeDeserializer struct {
 	dec  *json.Decoder
 	head stack
+
+	// json.Decoder does not have a Peek() but we need to be able to
+	// "lookahead" for conditionally pulling a null token out in ReadNil.
+	peeked  json.Token
+	hasPeek bool
 }
 
 // NewShapeDeserializer creates a new ShapeDeserializer.
@@ -31,11 +36,22 @@ func NewShapeDeserializer(p []byte) *ShapeDeserializer {
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
 
 func (d *ShapeDeserializer) token() (json.Token, error) {
+	if d.hasPeek {
+		d.hasPeek = false
+		return d.peeked, nil
+	}
 	return d.dec.Token()
 }
 
+func (d *ShapeDeserializer) more() bool {
+	if d.hasPeek {
+		return true
+	}
+	return d.dec.More()
+}
+
 func (d *ShapeDeserializer) expectDelim(e json.Delim) error {
-	tok, err := d.dec.Token()
+	tok, err := d.token()
 	if err != nil {
 		return err
 	}
@@ -48,6 +64,23 @@ func (d *ShapeDeserializer) expectDelim(e json.Delim) error {
 	}
 
 	return fmt.Errorf("expect delim, got %T", tok)
+}
+
+// ReadNil implements [smithy.ShapeDeserializer].
+func (d *ShapeDeserializer) ReadNil(s *smithy.Schema) (bool, error) {
+	tok, err := d.token()
+	if err != nil {
+		return false, err
+	}
+	if tok == nil {
+		return true, nil
+	}
+
+	// The only way to "unread" it is to note it and have token() return it
+	// next time.
+	d.peeked = tok
+	d.hasPeek = true
+	return false, nil
 }
 
 // ReadInt8 implements [smithy.ShapeDeserializer].
@@ -324,7 +357,7 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 
 // ReadListItem implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
-	if !d.dec.More() {
+	if !d.more() {
 		return false, d.expectDelim(']')
 	}
 
@@ -348,7 +381,7 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 
 // ReadMapKey implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
-	if !d.dec.More() {
+	if !d.more() {
 		return "", false, d.expectDelim('}')
 	}
 
@@ -383,7 +416,7 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 
 // ReadStructMember implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
-	if !d.dec.More() {
+	if !d.more() {
 		d.head.Pop()
 		return nil, d.expectDelim('}')
 	}
@@ -455,7 +488,7 @@ func (d *ShapeDeserializer) skip() error {
 	case json.Delim:
 		switch v {
 		case '{':
-			for d.dec.More() {
+			for d.more() {
 				if _, err := d.token(); err != nil { // the key
 					return err
 				}
@@ -466,7 +499,7 @@ func (d *ShapeDeserializer) skip() error {
 			_, err := d.token() // the '}'
 			return err
 		case '[':
-			for d.dec.More() {
+			for d.more() {
 				if err := d.skip(); err != nil {
 					return err
 				}

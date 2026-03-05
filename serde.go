@@ -114,6 +114,9 @@ type ShapeDeserializer interface {
 	// returns the schema for the variant that the union is
 	ReadUnion(*Schema) (*Schema, error)
 
+	// returns true if the next value is null (and consumes it)
+	ReadNil(*Schema) (bool, error)
+
 	ReadDocument(*Schema, *document.Value) error
 }
 

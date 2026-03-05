@@ -1,11 +1,9 @@
 package software.amazon.smithy.go.codegen.serde2;
 
-import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
 import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -13,8 +11,8 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.ListShape;
-import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.SparseTrait;
 
 public class ListDeserializer implements Writable {
     private final GoCodegenContext ctx;
@@ -30,6 +28,14 @@ public class ListDeserializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        if (member.hasTrait(SparseTrait.class)) {
+            renderSparse(writer);
+        } else {
+            renderDense(writer);
+        }
+    }
+
+    private void renderDense(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     return smithy.ReadList(d, s, func() error {
@@ -56,6 +62,55 @@ public class ListDeserializer implements Writable {
                     default -> goTemplate("vv");
                 }
         ));
+    }
+
+    private void renderSparse(GoWriter writer) {
+        writer.writeGoTemplate("""
+                func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
+                    return smithy.ReadList(d, s, func() error {
+                        if isNil, err := d.ReadNil(s.ListMember()); err != nil {
+                            return err
+                        } else if isNil {
+                            *v = append(*v, nil)
+                            return nil
+                        }
+
+                        var vv $memberSymbol:T
+                        if err := $deserializeMember:W; err != nil {
+                            return err
+                        }
+
+                        *v = append(*v, $cast:W)
+                        return nil
+                    })
+                }
+                """, Map.of(
+                "shapeName", shape.getId().getName(),
+                "symbol", ctx.symbolProvider().toSymbol(shape),
+                "memberSymbol", switch (member.getType()) {
+                    case ENUM -> GoUniverseTypes.String;
+                    case INT_ENUM -> GoUniverseTypes.Int32;
+                    default -> ctx.symbolProvider().toSymbol(member);
+                },
+                "deserializeMember", renderDeserializeMember(),
+                "cast", renderSparseCast()
+        ));
+    }
+
+    private Writable renderSparseCast() {
+        return switch (member.getType()) {
+            case ENUM, INT_ENUM -> goTemplate("""
+                    func() $T {
+                        ev := $T(vv)
+                        return &ev
+                    }()""", ctx.symbolProvider().toSymbol(member));
+
+            // don't need the address-of
+            case BLOB, LIST, SET, MAP, UNION, DOCUMENT ->
+                    goTemplate("vv");
+
+            default -> goTemplate("&vv");
+        };
     }
 
     private Writable renderDeserializeMember() {

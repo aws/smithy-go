@@ -12,6 +12,7 @@ import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.SparseTrait;
 
 public class MapDeserializer implements Writable {
     private final GoCodegenContext ctx;
@@ -27,6 +28,14 @@ public class MapDeserializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        if (shape.hasTrait(SparseTrait.class)) {
+            renderSparse(writer);
+        } else {
+            renderDense(writer);
+        }
+    }
+
+    private void renderDense(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T)
@@ -56,6 +65,56 @@ public class MapDeserializer implements Writable {
         ));
     }
 
+    private void renderSparse(GoWriter writer) {
+        writer.writeGoTemplate("""
+                func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
+                    *v = make($symbol:T)
+                    return smithy.ReadMap(d, s, func(k string) error {
+                        if isNil, err := d.ReadNil(s.MapValue()); err != nil {
+                            return err
+                        } else if isNil {
+                            (*v)[k] = nil
+                            return nil
+                        }
+
+                        var vv $valueSymbol:T
+                        if err := $deserializeValue:W; err != nil {
+                            return err
+                        }
+
+                        (*v)[k] = $cast:W
+                        return nil
+                    })
+                }
+                """, Map.of(
+                "shapeName", shape.getId().getName(),
+                "symbol", ctx.symbolProvider().toSymbol(shape),
+                "valueSymbol", switch (value.getType()) {
+                    case ENUM -> GoUniverseTypes.String;
+                    case INT_ENUM -> GoUniverseTypes.Int32;
+                    default -> ctx.symbolProvider().toSymbol(value);
+                },
+                "deserializeValue", renderDeserializeValue(),
+                "cast", renderSparseCast()
+        ));
+    }
+
+    private Writable renderSparseCast() {
+        return switch (value.getType()) {
+            case ENUM, INT_ENUM -> goTemplate("""
+                    func() $T {
+                        ev := $T(vv)
+                        return &ev
+                    }()""", ctx.symbolProvider().toSymbol(value));
+
+            // don't need the address-of
+            case BLOB, LIST, SET, MAP, UNION, DOCUMENT ->
+                    goTemplate("vv");
+
+            default -> goTemplate("&vv");
+        };
+    }
+
     private Writable renderDeserializeValue() {
         return switch (value.getType()) {
             case BYTE ->
@@ -77,7 +136,7 @@ public class MapDeserializer implements Writable {
             case BOOLEAN ->
                     goTemplate("d.ReadBool(s.MapValue(), &vv)");
             case TIMESTAMP ->
-                    goTemplate("d.ReadTimestamp(s.MapValue(), &vv)");
+                    goTemplate("d.ReadTime(s.MapValue(), &vv)");
             case BLOB ->
                     goTemplate("d.ReadBlob(s.MapValue(), &vv)");
 
