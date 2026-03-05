@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -38,12 +39,14 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public class UnionGenerator {
     public static final String UNKNOWN_MEMBER_NAME = "UnknownUnionMember";
 
+    private final GoCodegenContext ctx;
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final UnionShape shape;
     private final boolean isEventStream;
 
-    public UnionGenerator(Model model, SymbolProvider symbolProvider, UnionShape shape) {
+    public UnionGenerator(GoCodegenContext ctx, Model model, SymbolProvider symbolProvider, UnionShape shape) {
+        this.ctx = ctx;
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.shape = shape;
@@ -99,7 +102,74 @@ public class UnionGenerator {
             });
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
+
+            if (ctx.settings().useExperimentalSerde()) {
+                generateMemberSerializer(writer, member, exportedMemberName, target);
+                generateMemberDeserializer(writer, member, exportedMemberName, target);
+            }
         }
+    }
+    
+    private void generateMemberSerializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", memberName, () -> {
+            switch (target.getType()) {
+                case BYTE -> writer.write("s.WriteInt8($L, v.Value)", schemaName);
+                case SHORT -> writer.write("s.WriteInt16($L, v.Value)", schemaName);
+                case INTEGER -> writer.write("s.WriteInt32($L, v.Value)", schemaName);
+                case LONG -> writer.write("s.WriteInt64($L, v.Value)", schemaName);
+                case FLOAT -> writer.write("s.WriteFloat32($L, v.Value)", schemaName);
+                case DOUBLE -> writer.write("s.WriteFloat64($L, v.Value)", schemaName);
+                case BOOLEAN -> writer.write("s.WriteBool($L, v.Value)", schemaName);
+                case STRING -> writer.write("s.WriteString($L, v.Value)", schemaName);
+                case BLOB -> writer.write("s.WriteBlob($L, v.Value)", schemaName);
+                case TIMESTAMP -> writer.write("s.WriteTime($L, v.Value)", schemaName);
+                case ENUM -> writer.write("s.WriteString($L, string(v.Value))", schemaName);
+                case INT_ENUM -> writer.write("s.WriteInt32($L, int32(v.Value))", schemaName);
+                case BIG_INTEGER -> writer.write("s.WriteBigInteger($L, v.Value)", schemaName);
+                case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
+                case STRUCTURE -> writer.write("s.WriteStruct($L, &v.Value)", schemaName); // struct variants are value types
+                case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
+                case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
+            }
+        });
+    }
+
+    private void generateMemberDeserializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", memberName, () -> {
+            switch (target.getType()) {
+                case BYTE -> writer.write("return d.ReadInt8($L, &v.Value)", schemaName);
+                case SHORT -> writer.write("return d.ReadInt16($L, &v.Value)", schemaName);
+                case INTEGER -> writer.write("return d.ReadInt32($L, &v.Value)", schemaName);
+                case LONG -> writer.write("return d.ReadInt64($L, &v.Value)", schemaName);
+                case FLOAT -> writer.write("return d.ReadFloat32($L, &v.Value)", schemaName);
+                case DOUBLE -> writer.write("return d.ReadFloat64($L, &v.Value)", schemaName);
+                case BOOLEAN -> writer.write("return d.ReadBool($L, &v.Value)", schemaName);
+                case STRING -> writer.write("return d.ReadString($L, &v.Value)", schemaName);
+                case BLOB -> writer.write("return d.ReadBlob($L, &v.Value)", schemaName);
+                case TIMESTAMP -> writer.write("return d.ReadTime($L, &v.Value)", schemaName);
+                case ENUM -> {
+                    writer.write("var s string");
+                    writer.write("if err := d.ReadString($L, &s); err != nil { return err }", schemaName);
+                    writer.write("v.Value = $T(s)", symbolProvider.toSymbol(target));
+                    writer.write("return nil");
+                }
+                case INT_ENUM -> {
+                    writer.write("var i int32");
+                    writer.write("if err := d.ReadInt32($L, &i); err != nil { return err }", schemaName);
+                    writer.write("v.Value = $T(i)", symbolProvider.toSymbol(target));
+                    writer.write("return nil");
+                }
+                case STRUCTURE -> writer.write("return v.Value.Deserialize(d)");
+                case LIST, MAP, UNION -> writer.write("return deserialize$L(d, $L, &v.Value)", target.getId().getName(), schemaName);
+                case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
+            }
+        });
     }
 
     private boolean isEventStreamErrorMember(MemberShape memberShape) {

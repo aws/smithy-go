@@ -1,6 +1,7 @@
 package smithy
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 )
@@ -42,6 +43,14 @@ type ShapeID struct {
 	Namespace, Name, Member string
 }
 
+// String returns the IDL microformat for the shape ID.
+func (s *ShapeID) String() string {
+	if s.Member == "" {
+		return fmt.Sprintf("%s#%s", s.Namespace, s.Name)
+	}
+	return fmt.Sprintf("%s#%s$%s", s.Namespace, s.Name, s.Member)
+}
+
 func stoid(s string) ShapeID {
 	ns, n, _ := strings.Cut(s, "#")
 	n, m, _ := strings.Cut(n, "$")
@@ -53,36 +62,93 @@ func stoid(s string) ShapeID {
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	ID      ShapeID
-	Type    ShapeType
-	Members map[string]*Schema // member name -> schema
-	Traits  map[string]Trait   // trait ID -> trait
+	id      ShapeID
+	typ     ShapeType
+	members map[string]*Schema // member name -> schema
+	traits  map[string]Trait   // trait ID -> trait
+
+	listMember       *Schema
+	mapKey, mapValue *Schema
 }
 
-// NewMember creates a member schema from a target schema, overriding traits.
-//
-// Traits provided for the member override any traits on the target if there
-// is collision.
-func NewMember(name string, target *Schema, traits ...Trait) *Schema {
-	m := &Schema{
-		ID:      ShapeID{Member: name},
-		Type:    target.Type,
-		Members: target.Members,
-		Traits:  maps.Clone(target.Traits),
-	}
-
+// NewSchema creates a new Schema with the given shape ID and traits.
+func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Schema {
+	traitMap := make(map[string]Trait, len(traits))
 	for _, t := range traits {
-		m.Traits[t.TraitID()] = t
+		traitMap[t.TraitID()] = t
+	}
+	return &Schema{
+		id:      id,
+		typ:     typ,
+		members: make(map[string]*Schema, numMembers),
+		traits:  traitMap,
+	}
+}
+
+// AddMember adds a member to the schema derived from the target, with
+// optional trait overrides. The member schema is returned for caller
+// reference.
+func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
+	m := &Schema{
+		id:      ShapeID{Member: name},
+		typ:     target.typ,
+		members: target.members,
+		traits:  maps.Clone(target.traits),
 	}
 
+	if len(m.traits) == 0 && len(traits) != 0 {
+		m.traits = map[string]Trait{}
+	}
+	for _, t := range traits {
+		m.traits[t.TraitID()] = t
+	}
+
+	s.members[name] = m
+	switch name {
+	case "member":
+		s.listMember = m
+	case "key":
+		s.mapKey = m
+	case "value":
+		s.mapValue = m
+	}
 	return m
+}
+
+// ListMember returns the "member" schema for list types.
+func (s *Schema) ListMember() *Schema {
+	return s.listMember
+}
+
+// MapKey returns the "key" schema for map types.
+func (s *Schema) MapKey() *Schema {
+	return s.mapKey
+}
+
+// MapValue returns the "value" schema for map types.
+func (s *Schema) MapValue() *Schema {
+	return s.mapValue
+}
+
+// MemberName returns the member component of the schema's shape ID.
+func (s *Schema) MemberName() string {
+	return s.id.Member
+}
+
+// Member returns the member schema for the given name, or nil.
+func (s *Schema) Member(name string) *Schema {
+	return s.members[name]
 }
 
 // Trait returns the target trait on the schema if it exists.
 func SchemaTrait[T Trait](s *Schema) (T, bool) {
 	var trait T
 
-	opaque, ok := s.Traits[trait.TraitID()]
+	if s == nil {
+		return trait, false
+	}
+
+	opaque, ok := s.traits[trait.TraitID()]
 	if !ok {
 		return trait, false
 	}
