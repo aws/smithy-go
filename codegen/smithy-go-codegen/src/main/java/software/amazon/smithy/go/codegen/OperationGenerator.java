@@ -27,14 +27,12 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
@@ -153,7 +151,7 @@ public final class OperationGenerator implements Runnable {
 
         if (EventStreamGenerator.isV2EventStream(model, operation)) {
             List<MemberShape> onlyEventStreamMembers = outputShape.members().stream().filter(member -> StreamingTrait.isEventStream(model, member)).toList();
-            structOutputShape = buildShape(onlyEventStreamMembers);
+            structOutputShape = withMembers(outputShape, onlyEventStreamMembers);
         } else {
             structOutputShape = outputShape;
         }
@@ -322,8 +320,8 @@ public final class OperationGenerator implements Runnable {
         return String.format("addOperation%sMiddlewares", operation.getName());
     }
 
-    private StructureShape buildShape(List<MemberShape> members) {
-        var struct = StructureShape.builder().id(ShapeId.from("synthetic#throwaway"));
+    private StructureShape withMembers(StructureShape shape, List<MemberShape> members) {
+        var struct = StructureShape.builder().id(shape.getId());
             members.stream().forEach(member -> struct.addMember(
                 MemberShape.builder()
                 .id(struct.getId().withMember(member.getMemberName()))

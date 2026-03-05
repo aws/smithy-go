@@ -51,7 +51,7 @@ public final class ShapeUtil {
 
     public static boolean isExported(Shape shape) {
         return switch (shape.getType()) {
-            case STRUCTURE, UNION, ENUM -> true;
+            case OPERATION, STRUCTURE, UNION, ENUM -> true;
             default -> false;
         };
     }
