@@ -36,74 +36,63 @@ public class SchemaGenerator implements Writable {
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.writeGoTemplate("""
-                        var $ident:L = &smithy.Schema{
-                            ID: smithy.ShapeID{
-                                Namespace: $namespace:S,
-                                Name: $name:S,
-                            },
-                            Type: smithy.ShapeType$type:L,
-                            $members:W
-                            $traits:W
-                        }
-                        $memberVars:W
+                        var $ident:L = smithy.NewSchema(smithy.ShapeID{
+                            Namespace: $namespace:S,
+                            Name: $name:S,
+                        }, smithy.ShapeType$type:L, $numMembers:L$traits:W)
+                        $memberVarDecls:W
                         """,
                 Map.of(
                         "ident", getSchemaName(shape),
                         "namespace", shape.getId().getNamespace(),
                         "name", shape.getId().getName(),
                         "type", StringUtils.capitalize(shape.getType().toString()),
-                        "members", renderMembers(),
-                        "traits", renderTraits(),
-                        "memberVars", Writable.map(shape.members(), this::renderMemberIdent, true)
+                        "numMembers", shape.members().size(),
+                        "traits", renderVariadicTraits(shape.getAllTraits().values()),
+                        "memberVarDecls", Writable.map(shape.members(), this::renderMemberVarDecl, true)
                 ));
     }
 
-    private Writable renderMembers() {
+    public void acceptMembersInit(GoWriter writer) {
         if (shape.members().isEmpty()) {
-            return emptyGoTemplate();
+            return;
         }
-        return goTemplate("""
-                Members: map[string]*smithy.Schema{
-                    $W
-                },""", Writable.map(shape.members(), this::renderMemberMapEntry));
-    }
-
-    private Writable renderTraits() {
-        if (shape.getAllTraits().isEmpty()) {
-            return emptyGoTemplate();
-        }
-        return goTemplate("""
-                Traits: map[string]smithy.Trait{
-                    $W
-                },""", Writable.map(shape.getAllTraits().values(), this::renderTraitMapEntry));
-    }
-
-    private Writable renderMemberIdent(MemberShape member) {
-        var memberName = member.getMemberName();
-        return goTemplate("""
-                        var $ident:L = $schema:L.Members[$name:S]
+        writer.writeGoTemplate("""
+                        $memberAddAndAssign:W
                         """,
                 Map.of(
-                        "ident", getMemberSchemaName(shape, member),
-                        "schema", getSchemaName(shape),
-                        "name", memberName
+                        "memberAddAndAssign", Writable.map(shape.members(), this::renderMemberAddAndAssign, true)
                 ));
     }
 
-    private Writable renderMemberMapEntry(MemberShape member) {
+    private Writable renderMemberVarDecl(MemberShape member) {
+        return goTemplate("""
+                        var $ident:L *smithy.Schema
+                        """,
+                Map.of("ident", getMemberSchemaName(shape, member)));
+    }
+
+    private Writable renderMemberAddAndAssign(MemberShape member) {
         var target = ctx.model().expectShape(member.getTarget());
         var memberTraits = member.getAllTraits().values();
 
         return goTemplate("""
-                        $name:S: smithy.NewMember($name:S, $target:L$traits:W),
+                        $ident:L = $schema:L.AddMember($name:S, $target:L$traits:W)
                         """,
                 Map.of(
+                        "ident", getMemberSchemaName(shape, member),
+                        "schema", getSchemaName(shape),
                         "name", member.getMemberName(),
                         "target", getSchemaName(target),
-                        "traits", memberTraits.isEmpty()
-                                ? emptyGoTemplate()
-                                : goTemplate(", $W", Writable.map(memberTraits, this::renderVariadicTrait))
+                        "traits", renderVariadicTraits(memberTraits)
                 ));
+    }
+
+    private Writable renderVariadicTraits(java.util.Collection<Trait> traits) {
+        if (traits.isEmpty()) {
+            return emptyGoTemplate();
+        }
+        return goTemplate(", $W", Writable.map(traits, this::renderVariadicTrait));
     }
 
     private Writable renderTraitMapEntry(Trait trait) {
