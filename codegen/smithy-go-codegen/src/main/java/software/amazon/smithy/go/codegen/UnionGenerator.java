@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.Model;
@@ -131,7 +132,7 @@ public class UnionGenerator {
                 case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
                 case STRUCTURE -> writer.write("s.WriteStruct($L, &v.Value)", schemaName); // struct variants are value types
                 case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
-                default -> writer.write("// TODO: serialize union member type $L", target.getType());
+                case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
             }
         });
     }
@@ -166,7 +167,7 @@ public class UnionGenerator {
                 }
                 case STRUCTURE -> writer.write("return v.Value.Deserialize(d)");
                 case LIST, MAP, UNION -> writer.write("return deserialize$L(d, $L, &v.Value)", target.getId().getName(), schemaName);
-                default -> writer.write("return nil // TODO: deserialize union member type $L", target.getType());
+                case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
             }
         });
     }
