@@ -97,7 +97,7 @@ type ShapeDeserializer interface {
 	// returns true if there's another item in the list, false at the end and
 	// an error if a decode error is encountered. use other deserializer
 	// methods to read the expected type from the deserializer
-	ReadListItem(*Schema) (bool, error)
+	ReadListItem(*Schema) (hasMoreElements bool, err error)
 
 	ReadMap(*Schema) error
 	// the bool will be true if there's another key in the list and the string
