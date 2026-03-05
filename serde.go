@@ -103,7 +103,7 @@ type ShapeDeserializer interface {
 	// the bool will be true if there's another key in the list and the string
 	// will have the value of that key, with any decode error in the error. use
 	// other deserializer methods to read the expected type.
-	ReadMapKey(*Schema) (string, bool, error)
+	ReadMapKey(*Schema) (key string, hasMoreElements bool, err error)
 
 	ReadStruct(*Schema) error
 	// returns the member schema for the given struct, nil when there are no
