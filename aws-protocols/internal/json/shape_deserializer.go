@@ -19,6 +19,7 @@ import (
 type ShapeDeserializer struct {
 	dec  *json.Decoder
 	head stack
+	opts ShapeDeserializerOptions
 
 	// json.Decoder does not have a Peek() but we need to be able to
 	// "lookahead" for conditionally pulling a null token out in ReadNil.
@@ -26,11 +27,24 @@ type ShapeDeserializer struct {
 	hasPeek bool
 }
 
+// ShapeDeserializerOptions configures ShapeDeserializer.
+type ShapeDeserializerOptions struct {
+	// UseJSONName controls whether the @jsonName trait is used to
+	// match JSON object keys to struct members. If false (the default),
+	// only the member name is used. Protocols like restJson1 set this
+	// to true, while RPC protocols like awsJson1_0 leave it false.
+	UseJSONName bool
+}
+
 // NewShapeDeserializer creates a new ShapeDeserializer.
-func NewShapeDeserializer(p []byte) *ShapeDeserializer {
+func NewShapeDeserializer(p []byte, opts ...func(*ShapeDeserializerOptions)) *ShapeDeserializer {
+	o := ShapeDeserializerOptions{}
+	for _, fn := range opts {
+		fn(&o)
+	}
 	dec := json.NewDecoder(bytes.NewReader(p))
 	dec.UseNumber()
-	return &ShapeDeserializer{dec: dec}
+	return &ShapeDeserializer{dec: dec, opts: o}
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
@@ -449,7 +463,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	}
 
 	member := schema.Member(key)
-	if member == nil {
+	if member == nil && d.opts.UseJSONName {
 		for _, m := range schema.Members() {
 			if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 				member = m
@@ -481,7 +495,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		}
 
 		member := s.Member(key)
-		if member == nil {
+		if member == nil && d.opts.UseJSONName {
 			// Try matching by jsonName trait
 			for _, m := range s.Members() {
 				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {

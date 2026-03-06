@@ -52,7 +52,9 @@ func (p *Protocol) SerializeRequest(
 		return fmt.Errorf("restjson1: new encoder: %w", err)
 	}
 
-	body := awsjson.NewShapeSerializer()
+	body := awsjson.NewShapeSerializer(func(o *awsjson.ShapeSerializerOptions) {
+		o.UseJSONName = true
+	})
 	ser := &httpbindingser.Serializer{
 		Request: req,
 		Encoder: enc,
@@ -223,5 +225,7 @@ func newBodyDeserializer(payload []byte) smithy.ShapeDeserializer {
 	if len(payload) == 0 {
 		payload = []byte("{}")
 	}
-	return awsjson.NewShapeDeserializer(payload)
+	return awsjson.NewShapeDeserializer(payload, func(o *awsjson.ShapeDeserializerOptions) {
+		o.UseJSONName = true
+	})
 }
