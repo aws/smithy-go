@@ -16,7 +16,7 @@ import (
 // ShapeSerializer implements marshaling of Smithy shapes to JSON.
 type ShapeSerializer struct {
 	root *smithyjson.Encoder
-	head stack
+	head stackT[any]
 
 	opts ShapeSerializerOptions
 }
@@ -474,29 +474,4 @@ func (s *ShapeSerializer) writeDocumentRaw(schema *smithy.Schema, p []byte) {
 	default:
 		s.root.Write(p)
 	}
-}
-
-type stack struct {
-	values []any
-}
-
-type empty struct{}
-
-func (s *stack) Top() any {
-	if len(s.values) == 0 {
-		return empty{}
-	}
-	return s.values[len(s.values)-1]
-}
-
-func (s *stack) Push(v any) {
-	s.values = append(s.values, v)
-}
-
-func (s *stack) Pop() {
-	s.values = s.values[:len(s.values)-1]
-}
-
-func (s *stack) Len() int {
-	return len(s.values)
 }

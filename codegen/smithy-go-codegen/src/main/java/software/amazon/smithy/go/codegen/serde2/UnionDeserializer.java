@@ -41,7 +41,8 @@ public class UnionDeserializer implements Writable {
                     switch ms {
                     $cases:W
                     }
-                    return nil
+
+                    return d.CloseUnion(s)
                 }
                 """, Map.of(
                 "shapeName", shape.getId().getName(),
