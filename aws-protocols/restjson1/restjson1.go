@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/aws/smithy-go"
-	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	"github.com/aws/smithy-go/aws-protocols/internal/awserr"
 	httpbindingser "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
+	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
 	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
 	smithyio "github.com/aws/smithy-go/io"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -127,10 +127,9 @@ func (p *Protocol) DeserializeResponse(
 	// only HTTP-bound members (headers etc.), don't consume the body.
 	if so, ok := out.(smithy.StreamingOutput); ok {
 		so.SetPayloadStream(resp.Body)
-		bodyDeser := awsjson.NewShapeDeserializer([]byte("{}"))
 		deser := &httpbindingser.Deserializer{
 			Response: resp.Response,
-			Body:     bodyDeser,
+			Body:     newBodyDeserializer(nil),
 		}
 		if err := out.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
@@ -143,16 +142,9 @@ func (p *Protocol) DeserializeResponse(
 		return &smithy.DeserializationError{Err: err}
 	}
 
-	var bodyDeser smithy.ShapeDeserializer
-	if len(payload) > 0 {
-		bodyDeser = awsjson.NewShapeDeserializer(payload)
-	} else {
-		bodyDeser = awsjson.NewShapeDeserializer([]byte("{}"))
-	}
-
 	deser := &httpbindingser.Deserializer{
 		Response: resp.Response,
-		Body:     bodyDeser,
+		Body:     newBodyDeserializer(payload),
 		Payload:  payload,
 	}
 	if err := out.Deserialize(deser); err != nil {
@@ -180,7 +172,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	body := io.TeeReader(errorBody, ringBuffer)
 	decoder := json.NewDecoder(body)
 	decoder.UseNumber()
-	bodyInfo, err := getProtocolErrorInfo(decoder)
+	bodyInfo, err := awserr.GetProtocolErrorInfo(decoder)
 	if err != nil {
 		var snapshot bytes.Buffer
 		io.Copy(&snapshot, ringBuffer)
@@ -191,14 +183,14 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	}
 
 	errorBody.Seek(0, io.SeekStart)
-	if typ, ok := resolveProtocolErrorType(headerCode, bodyInfo); ok {
+	if typ, ok := awserr.ResolveProtocolErrorType(headerCode, bodyInfo); ok {
 		errorCode = typ
 	}
 	if len(bodyInfo.Message) != 0 {
 		errorMessage = bodyInfo.Message
 	}
 
-	errorCode = sanitizeErrorCode(errorCode)
+	errorCode = awserr.SanitizeErrorCode(errorCode)
 
 	perr, ok := types.DeserializableError(errorCode)
 	if !ok {
@@ -211,18 +203,11 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	errorBody.Seek(0, io.SeekStart)
 	errorBytes, _ := io.ReadAll(errorBody)
 
-	var bodyDeser smithy.ShapeDeserializer
-	if len(errorBytes) > 0 {
-		bodyDeser = awsjson.NewShapeDeserializer(errorBytes)
-	} else {
-		bodyDeser = awsjson.NewShapeDeserializer([]byte("{}"))
-	}
-
 	// Use the HTTP binding deserializer so error shapes with httpHeader
 	// traits are deserialized from response headers.
 	deser := &httpbindingser.Deserializer{
 		Response: response.Response,
-		Body:     bodyDeser,
+		Body:     newBodyDeserializer(errorBytes),
 		Payload:  errorBytes,
 	}
 	if err := perr.Deserialize(deser); err != nil {
@@ -232,40 +217,11 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	return perr
 }
 
-type protocolErrorInfo struct {
-	Type    string `json:"__type"`
-	Message string
-	Code    any
-}
-
-func getProtocolErrorInfo(decoder *json.Decoder) (protocolErrorInfo, error) {
-	var errInfo protocolErrorInfo
-	if err := decoder.Decode(&errInfo); err != nil {
-		if err == io.EOF {
-			return errInfo, nil
-		}
-		return errInfo, err
+// newBodyDeserializer creates a JSON body deserializer, defaulting to an
+// empty object when payload is empty so ReadStruct/ReadStructMember work.
+func newBodyDeserializer(payload []byte) smithy.ShapeDeserializer {
+	if len(payload) == 0 {
+		payload = []byte("{}")
 	}
-	return errInfo, nil
-}
-
-func resolveProtocolErrorType(headerType string, bodyInfo protocolErrorInfo) (string, bool) {
-	if len(headerType) != 0 {
-		return headerType, true
-	} else if len(bodyInfo.Type) != 0 {
-		return bodyInfo.Type, true
-	} else if code, ok := bodyInfo.Code.(string); ok && len(code) != 0 {
-		return code, true
-	}
-	return "", false
-}
-
-func sanitizeErrorCode(code string) string {
-	if idx := strings.Index(code, ":"); idx != -1 {
-		code = code[:idx]
-	}
-	if idx := strings.Index(code, "#"); idx != -1 {
-		code = code[idx+1:]
-	}
-	return code
+	return awsjson.NewShapeDeserializer(payload)
 }

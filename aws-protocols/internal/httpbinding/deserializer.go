@@ -131,6 +131,28 @@ func (d *Deserializer) ReadStructMember() (*smithy.Schema, error) {
 	return ms, err
 }
 
+// readHTTPHeaderString reads a string from an HTTP header, handling
+// @mediaType base64 decoding. Returns the value, whether a header was found,
+// and any error.
+func (d *Deserializer) readHTTPHeaderString(s *smithy.Schema) (string, bool, error) {
+	h, ok := isHTTPHeader(s)
+	if !ok {
+		return "", false, nil
+	}
+	hv := d.Response.Header.Get(h.Name)
+	if hv == "" {
+		return "", true, nil
+	}
+	if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
+		b, err := base64.StdEncoding.DecodeString(hv)
+		if err != nil {
+			return "", true, err
+		}
+		hv = string(b)
+	}
+	return hv, true, nil
+}
+
 // ReadString implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadString(s *smithy.Schema, v *string) error {
 	if d.headerListMode {
@@ -139,14 +161,9 @@ func (d *Deserializer) ReadString(s *smithy.Schema, v *string) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			hv := d.Response.Header.Get(h.Name)
-			if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
-				b, err := base64.StdEncoding.DecodeString(hv)
-				if err != nil {
-					return err
-				}
-				hv = string(b)
+		if hv, ok, err := d.readHTTPHeaderString(s); ok {
+			if err != nil {
+				return err
 			}
 			*v = hv
 			return nil
@@ -173,17 +190,12 @@ func (d *Deserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			if hv := d.Response.Header.Get(h.Name); hv != "" {
-				if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
-					b, err := base64.StdEncoding.DecodeString(hv)
-					if err != nil {
-						return err
-					}
-					hv = string(b)
-				}
+		if hv, ok, err := d.readHTTPHeaderString(s); ok {
+			if err != nil {
+				return err
+			}
+			if hv != "" {
 				*v = &hv
-				return nil
 			}
 			return nil
 		}
@@ -207,28 +219,10 @@ func (d *Deserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 // ReadBool implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	if d.headerListMode {
-		hv := d.headerListValues[d.headerListIdx]
-		d.headerListIdx++
-		b, err := strconv.ParseBool(hv)
-		if err != nil {
-			return fmt.Errorf("parse header list value %q as bool: %w", hv, err)
-		}
-		*v = b
-		return nil
+		return d.readHeaderListBool(func(b bool) { *v = b })
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			hv := d.Response.Header.Get(h.Name)
-			if hv == "" {
-				return nil
-			}
-			b, err := strconv.ParseBool(hv)
-			if err != nil {
-				return fmt.Errorf("parse header %q as bool: %w", h.Name, err)
-			}
-			*v = b
-			return nil
-		}
+		return d.readHeaderBool(s, func(b bool) { *v = b })
 	}
 	return d.Body.ReadBool(s, v)
 }
@@ -236,30 +230,40 @@ func (d *Deserializer) ReadBool(s *smithy.Schema, v *bool) error {
 // ReadBoolPtr implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
 	if d.headerListMode {
-		hv := d.headerListValues[d.headerListIdx]
-		d.headerListIdx++
-		b, err := strconv.ParseBool(hv)
-		if err != nil {
-			return fmt.Errorf("parse header list value %q as bool: %w", hv, err)
-		}
-		*v = &b
-		return nil
+		return d.readHeaderListBool(func(b bool) { *v = &b })
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			hv := d.Response.Header.Get(h.Name)
-			if hv == "" {
-				return nil
-			}
-			b, err := strconv.ParseBool(hv)
-			if err != nil {
-				return fmt.Errorf("parse header %q as bool: %w", h.Name, err)
-			}
-			*v = &b
-			return nil
-		}
+		return d.readHeaderBool(s, func(b bool) { *v = &b })
 	}
 	return d.Body.ReadBoolPtr(s, v)
+}
+
+func (d *Deserializer) readHeaderBool(s *smithy.Schema, assign func(bool)) error {
+	h, ok := isHTTPHeader(s)
+	if !ok {
+		return nil
+	}
+	hv := d.Response.Header.Get(h.Name)
+	if hv == "" {
+		return nil
+	}
+	b, err := strconv.ParseBool(hv)
+	if err != nil {
+		return fmt.Errorf("parse header %q as bool: %w", h.Name, err)
+	}
+	assign(b)
+	return nil
+}
+
+func (d *Deserializer) readHeaderListBool(assign func(bool)) error {
+	hv := d.headerListValues[d.headerListIdx]
+	d.headerListIdx++
+	b, err := strconv.ParseBool(hv)
+	if err != nil {
+		return fmt.Errorf("parse header list value %q as bool: %w", hv, err)
+	}
+	assign(b)
+	return nil
 }
 
 // ReadInt8 implements [smithy.ShapeDeserializer].
@@ -462,28 +466,10 @@ func (d *Deserializer) readHeaderListFloat(assign func(float64)) error {
 // ReadTime implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 	if d.headerListMode {
-		hv := d.headerListValues[d.headerListIdx]
-		d.headerListIdx++
-		t, err := parseTimestamp(s, "http-date", hv)
-		if err != nil {
-			return fmt.Errorf("parse header list value %q as time: %w", hv, err)
-		}
-		*v = t
-		return nil
+		return d.readHeaderListTime(func(t time.Time) { *v = t })
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			hv := d.Response.Header.Get(h.Name)
-			if hv == "" {
-				return nil
-			}
-			t, err := parseTimestamp(s, "http-date", hv)
-			if err != nil {
-				return fmt.Errorf("parse header %q as time: %w", h.Name, err)
-			}
-			*v = t
-			return nil
-		}
+		return d.readHeaderTime(s, func(t time.Time) { *v = t })
 	}
 	return d.Body.ReadTime(s, v)
 }
@@ -491,30 +477,40 @@ func (d *Deserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 // ReadTimePtr implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadTimePtr(s *smithy.Schema, v **time.Time) error {
 	if d.headerListMode {
-		hv := d.headerListValues[d.headerListIdx]
-		d.headerListIdx++
-		t, err := parseTimestamp(s, "http-date", hv)
-		if err != nil {
-			return fmt.Errorf("parse header list value %q as time: %w", hv, err)
-		}
-		*v = &t
-		return nil
+		return d.readHeaderListTime(func(t time.Time) { *v = &t })
 	}
 	if d.inHTTP {
-		if h, ok := isHTTPHeader(s); ok {
-			hv := d.Response.Header.Get(h.Name)
-			if hv == "" {
-				return nil
-			}
-			t, err := parseTimestamp(s, "http-date", hv)
-			if err != nil {
-				return fmt.Errorf("parse header %q as time: %w", h.Name, err)
-			}
-			*v = &t
-			return nil
-		}
+		return d.readHeaderTime(s, func(t time.Time) { *v = &t })
 	}
 	return d.Body.ReadTimePtr(s, v)
+}
+
+func (d *Deserializer) readHeaderTime(s *smithy.Schema, assign func(time.Time)) error {
+	h, ok := isHTTPHeader(s)
+	if !ok {
+		return nil
+	}
+	hv := d.Response.Header.Get(h.Name)
+	if hv == "" {
+		return nil
+	}
+	t, err := parseTimestamp(s, "http-date", hv)
+	if err != nil {
+		return fmt.Errorf("parse header %q as time: %w", h.Name, err)
+	}
+	assign(t)
+	return nil
+}
+
+func (d *Deserializer) readHeaderListTime(assign func(time.Time)) error {
+	hv := d.headerListValues[d.headerListIdx]
+	d.headerListIdx++
+	t, err := parseTimestamp(nil, "http-date", hv)
+	if err != nil {
+		return fmt.Errorf("parse header list value %q as time: %w", hv, err)
+	}
+	assign(t)
+	return nil
 }
 
 // ReadBlob implements [smithy.ShapeDeserializer].
