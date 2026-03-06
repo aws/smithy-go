@@ -4,10 +4,12 @@
 package httpbinding
 
 import (
+	"encoding/base64"
 	"fmt"
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -34,18 +36,41 @@ type Serializer struct {
 	// PayloadContentType is the content type for a raw payload.
 	PayloadContentType string
 
+	// StreamingPayloadContentType is the content type for a streaming payload,
+	// resolved from the @mediaType trait on the streaming blob member.
+	StreamingPayloadContentType string
+
+	opts serializerOptions
+
 	// state for httpPrefixHeaders / httpQueryParams map serialization
 	mapMode    mapBindingMode
 	mapPrefix  string // prefix for httpPrefixHeaders
 	currentKey string // current map key
 
 	// state for list serialization in HTTP bindings
-	listMode listBindingMode
-	listName string // header or query param name for list binding
+	listMode     listBindingMode
+	listName     string // header or query param name for list binding
+	listHasItems bool   // whether any items were written in current list
 
 	// noBody is true when the top-level struct has no body-bound members,
 	// meaning the body object open/close should be suppressed.
 	noBody bool
+
+	// HasStructPayload is true when the input has an httpPayload member
+	// targeting a struct type. When set, the protocol should send an empty
+	// JSON body ({}) even if no payload content was serialized.
+	HasStructPayload bool
+}
+
+type serializerOptions struct {
+	writeZeroValues bool
+}
+
+func (s *Serializer) withWriteZero(fn func()) {
+	prev := s.opts.writeZeroValues
+	s.opts.writeZeroValues = true
+	fn()
+	s.opts.writeZeroValues = prev
 }
 
 type mapBindingMode int
@@ -65,6 +90,24 @@ const (
 )
 
 var _ smithy.ShapeSerializer = (*Serializer)(nil)
+
+// quoteHeaderValue quotes a string for use in an HTTP header list value if it
+// contains commas or double quotes, per RFC 7230.
+func quoteHeaderValue(v string) string {
+	if !strings.ContainsAny(v, ",\"") {
+		return v
+	}
+	var b strings.Builder
+	b.WriteByte('"')
+	for i := 0; i < len(v); i++ {
+		if v[i] == '"' || v[i] == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(v[i])
+	}
+	b.WriteByte('"')
+	return b.String()
+}
 
 // Bytes returns the serialized body bytes.
 func (s *Serializer) Bytes() []byte {
@@ -143,7 +186,7 @@ func isSerializerHTTPBound(schema *smithy.Schema) bool {
 
 // WriteString implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteString(schema *smithy.Schema, v string) {
-	if v == "" {
+	if !s.opts.writeZeroValues && v == "" && s.mapMode == mapModeNone && s.listMode == listModeNone {
 		return
 	}
 	switch s.mapMode {
@@ -156,7 +199,8 @@ func (s *Serializer) WriteString(schema *smithy.Schema, v string) {
 	}
 	switch s.listMode {
 	case listModeHeader:
-		s.Encoder.AddHeader(s.listName).String(v)
+		s.Encoder.AddHeader(s.listName).String(quoteHeaderValue(v))
+		s.listHasItems = true
 		return
 	case listModeQuery:
 		s.Encoder.AddQuery(s.listName).String(v)
@@ -168,11 +212,17 @@ func (s *Serializer) WriteString(schema *smithy.Schema, v string) {
 		return
 	}
 	if h, ok := isHTTPHeader(schema); ok {
-		s.Encoder.SetHeader(h.Name).String(v)
+		if _, ok := smithy.SchemaTrait[*traits.MediaType](schema); ok {
+			s.Encoder.SetHeader(h.Name).String(base64.StdEncoding.EncodeToString([]byte(v)))
+		} else {
+			s.Encoder.SetHeader(h.Name).String(v)
+		}
 	} else if isHTTPLabel(schema) {
 		s.Encoder.SetURI(schema.MemberName()).String(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).String(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteStringPtr(schema, &v)
 	} else {
 		s.Body.WriteString(schema, v)
 	}
@@ -181,7 +231,7 @@ func (s *Serializer) WriteString(schema *smithy.Schema, v string) {
 // WriteStringPtr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteStringPtr(schema *smithy.Schema, v *string) {
 	if v != nil {
-		s.WriteString(schema, *v)
+		s.withWriteZero(func() { s.WriteString(schema, *v) })
 	}
 }
 
@@ -189,6 +239,7 @@ func (s *Serializer) WriteStringPtr(schema *smithy.Schema, v *string) {
 func (s *Serializer) WriteBool(schema *smithy.Schema, v bool) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Boolean(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -201,6 +252,8 @@ func (s *Serializer) WriteBool(schema *smithy.Schema, v bool) {
 		s.Encoder.SetURI(schema.MemberName()).Boolean(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Boolean(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteBoolPtr(schema, &v)
 	} else {
 		s.Body.WriteBool(schema, v)
 	}
@@ -209,7 +262,7 @@ func (s *Serializer) WriteBool(schema *smithy.Schema, v bool) {
 // WriteBoolPtr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteBoolPtr(schema *smithy.Schema, v *bool) {
 	if v != nil {
-		s.WriteBool(schema, *v)
+		s.withWriteZero(func() { s.WriteBool(schema, *v) })
 	}
 }
 
@@ -217,6 +270,7 @@ func (s *Serializer) WriteBoolPtr(schema *smithy.Schema, v *bool) {
 func (s *Serializer) WriteInt8(schema *smithy.Schema, v int8) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Byte(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -229,6 +283,8 @@ func (s *Serializer) WriteInt8(schema *smithy.Schema, v int8) {
 		s.Encoder.SetURI(schema.MemberName()).Byte(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Byte(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteInt8Ptr(schema, &v)
 	} else {
 		s.Body.WriteInt8(schema, v)
 	}
@@ -237,7 +293,7 @@ func (s *Serializer) WriteInt8(schema *smithy.Schema, v int8) {
 // WriteInt8Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteInt8Ptr(schema *smithy.Schema, v *int8) {
 	if v != nil {
-		s.WriteInt8(schema, *v)
+		s.withWriteZero(func() { s.WriteInt8(schema, *v) })
 	}
 }
 
@@ -245,6 +301,7 @@ func (s *Serializer) WriteInt8Ptr(schema *smithy.Schema, v *int8) {
 func (s *Serializer) WriteInt16(schema *smithy.Schema, v int16) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Short(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -257,6 +314,8 @@ func (s *Serializer) WriteInt16(schema *smithy.Schema, v int16) {
 		s.Encoder.SetURI(schema.MemberName()).Short(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Short(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteInt16Ptr(schema, &v)
 	} else {
 		s.Body.WriteInt16(schema, v)
 	}
@@ -265,7 +324,7 @@ func (s *Serializer) WriteInt16(schema *smithy.Schema, v int16) {
 // WriteInt16Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteInt16Ptr(schema *smithy.Schema, v *int16) {
 	if v != nil {
-		s.WriteInt16(schema, *v)
+		s.withWriteZero(func() { s.WriteInt16(schema, *v) })
 	}
 }
 
@@ -273,6 +332,7 @@ func (s *Serializer) WriteInt16Ptr(schema *smithy.Schema, v *int16) {
 func (s *Serializer) WriteInt32(schema *smithy.Schema, v int32) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Integer(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -285,6 +345,8 @@ func (s *Serializer) WriteInt32(schema *smithy.Schema, v int32) {
 		s.Encoder.SetURI(schema.MemberName()).Integer(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Integer(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteInt32Ptr(schema, &v)
 	} else {
 		s.Body.WriteInt32(schema, v)
 	}
@@ -293,7 +355,7 @@ func (s *Serializer) WriteInt32(schema *smithy.Schema, v int32) {
 // WriteInt32Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteInt32Ptr(schema *smithy.Schema, v *int32) {
 	if v != nil {
-		s.WriteInt32(schema, *v)
+		s.withWriteZero(func() { s.WriteInt32(schema, *v) })
 	}
 }
 
@@ -301,6 +363,7 @@ func (s *Serializer) WriteInt32Ptr(schema *smithy.Schema, v *int32) {
 func (s *Serializer) WriteInt64(schema *smithy.Schema, v int64) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Long(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -313,6 +376,8 @@ func (s *Serializer) WriteInt64(schema *smithy.Schema, v int64) {
 		s.Encoder.SetURI(schema.MemberName()).Long(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Long(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteInt64Ptr(schema, &v)
 	} else {
 		s.Body.WriteInt64(schema, v)
 	}
@@ -321,7 +386,7 @@ func (s *Serializer) WriteInt64(schema *smithy.Schema, v int64) {
 // WriteInt64Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteInt64Ptr(schema *smithy.Schema, v *int64) {
 	if v != nil {
-		s.WriteInt64(schema, *v)
+		s.withWriteZero(func() { s.WriteInt64(schema, *v) })
 	}
 }
 
@@ -329,6 +394,7 @@ func (s *Serializer) WriteInt64Ptr(schema *smithy.Schema, v *int64) {
 func (s *Serializer) WriteFloat32(schema *smithy.Schema, v float32) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Float(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -341,6 +407,8 @@ func (s *Serializer) WriteFloat32(schema *smithy.Schema, v float32) {
 		s.Encoder.SetURI(schema.MemberName()).Float(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Float(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteFloat32Ptr(schema, &v)
 	} else {
 		s.Body.WriteFloat32(schema, v)
 	}
@@ -349,7 +417,7 @@ func (s *Serializer) WriteFloat32(schema *smithy.Schema, v float32) {
 // WriteFloat32Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteFloat32Ptr(schema *smithy.Schema, v *float32) {
 	if v != nil {
-		s.WriteFloat32(schema, *v)
+		s.withWriteZero(func() { s.WriteFloat32(schema, *v) })
 	}
 }
 
@@ -357,6 +425,7 @@ func (s *Serializer) WriteFloat32Ptr(schema *smithy.Schema, v *float32) {
 func (s *Serializer) WriteFloat64(schema *smithy.Schema, v float64) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).Double(v)
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -369,6 +438,8 @@ func (s *Serializer) WriteFloat64(schema *smithy.Schema, v float64) {
 		s.Encoder.SetURI(schema.MemberName()).Double(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Double(v)
+	} else if s.opts.writeZeroValues {
+		s.Body.WriteFloat64Ptr(schema, &v)
 	} else {
 		s.Body.WriteFloat64(schema, v)
 	}
@@ -377,7 +448,7 @@ func (s *Serializer) WriteFloat64(schema *smithy.Schema, v float64) {
 // WriteFloat64Ptr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteFloat64Ptr(schema *smithy.Schema, v *float64) {
 	if v != nil {
-		s.WriteFloat64(schema, *v)
+		s.withWriteZero(func() { s.WriteFloat64(schema, *v) })
 	}
 }
 
@@ -403,6 +474,7 @@ func (s *Serializer) WriteBlob(schema *smithy.Schema, v []byte) {
 func (s *Serializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	if s.listMode == listModeHeader {
 		s.Encoder.AddHeader(s.listName).String(formatTimestamp(schema, "http-date", v))
+		s.listHasItems = true
 		return
 	}
 	if s.listMode == listModeQuery {
@@ -423,7 +495,7 @@ func (s *Serializer) WriteTime(schema *smithy.Schema, v time.Time) {
 // WriteTimePtr implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
 	if v != nil {
-		s.WriteTime(schema, *v)
+		s.withWriteZero(func() { s.WriteTime(schema, *v) })
 	}
 }
 
@@ -437,11 +509,13 @@ func (s *Serializer) WriteList(schema *smithy.Schema) {
 	if h, ok := isHTTPHeader(schema); ok {
 		s.listMode = listModeHeader
 		s.listName = h.Name
+		s.listHasItems = false
 		return
 	}
 	if q, ok := isHTTPQuery(schema); ok {
 		s.listMode = listModeQuery
 		s.listName = q.Name
+		s.listHasItems = false
 		return
 	}
 	s.Body.WriteList(schema)
@@ -450,8 +524,12 @@ func (s *Serializer) WriteList(schema *smithy.Schema) {
 // CloseList implements [smithy.ShapeSerializer].
 func (s *Serializer) CloseList() {
 	if s.listMode != listModeNone {
+		if !s.listHasItems && s.listMode == listModeHeader {
+			s.Encoder.SetHeader(s.listName).String("")
+		}
 		s.listMode = listModeNone
 		s.listName = ""
+		s.listHasItems = false
 		return
 	}
 	s.Body.CloseList()
@@ -467,6 +545,21 @@ func (s *Serializer) WriteMap(schema *smithy.Schema) {
 	if isHTTPQueryParams(schema) {
 		s.mapMode = mapModeQueryParams
 		return
+	}
+	// Detect streaming/struct payload from schema members.
+	if schema != nil {
+		for _, m := range schema.Members() {
+			if isHTTPPayload(m) {
+				if _, ok := smithy.SchemaTrait[*traits.Streaming](m); ok {
+					s.StreamingPayloadContentType = "application/octet-stream"
+					if mt, ok := smithy.SchemaTrait[*traits.MediaType](m); ok {
+						s.StreamingPayloadContentType = mt.Type
+					}
+				} else if m.Type() == smithy.ShapeTypeStructure {
+					s.HasStructPayload = true
+				}
+			}
+		}
 	}
 	if schema != nil && !hasBodyMembers(schema) {
 		s.noBody = true
@@ -502,17 +595,7 @@ func (s *Serializer) CloseMap() {
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	if isHTTPPayload(schema) {
-		// The entire struct is the payload body - serialize directly to body.
-		s.Body.WriteStruct(schema, v)
-		return
-	}
-	// For top-level input structs, the Serialize method on the struct will
-	// call back into this serializer for each member, which will route
-	// based on traits.
-	if v != nil {
-		v.Serialize(s)
-	}
+	s.Body.WriteStruct(schema, v)
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].

@@ -33,6 +33,9 @@ public class MapSerializer implements Writable {
         }
         writer.writeGoTemplate("""
                 func serialize$shapeName:L(s smithy.ShapeSerializer, schema *smithy.Schema, v $symbol:T) {
+                    if v == nil {
+                        return
+                    }
                     s.WriteMap(schema)
                     for k, vv := range v {
                         s.WriteKey(schema.MapKey(), k)

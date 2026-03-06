@@ -139,6 +139,11 @@ func (s *Schema) MemberName() string {
 	return s.id.Member
 }
 
+// Type returns the shape type of the schema.
+func (s *Schema) Type() ShapeType {
+	return s.typ
+}
+
 // Member returns the member schema for the given name, or nil.
 func (s *Schema) Member(name string) *Schema {
 	return s.members[name]

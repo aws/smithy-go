@@ -68,24 +68,44 @@ func (p *Protocol) SerializeRequest(
 	}
 	req.Request = built
 
-	// Set the body. Raw payload (blob/string httpPayload) takes precedence
-	// over the JSON body serializer.
-	var payload []byte
-	var contentType string
-	if ser.PayloadBytes != nil {
-		payload = ser.PayloadBytes
-		contentType = ser.PayloadContentType
-	} else {
-		payload = body.Bytes()
-		contentType = "application/json"
-	}
-	if len(payload) > 0 {
+	// Set the body. Streaming payload takes first precedence, then raw
+	// payload (blob/string httpPayload), then the JSON body.
+	if si, ok := in.(smithy.StreamingInput); ok && si.GetPayloadStream() != nil {
+		stream := si.GetPayloadStream()
+		contentType := ser.StreamingPayloadContentType
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
 		req.Header.Set("Content-Type", contentType)
-		sreq, err := req.SetStream(bytes.NewReader(payload))
+		sreq, err := req.SetStream(stream)
 		if err != nil {
 			return fmt.Errorf("restjson1: set stream: %w", err)
 		}
 		*req = *sreq
+	} else {
+		var payload []byte
+		var contentType string
+		if ser.PayloadBytes != nil {
+			payload = ser.PayloadBytes
+			contentType = ser.PayloadContentType
+		} else {
+			payload = body.Bytes()
+			contentType = "application/json"
+		}
+		if len(payload) == 0 && ser.HasStructPayload {
+			payload = []byte("{}")
+			contentType = "application/json"
+		}
+		if len(payload) > 0 {
+			if req.Header.Get("Content-Type") == "" {
+				req.Header.Set("Content-Type", contentType)
+			}
+			sreq, err := req.SetStream(bytes.NewReader(payload))
+			if err != nil {
+				return fmt.Errorf("restjson1: set stream: %w", err)
+			}
+			*req = *sreq
+		}
 	}
 
 	return nil
@@ -101,6 +121,21 @@ func (p *Protocol) DeserializeResponse(
 ) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return p.deserializeError(types, resp)
+	}
+
+	// For streaming output, set the body stream directly and deserialize
+	// only HTTP-bound members (headers etc.), don't consume the body.
+	if so, ok := out.(smithy.StreamingOutput); ok {
+		so.SetPayloadStream(resp.Body)
+		bodyDeser := awsjson.NewShapeDeserializer([]byte("{}"))
+		deser := &httpbindingser.Deserializer{
+			Response: resp.Response,
+			Body:     bodyDeser,
+		}
+		if err := out.Deserialize(deser); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+		return nil
 	}
 
 	payload, err := io.ReadAll(resp.Body)

@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -25,8 +26,10 @@ import software.amazon.smithy.go.codegen.serde2.StructureSerializer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.HttpPayloadTrait;
 import software.amazon.smithy.model.traits.InputTrait;
 import software.amazon.smithy.model.traits.OutputTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
@@ -158,7 +161,29 @@ public final class StructureGenerator implements Runnable {
                 writer.write(new StructureSerializer(ctx, shape));
                 writer.write(new StructureDeserializer(ctx, shape));
             }
+
+            getStreamingPayloadMember().ifPresent(member -> {
+                var memberName = symbolProvider.toMemberName(member);
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.addUseImports(SmithyGoDependency.IO);
+                writer.write("""
+                        func (v *$1L) GetPayloadStream() io.Reader { return v.$2L }
+                        var _ smithy.StreamingInput = (*$1L)(nil)
+                        func (v *$1L) SetPayloadStream(r io.ReadCloser) { v.$2L = r }
+                        var _ smithy.StreamingOutput = (*$1L)(nil)
+                        """, symbol.getName(), memberName);
+            });
         }
+    }
+
+    private Optional<MemberShape> getStreamingPayloadMember() {
+        return shape.getAllMembers().values().stream()
+                .filter(m -> m.hasTrait(HttpPayloadTrait.class))
+                .filter(m -> {
+                    var target = model.expectShape(m.getTarget());
+                    return target.getType() == ShapeType.BLOB && target.hasTrait(StreamingTrait.class);
+                })
+                .findFirst();
     }
 
     /**

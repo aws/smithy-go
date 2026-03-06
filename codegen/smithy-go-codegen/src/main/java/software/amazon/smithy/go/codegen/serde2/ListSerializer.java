@@ -32,6 +32,9 @@ public class ListSerializer implements Writable {
         }
         writer.writeGoTemplate("""
                 func serialize$shapeName:L(s smithy.ShapeSerializer, schema *smithy.Schema, v $symbol:T) {
+                    if v == nil {
+                        return
+                    }
                     s.WriteList(schema)
                     for _, vv := range v {
                         $serializeValue:W

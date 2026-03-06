@@ -112,9 +112,21 @@ func (s *ShapeSerializer) withWriteZero(fn func()) {
 	s.opts.WriteZeroValues = prev
 }
 
+func (s *ShapeSerializer) skipZeroValue() bool {
+	if s.opts.WriteZeroValues {
+		return false
+	}
+	switch s.head.Top().(type) {
+	case *smithyjson.Array, smithyjson.Value:
+		return false
+	default:
+		return true
+	}
+}
+
 // WriteBool implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
-	if !s.opts.WriteZeroValues && !v {
+	if !v && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -122,6 +134,9 @@ func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
 		enc.Key(jsonMemberName(schema)).Boolean(v)
 	case *smithyjson.Array:
 		enc.Value().Boolean(v)
+	case smithyjson.Value:
+		enc.Boolean(v)
+		s.head.Pop()
 	default:
 		s.root.Boolean(v)
 	}
@@ -129,7 +144,7 @@ func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
 
 // WriteInt8 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -137,6 +152,9 @@ func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
 		enc.Key(jsonMemberName(schema)).Byte(v)
 	case *smithyjson.Array:
 		enc.Value().Byte(v)
+	case smithyjson.Value:
+		enc.Byte(v)
+		s.head.Pop()
 	default:
 		s.root.Byte(v)
 	}
@@ -144,7 +162,7 @@ func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
 
 // WriteInt16 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -152,6 +170,9 @@ func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
 		enc.Key(jsonMemberName(schema)).Short(v)
 	case *smithyjson.Array:
 		enc.Value().Short(v)
+	case smithyjson.Value:
+		enc.Short(v)
+		s.head.Pop()
 	default:
 		s.root.Short(v)
 	}
@@ -159,7 +180,7 @@ func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
 
 // WriteInt32 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -177,7 +198,7 @@ func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
 
 // WriteInt64 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -185,6 +206,9 @@ func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
 		enc.Key(jsonMemberName(schema)).Long(v)
 	case *smithyjson.Array:
 		enc.Value().Long(v)
+	case smithyjson.Value:
+		enc.Long(v)
+		s.head.Pop()
 	default:
 		s.root.Long(v)
 	}
@@ -192,7 +216,7 @@ func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
 
 // WriteFloat32 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 
@@ -202,6 +226,9 @@ func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 		jv = enc.Key(jsonMemberName(schema))
 	case *smithyjson.Array:
 		jv = enc.Value()
+	case smithyjson.Value:
+		jv = enc
+		s.head.Pop()
 	default:
 		s.root.Float(v)
 		return
@@ -218,7 +245,7 @@ func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 	}
 }
 func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
-	if !s.opts.WriteZeroValues && v == 0 {
+	if v == 0 && s.skipZeroValue() {
 		return
 	}
 
@@ -228,6 +255,9 @@ func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 		jv = enc.Key(jsonMemberName(schema))
 	case *smithyjson.Array:
 		jv = enc.Value()
+	case smithyjson.Value:
+		jv = enc
+		s.head.Pop()
 	default:
 		s.root.Double(v)
 		return
@@ -246,7 +276,7 @@ func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 
 // WriteString implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
-	if !s.opts.WriteZeroValues && v == "" {
+	if v == "" && s.skipZeroValue() {
 		return
 	}
 	switch enc := s.head.Top().(type) {
@@ -285,6 +315,7 @@ func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 	case *smithyjson.Array:
 		s.head.Push(enc.Value().Array())
 	case smithyjson.Value:
+		s.head.Pop()
 		s.head.Push(enc.Array())
 	default:
 		s.head.Push(s.root.Array())
@@ -307,6 +338,7 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 	case *smithyjson.Array:
 		s.head.Push(enc.Value().Object())
 	case smithyjson.Value:
+		s.head.Pop()
 		s.head.Push(enc.Object())
 	default:
 		s.head.Push(s.root.Object())
@@ -367,13 +399,14 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 	case *smithyjson.Array:
 		s.head.Push(enc.Value().Object())
 	case smithyjson.Value:
+		s.head.Pop()
 		s.head.Push(enc.Object())
 	default:
 		s.head.Push(s.root.Object())
 	}
 
 	top := s.head.Top().(*smithyjson.Object)
-	s.head.Push(top.Key(variant.MemberName()))
+	s.head.Push(top.Key(jsonMemberName(variant)))
 
 	v.Serialize(s)
 
@@ -458,10 +491,21 @@ func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value)
 		}
 		s.CloseMap()
 	case document.Opaque:
-		denc := smithydocumentjson.NewEncoder()
-		p, _ := denc.Encode(vv.Value)
-		s.writeDocumentRaw(schema, p)
+		s.writeOpaqueDocument(schema, vv.Value)
+	case *document.Opaque:
+		s.writeOpaqueDocument(schema, vv.Value)
 	}
+}
+
+func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
+	if m, ok := v.(document.Marshaler); ok {
+		p, _ := m.MarshalSmithyDocument()
+		s.writeDocumentRaw(schema, p)
+		return
+	}
+	denc := smithydocumentjson.NewEncoder()
+	p, _ := denc.Encode(v)
+	s.writeDocumentRaw(schema, p)
 }
 
 func (s *ShapeSerializer) writeDocumentRaw(schema *smithy.Schema, p []byte) {

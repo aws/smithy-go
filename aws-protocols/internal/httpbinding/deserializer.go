@@ -140,7 +140,15 @@ func (d *Deserializer) ReadString(s *smithy.Schema, v *string) error {
 	}
 	if d.inHTTP {
 		if h, ok := isHTTPHeader(s); ok {
-			*v = d.Response.Header.Get(h.Name)
+			hv := d.Response.Header.Get(h.Name)
+			if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
+				b, err := base64.StdEncoding.DecodeString(hv)
+				if err != nil {
+					return err
+				}
+				hv = string(b)
+			}
+			*v = hv
 			return nil
 		}
 		if _, ok := smithy.SchemaTrait[*traits.HTTPPayload](s); ok {
@@ -167,6 +175,13 @@ func (d *Deserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 	if d.inHTTP {
 		if h, ok := isHTTPHeader(s); ok {
 			if hv := d.Response.Header.Get(h.Name); hv != "" {
+				if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
+					b, err := base64.StdEncoding.DecodeString(hv)
+					if err != nil {
+						return err
+					}
+					hv = string(b)
+				}
 				*v = &hv
 				return nil
 			}
@@ -530,7 +545,11 @@ func (d *Deserializer) ReadList(s *smithy.Schema) error {
 	if d.inHTTP {
 		if h, ok := isHTTPHeader(s); ok {
 			d.headerListMode = true
-			d.headerListValues = splitHeaderListValues(d.Response.Header, h.Name)
+			if s.ListMember() != nil && s.ListMember().Type() == smithy.ShapeTypeTimestamp {
+				d.headerListValues = splitHeaderTimestampList(d.Response.Header, h.Name)
+			} else {
+				d.headerListValues = splitHeaderListValues(d.Response.Header, h.Name)
+			}
 			d.headerListIdx = 0
 			return nil
 		}
@@ -616,10 +635,53 @@ func splitHeaderListValues(header http.Header, name string) []string {
 	}
 	var result []string
 	for _, v := range values {
-		for _, part := range strings.Split(v, ",") {
-			if trimmed := strings.TrimSpace(part); trimmed != "" {
+		result = append(result, splitQuotedCSV(v)...)
+	}
+	return result
+}
+
+// splitQuotedCSV splits a comma-separated string respecting quoted values.
+func splitQuotedCSV(s string) []string {
+	var result []string
+	i := 0
+	for i < len(s) {
+		// skip whitespace
+		for i < len(s) && s[i] == ' ' {
+			i++
+		}
+		if i >= len(s) {
+			break
+		}
+		if s[i] == '"' {
+			// quoted value
+			i++ // skip opening quote
+			var val strings.Builder
+			for i < len(s) {
+				if s[i] == '\\' && i+1 < len(s) {
+					val.WriteByte(s[i+1])
+					i += 2
+				} else if s[i] == '"' {
+					i++ // skip closing quote
+					break
+				} else {
+					val.WriteByte(s[i])
+					i++
+				}
+			}
+			result = append(result, val.String())
+		} else {
+			// unquoted value — read until comma
+			start := i
+			for i < len(s) && s[i] != ',' {
+				i++
+			}
+			if trimmed := strings.TrimSpace(s[start:i]); trimmed != "" {
 				result = append(result, trimmed)
 			}
+		}
+		// skip comma
+		if i < len(s) && s[i] == ',' {
+			i++
 		}
 	}
 	return result

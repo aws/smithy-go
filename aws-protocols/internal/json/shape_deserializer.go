@@ -251,6 +251,9 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	if err != nil {
 		return err
 	}
+	if tok == nil {
+		return nil
+	}
 
 	str, ok := tok.(string)
 	if !ok {
@@ -263,10 +266,19 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 
 // ReadStringPtr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	if *v == nil {
-		*v = new(string)
+	tok, err := d.token()
+	if err != nil {
+		return err
 	}
-	return d.ReadString(s, *v)
+	if tok == nil {
+		return nil
+	}
+	str, ok := tok.(string)
+	if !ok {
+		return fmt.Errorf("expected string, got %T", tok)
+	}
+	*v = &str
+	return nil
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -469,6 +481,15 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		}
 
 		member := s.Member(key)
+		if member == nil {
+			// Try matching by jsonName trait
+			for _, m := range s.Members() {
+				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+					member = m
+					break
+				}
+			}
+		}
 		if member == nil {
 			continue
 		}
