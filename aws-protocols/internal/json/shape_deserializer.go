@@ -486,7 +486,7 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 	if err != nil {
 		return err
 	}
-	*v = &document.Opaque{vv}
+	*v = &document.Opaque{Value: vv}
 	return nil
 }
 
