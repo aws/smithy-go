@@ -45,10 +45,10 @@ type Deserializer struct {
 var _ smithy.ShapeDeserializer = (*Deserializer)(nil)
 
 func isHTTPBound(schema *smithy.Schema) bool {
-	if _, ok := smithy.SchemaTrait[*traits.HTTPHeader](schema); ok {
+	if _, ok := isHTTPHeader(schema); ok {
 		return true
 	}
-	if _, ok := smithy.SchemaTrait[*traits.HTTPPrefixHeaders](schema); ok {
+	if _, ok := isHTTPPrefixHeaders(schema); ok {
 		return true
 	}
 	if _, ok := smithy.SchemaTrait[*traits.HTTPResponseCode](schema); ok {
@@ -101,6 +101,11 @@ func (d *Deserializer) ReadStructMember() (*smithy.Schema, error) {
 	if d.httpIdx < len(d.httpMembers) {
 		member := d.httpMembers[d.httpIdx]
 		d.httpIdx++
+		// Skip httpPayload struct members when the body is empty — the
+		// caller would allocate the struct, but there's nothing to fill.
+		if _, ok := smithy.SchemaTrait[*traits.HTTPPayload](member); ok && len(d.Payload) == 0 {
+			return d.ReadStructMember()
+		}
 		d.inHTTP = true
 		return member, nil
 	}
@@ -134,7 +139,7 @@ func (d *Deserializer) ReadString(s *smithy.Schema, v *string) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			*v = d.Response.Header.Get(h.Name)
 			return nil
 		}
@@ -160,7 +165,7 @@ func (d *Deserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			if hv := d.Response.Header.Get(h.Name); hv != "" {
 				*v = &hv
 				return nil
@@ -197,7 +202,7 @@ func (d *Deserializer) ReadBool(s *smithy.Schema, v *bool) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			hv := d.Response.Header.Get(h.Name)
 			if hv == "" {
 				return nil
@@ -226,7 +231,7 @@ func (d *Deserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			hv := d.Response.Header.Get(h.Name)
 			if hv == "" {
 				return nil
@@ -340,7 +345,7 @@ func (d *Deserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
 }
 
 func (d *Deserializer) readHeaderInt(s *smithy.Schema, assign func(int64)) error {
-	h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s)
+	h, ok := isHTTPHeader(s)
 	if !ok {
 		return nil
 	}
@@ -412,7 +417,7 @@ func (d *Deserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
 }
 
 func (d *Deserializer) readHeaderFloat(s *smithy.Schema, assign func(float64)) error {
-	h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s)
+	h, ok := isHTTPHeader(s)
 	if !ok {
 		return nil
 	}
@@ -452,7 +457,7 @@ func (d *Deserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			hv := d.Response.Header.Get(h.Name)
 			if hv == "" {
 				return nil
@@ -481,7 +486,7 @@ func (d *Deserializer) ReadTimePtr(s *smithy.Schema, v **time.Time) error {
 		return nil
 	}
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			hv := d.Response.Header.Get(h.Name)
 			if hv == "" {
 				return nil
@@ -504,7 +509,7 @@ func (d *Deserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 			*v = d.Payload
 			return nil
 		}
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			hv := d.Response.Header.Get(h.Name)
 			if hv == "" {
 				return nil
@@ -523,7 +528,7 @@ func (d *Deserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 // ReadList implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadList(s *smithy.Schema) error {
 	if d.inHTTP {
-		if h, ok := smithy.SchemaTrait[*traits.HTTPHeader](s); ok {
+		if h, ok := isHTTPHeader(s); ok {
 			d.headerListMode = true
 			d.headerListValues = splitHeaderListValues(d.Response.Header, h.Name)
 			d.headerListIdx = 0
@@ -548,7 +553,7 @@ func (d *Deserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 // ReadMap implements [smithy.ShapeDeserializer].
 func (d *Deserializer) ReadMap(s *smithy.Schema) error {
 	if d.inHTTP {
-		if ph, ok := smithy.SchemaTrait[*traits.HTTPPrefixHeaders](s); ok {
+		if ph, ok := isHTTPPrefixHeaders(s); ok {
 			d.prefixMode = true
 			d.prefixValue = ph.Prefix
 			d.prefixKeys = d.prefixKeys[:0]
@@ -560,7 +565,7 @@ func (d *Deserializer) ReadMap(s *smithy.Schema) error {
 			canonical := http.CanonicalHeaderKey(ph.Prefix)
 			for name := range d.Response.Header {
 				if len(name) > len(canonical) && strings.EqualFold(name[:len(canonical)], canonical) {
-					d.prefixKeys = append(d.prefixKeys, name[len(canonical):])
+					d.prefixKeys = append(d.prefixKeys, strings.ToLower(name[len(canonical):]))
 				}
 			}
 			return nil
@@ -602,7 +607,8 @@ func (d *Deserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
 }
 
 // splitHeaderListValues splits a comma-separated header value into individual
-// trimmed values.
+// trimmed values. For timestamp lists (http-date format), it handles the
+// commas within date values by attempting to reassemble split parts.
 func splitHeaderListValues(header http.Header, name string) []string {
 	values := header.Values(name)
 	if len(values) == 0 {
@@ -613,6 +619,43 @@ func splitHeaderListValues(header http.Header, name string) []string {
 		for _, part := range strings.Split(v, ",") {
 			if trimmed := strings.TrimSpace(part); trimmed != "" {
 				result = append(result, trimmed)
+			}
+		}
+	}
+	return result
+}
+
+// splitHeaderTimestampList splits a comma-separated header value containing
+// HTTP-date timestamps. HTTP-date values contain commas (e.g.
+// "Mon, 16 Dec 2019 23:48:18 GMT") so naive comma splitting doesn't work.
+// Instead, split on ", " and reassemble adjacent parts that form valid dates.
+func splitHeaderTimestampList(header http.Header, name string) []string {
+	values := header.Values(name)
+	if len(values) == 0 {
+		return nil
+	}
+	var result []string
+	for _, v := range values {
+		parts := strings.Split(v, ",")
+		var pending string
+		for i, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed == "" {
+				continue
+			}
+			if pending == "" {
+				pending = trimmed
+			} else {
+				pending += ", " + trimmed
+			}
+			// Try to parse as a timestamp. If it works, emit it.
+			if _, err := parseTimestamp(nil, "http-date", pending); err == nil {
+				result = append(result, pending)
+				pending = ""
+			} else if i == len(parts)-1 {
+				// Last part: emit whatever we have.
+				result = append(result, pending)
+				pending = ""
 			}
 		}
 	}

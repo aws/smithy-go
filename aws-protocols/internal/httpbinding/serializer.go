@@ -6,10 +6,12 @@ package httpbinding
 import (
 	"fmt"
 	"math/big"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/aws/smithy-go"
+	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
 	"github.com/aws/smithy-go/document"
 	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
 	smithytime "github.com/aws/smithy-go/time"
@@ -40,6 +42,10 @@ type Serializer struct {
 	// state for list serialization in HTTP bindings
 	listMode listBindingMode
 	listName string // header or query param name for list binding
+
+	// noBody is true when the top-level struct has no body-bound members,
+	// meaning the body object open/close should be suppressed.
+	noBody bool
 }
 
 type mapBindingMode int
@@ -66,7 +72,11 @@ func (s *Serializer) Bytes() []byte {
 }
 
 func isHTTPHeader(schema *smithy.Schema) (*traits.HTTPHeader, bool) {
-	return smithy.SchemaTrait[*traits.HTTPHeader](schema)
+	h, ok := smithy.SchemaTrait[*traits.HTTPHeader](schema)
+	if ok {
+		h.Name = http.CanonicalHeaderKey(h.Name)
+	}
+	return h, ok
 }
 
 func isHTTPLabel(schema *smithy.Schema) bool {
@@ -84,12 +94,51 @@ func isHTTPPayload(schema *smithy.Schema) bool {
 }
 
 func isHTTPPrefixHeaders(schema *smithy.Schema) (*traits.HTTPPrefixHeaders, bool) {
-	return smithy.SchemaTrait[*traits.HTTPPrefixHeaders](schema)
+	ph, ok := smithy.SchemaTrait[*traits.HTTPPrefixHeaders](schema)
+	if ok {
+		ph.Prefix = http.CanonicalHeaderKey(ph.Prefix)
+	}
+	return ph, ok
 }
 
 func isHTTPQueryParams(schema *smithy.Schema) bool {
 	_, ok := smithy.SchemaTrait[*traits.HTTPQueryParams](schema)
 	return ok
+}
+
+// hasBodyMembers reports whether any member of the schema is bound to the
+// HTTP body (i.e. has no HTTP binding trait).
+func hasBodyMembers(schema *smithy.Schema) bool {
+	for _, member := range schema.Members() {
+		if !isSerializerHTTPBound(member) {
+			return true
+		}
+	}
+	return false
+}
+
+// isSerializerHTTPBound reports whether a member schema has an HTTP binding
+// trait that routes it away from the body during serialization.
+func isSerializerHTTPBound(schema *smithy.Schema) bool {
+	if _, ok := isHTTPHeader(schema); ok {
+		return true
+	}
+	if _, ok := isHTTPPrefixHeaders(schema); ok {
+		return true
+	}
+	if isHTTPLabel(schema) {
+		return true
+	}
+	if _, ok := isHTTPQuery(schema); ok {
+		return true
+	}
+	if isHTTPQueryParams(schema) {
+		return true
+	}
+	if isHTTPPayload(schema) {
+		return true
+	}
+	return false
 }
 
 // WriteString implements [smithy.ShapeSerializer].
@@ -99,10 +148,10 @@ func (s *Serializer) WriteString(schema *smithy.Schema, v string) {
 	}
 	switch s.mapMode {
 	case mapModePrefixHeaders:
-		s.Encoder.SetHeader(s.mapPrefix + s.currentKey).String(v)
+		s.Encoder.SetHeader(http.CanonicalHeaderKey(s.mapPrefix + s.currentKey)).String(v)
 		return
 	case mapModeQueryParams:
-		s.Encoder.SetQuery(s.currentKey).String(v)
+		s.Encoder.AddQuery(s.currentKey).String(v)
 		return
 	}
 	switch s.listMode {
@@ -148,6 +197,8 @@ func (s *Serializer) WriteBool(schema *smithy.Schema, v bool) {
 	}
 	if h, ok := isHTTPHeader(schema); ok {
 		s.Encoder.SetHeader(h.Name).Boolean(v)
+	} else if isHTTPLabel(schema) {
+		s.Encoder.SetURI(schema.MemberName()).Boolean(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Boolean(v)
 	} else {
@@ -286,6 +337,8 @@ func (s *Serializer) WriteFloat32(schema *smithy.Schema, v float32) {
 	}
 	if h, ok := isHTTPHeader(schema); ok {
 		s.Encoder.SetHeader(h.Name).Float(v)
+	} else if isHTTPLabel(schema) {
+		s.Encoder.SetURI(schema.MemberName()).Float(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Float(v)
 	} else {
@@ -312,6 +365,8 @@ func (s *Serializer) WriteFloat64(schema *smithy.Schema, v float64) {
 	}
 	if h, ok := isHTTPHeader(schema); ok {
 		s.Encoder.SetHeader(h.Name).Double(v)
+	} else if isHTTPLabel(schema) {
+		s.Encoder.SetURI(schema.MemberName()).Double(v)
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).Double(v)
 	} else {
@@ -330,7 +385,11 @@ func (s *Serializer) WriteFloat64Ptr(schema *smithy.Schema, v *float64) {
 func (s *Serializer) WriteBlob(schema *smithy.Schema, v []byte) {
 	if isHTTPPayload(schema) {
 		s.PayloadBytes = v
-		s.PayloadContentType = "application/octet-stream"
+		if mt, ok := smithy.SchemaTrait[*traits.MediaType](schema); ok {
+			s.PayloadContentType = mt.Type
+		} else {
+			s.PayloadContentType = "application/octet-stream"
+		}
 		return
 	}
 	if h, ok := isHTTPHeader(schema); ok {
@@ -352,6 +411,8 @@ func (s *Serializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	}
 	if h, ok := isHTTPHeader(schema); ok {
 		s.Encoder.SetHeader(h.Name).String(formatTimestamp(schema, "http-date", v))
+	} else if isHTTPLabel(schema) {
+		s.Encoder.SetURI(schema.MemberName()).String(formatTimestamp(schema, "date-time", v))
 	} else if q, ok := isHTTPQuery(schema); ok {
 		s.Encoder.SetQuery(q.Name).String(formatTimestamp(schema, "date-time", v))
 	} else {
@@ -368,6 +429,11 @@ func (s *Serializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
 
 // WriteList implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteList(schema *smithy.Schema) {
+	if s.mapMode == mapModeQueryParams {
+		s.listMode = listModeQuery
+		s.listName = s.currentKey
+		return
+	}
 	if h, ok := isHTTPHeader(schema); ok {
 		s.listMode = listModeHeader
 		s.listName = h.Name
@@ -402,6 +468,10 @@ func (s *Serializer) WriteMap(schema *smithy.Schema) {
 		s.mapMode = mapModeQueryParams
 		return
 	}
+	if schema != nil && !hasBodyMembers(schema) {
+		s.noBody = true
+		return
+	}
 	s.Body.WriteMap(schema)
 }
 
@@ -421,6 +491,10 @@ func (s *Serializer) CloseMap() {
 		s.mapMode = mapModeNone
 		s.mapPrefix = ""
 		s.currentKey = ""
+		return
+	}
+	if s.noBody {
+		s.noBody = false
 		return
 	}
 	s.Body.CloseMap()
@@ -463,6 +537,14 @@ func (s *Serializer) WriteBigDecimal(schema *smithy.Schema, v big.Float) {
 
 // WriteDocument implements [smithy.ShapeSerializer].
 func (s *Serializer) WriteDocument(schema *smithy.Schema, v document.Value) {
+	if isHTTPPayload(schema) {
+		// httpPayload document: serialize to raw bytes for the body.
+		doc := awsjson.NewShapeSerializer()
+		doc.WriteDocument(schema, v)
+		s.PayloadBytes = doc.Bytes()
+		s.PayloadContentType = "application/json"
+		return
+	}
 	s.Body.WriteDocument(schema, v)
 }
 

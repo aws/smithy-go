@@ -438,7 +438,14 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 
 	member := schema.Member(key)
 	if member == nil {
-		// TODO smithy.api#jsonName
+		for _, m := range schema.Members() {
+			if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+				member = m
+				break
+			}
+		}
+	}
+	if member == nil {
 		if err := d.skip(); err != nil {
 			return nil, err
 		}

@@ -27,7 +27,7 @@ func formatTimestamp(schema *smithy.Schema, defaultFormat string, v time.Time) s
 	case "date-time":
 		return smithytime.FormatDateTime(v)
 	case "epoch-seconds":
-		return fmt.Sprintf("%g", smithytime.FormatEpochSeconds(v))
+		return strconv.FormatFloat(smithytime.FormatEpochSeconds(v), 'f', -1, 64)
 	default:
 		return smithytime.FormatHTTPDate(v)
 	}
