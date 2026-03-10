@@ -1,6 +1,7 @@
 package smithy
 
 import (
+	"io"
 	"math/big"
 	"time"
 
@@ -131,6 +132,18 @@ type ShapeDeserializer interface {
 // the HTTP request itself (e.g. headers).
 type Serializable interface {
 	Serialize(ShapeSerializer)
+}
+
+// StreamingInput is implemented by input types that have a streaming blob
+// payload (an io.Reader member with @httpPayload + @streaming).
+type StreamingInput interface {
+	GetPayloadStream() io.Reader
+}
+
+// StreamingOutput is implemented by output types that have a streaming blob
+// payload (an io.ReadCloser member with @httpPayload + @streaming).
+type StreamingOutput interface {
+	SetPayloadStream(io.ReadCloser)
 }
 
 // Deserializable is an entity that can unmarshal itself from a

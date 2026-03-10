@@ -90,10 +90,13 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Sche
 // reference.
 func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
 	m := &Schema{
-		id:      ShapeID{Member: name},
-		typ:     target.typ,
-		members: target.members,
-		traits:  maps.Clone(target.traits),
+		id:         ShapeID{Member: name},
+		typ:        target.typ,
+		members:    target.members,
+		traits:     maps.Clone(target.traits),
+		listMember: target.listMember,
+		mapKey:     target.mapKey,
+		mapValue:   target.mapValue,
 	}
 
 	if len(m.traits) == 0 && len(traits) != 0 {
@@ -135,9 +138,19 @@ func (s *Schema) MemberName() string {
 	return s.id.Member
 }
 
+// Type returns the shape type of the schema.
+func (s *Schema) Type() ShapeType {
+	return s.typ
+}
+
 // Member returns the member schema for the given name, or nil.
 func (s *Schema) Member(name string) *Schema {
 	return s.members[name]
+}
+
+// Members returns the schema's members as a map of name to schema.
+func (s *Schema) Members() map[string]*Schema {
+	return s.members
 }
 
 // Trait returns the target trait on the schema if it exists.

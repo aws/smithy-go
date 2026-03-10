@@ -27,8 +27,14 @@ public class ListSerializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        if (member.getType() == software.amazon.smithy.model.shapes.ShapeType.DOCUMENT) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
+        }
         writer.writeGoTemplate("""
                 func serialize$shapeName:L(s smithy.ShapeSerializer, schema *smithy.Schema, v $symbol:T) {
+                    if v == nil {
+                        return
+                    }
                     s.WriteList(schema)
                     for _, vv := range v {
                         $serializeValue:W
@@ -92,7 +98,7 @@ public class ListSerializer implements Writable {
             case STRUCTURE ->
                     wrapNilCheck(goTemplate("vv.Serialize(s)"));
             case DOCUMENT ->
-                    wrapNilCheck(goTemplate("s.WriteDocument(schema.ListMember(), vv)"));
+                    wrapNilCheck(goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})"));
 
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("big integer / big decimal unsupported");
@@ -131,7 +137,7 @@ public class ListSerializer implements Writable {
             case STRUCTURE ->
                     goTemplate("vv.Serialize(s)");
             case DOCUMENT ->
-                    goTemplate("s.WriteDocument(schema.ListMember(), vv)");
+                    goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})");
 
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("big integer / big decimal unsupported");

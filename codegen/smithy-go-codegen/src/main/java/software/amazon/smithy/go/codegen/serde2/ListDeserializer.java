@@ -7,6 +7,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
@@ -28,7 +29,7 @@ public class ListDeserializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
-        if (member.hasTrait(SparseTrait.class)) {
+        if (shape.hasTrait(SparseTrait.class)) {
             renderSparse(writer);
         } else {
             renderDense(writer);
@@ -54,13 +55,11 @@ public class ListDeserializer implements Writable {
                 "memberSymbol", switch (member.getType()) {
                     case ENUM -> GoUniverseTypes.String;
                     case INT_ENUM -> GoUniverseTypes.Int32;
+                    case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(member);
                 },
                 "deserializeMember", renderDeserializeMember(),
-                "cast", switch (member.getType()) {
-                    case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(member));
-                    default -> goTemplate("vv");
-                }
+                "cast", renderDenseCast()
         ));
     }
 
@@ -90,6 +89,7 @@ public class ListDeserializer implements Writable {
                 "memberSymbol", switch (member.getType()) {
                     case ENUM -> GoUniverseTypes.String;
                     case INT_ENUM -> GoUniverseTypes.Int32;
+                    case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(member);
                 },
                 "deserializeMember", renderDeserializeMember(),
@@ -106,11 +106,33 @@ public class ListDeserializer implements Writable {
                     }()""", ctx.symbolProvider().toSymbol(member));
 
             // don't need the address-of
-            case BLOB, LIST, SET, MAP, UNION, DOCUMENT ->
+            case BLOB, LIST, SET, MAP, UNION ->
                     goTemplate("vv");
+
+            case DOCUMENT -> renderDocumentCast();
 
             default -> goTemplate("&vv");
         };
+    }
+
+    private Writable renderDenseCast() {
+        return switch (member.getType()) {
+            case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(member));
+            case DOCUMENT -> renderDocumentCast();
+            default -> goTemplate("vv");
+        };
+    }
+
+    private Writable renderDocumentCast() {
+        var unmarshaler = ProtocolDocumentGenerator.Utilities.getInternalDocumentSymbolBuilder(
+                ctx.settings(), ProtocolDocumentGenerator.INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC).build();
+        return goTemplate("""
+                func() $T {
+                    if ov, ok := vv.(smithydocument.Opaque); ok {
+                        return $T(ov.Value)
+                    }
+                    return nil
+                }()""", ctx.symbolProvider().toSymbol(member), unmarshaler);
     }
 
     private Writable renderDeserializeMember() {
@@ -134,7 +156,7 @@ public class ListDeserializer implements Writable {
             case BOOLEAN ->
                     goTemplate("d.ReadBool(s.ListMember(), &vv)");
             case TIMESTAMP ->
-                    goTemplate("d.ReadTimestamp(s.ListMember(), &vv)");
+                    goTemplate("d.ReadTime(s.ListMember(), &vv)");
             case BLOB ->
                     goTemplate("d.ReadBlob(s.ListMember(), &vv)");
 

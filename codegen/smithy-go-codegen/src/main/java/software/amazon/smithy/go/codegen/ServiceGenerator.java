@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoSettings.PROTOCOLS_BY_PRIORITY;
 import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
@@ -24,8 +25,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
+import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
@@ -253,7 +259,23 @@ final class ServiceGenerator implements Runnable {
     private Writable generateExperimentalSerdeResolvers() {
         ensureSupportedProtocol();
         // TODO(serde2) dynamically resolve a symbol based on traits
-        return goTemplate("options.Protocol = $T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New"));
+        return goTemplate("options.Protocol = $T()", resolveDefaultProtocol());
+    }
+
+    private Symbol resolveDefaultProtocol() {
+        Set<ShapeId> protocols = ServiceIndex.of(model).getProtocols(service).keySet();
+        var preferred = PROTOCOLS_BY_PRIORITY.stream()
+                .filter(protocols::contains)
+                .findFirst()
+                .get();
+
+        if (preferred.equals(AwsJson1_0Trait.ID)) {
+            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New");
+        } else if (preferred.equals(RestJson1Trait.ID)) {
+            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New");
+        } else {
+            throw new CodegenException("unsupported schema-serde protocol " + preferred);
+        }
     }
 
     private Writable generateGetOptions() {
