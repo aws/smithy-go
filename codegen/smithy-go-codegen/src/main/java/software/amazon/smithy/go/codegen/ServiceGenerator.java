@@ -39,6 +39,7 @@ import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -338,7 +339,7 @@ final class ServiceGenerator implements Runnable {
                 }
                 """,
                 AuthSchemeResolverGenerator.DEFAULT_NAME,
-                SmithyGoTypes.Transport.Http.AuthScheme,
+                SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("AuthScheme"),
                 schemeMappings);
     }
 
@@ -433,7 +434,7 @@ final class ServiceGenerator implements Runnable {
                         "middleware", SmithyGoDependency.SMITHY_MIDDLEWARE,
                         "tracing", SmithyGoDependency.SMITHY_TRACING,
                         "newStack", generateNewStack(),
-                        "operationError", SmithyGoTypes.Smithy.OperationError,
+                        "operationError", SmithyGoDependency.SMITHY.struct("OperationError"),
                         "resolvers", ChainWritable.of(
                                 getConfigResolvers(
                                         ConfigFieldResolver.Location.OPERATION,
@@ -549,7 +550,7 @@ final class ServiceGenerator implements Runnable {
                         "middleware", SmithyGoDependency.SMITHY_MIDDLEWARE,
                         "tracing", SmithyGoDependency.SMITHY_TRACING,
                         "newStack", generateNewStack(),
-                        "operationError", SmithyGoTypes.Smithy.OperationError,
+                        "operationError", SmithyGoDependency.SMITHY.struct("OperationError"),
                         "resolvers", ChainWritable.of(
                                 getConfigResolvers(
                                         ConfigFieldResolver.Location.OPERATION,
@@ -629,7 +630,7 @@ final class ServiceGenerator implements Runnable {
     private Writable generateNewStack() {
         ensureSupportedProtocol();
         return goTemplate("stack := $T(opID, $T)",
-                SmithyGoTypes.Middleware.NewStack, SmithyGoTypes.Transport.Http.NewStackRequest);
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("NewStack"), SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewStackRequest"));
     }
 
     private void ensureSupportedProtocol() {
@@ -663,8 +664,8 @@ final class ServiceGenerator implements Runnable {
                 $4W
                 """,
                 GoStdlibTypes.Context.Context,
-                SmithyGoTypes.Middleware.WithStackValue,
-                SmithyGoTypes.Middleware.GetStackValue,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("WithStackValue"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("GetStackValue"),
                 new SetOperationInputContextMiddleware().generate());
     }
 
@@ -676,7 +677,7 @@ final class ServiceGenerator implements Runnable {
                     return nil
                 }
                 """,
-                SmithyGoTypes.Middleware.Stack,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
                 CONFIG_NAME,
                 ChainWritable.of(
                         ResolveAuthSchemeMiddlewareGenerator.generateAddToProtocolFinalizers(),

@@ -20,10 +20,10 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenera
 import static software.amazon.smithy.go.codegen.serde.cbor.CborDeserializerGenerator.getDeserializerName;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2DeserializeResponseMiddleware;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -66,7 +66,7 @@ final class DeserializeMiddleware extends Rpc2DeserializeResponseMiddleware {
                     """,
                 MapUtils.of(
                         "readAll", GoStdlibTypes.Io.ReadAll,
-                        "decode", SmithyGoTypes.Encoding.Cbor.Decode,
+                        "decode", SmithyGoDependency.SMITHY_CBOR.func("Decode"),
                         "deserialize", getDeserializerName(output),
                         "output", ctx.getSymbolProvider()
                                 .toSymbol(ctx.getModel().expectShape(operation.getOutputShape()))

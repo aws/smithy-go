@@ -21,12 +21,12 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoValidationIndex;
 import software.amazon.smithy.go.codegen.server.RequestHandler;
 import software.amazon.smithy.go.codegen.server.ServerProtocolGenerator;
 import software.amazon.smithy.go.codegen.server.ServerValidationgenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.utils.MapUtils;
@@ -143,7 +143,7 @@ public abstract class HttpHandlerProtocolGenerator implements ServerProtocolGene
                         "r", GoStdlibTypes.Net.Http.Request
                 ),
                 MapUtils.of(
-                        "newUuid", SmithyGoTypes.Rand.NewUUID,
+                        "newUuid", SmithyGoDependency.SMITHY_RAND.func("NewUUID"),
                         "rand", GoStdlibTypes.Crypto.Rand.Reader,
                         "deserialize", generateDeserializeRequest(operation),
                         "validate", validationIndex.operationRequiresValidation(service, operation)

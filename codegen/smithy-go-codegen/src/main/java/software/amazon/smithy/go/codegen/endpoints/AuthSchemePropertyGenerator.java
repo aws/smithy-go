@@ -18,8 +18,8 @@ package software.amazon.smithy.go.codegen.endpoints;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.ChainWritable;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.RecordLiteral;
@@ -50,8 +50,8 @@ public class AuthSchemePropertyGenerator {
                     $W
                 })
                 """,
-                SmithyGoTypes.Auth.SetAuthOptions,
-                SmithyGoTypes.Auth.Option,
+                SmithyGoDependency.SMITHY_AUTH.func("SetAuthOptions"),
+                SmithyGoDependency.SMITHY_AUTH.struct("Option"),
                 ChainWritable.of(
                         ((TupleLiteral) expr).members().stream()
                                 .map(it -> generateOption(generator, (RecordLiteral) it))
@@ -72,7 +72,7 @@ public class AuthSchemePropertyGenerator {
                     }(),
                 },""",
                 mapEndpointPropertyAuthSchemeName(schemeName),
-                SmithyGoTypes.Smithy.Properties,
+                SmithyGoDependency.SMITHY.struct("Properties"),
                 generateOptionSignerProps(generator, scheme));
     }
 
@@ -84,11 +84,11 @@ public class AuthSchemePropertyGenerator {
                 case "signingName" -> props.add(goTemplate("""
                         $1T(&sp, $3W)
                         $2T(&sp, $3W)""",
-                        SmithyGoTypes.Transport.Http.SetSigV4SigningName,
-                        SmithyGoTypes.Transport.Http.SetSigV4ASigningName,
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4SigningName"),
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4ASigningName"),
                         generator.generate(expr)));
                 case "signingRegion" -> props.add(goTemplate("$T(&sp, $W)",
-                        SmithyGoTypes.Transport.Http.SetSigV4SigningRegion, generator.generate(expr)));
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4SigningRegion"), generator.generate(expr)));
                 case "signingRegionSet" -> {
                     var regions = ChainWritable.of(
                             ((TupleLiteral) expr).members().stream()
@@ -96,10 +96,10 @@ public class AuthSchemePropertyGenerator {
                                     .toList()
                     ).compose();
                     props.add(goTemplate("$T(&sp, []string{$W})",
-                            SmithyGoTypes.Transport.Http.SetSigV4ASigningRegions, regions));
+                            SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4ASigningRegions"), regions));
                 }
                 case "disableDoubleEncoding" -> props.add(goTemplate("$T(&sp, $W)",
-                        SmithyGoTypes.Transport.Http.SetDisableDoubleEncoding, generator.generate(expr)));
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetDisableDoubleEncoding"), generator.generate(expr)));
                 default -> {
                     return;
                 }

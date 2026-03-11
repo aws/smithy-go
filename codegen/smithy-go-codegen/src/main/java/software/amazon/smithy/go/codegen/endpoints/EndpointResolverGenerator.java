@@ -37,7 +37,6 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceException;
@@ -466,7 +465,7 @@ public final class EndpointResolverGenerator {
                     return out
                 }(),
                 """,
-                SmithyGoTypes.Smithy.Properties,
+                SmithyGoDependency.SMITHY.struct("Properties"),
                 ChainWritable.of(
                         properties.entrySet().stream()
                                 .map(it -> generateSetProperty(generator, it.getKey(), it.getValue()))

@@ -25,13 +25,13 @@ import software.amazon.smithy.go.codegen.GoCodegenPlugin;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoUniverseTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -151,8 +151,8 @@ public final class RequestCompression implements GoIntegration {
                 """,
                 MapUtils.of(
                         "add", getAddRequestCompressionMiddlewareFuncName(operationName),
-                        "stack", SmithyGoTypes.Middleware.Stack,
-                        "addInternal", SmithyGoTypes.Private.RequestCompression.AddRequestCompression,
+                        "stack", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
+                        "addInternal", SmithyGoDependency.SMITHY_REQUEST_COMPRESSION.func("AddRequestCompression"),
                         "algorithms", generateAlgorithmList(trait.getEncodings())
                 ));
     }

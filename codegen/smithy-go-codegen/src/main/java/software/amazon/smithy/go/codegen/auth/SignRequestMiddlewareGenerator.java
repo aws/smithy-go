@@ -21,7 +21,6 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
@@ -45,7 +44,7 @@ public class SignRequestMiddlewareGenerator {
                 """,
                 MIDDLEWARE_NAME,
                 EndpointMiddlewareGenerator.MIDDLEWARE_ID,
-                SmithyGoTypes.Middleware.After,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("After"),
                 GoStdlibTypes.Fmt.Errorf,
                 MIDDLEWARE_ID);
     }
@@ -100,7 +99,7 @@ public class SignRequestMiddlewareGenerator {
                 """,
                 MapUtils.of(
                         // FUTURE(#458) protocol generator should specify the transport type
-                        "request", SmithyGoTypes.Transport.Http.Request,
+                        "request", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.struct("Request"),
                         "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan"),
                         "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions")
                 ));

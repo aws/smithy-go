@@ -29,9 +29,9 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.DocumentShape;
@@ -77,7 +77,7 @@ public final class CborSerializerGenerator {
                 MapUtils.of(
                         "name", getSerializerName(shape),
                         "shapeType", symbolProvider.toSymbol(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
                         "serialize", generateSerializeValue(shape)
                 ));
     }
@@ -85,12 +85,12 @@ public final class CborSerializerGenerator {
     private Writable generateSerializeValue(Shape shape) {
         return switch (shape.getType()) {
             case BYTE, SHORT, INTEGER, LONG, INT_ENUM -> generateSerializeIntegral();
-            case FLOAT -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.Float32);
-            case DOUBLE -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.Float64);
-            case STRING -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.String);
-            case BOOLEAN -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.Bool);
-            case BLOB -> goTemplate("return $T(v), nil", SmithyGoTypes.Encoding.Cbor.Slice);
-            case ENUM -> goTemplate("return $T(string(v)), nil", SmithyGoTypes.Encoding.Cbor.String);
+            case FLOAT -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Float32"));
+            case DOUBLE -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Float64"));
+            case STRING -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("String"));
+            case BOOLEAN -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Bool"));
+            case BLOB -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Slice"));
+            case ENUM -> goTemplate("return $T(string(v)), nil", SmithyGoDependency.SMITHY_CBOR.func("String"));
             case TIMESTAMP -> generateSerializeTimestamp((TimestampShape) shape);
             case LIST, SET -> generateSerializeList((CollectionShape) shape);
             case MAP -> generateSerializeMap((MapShape) shape);
@@ -110,7 +110,7 @@ public final class CborSerializerGenerator {
                     return $T(uint64(-v)), nil
                 }
                 return $T(uint64(v)), nil
-                """, SmithyGoTypes.Encoding.Cbor.NegInt, SmithyGoTypes.Encoding.Cbor.Uint);
+                """, SmithyGoDependency.SMITHY_CBOR.func("NegInt"), SmithyGoDependency.SMITHY_CBOR.func("Uint"));
     }
 
     private Writable generateSerializeTimestamp(TimestampShape shape) {
@@ -121,8 +121,8 @@ public final class CborSerializerGenerator {
                 }, nil
                 """,
                 MapUtils.of(
-                        "tag", SmithyGoTypes.Encoding.Cbor.Tag,
-                        "float64", SmithyGoTypes.Encoding.Cbor.Float64
+                        "tag", SmithyGoDependency.SMITHY_CBOR.struct("Tag"),
+                        "float64", SmithyGoDependency.SMITHY_CBOR.func("Float64")
                 ));
     }
 
@@ -143,7 +143,7 @@ public final class CborSerializerGenerator {
                     return vl, nil
                     """,
                 MapUtils.of(
-                        "list", SmithyGoTypes.Encoding.Cbor.List,
+                        "list", SmithyGoDependency.SMITHY_CBOR.func("List"),
                         "sparse", isNilable(getReference(symbol)) ? handleSparseList() : emptyGoTemplate(),
                         "serialize", getSerializerName(target),
                         "indirect", resolveIndirect(getReference(symbol), targetSymbol)
@@ -156,7 +156,7 @@ public final class CborSerializerGenerator {
                     vl = append(vl, &$T{})
                     continue
                 }
-                """, SmithyGoTypes.Encoding.Cbor.Nil);
+                """, SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
     }
 
     private Writable generateSerializeMap(MapShape shape) {
@@ -176,7 +176,7 @@ public final class CborSerializerGenerator {
                 return vm, nil
                 """,
                 MapUtils.of(
-                        "map", SmithyGoTypes.Encoding.Cbor.Map,
+                        "map", SmithyGoDependency.SMITHY_CBOR.func("Map"),
                         "sparse", isNilable(getReference(symbol)) ? handleSparseMap() : emptyGoTemplate(),
                         "serialize", getSerializerName(value),
                         "indirect", resolveIndirect(getReference(symbol), valueSymbol)
@@ -189,7 +189,7 @@ public final class CborSerializerGenerator {
                     vm[k] = &$T{}
                     continue
                 }
-                """, SmithyGoTypes.Encoding.Cbor.Nil);
+                """, SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
     }
 
     private Writable generateSerializeStruct(StructureShape shape) {
@@ -199,7 +199,7 @@ public final class CborSerializerGenerator {
                 return vm, nil
                 """,
                 MapUtils.of(
-                        "map", SmithyGoTypes.Encoding.Cbor.Map,
+                        "map", SmithyGoDependency.SMITHY_CBOR.func("Map"),
                         "serialize", ChainWritable.of(
                                 shape.getAllMembers().values().stream()
                                         .map(this::generateSerializeField)
@@ -294,7 +294,7 @@ public final class CborSerializerGenerator {
                 return vm, nil
                 """,
                 MapUtils.of(
-                        "map", SmithyGoTypes.Encoding.Cbor.Map,
+                        "map", SmithyGoDependency.SMITHY_CBOR.func("Map"),
                         "errorf", GoStdlibTypes.Fmt.Errorf,
                         "serialize", ChainWritable.of(
                                 union.getAllMembers().values().stream()
@@ -333,8 +333,8 @@ public final class CborSerializerGenerator {
                 return $encodeRaw:T(raw), nil
                 """,
                 MapUtils.of(
-                        "encoder", SmithyGoTypes.Document.Cbor.NewEncoder,
-                        "encodeRaw", SmithyGoTypes.Encoding.Cbor.EncodeRaw
+                        "encoder", SmithyGoDependency.SMITHY_DOCUMENT_CBOR.func("NewEncoder"),
+                        "encodeRaw", SmithyGoDependency.SMITHY_CBOR.func("EncodeRaw")
                 ));
     }
 

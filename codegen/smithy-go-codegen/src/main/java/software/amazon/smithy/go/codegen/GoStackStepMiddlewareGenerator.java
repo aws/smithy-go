@@ -16,6 +16,7 @@
 package software.amazon.smithy.go.codegen;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 
 import java.util.function.BiConsumer;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -82,10 +83,10 @@ public final class GoStackStepMiddlewareGenerator {
                 }
                 """,
                 GoStdlibTypes.Context.Context,
-                SmithyGoTypes.Middleware.InitializeInput,
-                SmithyGoTypes.Middleware.InitializeHandler,
-                SmithyGoTypes.Middleware.InitializeOutput,
-                SmithyGoTypes.Middleware.Metadata,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("InitializeInput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("InitializeHandler"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("InitializeOutput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"),
                 body);
     }
 
@@ -132,9 +133,9 @@ public final class GoStackStepMiddlewareGenerator {
         return createMiddleware(name,
                 id,
                 "HandleFinalize",
-                SmithyGoTypes.Middleware.FinalizeInput,
-                SmithyGoTypes.Middleware.FinalizeOutput,
-                SmithyGoTypes.Middleware.FinalizeHandler);
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeInput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeOutput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeHandler"));
     }
 
     /**
@@ -152,10 +153,10 @@ public final class GoStackStepMiddlewareGenerator {
                 }
                 """,
                 GoStdlibTypes.Context.Context,
-                SmithyGoTypes.Middleware.FinalizeInput,
-                SmithyGoTypes.Middleware.FinalizeHandler,
-                SmithyGoTypes.Middleware.FinalizeOutput,
-                SmithyGoTypes.Middleware.Metadata,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeInput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeHandler"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("FinalizeOutput"),
+                SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"),
                 body);
     }
 
