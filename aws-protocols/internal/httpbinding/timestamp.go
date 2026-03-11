@@ -23,10 +23,8 @@ func formatTimestamp(schema *smithy.Schema, fallback string, v time.Time) string
 		return smithytime.FormatHTTPDate(v)
 	case "date-time":
 		return smithytime.FormatDateTime(v)
-	case "epoch-seconds":
+	default: // "epoch-seconds"
 		return strconv.FormatFloat(smithytime.FormatEpochSeconds(v), 'f', -1, 64)
-	default:
-		return smithytime.FormatHTTPDate(v)
 	}
 }
 
@@ -36,13 +34,11 @@ func parseTimestamp(schema *smithy.Schema, fallback, s string) (time.Time, error
 		return smithytime.ParseHTTPDate(s)
 	case "date-time":
 		return smithytime.ParseDateTime(s)
-	case "epoch-seconds":
+	default: // "epoch-seconds"
 		v, err := strconv.ParseFloat(s, 64)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("parse epoch-seconds %q: %w", s, err)
 		}
 		return smithytime.ParseEpochSeconds(v), nil
-	default:
-		return smithytime.ParseHTTPDate(s)
 	}
 }

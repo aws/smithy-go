@@ -499,7 +499,9 @@ func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value)
 			s.WriteDocument(nil, item)
 		}
 		s.CloseMap()
-	case document.Opaque, *document.Opaque:
+	case document.Opaque:
+		s.writeOpaqueDocument(schema, vv.Value)
+	case *document.Opaque:
 		s.writeOpaqueDocument(schema, vv.Value)
 	}
 }
