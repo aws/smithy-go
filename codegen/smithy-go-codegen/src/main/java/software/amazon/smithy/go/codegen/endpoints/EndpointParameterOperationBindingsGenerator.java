@@ -22,8 +22,8 @@ import static software.amazon.smithy.utils.StringUtils.capitalize;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoJmespathExpressionGenerator;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -143,9 +143,9 @@ public class EndpointParameterOperationBindingsGenerator {
         return writer -> {
             Node value = literal.getValue();
             if (value.isStringNode()) {
-                writer.writeInline("$T($S)", SmithyGoTypes.Ptr.String, value.expectStringNode().getValue());
+                writer.writeInline("$T($S)", SmithyGoDependency.SMITHY_PTR.func("String"), value.expectStringNode().getValue());
             } else if (value.isBooleanNode()) {
-                writer.writeInline("$T($L)", SmithyGoTypes.Ptr.Bool, value.expectBooleanNode().getValue());
+                writer.writeInline("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Bool"), value.expectBooleanNode().getValue());
             } else {
                 writer.writeInline("[]string{$W}", ChainWritable.of(
                         value.expectArrayNode().getElements().stream()

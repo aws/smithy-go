@@ -31,7 +31,7 @@ import software.amazon.smithy.go.codegen.GoModGenerator;
 import software.amazon.smithy.go.codegen.GoModuleInfo;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.ManifestWriter;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -75,7 +75,7 @@ public class ServerDirectedCodegen extends AbstractDirectedCodegen {
         delegator.useFileWriter("protocol.go", namespace,
                 protocolGenerator.generateProtocolSource());
 
-        var noDocSerde = goTemplate("type noSmithyDocumentSerde = $T", SmithyGoTypes.Smithy.Document.NoSerde);
+        var noDocSerde = goTemplate("type noSmithyDocumentSerde = $T", SmithyGoDependency.SMITHY_DOCUMENT.struct("NoSerde"));
         delegator.useFileWriter("document.go", namespace, noDocSerde);
         delegator.useFileWriter("types/document.go", "types", noDocSerde);
 

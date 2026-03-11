@@ -24,10 +24,10 @@ import java.util.stream.Collectors;
 import software.amazon.smithy.aws.traits.auth.UnsignedPayloadTrait;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -87,7 +87,7 @@ public class AuthSchemeResolverGenerator {
                 INTERFACE_NAME,
                 GoStdlibTypes.Context.Context,
                 AuthParametersGenerator.STRUCT_NAME,
-                SmithyGoTypes.Auth.Option);
+                SmithyGoDependency.SMITHY_AUTH.struct("Option"));
     }
 
     private Writable generateDocs() {
@@ -129,7 +129,7 @@ public class AuthSchemeResolverGenerator {
                         "receiver", DEFAULT_NAME,
                         "ctx", GoStdlibTypes.Context.Context,
                         "params", AuthParametersGenerator.STRUCT_NAME,
-                        "options", SmithyGoTypes.Auth.Option,
+                        "options", SmithyGoDependency.SMITHY_AUTH.struct("Option"),
                         "opAuthOptions", generateOperationAuthOptions(),
                         "svcAuthOptions", generateServiceAuthOptions()));
     }
@@ -149,7 +149,7 @@ public class AuthSchemeResolverGenerator {
                 }
                 """,
                 AuthParametersGenerator.STRUCT_NAME,
-                SmithyGoTypes.Auth.Option,
+                SmithyGoDependency.SMITHY_AUTH.struct("Option"),
                 options.compose());
     }
 
@@ -174,7 +174,7 @@ public class AuthSchemeResolverGenerator {
                         },""",
                         operation.getId().getName(),
                         AuthParametersGenerator.STRUCT_NAME,
-                        SmithyGoTypes.Auth.Option,
+                        SmithyGoDependency.SMITHY_AUTH.struct("Option"),
                         options.compose());
     }
 
@@ -197,7 +197,7 @@ public class AuthSchemeResolverGenerator {
                 }
                 """,
                 AuthParametersGenerator.STRUCT_NAME,
-                SmithyGoTypes.Auth.Option,
+                SmithyGoDependency.SMITHY_AUTH.struct("Option"),
                 options.compose());
     }
 }

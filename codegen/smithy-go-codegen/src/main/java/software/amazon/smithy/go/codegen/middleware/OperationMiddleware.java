@@ -23,8 +23,8 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 
 /**
  * Abstract base class for code generation of operation middleware.
@@ -78,7 +78,7 @@ public abstract class OperationMiddleware implements Writable {
                         "in", getInput(),
                         "next", getHandler(),
                         "out", getOutput(),
-                        "md", SmithyGoTypes.Middleware.Metadata,
+                        "md", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Metadata"),
                         "body", getFuncBody()
                 )));
     }

@@ -18,8 +18,8 @@ package software.amazon.smithy.go.codegen.protocol.rpc2.cbor;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.utils.MapUtils;
 
 final class ProtocolUtil {
@@ -52,10 +52,10 @@ final class ProtocolUtil {
             """,
             MapUtils.of(
                     "fmtErrorf", GoStdlibTypes.Fmt.Errorf,
-                    "cborDecode", SmithyGoTypes.Encoding.Cbor.Decode,
-                    "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
-                    "cborMap", SmithyGoTypes.Encoding.Cbor.Map,
-                    "cborString", SmithyGoTypes.Encoding.Cbor.String
+                    "cborDecode", SmithyGoDependency.SMITHY_CBOR.func("Decode"),
+                    "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
+                    "cborMap", SmithyGoDependency.SMITHY_CBOR.func("Map"),
+                    "cborString", SmithyGoDependency.SMITHY_CBOR.func("String")
             ));
 
     private ProtocolUtil() {}

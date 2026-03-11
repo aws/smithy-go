@@ -22,7 +22,6 @@ import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -45,7 +44,7 @@ public class GetIdentityMiddlewareGenerator {
                 """,
                 MIDDLEWARE_NAME,
                 ResolveAuthSchemeMiddlewareGenerator.MIDDLEWARE_ID,
-                SmithyGoTypes.Middleware.After,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("After"),
                 GoStdlibTypes.Fmt.Errorf,
                 MIDDLEWARE_ID);
     }
@@ -117,9 +116,9 @@ public class GetIdentityMiddlewareGenerator {
                 """,
                 MapUtils.of(
                         "context", GoStdlibTypes.Context.Context,
-                        "withStackValue", SmithyGoTypes.Middleware.WithStackValue,
-                        "getStackValue", SmithyGoTypes.Middleware.GetStackValue,
-                        "identity", SmithyGoTypes.Auth.Identity
+                        "withStackValue", SmithyGoDependency.SMITHY_MIDDLEWARE.func("WithStackValue"),
+                        "getStackValue", SmithyGoDependency.SMITHY_MIDDLEWARE.func("GetStackValue"),
+                        "identity", SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("Identity")
                 ));
     }
 }

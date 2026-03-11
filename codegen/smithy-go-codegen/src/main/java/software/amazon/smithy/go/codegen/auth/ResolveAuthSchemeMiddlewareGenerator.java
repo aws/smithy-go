@@ -23,7 +23,6 @@ import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
@@ -45,7 +44,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 }
                 """,
                 MIDDLEWARE_NAME,
-                SmithyGoTypes.Middleware.Before,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("Before"),
                 GoStdlibTypes.Fmt.Errorf,
                 MIDDLEWARE_ID);
     }
@@ -148,9 +147,9 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                         "strings", SmithyGoDependency.STRINGS,
                         "slices", SmithyGoDependency.SLICES,
                         "middlewareName", MIDDLEWARE_NAME,
-                        "option", SmithyGoTypes.Auth.Option,
-                        "schemeIDAnonymous", SmithyGoTypes.Auth.SchemeIDAnonymous,
-                        "newAnonymousScheme", SmithyGoTypes.Transport.Http.NewAnonymousScheme
+                        "option", SmithyGoDependency.SMITHY_AUTH.struct("Option"),
+                        "schemeIDAnonymous", SmithyGoDependency.SMITHY_AUTH.constSymbol("SchemeIDAnonymous"),
+                        "newAnonymousScheme", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewAnonymousScheme")
                 )
         );
     }
@@ -184,17 +183,17 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                 """,
                 MapUtils.of(
                         "authScheme", getAuthSchemeSymbol(),
-                        "option", SmithyGoTypes.Auth.Option,
-                        "properties", SmithyGoTypes.Smithy.Properties,
+                        "option", SmithyGoDependency.SMITHY_AUTH.struct("Option"),
+                        "properties", SmithyGoDependency.SMITHY.struct("Properties"),
                         "context", GoStdlibTypes.Context.Context,
-                        "withStackValue", SmithyGoTypes.Middleware.WithStackValue,
-                        "getStackValue", SmithyGoTypes.Middleware.GetStackValue
+                        "withStackValue", SmithyGoDependency.SMITHY_MIDDLEWARE.func("WithStackValue"),
+                        "getStackValue", SmithyGoDependency.SMITHY_MIDDLEWARE.func("GetStackValue")
                 ));
     }
 
     // FUTURE(#458): when protocols are defined here, they should supply the auth scheme symbol, for
     //               now it's pinned to the HTTP variant
     private Symbol getAuthSchemeSymbol() {
-        return SmithyGoTypes.Transport.Http.AuthScheme;
+        return SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("AuthScheme");
     }
 }

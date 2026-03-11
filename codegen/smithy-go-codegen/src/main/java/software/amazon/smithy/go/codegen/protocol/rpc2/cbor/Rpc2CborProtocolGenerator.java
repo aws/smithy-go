@@ -29,7 +29,6 @@ import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.DeserializeResponseMiddleware;
@@ -149,9 +148,9 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                 }
                 """,
                 MapUtils.of(
-                        "cborDecode", SmithyGoTypes.Encoding.Cbor.Decode,
-                        "cborMap", SmithyGoTypes.Encoding.Cbor.Map,
-                        "cborString", SmithyGoTypes.Encoding.Cbor.String
+                        "cborDecode", SmithyGoDependency.SMITHY_CBOR.func("Decode"),
+                        "cborMap", SmithyGoDependency.SMITHY_CBOR.func("Map"),
+                        "cborString", SmithyGoDependency.SMITHY_CBOR.func("String")
                 ),
                 MapUtils.of(
                         "deserError", SmithyGoDependency.SMITHY.pointableSymbol("DeserializationError"),
@@ -159,7 +158,7 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
                         "func", ProtocolGenerator.getOperationErrorDeserFunctionName(operation, service, "rpc2"),
                         "genericAPIError", SmithyGoDependency.SMITHY.pointableSymbol("GenericAPIError"),
                         "readAll", SmithyGoDependency.IO.func("ReadAll"),
-                        "smithyhttpResponse", SmithyGoTypes.Transport.Http.Response,
+                        "smithyhttpResponse", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.struct("Response"),
                         "awsQueryCompatible", ctx.getService().hasTrait(AwsQueryCompatibleTrait.class)
                                 ? deserializeAwsQueryError()
                                 : emptyGoTemplate(),
@@ -213,6 +212,6 @@ public class Rpc2CborProtocolGenerator extends Rpc2ProtocolGenerator {
         return goTemplate("""
                 if qtype := getAwsQueryErrorCode(resp); len(qtype) > 0 {
                     verr.ErrorCodeOverride = $T(qtype)
-                }""", SmithyGoTypes.Ptr.String);
+                }""", SmithyGoDependency.SMITHY_PTR.func("String"));
     }
 }

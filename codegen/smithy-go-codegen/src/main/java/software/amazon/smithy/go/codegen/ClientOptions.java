@@ -28,6 +28,7 @@ import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ConfigField;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.auth.AnonymousDefinition;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.synthetic.NoAuthTrait;
@@ -94,7 +95,7 @@ public class ClientOptions implements Writable {
                         "protocolTypes", generateProtocolTypes(),
                         "apiOptionsDocs", apiOptionsDocs,
                         "options", NAME,
-                        "stack", SmithyGoTypes.Middleware.Stack,
+                        "stack", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
                         "fields", ChainWritable.of(fields.stream().map(this::writeField).toList()).compose(),
                         "protocolFields", generateProtocolFields(),
                         "copy", generateCopy(),
@@ -151,7 +152,7 @@ public class ClientOptions implements Writable {
                 goDocTemplate("The auth scheme resolver which determines how to authenticate for each operation."),
                 goDocTemplate("The list of auth schemes supported by the client."),
                 AuthSchemeResolverGenerator.INTERFACE_NAME,
-                SmithyGoTypes.Transport.Http.AuthScheme,
+                SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("AuthScheme"),
                 goDocTemplate("Client registry of operation interceptors."),
                 SmithyGoDependency.SMITHY_HTTP_TRANSPORT.struct("InterceptorRegistry"),
                 goDocTemplate("Priority list of preferred auth scheme names (e.g. sigv4a)."));
@@ -168,7 +169,7 @@ public class ClientOptions implements Writable {
 
                     return to
                 }
-                """, NAME, SmithyGoTypes.Middleware.Stack);
+                """, NAME, SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"));
     }
 
     private Writable generateGetIdentityResolver() {
@@ -180,7 +181,7 @@ public class ClientOptions implements Writable {
                 }
                 """,
                 NAME,
-                SmithyGoTypes.Auth.IdentityResolver,
+                SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("IdentityResolver"),
                 ChainWritable.of(
                         ServiceIndex.of(context.getModel())
                                 .getEffectiveAuthSchemes(context.getService()).keySet().stream()
@@ -211,7 +212,7 @@ public class ClientOptions implements Writable {
                     goDocTemplate(
                             "WithAPIOptions returns a functional option for setting the Client's APIOptions option."
                     ),
-                    SmithyGoTypes.Middleware.Stack);
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"));
 
             fields.stream().filter(ConfigField::getWithHelper).filter(ConfigField::isDeprecated)
                     .forEach(configField -> {

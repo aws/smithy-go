@@ -21,10 +21,10 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import software.amazon.smithy.aws.traits.auth.SigV4Trait;
 import software.amazon.smithy.aws.traits.auth.UnsignedPayloadTrait;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -34,11 +34,11 @@ import software.amazon.smithy.utils.MapUtils;
  */
 public class SigV4Definition implements AuthSchemeDefinition {
     private static final Map<String, Object> COMMON_ENV = MapUtils.of(
-            "properties", SmithyGoTypes.Smithy.Properties,
-            "option", SmithyGoTypes.Auth.Option,
-            "schemeId", SmithyGoTypes.Auth.SchemeIDSigV4,
-            "setSigningName", SmithyGoTypes.Transport.Http.SetSigV4SigningName,
-            "setSigningRegion", SmithyGoTypes.Transport.Http.SetSigV4SigningRegion
+            "properties", SmithyGoDependency.SMITHY.struct("Properties"),
+            "option", SmithyGoDependency.SMITHY_AUTH.struct("Option"),
+            "schemeId", SmithyGoDependency.SMITHY_AUTH.constSymbol("SchemeIDSigV4"),
+            "setSigningName", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4SigningName"),
+            "setSigningRegion", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetSigV4SigningRegion")
     );
 
     @Override
@@ -86,7 +86,7 @@ public class SigV4Definition implements AuthSchemeDefinition {
 
     private Writable generateIsUnsignedPayload(OperationShape operation) {
         return operation.hasTrait(UnsignedPayloadTrait.class)
-                ? goTemplate("$T(&props, true)", SmithyGoTypes.Transport.Http.SetIsUnsignedPayload)
+                ? goTemplate("$T(&props, true)", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("SetIsUnsignedPayload"))
                 : emptyGoTemplate();
     }
 }

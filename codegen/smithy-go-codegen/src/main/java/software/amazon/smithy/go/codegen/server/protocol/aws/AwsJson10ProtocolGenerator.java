@@ -24,7 +24,6 @@ import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.server.NotImplementedError;
 import software.amazon.smithy.go.codegen.server.RequestHandler;
@@ -32,6 +31,7 @@ import software.amazon.smithy.go.codegen.server.ServerCodegenUtil;
 import software.amazon.smithy.go.codegen.server.protocol.HttpHandlerProtocolGenerator;
 import software.amazon.smithy.go.codegen.server.protocol.JsonDeserializerGenerator;
 import software.amazon.smithy.go.codegen.server.protocol.JsonSerializerGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -92,7 +92,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 }
                 """,
                 MapUtils.of(
-                        "newUuid", SmithyGoTypes.Rand.NewUUID,
+                        "newUuid", SmithyGoDependency.SMITHY_RAND.func("NewUUID"),
                         "rand", GoStdlibTypes.Crypto.Rand.Reader,
                         "requestHandler", RequestHandler.NAME,
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
@@ -155,7 +155,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 return
                 """,
                 MapUtils.of(
-                        "encoder", SmithyGoTypes.Encoding.Json.NewEncoder,
+                        "encoder", SmithyGoDependency.SMITHY_JSON.func("NewEncoder"),
                         "serialize", getSerializerName(ctx.model().expectShape(operation.getOutputShape()))
                 ));
     }
@@ -186,7 +186,7 @@ public final class AwsJson10ProtocolGenerator extends HttpHandlerProtocolGenerat
                 """,
                 MapUtils.of(
                         "rw", GoStdlibTypes.Net.Http.ResponseWriter,
-                        "invalidParams", SmithyGoTypes.Smithy.InvalidParamsError,
+                        "invalidParams", SmithyGoDependency.SMITHY.struct("InvalidParamsError"),
                         "notImplemented", NotImplementedError.NAME,
                         "serializeErrors", generateSerializeErrors(errorShapes)
                 ));

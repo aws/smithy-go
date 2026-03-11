@@ -22,11 +22,11 @@ import static software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2ProtocolGenera
 import static software.amazon.smithy.go.codegen.serde.cbor.CborSerializerGenerator.getSerializerName;
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.protocol.rpc2.Rpc2SerializeRequestMiddleware;
 import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -68,9 +68,9 @@ final class SerializeMiddleware extends Rpc2SerializeRequestMiddleware {
                 """,
                 MapUtils.of(
                         "serialize", getSerializerName(input),
-                        "encode", SmithyGoTypes.Encoding.Cbor.Encode,
+                        "encode", SmithyGoDependency.SMITHY_CBOR.func("Encode"),
                         "reader", GoStdlibTypes.Bytes.NewReader,
-                        "error", SmithyGoTypes.Smithy.SerializationError
+                        "error", SmithyGoDependency.SMITHY.struct("SerializationError")
                 ));
     }
 }

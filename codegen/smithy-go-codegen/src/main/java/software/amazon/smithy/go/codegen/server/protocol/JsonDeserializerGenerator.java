@@ -25,8 +25,8 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -249,7 +249,7 @@ public final class JsonDeserializerGenerator {
                         return nil, err
                     }
                     return dts, nil
-                    """, SmithyGoTypes.Time.ParseDateTime);
+                    """, SmithyGoDependency.SMITHY_TIME.func("ParseDateTime"));
             default ->
                     throw new CodegenException("Unsupported: " + shape.getType());
         };
@@ -282,12 +282,12 @@ public final class JsonDeserializerGenerator {
             return goTemplate(ident);
         }
         return switch (model.expectShape(member.getTarget()).getType()) {
-            case BYTE -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int8, ident);
-            case SHORT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int16, ident);
-            case INTEGER -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int32, ident);
-            case LONG -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int64, ident);
-            case STRING -> goTemplate("$T($L)", SmithyGoTypes.Ptr.String, ident);
-            case BOOLEAN -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Bool, ident);
+            case BYTE -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int8"), ident);
+            case SHORT -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int16"), ident);
+            case INTEGER -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int32"), ident);
+            case LONG -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int64"), ident);
+            case STRING -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("String"), ident);
+            case BOOLEAN -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Bool"), ident);
             default -> goTemplate(ident);
         };
     }

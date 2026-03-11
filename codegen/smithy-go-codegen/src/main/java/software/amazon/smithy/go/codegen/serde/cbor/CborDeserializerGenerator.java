@@ -32,7 +32,6 @@ import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.model.Model;
@@ -75,13 +74,13 @@ public final class CborDeserializerGenerator {
         return switch (shape.getType()) {
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("arbitrary-precision nums are not supported (" + shape.getType() + ")");
-            case BYTE -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsInt8); // special types with coercers
-            case SHORT -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsInt16);
-            case INTEGER -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsInt32);
-            case LONG -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsInt64);
-            case FLOAT -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsFloat32);
-            case DOUBLE -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsFloat64);
-            case TIMESTAMP -> deserializeStatic(shape, SmithyGoTypes.Encoding.Cbor.AsTime);
+            case BYTE -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsInt8")); // special types with coercers
+            case SHORT -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsInt16"));
+            case INTEGER -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsInt32"));
+            case LONG -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsInt64"));
+            case FLOAT -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsFloat32"));
+            case DOUBLE -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsFloat64"));
+            case TIMESTAMP -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsTime"));
             case INT_ENUM -> deserializeIntEnum(shape);
             case STRING -> deserializeString(shape);
             case DOCUMENT -> deserializeDocument(shape); // implemented, but not currently supported
@@ -97,7 +96,7 @@ public final class CborDeserializerGenerator {
                 """,
                 MapUtils.of(
                         "deserName", getDeserializerName(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
                         "type", symbolProvider.toSymbol(shape),
                         "coercer", coercer
                 ));
@@ -115,9 +114,9 @@ public final class CborDeserializerGenerator {
                 """,
                 MapUtils.of(
                         "name", getDeserializerName(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
                         "shapeType", symbolProvider.toSymbol(shape),
-                        "asInt32", SmithyGoTypes.Encoding.Cbor.AsInt32
+                        "asInt32", SmithyGoDependency.SMITHY_CBOR.func("AsInt32")
                 ));
     }
 
@@ -133,8 +132,8 @@ public final class CborDeserializerGenerator {
                 """,
                 MapUtils.of(
                         "name", getDeserializerName(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
-                        "assert", SmithyGoTypes.Encoding.Cbor.String,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
+                        "assert", SmithyGoDependency.SMITHY_CBOR.func("String"),
                         "error", GoStdlibTypes.Fmt.Errorf
                 ));
     }
@@ -151,7 +150,7 @@ public final class CborDeserializerGenerator {
                 """,
                 MapUtils.of(
                         "name", getDeserializerName(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
                         "shapeType", symbolProvider.toSymbol(shape),
                         "assert", typeAssert(shape),
                         "zero", zeroValue(shape),
@@ -163,17 +162,17 @@ public final class CborDeserializerGenerator {
     private Writable typeAssert(Shape shape) {
         return switch (shape.getType()) {
             case STRING, ENUM ->
-                    goTemplate("$T", SmithyGoTypes.Encoding.Cbor.String);
+                    goTemplate("$T", SmithyGoDependency.SMITHY_CBOR.func("String"));
             case BLOB ->
-                    goTemplate("$T", SmithyGoTypes.Encoding.Cbor.Slice);
+                    goTemplate("$T", SmithyGoDependency.SMITHY_CBOR.func("Slice"));
             case LIST, SET ->
-                    goTemplate("$T", SmithyGoTypes.Encoding.Cbor.List);
+                    goTemplate("$T", SmithyGoDependency.SMITHY_CBOR.func("List"));
             case MAP, STRUCTURE, UNION ->
-                    goTemplate("$T", SmithyGoTypes.Encoding.Cbor.Map);
+                    goTemplate("$T", SmithyGoDependency.SMITHY_CBOR.func("Map"));
             case TIMESTAMP, BIG_DECIMAL, BIG_INTEGER ->
-                    goTemplate("$P", SmithyGoTypes.Encoding.Cbor.Tag);
+                    goTemplate("$P", SmithyGoDependency.SMITHY_CBOR.struct("Tag"));
             case BOOLEAN ->
-                    goTemplate("$T", SmithyGoTypes.Encoding.Cbor.Bool);
+                    goTemplate("$T", SmithyGoDependency.SMITHY_CBOR.func("Bool"));
             default ->
                     throw new CodegenException("Unexpected shape for single-assert: " + shape.getType());
         };
@@ -242,7 +241,7 @@ public final class CborDeserializerGenerator {
                     dl = append(dl, nil)
                     continue
                 }
-                """, SmithyGoTypes.Encoding.Cbor.Nil);
+                """, SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
     }
 
     private Writable deserializeMap(MapShape shape, String ident) {
@@ -276,7 +275,7 @@ public final class CborDeserializerGenerator {
                     dm[key] = nil
                     continue
                 }
-                """, SmithyGoTypes.Encoding.Cbor.Nil);
+                """, SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
     }
 
     private String resolveDeref(Symbol ref, Symbol deserialized) {
@@ -336,7 +335,7 @@ public final class CborDeserializerGenerator {
         return goTemplate("""
                 if _, ok := sv.($P); ok {
                     continue
-                }""", SmithyGoTypes.Encoding.Cbor.Nil);
+                }""", SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
     }
 
     private Writable generateStructFieldDeref(MemberShape member, String ident) {
@@ -345,15 +344,15 @@ public final class CborDeserializerGenerator {
             return goTemplate(ident);
         }
         return switch (model.expectShape(member.getTarget()).getType()) {
-            case BYTE -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int8, ident);
-            case SHORT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int16, ident);
-            case INTEGER -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int32, ident);
-            case LONG -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Int64, ident);
-            case FLOAT -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Float32, ident);
-            case DOUBLE -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Float64, ident);
-            case STRING -> goTemplate("$T($L)", SmithyGoTypes.Ptr.String, ident);
-            case BOOLEAN -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Bool, ident);
-            case TIMESTAMP -> goTemplate("$T($L)", SmithyGoTypes.Ptr.Time, ident);
+            case BYTE -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int8"), ident);
+            case SHORT -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int16"), ident);
+            case INTEGER -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int32"), ident);
+            case LONG -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Int64"), ident);
+            case FLOAT -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Float32"), ident);
+            case DOUBLE -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Float64"), ident);
+            case STRING -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("String"), ident);
+            case BOOLEAN -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Bool"), ident);
+            case TIMESTAMP -> goTemplate("$T($L)", SmithyGoDependency.SMITHY_PTR.func("Time"), ident);
             default -> goTemplate(ident);
         };
     }
@@ -413,7 +412,7 @@ public final class CborDeserializerGenerator {
                 """,
                 MapUtils.of(
                         "deser", getDeserializerName(shape),
-                        "cborValue", SmithyGoTypes.Encoding.Cbor.Value,
+                        "cborValue", SmithyGoDependency.SMITHY_CBOR.func("Value"),
                         "document", symbolProvider.toSymbol(shape),
                         "unmarshaler", unmarshaler
                 ));

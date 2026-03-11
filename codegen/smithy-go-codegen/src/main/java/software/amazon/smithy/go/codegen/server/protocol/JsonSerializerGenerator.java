@@ -24,8 +24,8 @@ import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ChainWritable;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -69,7 +69,7 @@ public final class JsonSerializerGenerator {
                 MapUtils.of(
                         "name", getSerializerName(shape),
                         "shapeType", symbolProvider.toSymbol(shape),
-                        "jsonValue", SmithyGoTypes.Encoding.Json.Value,
+                        "jsonValue", SmithyGoDependency.SMITHY_JSON.func("Value"),
                         "serialize", generateSerializeValue(shape)
                 ));
     }
@@ -102,7 +102,7 @@ public final class JsonSerializerGenerator {
                 if v != nil {
                     jv.String($T(*v))
                 }
-                """, SmithyGoTypes.Time.FormatDateTime);
+                """, SmithyGoDependency.SMITHY_TIME.func("FormatDateTime"));
     }
 
     private Writable generateSerializeList(CollectionShape shape) {

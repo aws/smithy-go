@@ -18,7 +18,7 @@
 package software.amazon.smithy.go.codegen.integration;
 
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-import static software.amazon.smithy.go.codegen.SmithyGoTypes.Private.RequestCompression.AddCaptureUncompressedRequest;
+import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_REQUEST_COMPRESSION;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -28,7 +28,6 @@ import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
@@ -296,8 +295,8 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                                 })
                                 """,
                             MapUtils.of(
-                                    "stack", SmithyGoTypes.Middleware.Stack,
-                                    "captureRequest", AddCaptureUncompressedRequest
+                                    "stack", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
+                                    "captureRequest", SMITHY_REQUEST_COMPRESSION.func("AddCaptureUncompressedRequestMiddleware")
                             )));
                 }
         });

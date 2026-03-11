@@ -23,7 +23,6 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
@@ -136,7 +135,7 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
                 MapUtils.of(
                         "testingT", GoStdlibTypes.Testing.T,
                         "contextBackground", GoStdlibTypes.Context.Background,
-                        "middlewareStack", SmithyGoTypes.Middleware.Stack,
+                        "middlewareStack", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
                         "operation", symbolProvider.toSymbol(operation).getName()
                 ));
     }
@@ -158,7 +157,7 @@ public class MiddlewareStackSnapshotTests implements GoIntegration {
                 MapUtils.of(
                         "testingT", GoStdlibTypes.Testing.T,
                         "contextBackground", GoStdlibTypes.Context.Background,
-                        "middlewareStack", SmithyGoTypes.Middleware.Stack,
+                        "middlewareStack", SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
                         "operation", symbolProvider.toSymbol(operation).getName()
                 ));
     }

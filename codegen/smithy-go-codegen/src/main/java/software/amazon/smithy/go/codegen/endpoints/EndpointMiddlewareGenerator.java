@@ -22,11 +22,11 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACIN
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -52,7 +52,7 @@ public final class EndpointMiddlewareGenerator {
                 """,
                 MIDDLEWARE_NAME,
                 GetIdentityMiddlewareGenerator.MIDDLEWARE_ID,
-                SmithyGoTypes.Middleware.After,
+                SmithyGoDependency.SMITHY_MIDDLEWARE.func("After"),
                 GoStdlibTypes.Fmt.Errorf,
                 MIDDLEWARE_ID);
     }
@@ -114,7 +114,7 @@ public final class EndpointMiddlewareGenerator {
                     return out, metadata, $T("unknown transport type %T", in.Request)
                 }
                 """,
-                SmithyGoTypes.Transport.Http.Request,
+                SmithyGoDependency.SMITHY_HTTP_TRANSPORT.struct("Request"),
                 GoStdlibTypes.Fmt.Errorf);
     }
 
@@ -125,7 +125,7 @@ public final class EndpointMiddlewareGenerator {
                 }
                 """,
                 MapUtils.of(
-                        "validHost", SmithyGoTypes.Transport.Http.ValidHostLabel,
+                        "validHost", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ValidHostLabel"),
                         "error", GoStdlibTypes.Fmt.Errorf
                 )
         );
@@ -167,7 +167,7 @@ public final class EndpointMiddlewareGenerator {
                     req.Header.Set(k, endpt.Headers.Get(k))
                 }
                 """,
-                SmithyGoTypes.Transport.Http.JoinPath);
+                SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("JoinPath"));
     }
 
     private Writable generateMergeAuthProperties() {
@@ -181,7 +181,7 @@ public final class EndpointMiddlewareGenerator {
                 for _, o := range opts {
                     rscheme.SignerProperties.SetAll(&o.SignerProperties)
                 }
-                """, GoStdlibTypes.Fmt.Errorf, SmithyGoTypes.Auth.GetAuthOptions);
+                """, GoStdlibTypes.Fmt.Errorf, SmithyGoDependency.SMITHY_AUTH.func("GetAuthOptions"));
     }
 
     private Writable generatePostResolutionHooks() {
