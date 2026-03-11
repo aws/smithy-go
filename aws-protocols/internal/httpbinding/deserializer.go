@@ -398,15 +398,18 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 		*v = d.payload
 		return nil
 	}
-	if h, ok := isHTTPHeader(s); ok {
-		hv := d.response.Header.Get(h.Name)
-		b, err := base64.StdEncoding.DecodeString(hv)
-		if err != nil {
-			return err
-		}
-		*v = b
-		return nil
+
+	h, ok := isHTTPHeader(s)
+	if !ok {
+		return fmt.Errorf("ReadBlob: unhandled http binding")
 	}
+
+	hv := d.response.Header.Get(h.Name)
+	b, err := base64.StdEncoding.DecodeString(hv)
+	if err != nil {
+		return err
+	}
+	*v = b
 	return nil
 }
 
