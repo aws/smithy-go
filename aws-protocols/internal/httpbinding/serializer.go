@@ -277,10 +277,6 @@ func isHTTPBound(schema *smithy.Schema) bool {
 
 // WriteString implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
-	if !s.options.WriteZeroValues && v == "" && s.mapMode == mapModeNone && s.listMode == listModeNone {
-		return
-	}
-
 	switch s.mapMode {
 	case mapModePrefixHeaders:
 		s.encoder.SetHeader(http.CanonicalHeaderKey(s.mapPrefix + s.currentKey)).String(v)
