@@ -513,7 +513,12 @@ func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
 		return
 	}
 	denc := smithydocumentjson.NewEncoder()
+
+	// TODO(serde2): we should expose an alternative Encode() API that
+	// explicitly does not return errors since schema-serde Serialize is
+	// errorless
 	p, _ := denc.Encode(v)
+
 	s.writeDocumentRaw(schema, p)
 }
 
