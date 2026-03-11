@@ -149,6 +149,9 @@ func (s *ShapeSerializer) setBody(body io.Reader, contentType string) error {
 	return nil
 }
 
+// withWriteZero allows temporarily setting to true the ShapeSerializer `options.WriteZeroValues`
+// This is useful for writing pointer values that have an empty value, like `&""`, which would be skipped
+// otherwise if `options.WriteZeroValues` would be set to false
 func (s *ShapeSerializer) withWriteZero(fn func()) {
 	prev := s.options.WriteZeroValues
 	s.options.WriteZeroValues = true
