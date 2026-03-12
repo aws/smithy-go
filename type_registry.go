@@ -31,6 +31,15 @@ func (t *TypeRegistry) DeserializableError(id string) (DeserializableError, bool
 	return typeRegistryLookup[DeserializableError](t, id)
 }
 
+// LookupEntry returns the registry entry for the given shape ID.
+func (t *TypeRegistry) LookupEntry(id string) (*TypeRegistryEntry, bool) {
+	entry, ok := t.Entries[id]
+	if !ok {
+		entry, ok = t.lookupShortName(id)
+	}
+	return entry, ok
+}
+
 // TypeRegistryEntry holds the schema and constructor for a registered shape.
 type TypeRegistryEntry struct {
 	Schema *Schema

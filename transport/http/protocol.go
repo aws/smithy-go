@@ -14,6 +14,6 @@ import (
 // protocols implemented as part of the Smithy client runtime.
 type ClientProtocol interface {
 	ID() string
-	SerializeRequest(context.Context, smithy.Serializable, *Request) error
-	DeserializeResponse(ctx context.Context, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
+	SerializeRequest(context.Context, *smithy.Schema, smithy.Serializable, *Request) error
+	DeserializeResponse(ctx context.Context, schema *smithy.Schema, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
 }

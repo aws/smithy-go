@@ -17,6 +17,7 @@ import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
 import software.amazon.smithy.model.traits.HttpQueryParamsTrait;
 import software.amazon.smithy.model.traits.HttpQueryTrait;
 import software.amazon.smithy.model.traits.HttpResponseCodeTrait;
+import software.amazon.smithy.model.traits.HttpTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.MediaTypeTrait;
 import software.amazon.smithy.model.traits.SensitiveTrait;
@@ -56,6 +57,10 @@ public class DefaultTraitGenerators {
         GENERATORS.put(StreamingTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("Streaming")));
 
         // HTTP bindings
+        GENERATORS.put(HttpTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTP"),
+                "Method", t -> ((HttpTrait) t).getMethod(),
+                "URI", t -> ((HttpTrait) t).getUri().toString(),
+                "Code", t -> ((HttpTrait) t).getCode()));
         GENERATORS.put(HttpHeaderTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPHeader"),
                 "Name", HttpHeaderTrait::getValue));
         GENERATORS.put(HttpLabelTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPLabel")));
@@ -66,6 +71,8 @@ public class DefaultTraitGenerators {
                 "Name", HttpQueryTrait::getValue));
         GENERATORS.put(HttpQueryParamsTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPQueryParams")));
         GENERATORS.put(HttpResponseCodeTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPResponseCode")));
+        GENERATORS.put(HttpErrorTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPError"),
+                "Code", HttpErrorTrait::getCode));
 
         // Endpoint Traits
         GENERATORS.put(HostLabelTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HostLabel")));

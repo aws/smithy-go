@@ -13,6 +13,7 @@ import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.StreamingTrait;
 
 public class StructureDeserializer implements Writable {
     private final GoCodegenContext ctx;
@@ -33,13 +34,15 @@ public class StructureDeserializer implements Writable {
 
         var symbol = ctx.symbolProvider().toSymbol(shape);
         var members = shape.members().stream()
+                .filter(m -> !StreamingTrait.isEventStream(ctx.model(), m))
+                .filter(m -> !ctx.model().expectShape(m.getTarget()).hasTrait(StreamingTrait.class))
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", symbol.getName(), () -> {
-            writer.openBlock("return smithy.ReadStruct(d, schemas.$L, func(s *smithy.Schema) error {", "})", SchemaGenerator.getSchemaName(shape), () -> {
+            writer.openBlock("return smithy.ReadStruct(d, schemas.$L, func(s *smithy.Schema) error {", "})", SchemaGenerator.getSchemaName(shape, ctx.service()), () -> {
                 writer.openBlock("switch s {", "}", () -> {
                     for (var member : members) {
-                        writer.write("case schemas.$L:", SchemaGenerator.getMemberSchemaName(shape, member));
+                        writer.write("case schemas.$L:", SchemaGenerator.getMemberSchemaName(shape, member, ctx.service()));
                         renderMember(writer, member, ctx.model().expectShape(member.getTarget()), "v." + ctx.symbolProvider().toMemberName(member));
                     }
                 });
@@ -49,7 +52,7 @@ public class StructureDeserializer implements Writable {
     }
 
     private void renderMember(GoWriter writer, MemberShape member, Shape target, String ident) {
-        var schemaName = SchemaGenerator.getMemberSchemaName(shape, member);
+        var schemaName = SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
         var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
             case BYTE ->

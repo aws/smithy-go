@@ -7,6 +7,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -27,8 +28,14 @@ public class MapSerializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        if (value.getType() == software.amazon.smithy.model.shapes.ShapeType.DOCUMENT) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
+        }
         writer.writeGoTemplate("""
                 func serialize$shapeName:L(s smithy.ShapeSerializer, schema *smithy.Schema, v $symbol:T) {
+                    if v == nil {
+                        return
+                    }
                     s.WriteMap(schema)
                     for k, vv := range v {
                         s.WriteKey(schema.MapKey(), k)
@@ -93,7 +100,7 @@ public class MapSerializer implements Writable {
             case STRUCTURE ->
                     wrapNilCheck(goTemplate("vv.Serialize(s)"));
             case DOCUMENT ->
-                    wrapNilCheck(goTemplate("s.WriteDocument(schema.MapValue(), vv)"));
+                    wrapNilCheck(goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})"));
 
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("big integer / big decimal unsupported");
@@ -132,7 +139,7 @@ public class MapSerializer implements Writable {
             case STRUCTURE ->
                     goTemplate("vv.Serialize(s)");
             case DOCUMENT ->
-                    goTemplate("s.WriteDocument(schema.MapValue(), vv)");
+                    goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})");
 
             case BIG_INTEGER, BIG_DECIMAL ->
                     throw new CodegenException("big integer / big decimal unsupported");
