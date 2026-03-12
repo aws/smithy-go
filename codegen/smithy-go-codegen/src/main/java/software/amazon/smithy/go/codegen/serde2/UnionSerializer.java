@@ -53,7 +53,7 @@ public class UnionSerializer implements Writable {
                         .name(ctx.symbolProvider().toMemberName(member))
                         .namespace(ctx.settings().getModuleName() + "/types", ".")
                         .build();
-                var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member);
+                var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
                 w.write("case *$T:", variantSymbol);
                 w.write("    s.WriteUnion(schema, schemas.$L, vv)", variantSchema);
             }

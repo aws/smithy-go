@@ -6,6 +6,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -21,19 +22,20 @@ public class SchemaGenerator implements Writable {
         this.shape = shape;
     }
 
-    public static String getSchemaName(Shape shape) {
-        var name = shape.getId().getName();
+    public static String getSchemaName(Shape shape, ServiceShape service) {
+        var name = shape.getId().getName(service);
         return ShapeUtil.isExported(shape)
                 ? name
                 : "_" + name;
     }
 
-    public static String getMemberSchemaName(Shape shape, MemberShape member) {
-        return String.format("%s_%s", getSchemaName(shape), member.getMemberName());
+    public static String getMemberSchemaName(Shape shape, MemberShape member, ServiceShape service) {
+        return String.format("%s_%s", getSchemaName(shape, service), member.getMemberName());
     }
 
     @Override
     public void accept(GoWriter writer) {
+        var service = ctx.service();
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.writeGoTemplate("""
                         var $ident:L = smithy.NewSchema(smithy.ShapeID{
@@ -43,7 +45,7 @@ public class SchemaGenerator implements Writable {
                         $memberVarDecls:W
                         """,
                 Map.of(
-                        "ident", getSchemaName(shape),
+                        "ident", getSchemaName(shape, service),
                         "namespace", shape.getId().getNamespace(),
                         "name", shape.getId().getName(),
                         "type", StringUtils.capitalize(shape.getType().toString()),
@@ -69,21 +71,22 @@ public class SchemaGenerator implements Writable {
         return goTemplate("""
                         var $ident:L *smithy.Schema
                         """,
-                Map.of("ident", getMemberSchemaName(shape, member)));
+                Map.of("ident", getMemberSchemaName(shape, member, ctx.service())));
     }
 
     private Writable renderMemberAddAndAssign(MemberShape member) {
         var target = ctx.model().expectShape(member.getTarget());
+        var service = ctx.service();
         var memberTraits = member.getAllTraits().values();
 
         return goTemplate("""
                         $ident:L = $schema:L.AddMember($name:S, $target:L$traits:W)
                         """,
                 Map.of(
-                        "ident", getMemberSchemaName(shape, member),
-                        "schema", getSchemaName(shape),
+                        "ident", getMemberSchemaName(shape, member, service),
+                        "schema", getSchemaName(shape, service),
                         "name", member.getMemberName(),
-                        "target", getSchemaName(target),
+                        "target", getSchemaName(target, service),
                         "traits", renderVariadicTraits(memberTraits)
                 ));
     }

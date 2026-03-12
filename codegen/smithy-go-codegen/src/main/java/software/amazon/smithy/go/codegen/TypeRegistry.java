@@ -33,6 +33,6 @@ public class TypeRegistry implements Writable {
                 $S: &smithy.TypeRegistryEntry{
                     Schema: schemas.$L,
                     New: func() any { return &$T{} },
-                },""", shape.getId().toString(), SchemaGenerator.getSchemaName(shape), ctx.symbolProvider().toSymbol(shape));
+                },""", shape.getId().toString(), SchemaGenerator.getSchemaName(shape, ctx.service()), ctx.symbolProvider().toSymbol(shape));
     }
 }

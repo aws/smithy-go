@@ -55,7 +55,7 @@ public class UnionDeserializer implements Writable {
             var unionSymbol = ctx.symbolProvider().toSymbol(shape);
             for (var member : members) {
                 var memberName = ctx.symbolProvider().toMemberName(member);
-                var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member);
+                var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
                 
                 var memberSymbol = unionSymbol.toBuilder()
                         .name(memberName)
