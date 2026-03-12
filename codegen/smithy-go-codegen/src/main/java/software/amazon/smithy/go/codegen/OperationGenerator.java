@@ -27,14 +27,12 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
@@ -153,7 +151,7 @@ public final class OperationGenerator implements Runnable {
 
         if (EventStreamGenerator.isV2EventStream(model, operation)) {
             List<MemberShape> onlyEventStreamMembers = outputShape.members().stream().filter(member -> StreamingTrait.isEventStream(model, member)).toList();
-            structOutputShape = buildShape(onlyEventStreamMembers);
+            structOutputShape = withMembers(outputShape, onlyEventStreamMembers);
         } else {
             structOutputShape = outputShape;
         }
@@ -289,14 +287,16 @@ public final class OperationGenerator implements Runnable {
             writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
             writer.write("if err != nil { return err }");
         } else {
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation, service);
             writer.write("""
-                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options}, middleware.After); err != nil {
+                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: $L}, middleware.After); err != nil {
                     return err
-                }""");
+                }""", opSchemaName);
             writer.write("""
-                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, output: &$T{}}, middleware.After); err != nil {
+                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: $L, output: &$T{}}, middleware.After); err != nil {
                     return err
-                }""", symbolProvider.toSymbol(output));
+                }""", opSchemaName, symbolProvider.toSymbol(output));
         }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
@@ -320,8 +320,8 @@ public final class OperationGenerator implements Runnable {
         return String.format("addOperation%sMiddlewares", operation.getName());
     }
 
-    private StructureShape buildShape(List<MemberShape> members) {
-        var struct = StructureShape.builder().id(ShapeId.from("synthetic#throwaway"));
+    private StructureShape withMembers(StructureShape shape, List<MemberShape> members) {
+        var struct = StructureShape.builder().id(shape.getId());
             members.stream().forEach(member -> struct.addMember(
                 MemberShape.builder()
                 .id(struct.getId().withMember(member.getMemberName()))
