@@ -32,6 +32,17 @@ class SimpleTraitGenerator<T extends Trait> implements TraitGenerator {
         mappings.put(k2, v2);
     }
 
+    public SimpleTraitGenerator(Symbol symbol,
+                                String k1, Function<T, Object> v1,
+                                String k2, Function<T, Object> v2,
+                                String k3, Function<T, Object> v3) {
+        this.symbol = symbol;
+
+        mappings.put(k1, v1);
+        mappings.put(k2, v2);
+        mappings.put(k3, v3);
+    }
+
     @Override
     public Writable render(Trait trait) {
         return goTemplate("&$T{$W}", symbol, Writable.map(mappings.entrySet(), entry -> {

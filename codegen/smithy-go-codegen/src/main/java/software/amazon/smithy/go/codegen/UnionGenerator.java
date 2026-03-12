@@ -113,7 +113,7 @@ public class UnionGenerator {
     private void generateMemberSerializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", memberName, () -> {
             switch (target.getType()) {
                 case BYTE -> writer.write("s.WriteInt8($L, v.Value)", schemaName);
@@ -140,7 +140,7 @@ public class UnionGenerator {
     private void generateMemberDeserializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member);
+        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
         writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", memberName, () -> {
             switch (target.getType()) {
                 case BYTE -> writer.write("return d.ReadInt8($L, &v.Value)", schemaName);

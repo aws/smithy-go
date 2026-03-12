@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/aws/smithy-go"
 	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
@@ -36,6 +35,7 @@ func (*Protocol) ID() string {
 // SerializeRequest serializes a request for AWS Json 1.0.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
+	schema *smithy.Schema,
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
@@ -61,6 +61,7 @@ func (p *Protocol) SerializeRequest(
 // DeserializeResponse deserializes a response for AWS Json 1.0.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
+	schema *smithy.Schema,
 	types *smithy.TypeRegistry,
 	resp *smithyhttp.Response,
 	out smithy.Deserializable,
@@ -105,7 +106,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	body := io.TeeReader(errorBody, ringBuffer)
 	decoder := json.NewDecoder(body)
 	decoder.UseNumber()
-	bodyInfo, err := getProtocolErrorInfo(decoder)
+	bodyInfo, err := awsjson.GetProtocolErrorInfo(decoder)
 	if err != nil {
 		var snapshot bytes.Buffer
 		io.Copy(&snapshot, ringBuffer)
@@ -117,14 +118,14 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	}
 
 	errorBody.Seek(0, io.SeekStart)
-	if typ, ok := resolveProtocolErrorType(headerCode, bodyInfo); ok {
+	if typ, ok := awsjson.ResolveProtocolErrorType(headerCode, bodyInfo); ok {
 		errorCode = typ
 	}
 	if len(bodyInfo.Message) != 0 {
 		errorMessage = bodyInfo.Message
 	}
 
-	errorCode = sanitizeErrorCode(errorCode)
+	errorCode = awsjson.SanitizeErrorCode(errorCode)
 
 	perr, ok := types.DeserializableError(errorCode)
 	if !ok {
@@ -145,47 +146,4 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	}
 
 	return perr
-}
-
-type protocolErrorInfo struct {
-	Type    string `json:"__type"`
-	Message string
-
-	// nonstandard, but some AWS services do present the type here
-	Code any
-}
-
-func getProtocolErrorInfo(decoder *json.Decoder) (protocolErrorInfo, error) {
-	var errInfo protocolErrorInfo
-	if err := decoder.Decode(&errInfo); err != nil {
-		if err == io.EOF {
-			return errInfo, nil
-		}
-		return errInfo, err
-	}
-
-	return errInfo, nil
-}
-
-func resolveProtocolErrorType(headerType string, bodyInfo protocolErrorInfo) (string, bool) {
-	if len(headerType) != 0 {
-		return headerType, true
-	} else if len(bodyInfo.Type) != 0 {
-		return bodyInfo.Type, true
-	} else if code, ok := bodyInfo.Code.(string); ok && len(code) != 0 {
-		return code, true
-	}
-	return "", false
-}
-
-// sanitizeErrorCode strips namespace prefixes and URI suffixes from error
-// codes received on the wire.
-func sanitizeErrorCode(code string) string {
-	if idx := strings.Index(code, ":"); idx != -1 {
-		code = code[:idx]
-	}
-	if idx := strings.Index(code, "#"); idx != -1 {
-		code = code[idx+1:]
-	}
-	return code
 }
