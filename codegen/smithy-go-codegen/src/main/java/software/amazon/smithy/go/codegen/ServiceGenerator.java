@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
 import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -272,6 +273,8 @@ final class ServiceGenerator implements Runnable {
 
         if (preferred.equals(AwsJson1_0Trait.ID)) {
             return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New");
+        } else if (preferred.equals(AwsJson1_1Trait.ID)) {
+            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11");
         } else if (preferred.equals(RestJson1Trait.ID)) {
             return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New");
         } else {

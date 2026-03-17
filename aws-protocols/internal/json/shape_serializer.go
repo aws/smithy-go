@@ -303,6 +303,10 @@ func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
 
 // WriteBlob implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
+	if v == nil { // we don't write null so skipZeroValue is irrelevant
+		return
+	}
+
 	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
 		enc.Key(s.jsonMemberName(schema)).Base64EncodeBytes(v)
