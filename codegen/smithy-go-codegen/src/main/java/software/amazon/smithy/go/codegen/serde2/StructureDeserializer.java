@@ -6,7 +6,6 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.SmithyGoTypes;
 import software.amazon.smithy.go.codegen.UnsupportedShapeException;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;

@@ -17,19 +17,30 @@ import (
 
 // New returns an instance of the awsJson 1.0 protocol.
 func New() *Protocol {
-	return &Protocol{}
+	return &Protocol{version: "1.0"}
+}
+
+// New11 returns an instance of the awsJson 1.1 protocol.
+//
+// TODO(serde2): figure out how we want to organize awsjson10 vs 11
+func New11() *Protocol {
+	return &Protocol{version: "1.1"}
 }
 
 // Protocol implements aws.protocols#awsJson10.
 type Protocol struct {
+	version            string
 	UseQueryCompatible bool
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
 // ID identifies the protocol.
-func (*Protocol) ID() string {
-	return "aws.protocols#awsJson10"
+func (p *Protocol) ID() string {
+	if p.version == "1.1" {
+		return "aws.protocols#awsJson1_1"
+	}
+	return "aws.protocols#awsJson1_0"
 }
 
 // SerializeRequest serializes a request for AWS Json 1.0.
@@ -41,7 +52,7 @@ func (p *Protocol) SerializeRequest(
 ) error {
 	req.Method = http.MethodPost
 	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", middleware.GetServiceName(ctx), middleware.GetOperationName(ctx)))
-	req.Header.Set("Content-Type", "application/x-amz-json-1.0")
+	req.Header.Set("Content-Type", "application/x-amz-json-"+p.version)
 	if p.UseQueryCompatible {
 		req.Header.Set("X-Amzn-Query-Compatible", "true")
 	}
@@ -87,6 +98,9 @@ func (p *Protocol) DeserializeResponse(
 	return nil
 }
 
+// this handles both awsJson 1.0 and 1.1 - the only thing that 1.1 adds is
+// error shape renaming (basically not having the namespace) but both versions
+// of the protocol are supposed to support this anyway so it doesn't matter
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {
 	var errorBuffer bytes.Buffer
 	if _, err := io.Copy(&errorBuffer, response.Body); err != nil {
