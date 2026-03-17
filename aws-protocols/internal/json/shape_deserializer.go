@@ -127,34 +127,22 @@ func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 
 // ReadInt8Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
-	if *v == nil {
-		*v = new(int8)
-	}
-	return d.ReadInt8(s, *v)
+	return readPtr(d, s, v, d.ReadInt8)
 }
 
 // ReadInt16Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt16Ptr(s *smithy.Schema, v **int16) error {
-	if *v == nil {
-		*v = new(int16)
-	}
-	return d.ReadInt16(s, *v)
+	return readPtr(d, s, v, d.ReadInt16)
 }
 
 // ReadInt32Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
-	if *v == nil {
-		*v = new(int32)
-	}
-	return d.ReadInt32(s, *v)
+	return readPtr(d, s, v, d.ReadInt32)
 }
 
 // ReadInt64Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
-	if *v == nil {
-		*v = new(int64)
-	}
-	return d.ReadInt64(s, *v)
+	return readPtr(d, s, v, d.ReadInt64)
 }
 
 func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
@@ -196,18 +184,12 @@ func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 
 // ReadFloat32Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat32Ptr(s *smithy.Schema, v **float32) error {
-	if *v == nil {
-		*v = new(float32)
-	}
-	return d.ReadFloat32(s, *v)
+	return readPtr(d, s, v, d.ReadFloat32)
 }
 
 // ReadFloat64Ptr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
-	if *v == nil {
-		*v = new(float64)
-	}
-	return d.ReadFloat64(s, *v)
+	return readPtr(d, s, v, d.ReadFloat64)
 }
 
 func (d *ShapeDeserializer) readFloat() (float64, error) {
@@ -253,10 +235,7 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 
 // ReadBoolPtr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
-	if *v == nil {
-		*v = new(bool)
-	}
-	return d.ReadBool(s, *v)
+	return readPtr(d, s, v, d.ReadBool)
 }
 
 // ReadString implements [smithy.ShapeDeserializer].
@@ -280,10 +259,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 
 // ReadStringPtr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	if *v == nil {
-		*v = new(string)
-	}
-	return d.ReadString(s, *v)
+	return readPtr(d, s, v, d.ReadString)
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -330,14 +306,15 @@ func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error 
 
 // ReadTimePtr implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadTimePtr(schema *smithy.Schema, v **time.Time) error {
-	if *v == nil {
-		*v = new(time.Time)
-	}
-	return d.ReadTime(schema, *v)
+	return readPtr(d, schema, v, d.ReadTime)
 }
 
 // ReadBlob implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+
 	tok, err := d.token()
 	if err != nil {
 		return err
@@ -417,6 +394,10 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 
 // ReadStruct implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+
 	tok, err := d.token()
 	if err != nil {
 		return err
@@ -561,6 +542,17 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 
 	*v = document.Opaque{Value: raw}
 	return nil
+}
+
+func readPtr[T any](d *ShapeDeserializer, s *smithy.Schema, v **T, read func(*smithy.Schema, *T) error) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+
+	if *v == nil {
+		*v = new(T)
+	}
+	return read(s, *v)
 }
 
 func jsonToValue(v any) (document.Value, error) {
