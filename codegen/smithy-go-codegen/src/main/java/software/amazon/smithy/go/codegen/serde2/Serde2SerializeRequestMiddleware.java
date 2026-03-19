@@ -26,7 +26,7 @@ public class Serde2SerializeRequestMiddleware extends SerializeStepMiddleware {
     public Map<String, Symbol> getFields() {
         return Map.of(
                 "options", pointerTo(buildPackageSymbol("Options")),
-                "operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("Schema")
+                "operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("OperationSchema")
         );
     }
 

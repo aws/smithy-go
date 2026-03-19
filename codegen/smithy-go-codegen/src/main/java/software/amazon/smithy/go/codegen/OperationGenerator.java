@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -289,14 +290,37 @@ public final class OperationGenerator implements Runnable {
         } else {
             writer.addUseImports(SmithyGoDependency.SMITHY);
             var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation, service);
+            var inputSchemaName = "schemas." + SchemaGenerator.getSchemaName(input, service);
+            var outputSchemaName = "schemas." + SchemaGenerator.getSchemaName(output, service);
+            var opSchema = String.format("smithy.NewOperationSchema(%s, %s, %s)",
+                    opSchemaName, inputSchemaName, outputSchemaName);
             writer.write("""
                 if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: $L}, middleware.After); err != nil {
                     return err
-                }""", opSchemaName);
+                }""", opSchema);
             writer.write("""
                 if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: $L, output: &$T{}}, middleware.After); err != nil {
                     return err
-                }""", opSchemaName, symbolProvider.toSymbol(output));
+                }""", opSchema, symbolProvider.toSymbol(output));
+
+            if (Stream.concat(input.members().stream(), output.members().stream())
+                    .anyMatch(m -> StreamingTrait.isEventStream(model, m))) {
+
+                var isInput = EventStreamIndex.of(model).getInputInfo(operation).isPresent();
+                if (isInput) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                    writer.write("""
+                    if err := smithyhttp.AddInitializeStreamWriter(stack); err != nil {
+                        return err
+                    }""");
+                }
+
+                var name = String.format("deserializeOpEventStream%s", operation.getId().getName(service));
+                writer.write("""
+                    if err := stack.Deserialize.Insert(&$L{options: &options}, "OperationDeserializer", middleware.Before); err != nil {
+                        return err
+                    }""", name);
+            }
         }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
