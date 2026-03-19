@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -46,12 +47,12 @@ import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
@@ -261,10 +262,10 @@ final class ServiceGenerator implements Runnable {
     private Writable generateExperimentalSerdeResolvers() {
         ensureSupportedProtocol();
         // TODO(serde2) dynamically resolve a symbol based on traits
-        return goTemplate("options.Protocol = $T()", resolveDefaultProtocol());
+        return goTemplate("options.Protocol = $W", resolveDefaultProtocol());
     }
 
-    private Symbol resolveDefaultProtocol() {
+    private Writable resolveDefaultProtocol() {
         Set<ShapeId> protocols = ServiceIndex.of(model).getProtocols(service).keySet();
         var preferred = PROTOCOLS_BY_PRIORITY.stream()
                 .filter(protocols::contains)
@@ -272,11 +273,18 @@ final class ServiceGenerator implements Runnable {
                 .get();
 
         if (preferred.equals(AwsJson1_0Trait.ID)) {
-            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New");
+            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New"));
         } else if (preferred.equals(AwsJson1_1Trait.ID)) {
-            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11");
+            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11"));
         } else if (preferred.equals(RestJson1Trait.ID)) {
-            return SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New");
+            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New"));
+        } else if (preferred.equals(Rpcv2CborTrait.ID)) {
+            return goTemplate("$T($W)",
+                    SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.func("NewCBOR"),
+                    service.hasTrait(AwsQueryCompatibleTrait.class)
+                            ? goTemplate("$T", SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.valueSymbol("UseQueryCompatible"))
+                            : emptyGoTemplate()
+            );
         } else {
             throw new CodegenException("unsupported schema-serde protocol " + preferred);
         }

@@ -23,6 +23,7 @@ func New() *Protocol {
 // New11 returns an instance of the awsJson 1.1 protocol.
 //
 // TODO(serde2): figure out how we want to organize awsjson10 vs 11
+// TODO(serde2): this doesn't do query compatible yet
 func New11() *Protocol {
 	return &Protocol{version: "1.1"}
 }
