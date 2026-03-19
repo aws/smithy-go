@@ -1,4 +1,4 @@
-package eventstreamapi
+package eventstream
 
 // EventStream headers with specific meaning to async API functionality.
 const (

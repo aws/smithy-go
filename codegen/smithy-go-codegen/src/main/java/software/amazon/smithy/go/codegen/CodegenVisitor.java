@@ -40,11 +40,13 @@ import software.amazon.smithy.go.codegen.serde2.ListSerializer;
 import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
 import software.amazon.smithy.go.codegen.serde2.MapSerializer;
 import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
+import software.amazon.smithy.go.codegen.serde2.Serde2EventStreamMiddleware;
 import software.amazon.smithy.go.codegen.serde2.Serde2SerializeRequestMiddleware;
 import software.amazon.smithy.go.codegen.serde2.UnionDeserializer;
 import software.amazon.smithy.go.codegen.serde2.UnionSerializer;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
@@ -269,36 +271,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
-        // TODO(serde2): event streams still need all the old stuff as we're migrating over to schema-serde, once we've
-        // done that for event streams remove this
-        if (settings.useExperimentalSerde() && protocolGenerator != null && eventStreamGenerator.hasEventStreamOperations()) {
-            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
-                    .protocolName(protocolGenerator.getProtocolName())
-                    .integrations(integrations)
-                    .model(model)
-                    .service(service)
-                    .settings(settings)
-                    .symbolProvider(symbolProvider)
-                    .delegator(writers);
-
-            writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateRequestSerializers(context);
-                protocolGenerator.generateSharedSerializerComponents(context);
-            });
-
-            writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateResponseDeserializers(context);
-                protocolGenerator.generateSharedDeserializerComponents(context);
-            });
-
-            eventStreamGenerator.writeEventStreamImplementation(writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEventStreamComponents(context);
-            });
-        }
-
         LOGGER.info("Generating protocol tests for " + service.getId());
         ProtocolUtils.generateHttpProtocolTests(ctx);
 
@@ -368,6 +340,18 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
             ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
                     Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
+
+            if (eventStreamGenerator.hasEventStreamOperations()) {
+                var streamIndex = EventStreamIndex.of(model);
+                eventStreamGenerator.writeEventStreamImplementation(writer -> {
+                    writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+                    TopDownIndex.of(model).getContainedOperations(service).stream()
+                            .filter(op -> streamIndex.getInputInfo(op).isPresent()
+                                    || streamIndex.getOutputInfo(op).isPresent())
+                            .sorted()
+                            .forEach(op -> writer.write(new Serde2EventStreamMiddleware(ctx, op)));
+                });
+            }
         }
 
         // This is all stuff that we'll still need to do but it DEPENDS on ProtocolGenerator right now

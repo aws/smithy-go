@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	"github.com/aws/smithy-go/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -17,20 +18,34 @@ import (
 
 // New returns an instance of the awsJson 1.0 protocol.
 func New() *Protocol {
-	return &Protocol{version: "1.0"}
+	return &Protocol{
+		version: "1.0",
+		Codec: &eventstream.Codec{
+			Codec:       &awsjson.Codec{},
+			ContentType: "application/json",
+		},
+	}
 }
 
 // New11 returns an instance of the awsJson 1.1 protocol.
 //
 // TODO(serde2): figure out how we want to organize awsjson10 vs 11
 func New11() *Protocol {
-	return &Protocol{version: "1.1"}
+	return &Protocol{
+		version: "1.1",
+		Codec: &eventstream.Codec{
+			Codec:       &awsjson.Codec{},
+			ContentType: "application/json",
+		},
+	}
 }
 
 // Protocol implements aws.protocols#awsJson10.
 type Protocol struct {
 	version            string
 	UseQueryCompatible bool
+
+	*eventstream.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
@@ -46,12 +61,17 @@ func (p *Protocol) ID() string {
 // SerializeRequest serializes a request for AWS Json 1.0.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
-	schema *smithy.Schema,
+	schema *smithy.OperationSchema,
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
 	req.Method = http.MethodPost
 	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", middleware.GetServiceName(ctx), middleware.GetOperationName(ctx)))
+	if schema.IsInputEventStream() {
+		req.Header.Set("Content-Type", "application/vnd.amazon.eventstream")
+		return nil
+	}
+
 	req.Header.Set("Content-Type", "application/x-amz-json-"+p.version)
 	if p.UseQueryCompatible {
 		req.Header.Set("X-Amzn-Query-Compatible", "true")
@@ -72,13 +92,17 @@ func (p *Protocol) SerializeRequest(
 // DeserializeResponse deserializes a response for AWS Json 1.0.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
-	schema *smithy.Schema,
+	schema *smithy.OperationSchema,
 	types *smithy.TypeRegistry,
 	resp *smithyhttp.Response,
 	out smithy.Deserializable,
 ) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return p.deserializeError(types, resp)
+	}
+
+	if schema.IsOutputEventStream() {
+		return nil
 	}
 
 	payload, err := io.ReadAll(resp.Body)
@@ -96,6 +120,11 @@ func (p *Protocol) DeserializeResponse(
 	}
 
 	return nil
+}
+
+// HasInitialMessages is true because this is an RPC protocol.
+func (*Protocol) HasInitialMessages() bool {
+	return true
 }
 
 // this handles both awsJson 1.0 and 1.1 - the only thing that 1.1 adds is

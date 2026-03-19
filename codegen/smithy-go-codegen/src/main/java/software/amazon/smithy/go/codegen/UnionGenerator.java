@@ -132,6 +132,10 @@ public class UnionGenerator {
                 case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
                 case STRUCTURE -> writer.write("s.WriteStruct($L, &v.Value)", schemaName); // struct variants are value types
                 case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
+                case DOCUMENT -> {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
+                    writer.write("s.WriteDocument($L, &smithydocument.Opaque{Value: v.Value})", schemaName);
+                }
                 case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
             }
         });
@@ -167,6 +171,18 @@ public class UnionGenerator {
                 }
                 case STRUCTURE -> writer.write("return v.Value.Deserialize(d)");
                 case LIST, MAP, UNION -> writer.write("return deserialize$L(d, $L, &v.Value)", target.getId().getName(), schemaName);
+                case DOCUMENT -> {
+                    var unmarshaler = ProtocolDocumentGenerator.Utilities.getInternalDocumentSymbolBuilder(
+                            ctx.settings(), ProtocolDocumentGenerator.INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC).build();
+                    writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
+                    writer.write("""
+                            var dv smithydocument.Value
+                            if err := d.ReadDocument($1L, &dv); err != nil { return err }
+                            if ov, ok := dv.(smithydocument.Opaque); ok {
+                                v.Value = $2T(ov.Value)
+                            }
+                            return nil""", schemaName, unmarshaler);
+                }
                 case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape type " + target.getType());
             }
         });
