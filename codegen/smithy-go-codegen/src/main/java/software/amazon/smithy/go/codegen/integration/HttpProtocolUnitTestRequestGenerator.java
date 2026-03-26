@@ -22,6 +22,7 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_REQUES
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -30,6 +31,7 @@ import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
+import software.amazon.smithy.protocoltests.traits.AppliesTo;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -78,6 +80,26 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     @Override
     protected Object[] benchmarkFuncNameArgs() {
         return new Object[]{opSymbol.getName(), protocolName};
+    }
+
+    @Override
+    String serdBenchmarkFunctionNameFormat() {
+        return "SerdBenchmarkClient_$L_$L";
+    }
+
+    @Override
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
+        writer.write("serializeStart := time.Now()");
+        generateBenchmarkInvokeClientOperation(writer, "client");
+        writer.writeGoTemplate("""
+                serializeEnd := time.Now()
+                if i >= 1000 {
+                    timings := append(timings, serializeEnd.Sub(serializeStart))
+                }
+                if benchmarkStart.Add(30000000000).Before(serializeEnd) {
+                    break
+                }
+                """);
     }
 
     /**
