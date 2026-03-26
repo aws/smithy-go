@@ -17,11 +17,14 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
  * Generates HTTP protocol unit tests for HTTP response test cases.
@@ -66,6 +69,11 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     protected Object[] benchmarkFuncNameArgs() {
         return new Object[]{opSymbol.getName(), protocolName};
+    }
+
+    @Override
+    String serdBenchmarkFunctionNameFormat() {
+        return "TestDeserdClient_$L_$L";
     }
 
     /**
@@ -197,6 +205,66 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     }
 
     @Override
+    public void generateSerdBenchmarkTestCaseValues(GoWriter writer, HttpResponseTestCase testCase) {
+        writeStructField(writer, "StatusCode", testCase.getCode());
+        writeHeaderStructField(writer, "Header", testCase.getHeaders());
+
+        testCase.getBodyMediaType().ifPresent(mediaType -> {
+            writeStructField(writer, "BodyMediaType", "$S", mediaType);
+        });
+        testCase.getBody().ifPresent(body -> {
+            var mediaType = testCase.getBodyMediaType().orElse("");
+            if (mediaType.equalsIgnoreCase("application/cbor") || testCase.getProtocol().toString().toLowerCase().contains("cbor")) {
+                writeStructField(writer, "Body", """
+                        func() []byte {
+                            p, err := $T.DecodeString(`$L`)
+                            if err != nil {
+                                panic(err)
+                            }
+
+                            return p
+                        }()""", SmithyGoDependency.BASE64.func("StdEncoding"), body.trim());
+            } else {
+                writeStructField(writer, "Body", "[]byte(`$L`)", body);
+            }
+        });
+
+        writeStructField(writer, "ExpectResult", outputShape, testCase.getParams());
+    }
+
+    @Override
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
+        writer.writeGoTemplate("""
+                resp := &smithyhttp.Response{
+                    Response: &http.Response{
+                        StatusCode: c.StatusCode,
+                        Header:     c.Header.Clone(),
+                        Body:       io.NopCloser(bytes.NewReader(c.Body)),
+                    },
+                }
+                output := &$outputSymbol:T{}
+
+                deserializeStart := time.Now()
+                err := protocol.DeserializeResponse(context.Background(), opSchema, TypeRegistry, resp, output)
+                if err != nil {
+                    t.Fatalf("error when running deserd test for %s: %v", name, err)
+                }
+
+                deserializeEnd := time.Now()
+                if i >= 1000 {
+                    timings = append(timings, deserializeEnd.Sub(deserializeStart))
+                }
+                if benchmarkStart.Add(30000000000).Before(deserializeEnd) {
+                    break
+                }
+    """,
+                MapUtils.of("outputSymbol", outputSymbol));
+    }
+
+    @Override
     protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("$L.$T(context.Background(), &params)", clientName, opSymbol);
@@ -205,6 +273,32 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     protected void generateBenchmarkBodySetup(GoWriter writer) {
         writer.write("var params $T", inputSymbol);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
+        var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+        var inputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getInputShape()), service);
+        var outputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getOutputShape()), service);
+
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.addUseImports(SmithyGoDependency.IO);
+        writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+        writer.write("""
+                protocol := New(Options{}).options.Protocol
+                opSchema := smithy.NewOperationSchema($L, $L, $L)
+                """, opSchemaName, inputSchemaName, outputSchemaName);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+    }
+
+    @Override
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
     }
 
     /**

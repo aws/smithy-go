@@ -25,6 +25,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.codegen.core.WriterDelegator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -63,7 +64,10 @@ public record GoCodegenContext(
                 .map(it -> model.expectShape(it.getOutputShape()))
                 .flatMap(it -> walker.walkShapes(it).stream())
                 .collect(toSet()));
-        shapes.addAll(model.getStructureShapesWithTrait(ErrorTrait.class).stream()
+
+        var operationIndex = OperationIndex.of(model);
+        shapes.addAll(operations.stream()
+                .flatMap(it -> operationIndex.getErrors(it, service()).stream())
                 .flatMap(it -> walker.walkShapes(it).stream())
                 .collect(toSet()));
 

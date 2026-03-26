@@ -26,7 +26,7 @@ public final class ProtocolUtils {
     /**
      * Generates HTTP protocol tests.
      */
-    public static void generateHttpProtocolTests(GoCodegenContext ctx) {
+    public static void generateHttpProtocolTests(GoCodegenContext ctx, String protocolName) {
         var operations = TopDownIndex.of(ctx.model()).getContainedOperations(ctx.settings().getService());
         var hasRequestTests = operations.stream()
                 .anyMatch(it -> it.hasTrait(HttpRequestTestsTrait.class));
@@ -307,7 +307,7 @@ public final class ProtocolUtils {
                         .build()
         ));
 
-        new HttpProtocolTestGenerator(ctx,
+        new HttpProtocolTestGenerator(ctx, protocolName,
                 (HttpProtocolUnitTestRequestGenerator.Builder) new HttpProtocolUnitTestRequestGenerator
                         .Builder()
                         .settings(ctx.settings())

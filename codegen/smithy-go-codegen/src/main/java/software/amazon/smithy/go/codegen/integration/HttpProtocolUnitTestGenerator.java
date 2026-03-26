@@ -119,6 +119,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
     abstract Object[] benchmarkFuncNameArgs();
 
+    abstract String serdBenchmarkFunctionNameFormat();
 
     /**
      * Hook to provide custom generated code within a test function before test cases are defined.
@@ -195,6 +196,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 writeStructField(writer, value.getName(), value.getValue());
             }
         });
+    }
+
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
+        generateTestClient(writer, clientName);
     }
 
     /**
@@ -278,8 +283,16 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         generateTestBodySetup(writer);
     }
 
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
+        generateTestBodySetup(writer);
+    }
+
     protected void generateBenchmarkServer(GoWriter writer) {
         generateTestServer(writer, "server", this::generateTestServerHandler);
+    }
+
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+        generateBenchmarkServer(writer);
     }
 
     public void generateBenchmarkFunction(GoWriter writer) {
@@ -311,6 +324,89 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             writer.openBlock("for i := 0; i < b.N; i++ {", "}", () -> {
                                 generateBenchmarkInvokeClientOperation(writer, "client");
                             });
+                        });
+                    });
+                });
+    }
+
+    public void generateSerdBenchmarkTestCaseValues(GoWriter writer, T testCase) {
+        generateTestCaseValues(writer, testCase);
+    }
+
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {}
+
+    public void generateSerdBenchmarkFunction(GoWriter writer) {
+        writer.addUseImports(SmithyGoDependency.TESTING);
+        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(t *testing.T) {", "}", benchmarkFuncNameArgs(),
+                () -> {
+                    generateTestSetup(writer);
+
+                    writer.write("cases := map[string]struct {");
+                    generateTestCaseParams(writer);
+                    writer.openBlock("}{", "}", () -> {
+                        for (T testCase : testCases) {
+                            Optional<AppliesTo> appliesTo = testCase.getAppliesTo();
+                            if (appliesTo.isPresent() && !(appliesTo.get().equals(AppliesTo.CLIENT))) {
+                                continue;
+                            }
+
+                            writer.openBlock("$S: {", "},", testCase.getId(), () -> {
+                                generateSerdBenchmarkTestCaseValues(writer, testCase);
+                            });
+                        }
+                    });
+
+                    writer.openBlock("for name, c := range cases {", "}", () -> {
+                        writer.openBlock("t.Run(name, func(t *testing.T) {", "})", () -> {
+                            generateSerdBenchmarkBodySetup(writer);
+                            generateSerdBenchmarkServer(writer);
+                            generateSerdBenchmarkTestClient(writer, "client");
+                            writer.addUseImports(SmithyGoDependency.TIME);
+                            writer.addUseImports(SmithyGoDependency.SLICES);
+                            writer.addUseImports(SmithyGoDependency.MATH);
+                            writer.writeGoTemplate("""
+                                timings := make([]time.Duration, 0)
+                                benchmarkStart := time.Now()
+                            """);
+                            writer.openBlock("for i := 0; i < 10000; i++ {", "}", () -> {
+                                generateSerdBenchmarkIteration(writer, "client");
+                            });
+                            // generate benchmark stat code
+                            writer.writeGoTemplate("""
+                                    mean := float64(0)
+                                    n := len(timings)
+                                    slices.Sort(timings)
+                                    stddev := float64(0)
+                                    for _, t := range(timings) {
+                                        mean += float64(t) / float64(n)
+                                    }
+                                    p50 := timings[int64(float64(n-1)*0.5)]
+                                    p90 := timings[int64(float64(n-1)*0.9)]
+                                    p95 := timings[int64(float64(n-1)*0.95)]
+                                    p99 := timings[int64(float64(n-1)*0.99)]
+                                    for _, t := range(timings) {
+                                        stddev += (float64(t) - mean) * (float64(t) - mean) / float64(n)
+                                    }
+                                    stddev = math.Sqrt(stddev)
+                                    
+                                    t.Logf("p50: %v\\n", p50)
+                                    t.Logf("p90: %v\\n", p90)
+                                    t.Logf("p95: %v\\n", p95)
+                                    t.Logf("p99: %v\\n", p99)
+                                    t.Logf("mean: %v ns\\n", mean)
+                                    t.Logf("stddev: %v\\n", stddev)
+
+                                    addSerdBenchmarkResult(serdBenchmarkResult{
+                                        ID:     name,
+                                        N:      n,
+                                        Mean:   mean,
+                                        P50:    float64(p50),
+                                        P90:    float64(p90),
+                                        P95:    float64(p95),
+                                        P99:    float64(p99),
+                                        StdDev: stddev,
+                                    })
+                                    """);
                         });
                     });
                 });
