@@ -119,6 +119,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
     abstract Object[] benchmarkFuncNameArgs();
 
+    abstract String serdBenchmarkFunctionNameFormat();
 
     /**
      * Hook to provide custom generated code within a test function before test cases are defined.
@@ -195,6 +196,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 writeStructField(writer, value.getName(), value.getValue());
             }
         });
+    }
+
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
+        generateTestClient(writer, clientName);
     }
 
     /**
@@ -311,6 +316,75 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             writer.openBlock("for i := 0; i < b.N; i++ {", "}", () -> {
                                 generateBenchmarkInvokeClientOperation(writer, "client");
                             });
+                        });
+                    });
+                });
+    }
+
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {}
+
+    public void generateSerdBenchmarkFunction(GoWriter writer) {
+        writer.addUseImports(SmithyGoDependency.TESTING);
+        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(b *testing.B) {", "}", benchmarkFuncNameArgs(),
+                () -> {
+                    generateTestSetup(writer);
+
+                    writer.write("cases := map[string]struct {");
+                    generateTestCaseParams(writer);
+                    writer.openBlock("}{", "}", () -> {
+                        for (T testCase : testCases) {
+                            Optional<AppliesTo> appliesTo = testCase.getAppliesTo();
+                            if (appliesTo.isPresent() && !(appliesTo.get().equals(AppliesTo.CLIENT))) {
+                                continue;
+                            }
+
+                            writer.openBlock("$S: {", "},", testCase.getId(), () -> {
+                                generateTestCaseValues(writer, testCase);
+                            });
+                        }
+                    });
+
+                    writer.openBlock("for name, c := range cases {", "}", () -> {
+                        writer.openBlock("b.Run(name, func(b *testing.B) {", "})", () -> {
+                            generateBenchmarkBodySetup(writer);
+                            generateBenchmarkServer(writer);
+                            generateSerdBenchmarkTestClient(writer, "client");
+                            writer.addUseImports(SmithyGoDependency.TIME);
+                            writer.addUseImports(SmithyGoDependency.SLICES);
+                            writer.addUseImports(SmithyGoDependency.MATH);
+                            writer.writeGoTemplate("""
+                                timings := make([]time.Duration, 0)
+                                benchmarkStart := time.Now()
+                            """);
+                            writer.openBlock("for i := 0; i < 10000; i++ {", "}", () -> {
+                                generateSerdBenchmarkIteration(writer, "client");
+                            });
+                            // generate benchmark stat code
+                            writer.writeGoTemplate("""
+                                    sum := int64(0)
+                                    n := len(timings)
+                                    slices.Sort(timings)
+                                    stddev := int64(0)
+                                    for _, t := range(timings) {
+                                        sum += int64(t)
+                                    }
+                                    mean := float64(sum) / float64(n)
+                                    p50 := timings[int64(float64(n-1)*0.5)]
+                                    p90 := timings[int64(float64(n-1)*0.9)]
+                                    p95 := timings[int64(float64(n-1)*0.95)]
+                                    p99 := timings[int64(float64(n-1)*0.99)]
+                                    for _, t := range(timings) {
+                                        stddev += (float64(t) - mean) * (float64(t) - mean) / float64(n)
+                                    }
+                                    stddev = math.Sqrt(stddev)
+                                    
+                                    b.Logf("p50: %v\n", p50)
+                                    b.Logf("p90: %v\n", p90)
+                                    b.Logf("p95: %v\n", p95)
+                                    b.Logf("p99: %v\n", p99)
+                                    b.Logf("mean: %v\n", mean)
+                                    b.Logf("stddev: %v\n", stddev)
+                                    """);
                         });
                     });
                 });

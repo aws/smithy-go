@@ -40,6 +40,7 @@ public class HttpProtocolTestGenerator {
     private final HttpProtocolUnitTestRequestGenerator.Builder requestTestBuilder;
     private final HttpProtocolUnitTestResponseGenerator.Builder responseTestBuilder;
     private final HttpProtocolUnitTestResponseErrorGenerator.Builder responseErrorTestBuilder;
+    private final String SERDE_BENCHMARK_TAG = "serde-benchmark";
 
     /**
      * Initializes the protocol generator.
@@ -106,6 +107,21 @@ public class HttpProtocolTestGenerator {
                             .build()
                             .generateBenchmarkFunction(writer);
                 });
+
+                List<HttpRequestTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
+                if (serdBenchmarkCases.isEmpty()) {
+                    return;
+                }
+                delegator.useShapeTestWriter(operation, (writer) -> {
+                    LOGGER.fine(() -> format("Generating request protocol serialization benchmark for %s", operation.getId()));
+                    requestTestBuilder.model(model)
+                            .symbolProvider(symbolProvider)
+                            .service(service)
+                            .operation(operation)
+                            .testCases(serdBenchmarkCases)
+                            .build()
+                            .generateSerdBenchmarkFunction(writer);
+                });
             });
 
             // 2. Generate test cases for each response.
@@ -139,6 +155,23 @@ public class HttpProtocolTestGenerator {
                                     .normalizeHttpPrefixHeaderKeys(true).build())
                             .build()
                             .generateBenchmarkFunction(writer);
+                });
+
+                List<HttpResponseTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
+                if (serdBenchmarkCases.isEmpty()) {
+                    return;
+                }
+                delegator.useShapeTestWriter(operation, (writer) -> {
+                    LOGGER.fine(() -> format("Generating response protocol deserialization benchmark for %s", operation.getId()));
+                    responseTestBuilder.model(model)
+                            .symbolProvider(symbolProvider)
+                            .service(service)
+                            .operation(operation)
+                            .testCases(serdBenchmarkCases)
+                            .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
+                                    .normalizeHttpPrefixHeaderKeys(true).build())
+                            .build()
+                            .generateSerdBenchmarkFunction(writer);
                 });
             });
 
@@ -188,6 +221,16 @@ public class HttpProtocolTestGenerator {
         List<T> filtered = new ArrayList<>();
         for (T testCase : testCases) {
             if (testCase.getProtocol().equals(settings.getProtocol())) {
+                filtered.add(testCase);
+            }
+        }
+        return filtered;
+    }
+
+    private <T extends HttpMessageTestCase> List<T> filterSerdBenchmarkTaggedTestCases(List<T> testCases) {
+        List<T> filtered = new ArrayList<>();
+        for (T testCase : testCases) {
+            if (testCase.hasTag(SERDE_BENCHMARK_TAG)) {
                 filtered.add(testCase);
             }
         }

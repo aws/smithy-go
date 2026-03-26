@@ -17,11 +17,13 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
+import software.amazon.smithy.utils.MapUtils;
 
 /**
  * Generates HTTP protocol unit tests for HTTP response test cases.
@@ -66,6 +68,11 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     protected Object[] benchmarkFuncNameArgs() {
         return new Object[]{opSymbol.getName(), protocolName};
+    }
+
+    @Override
+    String serdBenchmarkFunctionNameFormat() {
+        return "DeserdBenchmarkClient_$L_$L";
     }
 
     /**
@@ -194,6 +201,34 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.write("var params $T", inputSymbol);
         writer.write("result, err := $L.$T(context.Background(), &params)", clientName, opSymbol);
+    }
+
+    @Override
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.write("var params $T", inputSymbol);
+        writer.writeGoTemplate("""
+                result, err := $clientName:L.$opSymbol:T(context.Background(), &params, func(o *Options) {
+        			o.APIOptions = append(o.APIOptions, []func(*middleware.Stack) error{
+						func(s *middleware.Stack) error {
+							return s.Deserialize.Insert(middleware.DeserializeMiddlewareFunc("deserilaizerbenchmark", func(ctx context.Context, input middleware.DeserializeInput, next middleware.DeserializeHandler) (out middleware.DeserializeOutput, metadata middleware.Metadata, err error){
+								deserializeStart := time.Now()
+								out, metadata, err = next.HandleDeserialize(ctx, input)
+								deserializeEnd := time.Now()
+								if i >= 1000 {
+									timings = append(timings, deserializeEnd.Sub(deserializeStart))
+								}
+								return
+							}), "OperationDeserializer", middleware.Before)
+						},
+					}...)
+				})
+				if benchmarkStart.Add(30000000000).Before(time.Now()) {
+                    break
+                }
+    """,
+                MapUtils.of("clientName", clientName, "opSymbol", opSymbol));
     }
 
     @Override
