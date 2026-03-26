@@ -121,7 +121,7 @@ public class EndpointParameterOperationBindingsGenerator {
                 }
 
                 var contextParam = it.expectTrait(ContextParamTrait.class);
-                writer.write("p.$L = in.$L", contextParam.getName(), it.getMemberName());
+                writer.write("p.$L = in.$L", contextParam.getName(), ctx.symbolProvider().toMemberName(it));
             });
         };
     }
