@@ -278,8 +278,8 @@ public final class EndpointResolverGenerator {
                             // inspect the fn
                             // member of the node directly.
                             String fn = condition.toNode().expectObjectNode().expectStringMember("fn").getValue();
-                            // the only static assignment condition, as of this writing...
-                            return !fn.equals("uriEncode");
+							// the only static assignment conditionS, as of this writing...
+                            return !fn.equals("uriEncode") && !fn.equals("getAttr");
                         }).toList().isEmpty();
                 if (needsFallback) {
                     w.writeGoTemplate(
