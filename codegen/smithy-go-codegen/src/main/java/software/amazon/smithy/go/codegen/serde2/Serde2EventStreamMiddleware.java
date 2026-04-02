@@ -81,7 +81,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
                 output, ok := out.Result.($output:P)
                 if out.Result != nil && !ok {
-                    return out, md, $fmtErrorf:T("unexpected output result type: %T", out.Result)
+                    return out, md, $fmtErrorf:T("unexpected output result type %T, expected $output:P", out.Result)
                 } else if out.Result == nil {
                     output = &$output:T{}
                     out.Result = output
