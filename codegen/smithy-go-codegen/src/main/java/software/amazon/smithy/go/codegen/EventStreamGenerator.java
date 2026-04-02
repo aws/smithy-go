@@ -159,7 +159,8 @@ public final class EventStreamGenerator {
         var ifaceName = getEventStreamWriterInterfaceName(serviceShape, union);
         var members = union.members().stream()
                 .filter(m -> !m.getMemberTrait(model, ErrorTrait.class).isPresent())
-                .collect(Collectors.toCollection(TreeSet::new));
+                .sorted()
+                .toList();
 
         writer.addImport(settings.getModuleName() + "/schemas", "schemas");
         writer.writeGoTemplate("""
@@ -219,7 +220,8 @@ public final class EventStreamGenerator {
         var ifaceName = getEventStreamReaderInterfaceName(serviceShape, union);
         var members = union.members().stream()
                 .filter(m -> !m.getMemberTrait(model, ErrorTrait.class).isPresent())
-                .collect(Collectors.toCollection(TreeSet::new));
+                .sorted()
+                .toList();
 
         writer.writeGoTemplate("""
                 type $impl:L struct {
