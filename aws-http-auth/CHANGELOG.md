@@ -1,3 +1,7 @@
+# v1.1.3 (2026-04-02)
+
+* **Bug Fix**: Add additional sigv4 configuration.
+
 # v1.1.2 (2026-02-27)
 
 * **Dependency Update**: Bump minimum go version to 1.24.

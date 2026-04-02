@@ -1,9 +1,0 @@
-{
-    "id": "bcd4e590-9923-44e7-9c90-2ce78170f973",
-    "type": "bugfix",
-    "description": "Add additional sigv4 configuration.",
-    "modules": [
-        ".",
-        "aws-http-auth"
-    ]
-}

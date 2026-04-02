@@ -1,3 +1,14 @@
+# Release (2026-04-02)
+
+## General Highlights
+* **Dependency Update**: Updated to the latest SDK module versions
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.24.3
+  * **Bug Fix**: Add additional sigv4 configuration.
+* `github.com/aws/smithy-go/aws-http-auth`: [v1.1.3](aws-http-auth/CHANGELOG.md#v113-2026-04-02)
+  * **Bug Fix**: Add additional sigv4 configuration.
+
 # Release (2026-02-27)
 
 ## General Highlights
