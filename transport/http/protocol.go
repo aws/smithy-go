@@ -19,7 +19,7 @@ type ClientProtocol interface {
 	DeserializeResponse(ctx context.Context, schema *smithy.OperationSchema, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
 
 	// event stream APIs
-	HasInitialMessages() bool
+	HasInitialEventMessage() bool
 	SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error
 	DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error)
 	SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error

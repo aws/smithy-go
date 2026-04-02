@@ -122,8 +122,8 @@ func (p *Protocol) DeserializeResponse(
 	return nil
 }
 
-// HasInitialMessages is true because this is an RPC protocol.
-func (*Protocol) HasInitialMessages() bool {
+// HasInitialEventMessage is true because this is an RPC protocol.
+func (*Protocol) HasInitialEventMessage() bool {
 	return true
 }
 

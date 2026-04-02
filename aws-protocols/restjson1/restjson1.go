@@ -106,8 +106,8 @@ func (p *Protocol) DeserializeResponse(
 	return nil
 }
 
-// HasInitialMessages is false for REST-style protocols with HTTP bindings.
-func (*Protocol) HasInitialMessages() bool {
+// HasInitialEventMessage is false for REST-style protocols with HTTP bindings.
+func (*Protocol) HasInitialEventMessage() bool {
 	return false
 }
 

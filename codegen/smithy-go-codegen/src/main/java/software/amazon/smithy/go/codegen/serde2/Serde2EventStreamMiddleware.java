@@ -205,7 +205,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         var inputSchemaName = "schemas." + SchemaGenerator.getSchemaName(inputShape, ctx.service());
 
         return goTemplate("""
-                if m.options.Protocol.HasInitialMessages() {
+                if m.options.Protocol.HasInitialEventMessage() {
                     opInput, ok := getOperationInput(ctx).($serializable:T)
                     if !ok {
                         return out, md, $fmtErrorf:T("operation input is not serializable")
@@ -226,7 +226,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         var outputSchemaName = "schemas." + SchemaGenerator.getSchemaName(outputShape, ctx.service());
 
         return goTemplate("""
-                if m.options.Protocol.HasInitialMessages() {
+                if m.options.Protocol.HasInitialEventMessage() {
                     if err = m.options.Protocol.DeserializeInitialResponse($outputSchema:L, resp.Body, output); err != nil {
                         return out, md, $fmtErrorf:T("deserialize initial response: %w", err)
                     }
