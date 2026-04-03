@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v1
       - name: Run Labeler
         if: success()
-        uses: crazy-max/ghaction-github-labeler@v1
+        uses: crazy-max/ghaction-github-labeler@v5
         with:
           yaml_file: .github/labels.yml
           skip_delete: true
