@@ -1,16 +1,17 @@
-package eventstreamapi
+package http
 
 import (
 	"context"
 	"fmt"
-	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"io"
+
+	"github.com/aws/smithy-go/middleware"
 )
 
 type eventStreamWriterKey struct{}
 
-// GetInputStreamWriter returns EventTypeHeader io.PipeWriter used for the operation's input event stream.
+// GetInputStreamWriter returns the io.WriteCloser pipe used for the
+// operation's input event stream.
 func GetInputStreamWriter(ctx context.Context) io.WriteCloser {
 	writeCloser, _ := middleware.GetStackValue(ctx, eventStreamWriterKey{}).(io.WriteCloser)
 	return writeCloser
@@ -20,11 +21,13 @@ func setInputStreamWriter(ctx context.Context, writeCloser io.WriteCloser) conte
 	return middleware.WithStackValue(ctx, eventStreamWriterKey{}, writeCloser)
 }
 
-// InitializeStreamWriter is a Finalize middleware initializes an in-memory pipe for sending event stream messages
-// via the HTTP request body.
+// InitializeStreamWriter is a Finalize middleware that creates an in-memory
+// pipe and sets it as the HTTP request body so event stream messages can be
+// written after the request is sent.
 type InitializeStreamWriter struct{}
 
-// AddInitializeStreamWriter adds the InitializeStreamWriter middleware to the provided stack.
+// AddInitializeStreamWriter adds the InitializeStreamWriter middleware to the
+// provided stack.
 func AddInitializeStreamWriter(stack *middleware.Stack) error {
 	return stack.Finalize.Add(&InitializeStreamWriter{}, middleware.After)
 }
@@ -40,7 +43,7 @@ func (i *InitializeStreamWriter) HandleFinalize(
 ) (
 	out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
 ) {
-	request, ok := in.Request.(*smithyhttp.Request)
+	request, ok := in.Request.(*Request)
 	if !ok {
 		return out, metadata, fmt.Errorf("unknown transport type: %T", in.Request)
 	}
@@ -62,10 +65,5 @@ func (i *InitializeStreamWriter) HandleFinalize(
 
 	ctx = setInputStreamWriter(ctx, inputWriter)
 
-	out, metadata, err = next.HandleFinalize(ctx, in)
-	if err != nil {
-		return out, metadata, err
-	}
-
-	return out, metadata, err
+	return next.HandleFinalize(ctx, in)
 }

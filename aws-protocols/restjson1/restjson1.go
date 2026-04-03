@@ -10,17 +10,25 @@ import (
 	"github.com/aws/smithy-go"
 	internalhttpbinding "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
 	internaljson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	"github.com/aws/smithy-go/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // New returns an instance of the aws.protocols#restJson1 protocol.
 func New() *Protocol {
-	return &Protocol{}
+	return &Protocol{
+		Codec: &eventstream.Codec{
+			Codec:       &internaljson.Codec{},
+			ContentType: "application/json",
+		},
+	}
 }
 
 // Protocol implements aws.protocols#restJson1.
-type Protocol struct{}
+type Protocol struct {
+	*eventstream.Codec
+}
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
@@ -32,17 +40,22 @@ func (*Protocol) ID() string {
 // SerializeRequest serializes a request for restJson1.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
-	op *smithy.Schema,
+	op *smithy.OperationSchema,
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
-	serializer, err := internalhttpbinding.NewShapeSerializer(op, req, internaljson.NewShapeSerializer(sUseJSONName))
+	serializer, err := internalhttpbinding.NewShapeSerializer(op.Schema, req, internaljson.NewShapeSerializer(sUseJSONName))
 	if err != nil {
 		return err
 	}
 
 	in.Serialize(serializer)
-	if err := serializer.Build(in, "application/json"); err != nil {
+
+	contentType := "application/json"
+	if op.IsInputEventStream() {
+		contentType = "application/vnd.amazon.eventstream"
+	}
+	if err := serializer.Build(in, contentType); err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
 
@@ -52,7 +65,7 @@ func (p *Protocol) SerializeRequest(
 // DeserializeResponse deserializes a response for restJson1.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
-	op *smithy.Schema,
+	op *smithy.OperationSchema,
 	types *smithy.TypeRegistry,
 	resp *smithyhttp.Response,
 	out smithy.Deserializable,
@@ -72,6 +85,14 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
+	if op.IsOutputEventStream() {
+		deser := internalhttpbinding.NewShapeDeserializer(resp.Response, bd(nil), nil)
+		if err := out.Deserialize(deser); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+		return nil
+	}
+
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
@@ -83,6 +104,11 @@ func (p *Protocol) DeserializeResponse(
 	}
 
 	return nil
+}
+
+// HasInitialEventMessage is false for REST-style protocols with HTTP bindings.
+func (*Protocol) HasInitialEventMessage() bool {
+	return false
 }
 
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {
