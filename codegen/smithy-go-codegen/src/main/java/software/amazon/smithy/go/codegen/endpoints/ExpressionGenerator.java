@@ -21,6 +21,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -146,43 +147,69 @@ final class ExpressionGenerator {
 
         @Override
         public Writable visitCoalesce(List<Expression> expressions) {
-            // coalesce(a, b) → if a is non-nil use *a, else use b
-            // The first expression is optional (pointer), the second is the default value.
-            if (expressions.size() == 2) {
-                var first = expressions.get(0);
-                var second = expressions.get(1);
-                var resultType = second.type();
-                if (resultType instanceof OptionalType opt) {
-                    resultType = opt.inner();
-                }
-                var goType = goTypeNameForType(resultType);
-
-                // For the first arg, we need the pointer form (no dereference) to nil-check.
-                // Strip leading "*" if the scope added one.
-                var generator = new ExpressionGenerator(scope, fnProvider);
-                var firstWritable = generator.generate(first);
-                var optIdent = scope.getIdent(first);
-                if (optIdent.isPresent() && optIdent.get().startsWith("*")) {
-                    // Use the pointer form (without the leading *)
-                    var ptrIdent = optIdent.get().substring(1);
-                    firstWritable = goTemplate(ptrIdent);
-                }
-
-                var finalFirst = firstWritable;
-                return goTemplate("""
-                        func() $goType:L {
-                            if v := $first:W; v != nil {
-                                return *v
-                            }
-                            return $second:W
-                        }()""",
-                        MapUtils.of(
-                                "goType", goType,
-                                "first", finalFirst,
-                                "second", generator.generate(second)));
+            if (expressions.size() == 1) {
+                return new ExpressionGenerator(scope, fnProvider).generate(expressions.get(0));
             }
-            // Fallback: just generate the first expression
-            return new ExpressionGenerator(scope, fnProvider).generate(expressions.get(0));
+
+            var generator = new ExpressionGenerator(scope, fnProvider);
+            boolean allOptional = expressions.stream()
+                    .allMatch(e -> e.type() instanceof OptionalType);
+
+            // determine the inner value type from the first expression
+            var firstType = expressions.get(0).type();
+            var innerType = firstType instanceof OptionalType opt ? opt.inner() : firstType;
+            var goType = goTypeNameForType(innerType);
+
+            // build the chain of if-statements for each arg
+            var checks = new java.util.ArrayList<Writable>();
+            for (int i = 0; i < expressions.size(); i++) {
+                var expr = expressions.get(i);
+                boolean isOptional = expr.type() instanceof OptionalType;
+                boolean isLast = i == expressions.size() - 1;
+
+                if (!isOptional) {
+                    // required arg: just return it, nothing after matters
+                    checks.add(goTemplate("return $val:W",
+                            Map.of("val", generator.generate(expr))));
+                    break;
+                }
+
+                // optional arg: get pointer form for nil-check
+                var valWritable = generator.generate(expr);
+                var optIdent = scope.getIdent(expr);
+                if (optIdent.isPresent() && optIdent.get().startsWith("*")) {
+                    valWritable = goTemplate(optIdent.get().substring(1));
+                }
+
+                if (isLast) {
+                    // last arg and optional: return as-is (pointer)
+                    checks.add(goTemplate("return $val:W",
+                            Map.of("val", valWritable)));
+                } else if (allOptional) {
+                    // optional, not last, result is pointer: return pointer if non-nil
+                    checks.add(goTemplate("""
+                            if v := $val:W; v != nil {
+                                return v
+                            }""",
+                            Map.of("val", valWritable)));
+                } else {
+                    // optional, not last, result is value: deref if non-nil
+                    checks.add(goTemplate("""
+                            if v := $val:W; v != nil {
+                                return *v
+                            }""",
+                            Map.of("val", valWritable)));
+                }
+            }
+
+            var retType = allOptional ? "*" + goType : goType;
+            return goTemplate("""
+                    func() $retType:L {
+                        $checks:W
+                    }()""",
+                    MapUtils.of(
+                            "retType", retType,
+                            "checks", ChainWritable.of(checks).compose(false)));
         }
     }
 
