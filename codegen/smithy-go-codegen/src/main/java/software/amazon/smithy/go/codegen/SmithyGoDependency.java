@@ -74,6 +74,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
     public static final GoDependency SMITHY_DOCUMENT_CBOR = smithy("document/cbor", "smithydocumentcbor");
     public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");
+    public static final GoDependency SMITHY_EVENTSTREAM = smithy("eventstream", "eventstream");
     public static final GoDependency SMITHY_AUTH = smithy("auth", "smithyauth");
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
     public static final GoDependency SMITHY_ENDPOINTS = smithy("endpoints", "smithyendpoints");

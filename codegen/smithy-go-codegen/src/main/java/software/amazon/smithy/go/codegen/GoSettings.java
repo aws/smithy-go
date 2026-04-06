@@ -58,6 +58,10 @@ public final class GoSettings {
     private static final String USE_EXPERIMENTAL_SERDE = "useExperimentalSerde";
     private static final String GO_DIRECTIVE = "goDirective";
 
+    // TODO(serde2): add useLegacyUnknownMessageError setting for SDK backwards compat:
+    //  1. generates per-service UnknownEventMessageError type (with Message being the old SDK *eventstream.Message)
+    //  2. generates extra code in the reader adapter to map smithyeventstream.UnknownMessageError to <service>.UnknownMessageError
+
     private ShapeId service;
     private String moduleName;
     private String moduleDescription = "";
