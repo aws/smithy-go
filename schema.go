@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+
+	"github.com/aws/smithy-go/traits"
 )
 
 // ShapeType is a type of Smithy shape.
@@ -44,7 +46,7 @@ type ShapeID struct {
 }
 
 // String returns the IDL microformat for the shape ID.
-func (s *ShapeID) String() string {
+func (s ShapeID) String() string {
 	if s.Member == "" {
 		return fmt.Sprintf("%s#%s", s.Namespace, s.Name)
 	}
@@ -62,10 +64,11 @@ func stoid(s string) ShapeID {
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	id      ShapeID
-	typ     ShapeType
-	members map[string]*Schema // member name -> schema
-	traits  map[string]Trait   // trait ID -> trait
+	id       ShapeID
+	typ      ShapeType
+	members  map[string]*Schema // member name -> schema
+	traits   map[string]Trait   // trait ID -> trait
+	targetID ShapeID            // for member schemas, the target's shape ID
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
@@ -94,6 +97,7 @@ func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema
 		typ:        target.typ,
 		members:    target.members,
 		traits:     maps.Clone(target.traits),
+		targetID:   target.id,
 		listMember: target.listMember,
 		mapKey:     target.mapKey,
 		mapValue:   target.mapValue,
@@ -138,6 +142,11 @@ func (s *Schema) MemberName() string {
 	return s.id.Member
 }
 
+// TargetID returns the shape ID of the member's target shape.
+func (s *Schema) TargetID() ShapeID {
+	return s.targetID
+}
+
 // Type returns the shape type of the schema.
 func (s *Schema) Type() ShapeType {
 	return s.typ
@@ -151,6 +160,36 @@ func (s *Schema) Member(name string) *Schema {
 // Members returns the schema's members as a map of name to schema.
 func (s *Schema) Members() map[string]*Schema {
 	return s.members
+}
+
+// OperationSchema describes an operation, which is essentially its own schema
+// with additional pointers to its input and output.
+type OperationSchema struct {
+	*Schema
+	Input, Output *Schema
+
+	inputStream, outputStream bool
+}
+
+// NewOperationSchema returns an OperationSchema for (input, output).
+func NewOperationSchema(op, input, output *Schema) *OperationSchema {
+	return &OperationSchema{
+		Schema:       op,
+		Input:        input,
+		Output:       output,
+		inputStream:  isEventStream(input),
+		outputStream: isEventStream(output),
+	}
+}
+
+// IsInputEventStream reports whether this is an input event stream.
+func (s *OperationSchema) IsInputEventStream() bool {
+	return s.inputStream
+}
+
+// IsOutputEventStream reports whether this is an output event stream.
+func (s *OperationSchema) IsOutputEventStream() bool {
+	return s.outputStream
 }
 
 // Trait returns the target trait on the schema if it exists.
@@ -168,4 +207,16 @@ func SchemaTrait[T Trait](s *Schema) (T, bool) {
 
 	tt, ok := opaque.(T)
 	return tt, ok
+}
+
+func isEventStream(s *Schema) bool {
+	for _, m := range s.members {
+		if m.typ != ShapeTypeUnion {
+			continue
+		}
+		if _, ok := SchemaTrait[*traits.Streaming](m); ok {
+			return true
+		}
+	}
+	return false
 }
