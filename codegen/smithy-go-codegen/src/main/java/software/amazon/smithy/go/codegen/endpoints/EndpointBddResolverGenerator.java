@@ -105,9 +105,13 @@ public final class EndpointBddResolverGenerator {
         var results = trait.getResults();
         var parameters = trait.getParameters();
 
-        // Build a scope that maps parameter references to "params.FieldName" (pointer form, for isSet)
+        // ptrScope: maps references to their raw pointer form (e.g. "params.Region", "c.url").
+        // Used in evalCondition for isSet nil checks where we need the pointer itself.
         var ptrScope = Scope.empty();
-        // Build a scope that maps parameter references to dereferenced form (for value access)
+        // derefScope (and condScope built from it): maps references to their dereferenced value
+        // form (e.g. "*params.Region", "*c.url", but "c.parsedUrl" for struct pointers that
+        // Go auto-derefs). Used in evalCondition for non-isSet cases and in resolveResult
+        // where expressions need the underlying value, not the pointer.
         var derefScope = Scope.empty();
         for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
             Parameter p = iter.next();
