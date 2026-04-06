@@ -15,9 +15,13 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import software.amazon.smithy.codegen.core.Symbol;
@@ -26,13 +30,17 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.ToShapeId;
+import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.StringUtils;
 
 public final class EventStreamGenerator {
@@ -131,7 +139,162 @@ public final class EventStreamGenerator {
                     writer.write("Err() error");
                 });
             });
+
+            if (settings.useExperimentalSerde()) {
+                inputEvents.forEach(shapeId -> {
+                    var union = model.expectShape(shapeId, UnionShape.class);
+                    generateWriterAdapter(writer, union);
+                });
+                outputEvents.forEach(shapeId -> {
+                    var union = model.expectShape(shapeId, UnionShape.class);
+                    generateReaderAdapter(writer, union);
+                });
+            }
         });
+    }
+
+    private void generateWriterAdapter(GoWriter writer, UnionShape union) {
+        var unionSymbol = symbolProvider.toSymbol(union);
+        var implName = StringUtils.uncapitalize(union.getId().getName(serviceShape)) + "Writer";
+        var ifaceName = getEventStreamWriterInterfaceName(serviceShape, union);
+        var members = union.members().stream()
+                .filter(m -> !m.getMemberTrait(model, ErrorTrait.class).isPresent())
+                .sorted()
+                .toList();
+
+        writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+        writer.writeGoTemplate("""
+                type $impl:L struct {
+                    writer $esWriter:P
+                }
+
+                var _ $iface:L = (*$impl:L)(nil)
+
+                func (w *$impl:L) Send(ctx $context:T, event $union:T) error {
+                    var variant $schema:P
+                    switch event.(type) {
+                    $cases:W
+                    default:
+                        return $fmtErrorf:T("unknown event type: %T", event)
+                    }
+                    sv, ok := event.($serializable:T)
+                    if !ok {
+                        return $fmtErrorf:T("event %T is not serializable", event)
+                    }
+                    return w.writer.Send(ctx, variant, sv)
+                }
+
+                func (w *$impl:L) Close() error {
+                    return w.writer.Close()
+                }
+
+                func (w *$impl:L) Err() error {
+                    return w.writer.Err()
+                }
+                """,
+                MapUtils.of(
+                        "impl", implName,
+                        "iface", ifaceName,
+                        "esWriter", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("EventStreamWriter"),
+                        "context", SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build(),
+                        "union", unionSymbol,
+                        "schema", SmithyGoDependency.SMITHY.pointableSymbol("Schema"),
+                        "serializable", SmithyGoDependency.SMITHY.valueSymbol("Serializable"),
+                        "fmtErrorf", SymbolUtils.createValueSymbolBuilder("Errorf", SmithyGoDependency.FMT).build(),
+                        "cases", (Writable) (GoWriter w) -> {
+                            for (var member : members) {
+                                var variantSymbol = SymbolUtils.createPointableSymbolBuilder(
+                                        symbolProvider.toMemberName(member),
+                                        unionSymbol.getNamespace()).build();
+                                var schemaName = SchemaGenerator.getMemberSchemaName(union, member, serviceShape);
+                                w.write("case $P:", variantSymbol);
+                                w.write("    variant = schemas.$L", schemaName);
+                            }
+                        }
+                ));
+    }
+
+    private void generateReaderAdapter(GoWriter writer, UnionShape union) {
+        var unionSymbol = symbolProvider.toSymbol(union);
+        var implName = StringUtils.uncapitalize(union.getId().getName(serviceShape)) + "Reader";
+        var ifaceName = getEventStreamReaderInterfaceName(serviceShape, union);
+        var members = union.members().stream()
+                .filter(m -> !m.getMemberTrait(model, ErrorTrait.class).isPresent())
+                .sorted()
+                .toList();
+
+        writer.writeGoTemplate("""
+                type $impl:L struct {
+                    reader $esReader:P
+                    ch     chan $union:T
+                    done   chan struct{}
+                }
+
+                var _ $iface:L = (*$impl:L)(nil)
+
+                func $newImpl:L(reader $esReader:P) *$impl:L {
+                    r := &$impl:L{
+                        reader: reader,
+                        ch:     make(chan $union:T),
+                        done:   make(chan struct{}),
+                    }
+                    go r.pipe()
+                    return r
+                }
+
+                func (r *$impl:L) pipe() {
+                    defer close(r.ch)
+                    for event := range r.reader.Events() {
+                        var ev $union:T
+                        switch v := event.(type) {
+                        $cases:W
+                        default:
+                            continue
+                        }
+                        select {
+                        case r.ch <- ev:
+                        case <-r.done:
+                            return
+                        }
+                    }
+                }
+
+                func (r *$impl:L) Events() <-chan $union:T {
+                    return r.ch
+                }
+
+                func (r *$impl:L) Close() error {
+                    close(r.done)
+                    return r.reader.Close()
+                }
+
+                func (r *$impl:L) Err() error {
+                    return r.reader.Err()
+                }
+                """,
+                MapUtils.of(
+                        "impl", implName,
+                        "iface", ifaceName,
+                        "newImpl", "new" + StringUtils.capitalize(implName),
+                        "esReader", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("EventStreamReader"),
+                        "union", unionSymbol,
+                        "cases", (Writable) (GoWriter w) -> {
+                            for (var member : members) {
+                                var targetSymbol = symbolProvider.toSymbol(model.expectShape(member.getTarget()));
+                                var variantSymbol = SymbolUtils.createPointableSymbolBuilder(
+                                        symbolProvider.toMemberName(member),
+                                        unionSymbol.getNamespace()).build();
+                                w.write("case $P:", targetSymbol);
+                                w.write("    ev = &$T{Value: *v}", variantSymbol);
+                            }
+                            var esUnknown = SmithyGoDependency.SMITHY_EVENTSTREAM
+                                    .pointableSymbol("UnknownUnionMember");
+                            var typesUnknown = SymbolUtils.createPointableSymbolBuilder(
+                                    "UnknownUnionMember", unionSymbol.getNamespace()).build();
+                            w.write("case $P:", esUnknown);
+                            w.write("    ev = &$T{Tag: v.Tag, Value: v.Value}", typesUnknown);
+                        }
+                ));
     }
 
     public boolean hasEventStreamOperations() {
@@ -468,5 +631,17 @@ public final class EventStreamGenerator {
     public static String getEventStreamReaderInterfaceName(ServiceShape serviceShape, ToShapeId shape) {
         String name = StringUtils.capitalize(shape.toShapeId().getName(serviceShape));
         return name + "Reader";
+    }
+
+    public static String getEventStreamWriterAdapterName(ServiceShape serviceShape, ToShapeId shape) {
+        return StringUtils.uncapitalize(shape.toShapeId().getName(serviceShape)) + "Writer";
+    }
+
+    public static String getEventStreamReaderAdapterName(ServiceShape serviceShape, ToShapeId shape) {
+        return StringUtils.uncapitalize(shape.toShapeId().getName(serviceShape)) + "Reader";
+    }
+
+    public static String getEventStreamReaderAdapterConstructor(ServiceShape serviceShape, ToShapeId shape) {
+        return "new" + StringUtils.capitalize(shape.toShapeId().getName(serviceShape)) + "Reader";
     }
 }

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"io"
 
 	"github.com/aws/smithy-go"
 )
@@ -14,6 +15,13 @@ import (
 // protocols implemented as part of the Smithy client runtime.
 type ClientProtocol interface {
 	ID() string
-	SerializeRequest(context.Context, *smithy.Schema, smithy.Serializable, *Request) error
-	DeserializeResponse(ctx context.Context, schema *smithy.Schema, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
+	SerializeRequest(context.Context, *smithy.OperationSchema, smithy.Serializable, *Request) error
+	DeserializeResponse(ctx context.Context, schema *smithy.OperationSchema, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
+
+	// event stream APIs
+	HasInitialEventMessage() bool
+	SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error
+	DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error)
+	SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error
+	DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error
 }

@@ -287,6 +287,9 @@ func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
 	}
 
 	bt, bn := s.resolveBinding(schema)
+	if v == "" && !s.options.WriteZeroValues && bt != bindLabel {
+		return
+	}
 	switch bt {
 	case bindHeaderList:
 		escaped := v
