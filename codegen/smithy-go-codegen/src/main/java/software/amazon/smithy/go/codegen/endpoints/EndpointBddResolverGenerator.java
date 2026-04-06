@@ -31,7 +31,6 @@ import java.util.Optional;
 import java.util.TreeMap;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.ChainWritable;
-import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -43,7 +42,6 @@ import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression
 import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.FunctionDefinition;
-import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.IsSet;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.LibraryFunction;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
@@ -74,6 +72,7 @@ public final class EndpointBddResolverGenerator {
     private static final String CTX_ARG_NAME = "c";
 
     private final FnProvider fnProvider;
+    private final FnGenerator fnGenerator;
     private final Symbol endpointType;
     private final Symbol parametersType;
     private final Symbol resolverInterfaceType;
@@ -83,6 +82,7 @@ public final class EndpointBddResolverGenerator {
 
     public EndpointBddResolverGenerator(FnProvider fnProvider) {
         this.fnProvider = fnProvider;
+        this.fnGenerator = new FnGenerator(Scope.empty(), fnProvider);
         this.endpointType = SymbolUtils.createValueSymbolBuilder("Endpoint",
                 SmithyGoDependency.SMITHY_ENDPOINTS).build();
         this.parametersType = SymbolUtils.createValueSymbolBuilder(
@@ -189,7 +189,7 @@ public final class EndpointBddResolverGenerator {
                         continue;
                     }
                     var fieldName = condFieldName(cond);
-                    var goType = goTypeForConditionFn(cond);
+                    var goType = fnGenerator.returnTypeForCondition(cond);
                     w.write("$L $P", fieldName, goType);
                 }
             });
@@ -491,7 +491,7 @@ public final class EndpointBddResolverGenerator {
 
                 // Only dereference simple pointer fields (*string, *bool).
                 // Struct pointers (*PartitionConfig, *URL, *ARN) auto-deref in Go for field access.
-                var goType = goTypeForConditionFn(cond);
+                var goType = fnGenerator.returnTypeForCondition(cond);
                 if (SymbolUtils.isPointable(goType) && SymbolUtils.isUniverseType(goType)) {
                     fieldAccess = "*" + fieldAccess;
                 }
@@ -509,73 +509,6 @@ public final class EndpointBddResolverGenerator {
         return condition.getResult()
                 .map(ident -> ident.getName().getValue())
                 .orElseThrow(() -> new IllegalStateException("condition has no result identifier"));
-    }
-
-    /**
-     * Determine the Go type string for a condition function's return value.
-     * This is used for the conditionContext struct fields.
-     */
-    private Symbol goTypeForConditionFn(Condition condition) {
-        var fn = condition.getFunction();
-
-        // isSet stores the pointer value directly — type comes from the inner expression
-        if (fn instanceof IsSet) {
-            var inner = ((IsSet) fn).getArguments().get(0);
-            return goTypeForExpression(inner);
-        }
-
-        // Derive Go type from the function's return type
-        var fnDef = fn.getFunctionDefinition();
-        var fnId = fnDef.getId();
-
-        // Look up the Go function symbol to determine its return type
-        Symbol goFn = fnProvider.fnFor(fnId);
-        if (goFn == null) {
-            goFn = new FnGenerator.DefaultFnProvider().fnFor(fnId);
-        }
-
-        if (goFn != null) {
-            return goReturnTypeForFn(fnId, fn.type());
-        }
-
-        // Fallback based on Smithy type
-        var type = fn.type();
-        if (type instanceof OptionalType opt) {
-            return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(opt.inner()));
-        }
-        return ExpressionGenerator.goTypeForType(type);
-    }
-
-    /**
-     * Map known function IDs to their Go return types for conditionContext fields.
-     */
-    private static Symbol goReturnTypeForFn(String fnId,
-            software.amazon.smithy.rulesengine.language.evaluation.type.Type smithyType) {
-        return switch (fnId) {
-            case "parseURL" -> SymbolUtils.createPointableSymbolBuilder("URL",
-                    SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
-            case "substring" -> SymbolUtils.pointerTo(GoUniverseTypes.String);
-            case "aws.parseArn" -> SymbolUtils.createPointableSymbolBuilder("ARN",
-                    "github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn").build();
-            case "aws.partition" -> SymbolUtils.createPointableSymbolBuilder("PartitionConfig",
-                     "github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn").build();
-            case "isValidHostLabel", "aws.isVirtualHostableS3Bucket" -> GoUniverseTypes.Bool;
-            case "uriEncode" -> GoUniverseTypes.String;
-            case "split" -> SymbolUtils.sliceOf(GoUniverseTypes.String);
-            case "ite", "coalesce" -> {
-                var type = smithyType instanceof OptionalType opt ? opt.inner() : smithyType;
-                yield ExpressionGenerator.goTypeForType(type);
-            }
-            default -> GoUniverseTypes.Any;
-        };
-    }
-
-    private static Symbol goTypeForExpression(Expression expr) {
-        var type = expr.type();
-        if (type instanceof OptionalType opt) {
-            return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(opt.inner()));
-        }
-        return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(type));
     }
 
     private static boolean isConditionalFnResultOptional(Condition condition, Expression fn) {
