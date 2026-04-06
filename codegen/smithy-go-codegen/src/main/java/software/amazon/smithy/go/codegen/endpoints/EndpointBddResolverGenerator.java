@@ -209,7 +209,7 @@ public final class EndpointBddResolverGenerator {
                             for (int i = 0; i < conditions.size(); i++) {
                                 w.write("case $L:", i);
                                 w.indent();
-                                w.write("$W", generateConditionCase(conditions.get(i), i, paramScope, condScope));
+                                w.write(" $W", generateConditionCase(conditions.get(i), i, paramScope, condScope));
                                 w.dedent();
                             }
                         });

@@ -29,8 +29,12 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceLocation;
+import software.amazon.smithy.rulesengine.language.evaluation.type.AnyType;
+import software.amazon.smithy.rulesengine.language.evaluation.type.ArrayType;
 import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
+import software.amazon.smithy.rulesengine.language.evaluation.type.Type;
+import software.amazon.smithy.rulesengine.language.evaluation.type.StringType;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
@@ -310,13 +314,21 @@ final class ExpressionGenerator {
         return StringUtils.capitalize(ident.getName().toString());
     }
 
-    static Symbol goTypeForType(
-            software.amazon.smithy.rulesengine.language.evaluation.type.Type type) {
-        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.StringType) {
+    static Symbol goTypeForType(Type type) {
+        if (type instanceof StringType) {
             return GoUniverseTypes.String;
         }
         if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
             return GoUniverseTypes.Bool;
+        }
+        if (type instanceof ArrayType arr) {
+            return SymbolUtils.sliceOf(goTypeForType(arr.getMember()));
+        }
+        if (type instanceof OptionalType opt) {
+            return SymbolUtils.pointerTo(goTypeForType(opt.inner()));
+        }
+        if (type instanceof AnyType) {
+            return GoUniverseTypes.Any;
         }
         throw new UnsupportedOperationException("unsupported Smithy type for Go mapping: " + type);
     }
