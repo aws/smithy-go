@@ -21,7 +21,9 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.ChainWritable;
+import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -130,9 +132,9 @@ final class ExpressionGenerator {
             if (resultType instanceof OptionalType opt) {
                 resultType = opt.inner();
             }
-            var goType = goTypeNameForType(resultType);
+            var goType = goTypeForType(resultType);
             return goTemplate("""
-                    func() $goType:L {
+                    func() $goType:T {
                         if $cond:W {
                             return $trueVal:W
                         }
@@ -158,7 +160,7 @@ final class ExpressionGenerator {
             // determine the inner value type from the first expression
             var firstType = expressions.get(0).type();
             var innerType = firstType instanceof OptionalType opt ? opt.inner() : firstType;
-            var goType = goTypeNameForType(innerType);
+            var goType = goTypeForType(innerType);
 
             // build the chain of if-statements for each arg
             var checks = new java.util.ArrayList<Writable>();
@@ -202,9 +204,9 @@ final class ExpressionGenerator {
                 }
             }
 
-            var retType = allOptional ? "*" + goType : goType;
+            var retType = allOptional ? SymbolUtils.pointerTo(goType) : goType;
             return goTemplate("""
-                    func() $retType:L {
+                    func() $retType:P {
                         $checks:W
                     }()""",
                     MapUtils.of(
@@ -308,14 +310,14 @@ final class ExpressionGenerator {
         return StringUtils.capitalize(ident.getName().toString());
     }
 
-    static String goTypeNameForType(
+    static Symbol goTypeForType(
             software.amazon.smithy.rulesengine.language.evaluation.type.Type type) {
         if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.StringType) {
-            return "string";
+            return GoUniverseTypes.String;
         }
         if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
-            return "bool";
+            return GoUniverseTypes.Bool;
         }
-        return "any";
+        throw new UnsupportedOperationException("unsupported Smithy type for Go mapping: " + type);
     }
 }

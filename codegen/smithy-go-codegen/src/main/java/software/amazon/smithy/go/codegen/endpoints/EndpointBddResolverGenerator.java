@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.ChainWritable;
+import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
@@ -189,7 +190,7 @@ public final class EndpointBddResolverGenerator {
                     }
                     var fieldName = condFieldName(cond);
                     var goType = goTypeForConditionFn(cond);
-                    w.write("$L $L", fieldName, goType);
+                    w.write("$L $P", fieldName, goType);
                 }
             });
         };
@@ -491,7 +492,7 @@ public final class EndpointBddResolverGenerator {
                 // Only dereference simple pointer fields (*string, *bool).
                 // Struct pointers (*PartitionConfig, *URL, *ARN) auto-deref in Go for field access.
                 var goType = goTypeForConditionFn(cond);
-                if (goType.equals("*string") || goType.equals("*bool")) {
+                if (SymbolUtils.isPointable(goType) && SymbolUtils.isUniverseType(goType)) {
                     fieldAccess = "*" + fieldAccess;
                 }
 
@@ -514,7 +515,7 @@ public final class EndpointBddResolverGenerator {
      * Determine the Go type string for a condition function's return value.
      * This is used for the conditionContext struct fields.
      */
-    private String goTypeForConditionFn(Condition condition) {
+    private Symbol goTypeForConditionFn(Condition condition) {
         var fn = condition.getFunction();
 
         // isSet stores the pointer value directly — type comes from the inner expression
@@ -540,62 +541,41 @@ public final class EndpointBddResolverGenerator {
         // Fallback based on Smithy type
         var type = fn.type();
         if (type instanceof OptionalType opt) {
-            return goTypeForType(opt.inner());
+            return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(opt.inner()));
         }
-        return goValueTypeForType(type);
+        return ExpressionGenerator.goTypeForType(type);
     }
 
     /**
      * Map known function IDs to their Go return types for conditionContext fields.
      */
-    private static String goReturnTypeForFn(String fnId,
+    private static Symbol goReturnTypeForFn(String fnId,
             software.amazon.smithy.rulesengine.language.evaluation.type.Type smithyType) {
         return switch (fnId) {
-            // These return pointers — stored as-is in conditionContext
-            case "parseURL" -> "*rulesfn.URL";
-            case "substring" -> "*string";
-            case "aws.parseArn" -> "*awsrulesfn.ARN";
-            case "aws.partition" -> "*awsrulesfn.PartitionConfig";
-            // These return values
-            case "isValidHostLabel" -> "bool";
-            case "uriEncode" -> "string";
-            case "split" -> "[]string";
-            case "aws.isVirtualHostableS3Bucket" -> "bool";
-            // BDD-specific: ite and coalesce return values based on their Smithy type
+            case "parseURL" -> SymbolUtils.createPointableSymbolBuilder("URL",
+                    SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build();
+            case "substring" -> SymbolUtils.pointerTo(GoUniverseTypes.String);
+            case "aws.parseArn" -> SymbolUtils.createPointableSymbolBuilder("ARN",
+                    "github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn").build();
+            case "aws.partition" -> SymbolUtils.createPointableSymbolBuilder("PartitionConfig",
+                     "github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn").build();
+            case "isValidHostLabel", "aws.isVirtualHostableS3Bucket" -> GoUniverseTypes.Bool;
+            case "uriEncode" -> GoUniverseTypes.String;
+            case "split" -> SymbolUtils.sliceOf(GoUniverseTypes.String);
             case "ite", "coalesce" -> {
                 var type = smithyType instanceof OptionalType opt ? opt.inner() : smithyType;
-                yield goValueTypeForType(type);
+                yield ExpressionGenerator.goTypeForType(type);
             }
-            default -> "any";
+            default -> GoUniverseTypes.Any;
         };
     }
 
-    private static String goTypeForExpression(Expression expr) {
+    private static Symbol goTypeForExpression(Expression expr) {
         var type = expr.type();
         if (type instanceof OptionalType opt) {
-            return goTypeForType(opt.inner());
+            return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(opt.inner()));
         }
-        return goTypeForType(type);
-    }
-
-    private static String goTypeForType(software.amazon.smithy.rulesengine.language.evaluation.type.Type type) {
-        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.StringType) {
-            return "*string";
-        }
-        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
-            return "*bool";
-        }
-        return "interface{}";
-    }
-
-    private static String goValueTypeForType(software.amazon.smithy.rulesengine.language.evaluation.type.Type type) {
-        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.StringType) {
-            return "string";
-        }
-        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
-            return "bool";
-        }
-        return "interface{}";
+        return SymbolUtils.pointerTo(ExpressionGenerator.goTypeForType(type));
     }
 
     private static boolean isConditionalFnResultOptional(Condition condition, Expression fn) {
