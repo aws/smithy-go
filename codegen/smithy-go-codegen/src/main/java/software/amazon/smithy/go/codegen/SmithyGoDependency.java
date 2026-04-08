@@ -86,6 +86,9 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_AWS_PROTOCOLS_JSON10 = relativePackage( "github.com/aws/smithy-go/aws-protocols", "awsjson10", "v1.0.0", null);
     public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTJSON1 = relativePackage( "github.com/aws/smithy-go/aws-protocols", "restjson1", "v1.0.0", null);
 
+    public static final GoDependency SMITHY_HTTP_PROTOCOLS = relativePackage( "github.com/aws/smithy-go/smithy-http-protocols", null, "v1.0.0", null);
+    public static final GoDependency SMITHY_HTTP_PROTOCOLS_RPCV2 = relativePackage( "github.com/aws/smithy-go/smithy-http-protocols", "rpcv2", "v1.0.0", null);
+
     public static final GoDependency MATH = stdlib("math");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/aws/smithy-go";
