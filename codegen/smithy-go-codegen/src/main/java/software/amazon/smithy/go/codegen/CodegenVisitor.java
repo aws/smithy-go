@@ -302,7 +302,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     // AddMember calls. This ensures MapKey(), MapValue(), and
                     // ListMember() are non-nil when the member schema is created.
                     var shapeIds = new java.util.HashSet<software.amazon.smithy.model.shapes.ShapeId>();
-                    for (Shape s : shapes) {
+                   shapes.stream().map(s -> s.getId()).collect(collectors.toSet())
                         shapeIds.add(s.getId());
                     }
 
