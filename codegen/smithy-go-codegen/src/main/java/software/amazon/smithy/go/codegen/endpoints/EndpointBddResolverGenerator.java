@@ -45,6 +45,7 @@ import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.
 import software.amazon.smithy.rulesengine.language.syntax.expressions.functions.LibraryFunction;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.literal.Literal;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.ParameterType;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.language.syntax.rule.Condition;
 import software.amazon.smithy.rulesengine.language.syntax.rule.EndpointRule;
@@ -117,7 +118,7 @@ public final class EndpointBddResolverGenerator {
             Parameter p = iter.next();
             var ptrName = PARAMS_ARG_NAME + "." + getExportedParameterName(p);
             ptrScope = ptrScope.withIdent(p.toExpression(), ptrName);
-            derefScope = derefScope.withIdent(p.toExpression(), "*" + ptrName);
+            derefScope = derefScope.withIdent(p.toExpression(), derefParam(p, ptrName));
         }
         // Add condition-assigned vars to ptrScope (pointer form, no deref)
         for (var cond : conditions) {
@@ -145,7 +146,8 @@ public final class EndpointBddResolverGenerator {
                 $resolverType:W
                 """,
                 MapUtils.of(
-                        "stringSlice", generateStringSliceHelper(),
+                        "stringSlice", needsStringSlice(conditions, parameters)
+                                ? EndpointResolverGenerator.generateStringSliceHelper() : emptyGoTemplate(),
                         "nodeArray", generateNodeArray(bdd),
                         "conditionContext", generateConditionContext(conditions),
                         "evalCondition", generateEvalCondition(conditions, ptrScope, condScope),
@@ -153,20 +155,22 @@ public final class EndpointBddResolverGenerator {
                         "resolverType", generateResolverType(parameters)));
     }
 
-    // ---- Component 0: stringSlice helper ----
+    // STRING_ARRAY is the only array parameter type in the Smithy rules engine
+    // (see https://smithy.io/2.0/additional-specs/rules-engine/parameters.html).
+    // It maps to []string in Go, which needs a stringSlice cast for .Get() index access.
+    private static String derefParam(Parameter p, String ptrName) {
+        return p.getType() == ParameterType.STRING_ARRAY
+                ? "stringSlice(" + ptrName + ")"
+                : "*" + ptrName;
+    }
 
-    private Writable generateStringSliceHelper() {
-        return goTemplate("""
-                type stringSlice []string
-
-                func (s stringSlice) Get(i int) *string {
-                    if i < 0 || i >= len(s) {
-                        return nil
-                    }
-
-                    v := s[i]
-                    return &v
-                }""");
+    private static boolean needsStringSlice(List<Condition> conditions, Parameters parameters) {
+        for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
+            if (iter.next().getType() == ParameterType.STRING_ARRAY) {
+                return true;
+            }
+        }
+        return conditions.stream().anyMatch(c -> c.getFunction().getName().equals("split"));
     }
 
     // ---- Component 1: Node array ----
