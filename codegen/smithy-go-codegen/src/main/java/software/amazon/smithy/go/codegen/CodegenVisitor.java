@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -301,13 +302,13 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     // members initialized before they are used as targets in
                     // AddMember calls. This ensures MapKey(), MapValue(), and
                     // ListMember() are non-nil when the member schema is created.
-                    var shapeIds = new java.util.HashSet<software.amazon.smithy.model.shapes.ShapeId>();
-                   shapes.stream().map(s -> s.getId()).collect(collectors.toSet())
+                    var shapeIds = new HashSet<ShapeId>();
+                    for (Shape s : shapes) {
                         shapeIds.add(s.getId());
                     }
 
-                    var sorted = new java.util.ArrayList<Shape>();
-                    var visited = new java.util.HashSet<software.amazon.smithy.model.shapes.ShapeId>();
+                    var sorted = new ArrayList<Shape>();
+                    var visited = new HashSet<ShapeId>();
                     for (Shape s : shapes) {
                         topoVisit(s, model, shapeIds, visited, sorted);
                     }
@@ -516,9 +517,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private static void topoVisit(
             Shape shape,
             Model model,
-            java.util.Set<ShapeId> inSet,
-            java.util.Set<ShapeId> visited,
-            java.util.List<Shape> result
+            Set<ShapeId> inSet,
+            Set<ShapeId> visited,
+            List<Shape> result
     ) {
         if (visited.contains(shape.getId())) {
             return;
