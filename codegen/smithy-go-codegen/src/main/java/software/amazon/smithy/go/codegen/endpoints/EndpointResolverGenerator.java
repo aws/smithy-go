@@ -605,7 +605,7 @@ public final class EndpointResolverGenerator {
         }
     }
 
-    private Writable generateStringSliceHelper() {
+    static Writable generateStringSliceHelper() {
         return goTemplate("""
                 type stringSlice []string
 

@@ -37,6 +37,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 
 /**
@@ -137,7 +138,8 @@ public final class OperationGenerator implements Runnable {
                 }, true);
 
         var rulesTrait = service.getTrait(EndpointRuleSetTrait.class);
-        if (rulesTrait.isPresent()) {
+        var bddTrait = service.getTrait(EndpointBddTrait.class);
+        if (rulesTrait.isPresent() || bddTrait.isPresent()) {
             writer.write(new EndpointParameterOperationBindingsGenerator(ctx, operation, inputShape)
                     .generate());
         }

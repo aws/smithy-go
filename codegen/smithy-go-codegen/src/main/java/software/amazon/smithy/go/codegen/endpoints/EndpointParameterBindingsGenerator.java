@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -70,6 +71,7 @@ public class EndpointParameterBindingsGenerator {
                 MapUtils.of(
                         "context", GoStdlibTypes.Context.Context,
                         "builtinBindings", context.getService().hasTrait(EndpointRuleSetTrait.class)
+                                || context.getService().hasTrait(EndpointBddTrait.class)
                                 ? generateBuiltinBindings()
                                 : emptyGoTemplate(),
                         "clientContextBindings", generateClientContextBindings()

@@ -77,6 +77,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
     public static final GoDependency SMITHY_ENDPOINTS = smithy("endpoints", "smithyendpoints");
     public static final GoDependency SMITHY_ENDPOINT_RULESFN = smithy("endpoints/private/rulesfn");
+    public static final GoDependency SMITHY_ENDPOINT_BDD = smithy("endpoints/private/bdd");
     public static final GoDependency SMITHY_TRACING = smithy("tracing");
     public static final GoDependency SMITHY_METRICS = smithy("metrics");
 

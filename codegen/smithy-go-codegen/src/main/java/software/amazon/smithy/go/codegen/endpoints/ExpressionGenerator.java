@@ -21,12 +21,20 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.ChainWritable;
+import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.model.SourceLocation;
+import software.amazon.smithy.rulesengine.language.evaluation.type.AnyType;
+import software.amazon.smithy.rulesengine.language.evaluation.type.ArrayType;
+import software.amazon.smithy.rulesengine.language.evaluation.type.OptionalType;
 import software.amazon.smithy.rulesengine.language.syntax.Identifier;
+import software.amazon.smithy.rulesengine.language.evaluation.type.Type;
+import software.amazon.smithy.rulesengine.language.evaluation.type.StringType;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Expression;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.ExpressionVisitor;
 import software.amazon.smithy.rulesengine.language.syntax.expressions.Reference;
@@ -119,6 +127,95 @@ final class ExpressionGenerator {
         @Override
         public Writable visitLibraryFunction(FunctionDefinition fnDef, List<Expression> args) {
             return new FnGenerator(scope, fnProvider).generate(fnDef, args);
+        }
+
+        @Override
+        public Writable visitIte(Expression condition, Expression trueValue, Expression falseValue) {
+            var generator = new ExpressionGenerator(scope, fnProvider);
+            var resultType = trueValue.type();
+            if (resultType instanceof OptionalType opt) {
+                resultType = opt.inner();
+            }
+            var goType = goTypeForType(resultType);
+            return goTemplate("""
+                    func() $goType:T {
+                        if $cond:W {
+                            return $trueVal:W
+                        }
+                        return $falseVal:W
+                    }()""",
+                    MapUtils.of(
+                            "goType", goType,
+                            "cond", generator.generate(condition),
+                            "trueVal", generator.generate(trueValue),
+                            "falseVal", generator.generate(falseValue)));
+        }
+
+        @Override
+        public Writable visitCoalesce(List<Expression> expressions) {
+            if (expressions.size() == 1) {
+                return new ExpressionGenerator(scope, fnProvider).generate(expressions.get(0));
+            }
+
+            var generator = new ExpressionGenerator(scope, fnProvider);
+            boolean allOptional = expressions.stream()
+                    .allMatch(e -> e.type() instanceof OptionalType);
+
+            // determine the inner value type from the first expression
+            var firstType = expressions.get(0).type();
+            var innerType = firstType instanceof OptionalType opt ? opt.inner() : firstType;
+            var goType = goTypeForType(innerType);
+
+            // build the chain of if-statements for each arg
+            var checks = new java.util.ArrayList<Writable>();
+            for (int i = 0; i < expressions.size(); i++) {
+                var expr = expressions.get(i);
+                boolean isOptional = expr.type() instanceof OptionalType;
+                boolean isLast = i == expressions.size() - 1;
+
+                if (!isOptional) {
+                    // required arg: just return it, nothing after matters
+                    checks.add(goTemplate("return $val:W",
+                            Map.of("val", generator.generate(expr))));
+                    break;
+                }
+
+                // optional arg: get pointer form for nil-check
+                var valWritable = generator.generate(expr);
+                var optIdent = scope.getIdent(expr);
+                if (optIdent.isPresent() && optIdent.get().startsWith("*")) {
+                    valWritable = goTemplate(optIdent.get().substring(1));
+                }
+
+                if (isLast) {
+                    // last arg and optional: return as-is (pointer)
+                    checks.add(goTemplate("return $val:W",
+                            Map.of("val", valWritable)));
+                } else if (allOptional) {
+                    // optional, not last, result is pointer: return pointer if non-nil
+                    checks.add(goTemplate("""
+                            if v := $val:W; v != nil {
+                                return v
+                            }""",
+                            Map.of("val", valWritable)));
+                } else {
+                    // optional, not last, result is value: deref if non-nil
+                    checks.add(goTemplate("""
+                            if v := $val:W; v != nil {
+                                return *v
+                            }""",
+                            Map.of("val", valWritable)));
+                }
+            }
+
+            var retType = allOptional ? SymbolUtils.pointerTo(goType) : goType;
+            return goTemplate("""
+                    func() $retType:P {
+                        $checks:W
+                    }()""",
+                    MapUtils.of(
+                            "retType", retType,
+                            "checks", ChainWritable.of(checks).compose(false)));
         }
     }
 
@@ -215,5 +312,24 @@ final class ExpressionGenerator {
 
     private static String getBuiltinMemberName(Identifier ident) {
         return StringUtils.capitalize(ident.getName().toString());
+    }
+
+    static Symbol goTypeForType(Type type) {
+        if (type instanceof StringType) {
+            return GoUniverseTypes.String;
+        }
+        if (type instanceof software.amazon.smithy.rulesengine.language.evaluation.type.BooleanType) {
+            return GoUniverseTypes.Bool;
+        }
+        if (type instanceof ArrayType arr) {
+            return SymbolUtils.sliceOf(goTypeForType(arr.getMember()));
+        }
+        if (type instanceof OptionalType opt) {
+            return SymbolUtils.pointerTo(goTypeForType(opt.inner()));
+        }
+        if (type instanceof AnyType) {
+            return GoUniverseTypes.Any;
+        }
+        throw new UnsupportedOperationException("unsupported Smithy type for Go mapping: " + type);
     }
 }
