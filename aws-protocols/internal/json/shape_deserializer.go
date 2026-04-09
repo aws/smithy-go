@@ -486,7 +486,12 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		}
 
 		// skip null values
-		if isNil, err := d.ReadNil(nil); isNil || err != nil {
+		isNil, err := d.ReadNil(nil)
+		if err != nil {
+		    return nil, err
+		} else {
+		    continue
+		}
 			if err != nil {
 				return nil, err
 			}
