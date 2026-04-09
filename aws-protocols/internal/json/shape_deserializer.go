@@ -453,22 +453,53 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	return member, nil
 }
 
+type unionCtx struct {
+	schema *smithy.Schema
+}
+
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	// Decode the entire union object to find the non-null member.
-	var raw map[string]json.RawMessage
-	if err := d.dec.Decode(&raw); err != nil {
-		return nil, fmt.Errorf("decode union: %w", err)
+	if _, ok := d.head.Top().(*unionCtx); !ok {
+		if isNil, err := d.ReadNil(s); isNil || err != nil {
+			return nil, err
+		}
+
+		tok, err := d.token()
+		if err != nil {
+			return nil, err
+		}
+		delim, ok := tok.(json.Delim)
+		if !ok || delim != '{' {
+			return nil, fmt.Errorf("expected '{', got %v", tok)
+		}
+		d.head.Push(&unionCtx{schema: s})
 	}
 
-	for key, val := range raw {
-		if string(val) == "null" {
+	for d.more() {
+		tok, err := d.token()
+		if err != nil {
+			return nil, err
+		}
+		key, ok := tok.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected string key, got %T", tok)
+		}
+
+		// skip null values
+		isNil, err := d.ReadNil(nil)
+		if err != nil {
+		    return nil, err
+		} else {
+		    continue
+		}
+			if err != nil {
+				return nil, err
+			}
 			continue
 		}
 
 		member := s.Member(key)
 		if member == nil && d.opts.UseJSONName {
-			// Try matching by jsonName trait
 			for _, m := range s.Members() {
 				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 					member = m
@@ -477,17 +508,17 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			}
 		}
 		if member == nil {
+			if err := d.skip(); err != nil {
+				return nil, err
+			}
 			continue
 		}
 
-		// Replace the decoder with one that reads just this value
-		dec := json.NewDecoder(bytes.NewReader(val))
-		dec.UseNumber()
-		d.dec = dec
 		return member, nil
 	}
 
-	return nil, nil
+	d.head.Pop()
+	return nil, d.expectDelim('}')
 }
 
 // used to skip over a struct member that we didn't have a schema for, though

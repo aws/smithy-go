@@ -33,15 +33,12 @@ public class UnionDeserializer implements Writable {
 
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
-                    ms, err := d.ReadUnion(s)
-                    if err != nil {
-                        return err
-                    }
-
-                    switch ms {
-                    $cases:W
-                    }
-                    return nil
+                    return smithy.ReadUnion(d, s, func(ms *smithy.Schema) error {
+                        switch ms {
+                        $cases:W
+                        }
+                        return nil
+                    })
                 }
                 """, Map.of(
                 "shapeName", shape.getId().getName(),
