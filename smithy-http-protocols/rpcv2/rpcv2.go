@@ -17,6 +17,9 @@ import (
 )
 
 // Protocol implements an RPC v2 protocol.
+//
+// RPCv2 protocol family:
+//   - CBOR: https://smithy.io/2.0/additional-specs/protocols/smithy-rpc-v2.html
 type Protocol struct {
 	options ProtocolOptions
 

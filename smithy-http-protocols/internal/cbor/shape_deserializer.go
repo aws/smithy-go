@@ -493,7 +493,7 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	mc := d.head.top()
 	if mc == nil || mc.kind != deserCtxMap {
-		return "", false, fmt.Errorf("ReadMapKey called without ReadMap")
+		return "", false, errors.New("ReadMapKey called without ReadMap")
 	}
 
 	if mc.remaining == -1 {
