@@ -181,7 +181,7 @@ func (d *ShapeDeserializer) readFloat64() (float64, error) {
 			d.off += 9
 			return math.Float64frombits(bits), nil
 		default:
-			return 0, fmt.Errorf("expected float, got minor %d", minor)
+			return 0, fmt.Errorf("given majorType7, expected a minor of float type, instead got %d", minor)
 		}
 	case majorTypeUint:
 		v, err := d.readArg()
