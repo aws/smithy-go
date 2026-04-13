@@ -283,6 +283,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         generateTestBodySetup(writer);
     }
 
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
+        generateTestBodySetup(writer);
+    }
+
     protected void generateBenchmarkServer(GoWriter writer) {
         generateTestServer(writer, "server", this::generateTestServerHandler);
     }
@@ -321,11 +325,15 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 });
     }
 
+    public void generateSerdBenchmarkTestCaseValues(GoWriter writer, T testCase) {
+        generateTestCaseValues(writer, testCase);
+    }
+
     public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {}
 
     public void generateSerdBenchmarkFunction(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.TESTING);
-        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(b *testing.B) {", "}", benchmarkFuncNameArgs(),
+        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(t *testing.T) {", "}", benchmarkFuncNameArgs(),
                 () -> {
                     generateTestSetup(writer);
 
@@ -339,14 +347,14 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             }
 
                             writer.openBlock("$S: {", "},", testCase.getId(), () -> {
-                                generateTestCaseValues(writer, testCase);
+                                generateSerdBenchmarkTestCaseValues(writer, testCase);
                             });
                         }
                     });
 
                     writer.openBlock("for name, c := range cases {", "}", () -> {
-                        writer.openBlock("b.Run(name, func(b *testing.B) {", "})", () -> {
-                            generateBenchmarkBodySetup(writer);
+                        writer.openBlock("t.Run(name, func(t *testing.T) {", "})", () -> {
+                            generateSerdBenchmarkBodySetup(writer);
                             generateBenchmarkServer(writer);
                             generateSerdBenchmarkTestClient(writer, "client");
                             writer.addUseImports(SmithyGoDependency.TIME);
@@ -361,14 +369,13 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             });
                             // generate benchmark stat code
                             writer.writeGoTemplate("""
-                                    sum := int64(0)
+                                    mean := float64(0)
                                     n := len(timings)
                                     slices.Sort(timings)
-                                    stddev := int64(0)
+                                    stddev := float64(0)
                                     for _, t := range(timings) {
-                                        sum += int64(t)
+                                        mean += float64(t) / float64(n)
                                     }
-                                    mean := float64(sum) / float64(n)
                                     p50 := timings[int64(float64(n-1)*0.5)]
                                     p90 := timings[int64(float64(n-1)*0.9)]
                                     p95 := timings[int64(float64(n-1)*0.95)]
@@ -378,12 +385,23 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                                     }
                                     stddev = math.Sqrt(stddev)
                                     
-                                    b.Logf("p50: %v\n", p50)
-                                    b.Logf("p90: %v\n", p90)
-                                    b.Logf("p95: %v\n", p95)
-                                    b.Logf("p99: %v\n", p99)
-                                    b.Logf("mean: %v\n", mean)
-                                    b.Logf("stddev: %v\n", stddev)
+                                    t.Logf("p50: %v\\n", p50)
+                                    t.Logf("p90: %v\\n", p90)
+                                    t.Logf("p95: %v\\n", p95)
+                                    t.Logf("p99: %v\\n", p99)
+                                    t.Logf("mean: %v ns\\n", mean)
+                                    t.Logf("stddev: %v\\n", stddev)
+
+                                    addSerdBenchmarkResult(serdBenchmarkResult{
+                                        ID:     name,
+                                        N:      n,
+                                        Mean:   mean,
+                                        P50:    float64(p50),
+                                        P90:    float64(p90),
+                                        P95:    float64(p95),
+                                        P99:    float64(p99),
+                                        StdDev: stddev,
+                                    })
                                     """);
                         });
                     });
