@@ -72,7 +72,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
 
     @Override
     String serdBenchmarkFunctionNameFormat() {
-        return "DeserdBenchmarkClient_$L_$L";
+        return "TestDeserdClient_$L_$L";
     }
 
     /**
@@ -204,12 +204,39 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     }
 
     @Override
+    public void generateSerdBenchmarkTestCaseValues(GoWriter writer, HttpResponseTestCase testCase) {
+        writeStructField(writer, "StatusCode", testCase.getCode());
+        writeHeaderStructField(writer, "Header", testCase.getHeaders());
+
+        testCase.getBodyMediaType().ifPresent(mediaType -> {
+            writeStructField(writer, "BodyMediaType", "$S", mediaType);
+        });
+        testCase.getBody().ifPresent(body -> {
+            var mediaType = testCase.getBodyMediaType().orElse("");
+            if (mediaType.equalsIgnoreCase("application/cbor") || testCase.getProtocol().toString().toLowerCase().contains("cbor")) {
+                writeStructField(writer, "Body", """
+                        func() []byte {
+                            p, err := $T.DecodeString(`$L`)
+                            if err != nil {
+                                panic(err)
+                            }
+
+                            return p
+                        }()""", SmithyGoDependency.BASE64.func("StdEncoding"), body.trim());
+            } else {
+                writeStructField(writer, "Body", "[]byte(`$L`)", body);
+            }
+        });
+
+        writeStructField(writer, "ExpectResult", outputShape, testCase.getParams());
+    }
+
+    @Override
     public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        writer.write("var params $T", inputSymbol);
         writer.writeGoTemplate("""
-                result, err := $clientName:L.$opSymbol:T(context.Background(), &params, func(o *Options) {
+                _, err := $clientName:L.$opSymbol:T(context.Background(), &params, func(o *Options) {
         			o.APIOptions = append(o.APIOptions, []func(*middleware.Stack) error{
 						func(s *middleware.Stack) error {
 							return s.Deserialize.Insert(middleware.DeserializeMiddlewareFunc("deserilaizerbenchmark", func(ctx context.Context, input middleware.DeserializeInput, next middleware.DeserializeHandler) (out middleware.DeserializeOutput, metadata middleware.Metadata, err error){
@@ -224,6 +251,9 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
 						},
 					}...)
 				})
+				if err != nil {
+				    t.Fatalf("error when running deserd test for %s: %v", name, err)
+				}
 				if benchmarkStart.Add(30000000000).Before(time.Now()) {
                     break
                 }
@@ -240,6 +270,19 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     protected void generateBenchmarkBodySetup(GoWriter writer) {
         writer.write("var params $T", inputSymbol);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
+        generateBenchmarkBodySetup(writer);
+        if (inputSymbol.getName().toLowerCase().contains("getobject") ||
+                inputSymbol.getName().toLowerCase().contains("copyobject")) { // deserd benchmark for copyobject/getobject needs bucket/key input
+            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+            writer.writeGoTemplate("""
+                    params.Bucket = ptr.String("Bucket")
+                    params.Key = ptr.String("Key")
+                    """);
+        }
     }
 
     /**

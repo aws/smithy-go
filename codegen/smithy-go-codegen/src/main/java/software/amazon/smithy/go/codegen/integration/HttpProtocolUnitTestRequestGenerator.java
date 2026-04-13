@@ -84,17 +84,23 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     String serdBenchmarkFunctionNameFormat() {
-        return "SerdBenchmarkClient_$L_$L";
+        return "TestSerdClient_$L_$L";
     }
 
     @Override
     public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
         writer.write("serializeStart := time.Now()");
-        generateBenchmarkInvokeClientOperation(writer, "client");
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.writeGoTemplate("""
+                _, err := $client:L.$operation:T(context.Background(), c.Params)
+                if err != nil {
+                    t.Fatalf("error when running serd test for %s: %v", name, err)
+                }
+                """, MapUtils.of("client", clientName, "operation", opSymbol));
         writer.writeGoTemplate("""
                 serializeEnd := time.Now()
                 if i >= 1000 {
-                    timings := append(timings, serializeEnd.Sub(serializeStart))
+                    timings = append(timings, serializeEnd.Sub(serializeStart))
                 }
                 if benchmarkStart.Add(30000000000).Before(serializeEnd) {
                     break
@@ -253,6 +259,11 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     protected void generateBenchmarkBodySetup(GoWriter writer) {
+        // No request capture needed for benchmarks.
+    }
+
+    @Override
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
         // No request capture needed for benchmarks.
     }
 
