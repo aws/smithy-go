@@ -28,7 +28,9 @@ import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
+import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameters;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
+import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.StringUtils;
@@ -76,13 +78,19 @@ public class EndpointClientPluginsGenerator implements GoIntegration {
     @Override
     public void processFinalizedModel(GoSettings settings, Model model) {
         var service = settings.getService(model);
-        if (!service.hasTrait(EndpointRuleSetTrait.class) || !service.hasTrait(ClientContextParamsTrait.class)) {
+        if ((!service.hasTrait(EndpointRuleSetTrait.class) && !service.hasTrait(EndpointBddTrait.class))
+                || !service.hasTrait(ClientContextParamsTrait.class)) {
             return;
         }
 
-        var ruleset = EndpointRuleSet.fromNode(service.expectTrait(EndpointRuleSetTrait.class).getRuleSet());
+        Parameters parameters;
+        if (service.hasTrait(EndpointRuleSetTrait.class)) {
+            parameters = EndpointRuleSet.fromNode(
+                    service.expectTrait(EndpointRuleSetTrait.class).getRuleSet()).getParameters();
+        } else {
+            parameters = service.expectTrait(EndpointBddTrait.class).getParameters();
+        }
         var ccParams = service.expectTrait(ClientContextParamsTrait.class).getParameters();
-        var parameters = ruleset.getParameters();
         parameters.forEach(param -> {
             var ccParam = ccParams.get(param.getName().getName().getValue());
             if (ccParam == null || param.getBuiltIn().isPresent()) {

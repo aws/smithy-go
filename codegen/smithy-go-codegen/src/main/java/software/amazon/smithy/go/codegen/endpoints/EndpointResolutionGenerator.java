@@ -25,6 +25,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
+import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointTestCase;
 import software.amazon.smithy.rulesengine.traits.EndpointTestsTrait;
@@ -87,6 +88,26 @@ public class EndpointResolutionGenerator {
         var bindingGenerator = new EndpointParameterBindingsGenerator(context);
         var middlewareGenerator = new EndpointMiddlewareGenerator(context);
 
+        // Prefer BDD trait over tree-based ruleset when available
+        var bddTrait = serviceShape.getTrait(EndpointBddTrait.class);
+        if (bddTrait.isPresent()) {
+            Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
+                    .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
+            if (ruleset.isEmpty()) {
+                ruleset = Optional.of(EndpointRuleSet.builder()
+                        .version(bddTrait.get().getVersion().toString())
+                        .parameters(bddTrait.get().getParameters())
+                        .build());
+            }
+            var bddResolver = new EndpointBddResolverGenerator(this.fnProvider);
+            writer
+                    .write("$W\n", parametersGenerator.generate(ruleset))
+                    .write("$W\n", bddResolver.generate(bddTrait.get()))
+                    .write("$W\n", bindingGenerator.generate())
+                    .write("$W", middlewareGenerator.generate());
+            return;
+        }
+
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                 .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
 
@@ -106,6 +127,13 @@ public class EndpointResolutionGenerator {
         var serviceShape = context.getService();
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                 .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
+        if (ruleset.isEmpty()) {
+            ruleset = serviceShape.getTrait(EndpointBddTrait.class)
+                    .map((trait) -> EndpointRuleSet.builder()
+                            .version(trait.getVersion().toString())
+                            .parameters(trait.getParameters())
+                            .build());
+        }
 
         var testsGenerator = EndpointTestsGenerator.builder()
             .parametersType(parametersType)

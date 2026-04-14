@@ -28,9 +28,7 @@ import software.amazon.smithy.jmespath.JmespathExpression;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.ContextParamTrait;
-import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.rulesengine.traits.OperationContextParamDefinition;
 import software.amazon.smithy.rulesengine.traits.OperationContextParamsTrait;
 import software.amazon.smithy.rulesengine.traits.StaticContextParamDefinition;
@@ -45,8 +43,6 @@ public class EndpointParameterOperationBindingsGenerator {
     private final OperationShape operation;
     private final StructureShape input;
 
-    private final EndpointRuleSet rules;
-
     public EndpointParameterOperationBindingsGenerator(
             GoCodegenContext ctx,
             OperationShape operation,
@@ -55,10 +51,6 @@ public class EndpointParameterOperationBindingsGenerator {
         this.ctx = ctx;
         this.operation = operation;
         this.input = input;
-
-        this.rules = ctx.settings().getService(ctx.model())
-                .expectTrait(EndpointRuleSetTrait.class)
-                .getEndpointRuleSet();
     }
 
     private boolean hasBindings() {
