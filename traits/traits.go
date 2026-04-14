@@ -46,3 +46,11 @@ type AWSQueryError struct {
 
 // TraitID identifies the trait.
 func (*AWSQueryError) TraitID() string { return "aws.protocols#awsQueryError" }
+
+// UnitShape is a synthetic trait applied to input/output shapes that were
+// backfilled from Unit. It indicates the shape has no defined members and
+// should be treated as absent for protocol serialization purposes.
+type UnitShape struct{}
+
+// TraitID identifies the trait.
+func (*UnitShape) TraitID() string { return "smithy.go#unitShape" }
