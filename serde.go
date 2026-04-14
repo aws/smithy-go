@@ -1,6 +1,7 @@
 package smithy
 
 import (
+	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -156,6 +157,31 @@ type Deserializable interface {
 type DeserializableError interface {
 	Deserializable
 	error
+}
+
+// ReadUnion is a utility API for generated clients.
+func ReadUnion(d ShapeDeserializer, schema *Schema, memberFn func(*Schema) error) error {
+	ms, err := d.ReadUnion(schema)
+	if err != nil {
+		return err
+	}
+
+	if ms != nil {
+		if err := memberFn(ms); err != nil {
+			return err
+		}
+	}
+
+	for {
+		ms, err = d.ReadUnion(schema)
+		if err != nil {
+			return err
+		}
+		if ms == nil {
+			return nil
+		}
+		return fmt.Errorf("union has more than one non-nil member: %s", ms.MemberName())
+	}
 }
 
 // ReadStruct is a utility API for generated clients.

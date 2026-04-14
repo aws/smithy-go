@@ -5,6 +5,7 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRAITS
 import java.util.HashMap;
 import java.util.Map;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryErrorTrait;
+import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.EventHeaderTrait;
 import software.amazon.smithy.model.traits.EventPayloadTrait;
@@ -82,6 +83,9 @@ public class DefaultTraitGenerators {
         GENERATORS.put(AwsQueryErrorTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("AWSQueryError"),
                 "ErrorCode", AwsQueryErrorTrait::getCode,
                 "StatusCode", AwsQueryErrorTrait::getHttpResponseCode));
+
+        // Codegen-internal traits
+        GENERATORS.put(BackfilledInputOutputTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("UnitShape")));
     }
 
     public static TraitGenerator forTrait(ShapeId id) {

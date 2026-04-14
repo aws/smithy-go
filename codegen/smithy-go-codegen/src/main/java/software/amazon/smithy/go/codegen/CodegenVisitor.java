@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -297,7 +298,22 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 writer.write("");
                 writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
                 writer.openBlock("func init() {", "}", () -> {
-                    for (Shape shape : shapes) {
+                    // Topologically sort shapes so that target schemas have their
+                    // members initialized before they are used as targets in
+                    // AddMember calls. This ensures MapKey(), MapValue(), and
+                    // ListMember() are non-nil when the member schema is created.
+                    var shapeIds = new HashSet<ShapeId>();
+                    for (Shape s : shapes) {
+                        shapeIds.add(s.getId());
+                    }
+
+                    var sorted = new ArrayList<Shape>();
+                    var visited = new HashSet<ShapeId>();
+                    for (Shape s : shapes) {
+                        topoVisit(s, model, shapeIds, visited, sorted);
+                    }
+
+                    for (Shape shape : sorted) {
                         new SchemaGenerator(ctx, shape).acceptMembersInit(writer);
                     }
                 });
@@ -496,5 +512,25 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
         return null;
+    }
+
+    private static void topoVisit(
+            Shape shape,
+            Model model,
+            Set<ShapeId> inSet,
+            Set<ShapeId> visited,
+            List<Shape> result
+    ) {
+        if (visited.contains(shape.getId())) {
+            return;
+        }
+        visited.add(shape.getId());
+        for (var member : shape.members()) {
+            var targetId = member.getTarget();
+            if (inSet.contains(targetId)) {
+                topoVisit(model.expectShape(targetId), model, inSet, visited, result);
+            }
+        }
+        result.add(shape);
     }
 }
