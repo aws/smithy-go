@@ -1,0 +1,8 @@
+{
+    "id": "432df478-01d9-4a1a-8a67-5f01c8acc652",
+    "type": "feature",
+    "description": "Add support for endpointBdd trait",
+    "modules": [
+        "."
+    ]
+}
