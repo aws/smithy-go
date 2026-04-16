@@ -80,6 +80,10 @@ subprojects {
             options.encoding = "UTF-8"
         }
 
+        tasks.withType<Javadoc> {
+            options.encoding = "UTF-8"
+        }
+
         // Use Junit5's test runner.
         tasks.withType<Test> {
             useJUnitPlatform()
