@@ -32,6 +32,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShortShape;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -70,7 +71,8 @@ public final class SerdeUtil {
         return switch (shape.getType()) {
             case BLOB -> BlobShape.builder().id("com.amazonaws.synthetic#Blob").build();
             case BOOLEAN -> BooleanShape.builder().id("com.amazonaws.synthetic#Bool").build();
-            case STRING -> StringShape.builder().id("com.amazonaws.synthetic#String").build();
+            case STRING -> shape.hasTrait(EnumTrait.class) ? shape
+                    : StringShape.builder().id("com.amazonaws.synthetic#String").build();
             case TIMESTAMP -> TimestampShape.builder().id("com.amazonaws.synthetic#Time").build();
             case BYTE -> ByteShape.builder().id("com.amazonaws.synthetic#Int8").build();
             case SHORT -> ShortShape.builder().id("com.amazonaws.synthetic#Int16").build();
