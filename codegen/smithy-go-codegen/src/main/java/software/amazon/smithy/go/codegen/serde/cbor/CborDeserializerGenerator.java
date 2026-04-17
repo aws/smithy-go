@@ -42,6 +42,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -82,7 +83,8 @@ public final class CborDeserializerGenerator {
             case DOUBLE -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsFloat64"));
             case TIMESTAMP -> deserializeStatic(shape, SmithyGoDependency.SMITHY_CBOR.func("AsTime"));
             case INT_ENUM -> deserializeIntEnum(shape);
-            case STRING -> deserializeString(shape);
+            case STRING -> shape.hasTrait(EnumTrait.class)
+                    ? deserializeAssertFunc(shape) : deserializeString(shape);
             case DOCUMENT -> deserializeDocument(shape); // implemented, but not currently supported
             default -> deserializeAssertFunc(shape); // everything else is a static assert
         };
@@ -181,7 +183,9 @@ public final class CborDeserializerGenerator {
     private Writable zeroValue(Shape shape) {
         return switch (shape.getType()) {
             case STRING ->
-                    goTemplate("\"\"");
+                    shape.hasTrait(EnumTrait.class)
+                            ? goTemplate("$T(\"\")", symbolProvider.toSymbol(shape))
+                            : goTemplate("\"\"");
             case BOOLEAN ->
                     goTemplate("false");
             case BLOB, LIST, SET, MAP, STRUCTURE, UNION ->
@@ -197,7 +201,9 @@ public final class CborDeserializerGenerator {
 
     private Writable deserializeAsserted(Shape shape, String ident) {
         return switch (shape.getType()) {
-            case STRING -> goTemplate("return string($L), nil", ident);
+            case STRING -> shape.hasTrait(EnumTrait.class)
+                    ? goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident)
+                    : goTemplate("return string($L), nil", ident);
             case ENUM -> goTemplate("return $T($L), nil", symbolProvider.toSymbol(shape), ident);
             case BOOLEAN -> goTemplate("return bool($L), nil", ident);
             case BLOB -> goTemplate("return []byte($L), nil", ident);

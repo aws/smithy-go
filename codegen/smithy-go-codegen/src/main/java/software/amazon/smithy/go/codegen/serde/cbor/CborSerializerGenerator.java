@@ -42,6 +42,7 @@ import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -87,7 +88,9 @@ public final class CborSerializerGenerator {
             case BYTE, SHORT, INTEGER, LONG, INT_ENUM -> generateSerializeIntegral();
             case FLOAT -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Float32"));
             case DOUBLE -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Float64"));
-            case STRING -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("String"));
+            case STRING -> shape.hasTrait(EnumTrait.class)
+                    ? goTemplate("return $T(string(v)), nil", SmithyGoDependency.SMITHY_CBOR.func("String"))
+                    : goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("String"));
             case BOOLEAN -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Bool"));
             case BLOB -> goTemplate("return $T(v), nil", SmithyGoDependency.SMITHY_CBOR.func("Slice"));
             case ENUM -> goTemplate("return $T(string(v)), nil", SmithyGoDependency.SMITHY_CBOR.func("String"));
@@ -223,9 +226,11 @@ public final class CborSerializerGenerator {
             case BLOB, LIST, SET, MAP, STRUCTURE, UNION ->
                     serializeNilableMember(member, target, false);
             case STRING ->
-                    isPointable(symbol)
-                            ? serializeNilableMember(member, target, true)
-                            : serializeString(member, target);
+                    target.hasTrait(EnumTrait.class)
+                            ? serializeString(member, target)
+                            : isPointable(symbol)
+                                    ? serializeNilableMember(member, target, true)
+                                    : serializeString(member, target);
             case ENUM ->
                     serializeString(member, target);
             default ->
