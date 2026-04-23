@@ -52,6 +52,30 @@ func TestCache(t *testing.T) {
 	assertEntry(t, cache, 9, 0)
 }
 
+func TestPutExistingKey(t *testing.T) {
+	cache := New(2).(*lru)
+
+	// repeatedly putting the same key must not grow the list past capacity
+	for i := 0; i < 100; i++ {
+		cache.Put(1, i)
+	}
+	if got, want := cache.mru.Len(), 1; got != want {
+		t.Errorf("mru list length = %d, want %d", got, want)
+	}
+	if got, want := len(cache.entries), 1; got != want {
+		t.Errorf("entries size = %d, want %d", got, want)
+	}
+	assertEntry(t, cache, 1, 99)
+
+	// overwriting an existing key should also move it to the front
+	cache.Put(2, 20)
+	cache.Put(1, 100) // touches 1, making 2 the LRU
+	cache.Put(3, 30)  // should evict 2
+	assertNoEntry(t, cache, 2)
+	assertEntry(t, cache, 1, 100)
+	assertEntry(t, cache, 3, 30)
+}
+
 func assertEntry(t *testing.T, c *lru, k interface{}, v interface{}) {
 	e, ok := c.entries[k]
 	if !ok {
