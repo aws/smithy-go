@@ -31,6 +31,8 @@ import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
+import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
+import software.amazon.smithy.aws.traits.protocols.Ec2QueryTrait;
 import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
@@ -48,6 +50,7 @@ import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -284,6 +287,16 @@ final class ServiceGenerator implements Runnable {
                     service.hasTrait(AwsQueryCompatibleTrait.class)
                             ? goTemplate("$T", SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.valueSymbol("UseQueryCompatible"))
                             : emptyGoTemplate()
+            );
+        } else if (preferred.equals(AwsQueryTrait.ID)) {
+            return goTemplate("$T($S)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_AWSQUERY.func("New"),
+                    service.getVersion()
+            );
+        } else if (preferred.equals(Ec2QueryTrait.ID)) {
+            return goTemplate("$T($S)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_EC2QUERY.func("New"),
+                    service.getVersion()
             );
         } else {
             throw new CodegenException("unsupported schema-serde protocol " + preferred);

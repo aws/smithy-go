@@ -47,6 +47,14 @@ type AWSQueryError struct {
 // TraitID identifies the trait.
 func (*AWSQueryError) TraitID() string { return "aws.protocols#awsQueryError" }
 
+// EC2QueryName represents aws.protocols#ec2QueryName.
+type EC2QueryName struct {
+	Name string
+}
+
+// TraitID identifies the trait.
+func (*EC2QueryName) TraitID() string { return "aws.protocols#ec2QueryName" }
+
 // UnitShape is a synthetic trait applied to input/output shapes that were
 // backfilled from Unit. It indicates the shape has no defined members and
 // should be treated as absent for protocol serialization purposes.

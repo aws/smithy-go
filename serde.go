@@ -196,6 +196,11 @@ func ReadStruct(d ShapeDeserializer, schema *Schema, memberFn func(*Schema) erro
 			return nil
 		}
 
+		// TODO(serde2): err check should be first. ran into this with XML
+		// because of how that shape deserializer operates on innerXML, you get
+		// a guaranteed EOF in the end, but I have explicitly swallowed that
+		// EOF there when it's on the outer struct since that's how that
+		// deserializer has to work
 		if err != nil {
 			return err
 		}
