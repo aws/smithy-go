@@ -1,0 +1,8 @@
+{
+    "id": "d5711e88-6e07-4bdc-a0d0-373f29970fa7",
+    "type": "bugfix",
+    "description": "Fixed a memory leak in the LRU cache implementation used by some AWS services.",
+    "modules": [
+        "."
+    ]
+}
