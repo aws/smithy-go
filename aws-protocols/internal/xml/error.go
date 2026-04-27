@@ -29,6 +29,7 @@ func GetProtocolErrorInfo(payload []byte) (code, message string, errorBody []byt
 		return
 	}
 
+    // clear err if it was io.EOF
 	err = nil
 	if len(c) > 0 {
 		code = string(c)
