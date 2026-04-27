@@ -654,4 +654,50 @@ public class GoJmespathExpressionGeneratorTest {
                 }else { v3 = (v1 == nil && v2 != nil) || (v1 != nil && v2 == nil) }
                 """));
     }
+
+    @Test
+    public void testFilterBareListFieldTruthiness() {
+        var expr = "objectList[?innerObjectList && key == 'foo']";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        var actual = generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        assertThat(actual.shape(), Matchers.equalTo(TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#ObjectList"))));
+        // list truthiness: len(x) > 0
+        assertThat(writer.toString(), Matchers.containsString("len(v3) > 0"));
+        // should compile as a valid && expression
+        assertThat(writer.toString(), Matchers.containsString("&&"));
+    }
+
+    @Test
+    public void testFilterBareStringFieldTruthiness() {
+        var expr = "objectList[?key && length(innerObjectList) > `0`]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        // string ptr truthiness: x != nil && *x != ""
+        assertThat(writer.toString(), Matchers.containsString("!= nil && *"));
+        assertThat(writer.toString(), Matchers.containsString("!= \"\""));
+    }
+
+    @Test
+    public void testNotBareListFieldTruthiness() {
+        var expr = "objectList[?!(innerObjectList && key == 'foo')]";
+
+        var writer = testWriter();
+        var generator = new GoJmespathExpressionGenerator(testContext(), writer);
+        generator.generate(JmespathExpression.parse(expr), new GoJmespathExpressionGenerator.Variable(
+                TEST_MODEL.expectShape(ShapeId.from("smithy.go.test#Struct")),
+                "input"
+        ));
+        // list truthiness inside negation
+        assertThat(writer.toString(), Matchers.containsString("len(v3) > 0"));
+    }
 }
