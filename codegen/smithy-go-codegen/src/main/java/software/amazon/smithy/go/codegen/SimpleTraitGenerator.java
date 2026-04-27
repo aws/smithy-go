@@ -4,6 +4,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.model.traits.Trait;
@@ -47,6 +48,12 @@ class SimpleTraitGenerator<T extends Trait> implements TraitGenerator {
     public Writable render(Trait trait) {
         return goTemplate("&$T{$W}", symbol, Writable.map(mappings.entrySet(), entry -> {
             var value = entry.getValue().apply((T) trait);
+            if (value instanceof Optional<?> opt) {
+                if (opt.isEmpty()) {
+                    return GoWriter.emptyGoTemplate();
+                }
+                value = opt.get();
+            }
             return goTemplate("$L: $L,", entry.getKey(), formatValue(value));
         }));
     }
