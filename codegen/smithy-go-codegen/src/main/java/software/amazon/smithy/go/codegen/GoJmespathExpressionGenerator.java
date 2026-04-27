@@ -114,8 +114,40 @@ public class GoJmespathExpressionGenerator {
         }
     }
 
+    /**
+     * Converts a variable to a boolean per JMESPath truthiness rules. A value is falsey if it is:
+     * empty list, empty map, empty string, false, or null. Numbers and structs are always truthy.
+     * https://jmespath.org/specification.html#or-expressions
+     */
+    private Variable toBooleanVariable(Variable v) {
+        if (v.shape.isBooleanShape()) {
+            return v;
+        }
+        var ident = nextIdent();
+        if (v.shape instanceof CollectionShape || v.shape instanceof MapShape) {
+            writer.write("$L := len($L) > 0", ident, v.ident);
+        } else if (v.shape instanceof StringShape) {
+            if (isPointable(v.type)) {
+                writer.write("$L := $L != nil && *$L != \"\"", ident, v.ident, v.ident);
+            } else {
+                writer.write("$L := $L != \"\"", ident, v.ident);
+            }
+        } else if (v.shape instanceof NumberShape) {
+            if (isPointable(v.type)) {
+                writer.write("$L := $L != nil", ident, v.ident);
+            } else {
+                writer.write("$L := true", ident);
+            }
+        } else if (isNilable(v.type)) {
+            writer.write("$L := $L != nil", ident, v.ident);
+        } else {
+            writer.write("$L := true", ident);
+        }
+        return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
+    }
+
     private Variable visitNot(NotExpression expr, Variable current) {
-        var inner = visit(expr.getExpression(), current);
+        var inner = toBooleanVariable(visit(expr.getExpression(), current));
         var ident = nextIdent();
         writer.write("$L := !$L", ident, inner.ident);
         return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
@@ -159,7 +191,7 @@ public class GoJmespathExpressionGenerator {
         var ident = nextIdent();
         writer.write("var $L $T", ident, type);
         writer.openBlock("for _, v := range $L {", "}", unfiltered.ident, () -> {
-            var filterResult = visit(expr.getComparison(), new Variable(member, "v", type));
+            var filterResult = toBooleanVariable(visit(expr.getComparison(), new Variable(member, "v", type)));
             writer.write("""
                     if $1L {
                         $2L = append($2L, v)
@@ -170,16 +202,16 @@ public class GoJmespathExpressionGenerator {
     }
 
     private Variable visitAnd(AndExpression expr, Variable current) {
-        var left = visit(expr.getLeft(), current);
-        var right = visit(expr.getRight(), current);
+        var left = toBooleanVariable(visit(expr.getLeft(), current));
+        var right = toBooleanVariable(visit(expr.getRight(), current));
         var ident = nextIdent();
         writer.write("$L := $L && $L", ident, left.ident, right.ident);
         return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
     }
 
     private Variable visitOr(OrExpression expr, Variable current) {
-        var left = visit(expr.getLeft(), current);
-        var right = visit(expr.getRight(), current);
+        var left = toBooleanVariable(visit(expr.getLeft(), current));
+        var right = toBooleanVariable(visit(expr.getRight(), current));
         var ident = nextIdent();
         writer.write("$L := $L || $L", ident, left.ident, right.ident);
         return new Variable(BOOL_SHAPE, ident, GoUniverseTypes.Bool);
