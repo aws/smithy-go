@@ -23,6 +23,8 @@ const (
 	ctxKindMap
 	ctxKindMapValue
 	ctxKindStruct
+
+	ctxKindNone ctxKind = 0xff
 )
 
 type serCtx struct {
@@ -109,7 +111,7 @@ func (s *ShapeSerializer) Bytes() []byte {
 
 func (s *ShapeSerializer) top() ctxKind {
 	if len(s.stack) == 0 {
-		return 0xff
+		return ctxKindNone
 	}
 	return s.stack[len(s.stack)-1].kind
 }
@@ -226,58 +228,50 @@ func (s *ShapeSerializer) bufferMapEntry(key, value string) bool {
 
 // WriteInt8Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt8Ptr(schema *smithy.Schema, v *int8) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteInt8(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteInt8)
 }
 
 // WriteInt16Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt16Ptr(schema *smithy.Schema, v *int16) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteInt16(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteInt16)
 }
 
 // WriteInt32Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt32Ptr(schema *smithy.Schema, v *int32) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteInt32(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteInt32)
 }
 
 // WriteInt64Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt64Ptr(schema *smithy.Schema, v *int64) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteInt64(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteInt64)
 }
 
 // WriteFloat32Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat32Ptr(schema *smithy.Schema, v *float32) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteFloat32(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteFloat32)
 }
 
 // WriteFloat64Ptr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat64Ptr(schema *smithy.Schema, v *float64) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteFloat64(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteFloat64)
 }
 
 // WriteBoolPtr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBoolPtr(schema *smithy.Schema, v *bool) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteBool(schema, *v) })
-	}
+	writePtr(s, schema, v, (*ShapeSerializer).WriteBool)
 }
 
 // WriteStringPtr implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStringPtr(schema *smithy.Schema, v *string) {
-	if v != nil {
-		s.withWriteZero(func() { s.WriteString(schema, *v) })
+	writePtr(s, schema, v, (*ShapeSerializer).WriteString)
+}
+
+func writePtr[T any](s *ShapeSerializer, schema *smithy.Schema, v *T, write func(*ShapeSerializer, *smithy.Schema, T)) {
+	if v == nil {
+		return
 	}
+
+	s.withWriteZero(func() { write(s, schema, *v) })
 }
 
 // WriteBool implements [smithy.ShapeSerializer].
@@ -294,25 +288,24 @@ func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
 }
 
 // WriteInt8 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
-	if v == 0 && s.skipZeroValue() {
-		return
-	}
-
-	s.writeValue(s.resolveKey(schema), strconv.FormatInt(int64(v), 10))
-}
+func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) { writeInt(s, schema, v) }
 
 // WriteInt16 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
-	if v == 0 && s.skipZeroValue() {
-		return
-	}
-
-	s.writeValue(s.resolveKey(schema), strconv.FormatInt(int64(v), 10))
-}
+func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) { writeInt(s, schema, v) }
 
 // WriteInt32 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
+func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) { writeInt(s, schema, v) }
+
+// WriteInt64 implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) { writeInt(s, schema, v) }
+
+// WriteFloat32 implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) { writeFloat(s, schema, v) }
+
+// WriteFloat64 implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) { writeFloat(s, schema, v) }
+
+func writeInt[T int8 | int16 | int32 | int64](s *ShapeSerializer, schema *smithy.Schema, v T) {
 	if v == 0 && s.skipZeroValue() {
 		return
 	}
@@ -320,31 +313,12 @@ func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
 	s.writeValue(s.resolveKey(schema), strconv.FormatInt(int64(v), 10))
 }
 
-// WriteInt64 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
-	if v == 0 && s.skipZeroValue() {
-		return
-	}
-
-	s.writeValue(s.resolveKey(schema), strconv.FormatInt(v, 10))
-}
-
-// WriteFloat32 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
+func writeFloat[T float32 | float64](s *ShapeSerializer, schema *smithy.Schema, v T) {
 	if v == 0 && s.skipZeroValue() {
 		return
 	}
 
 	s.writeValue(s.resolveKey(schema), formatFloat(float64(v)))
-}
-
-// WriteFloat64 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
-	if v == 0 && s.skipZeroValue() {
-		return
-	}
-
-	s.writeValue(s.resolveKey(schema), formatFloat(v))
 }
 
 func formatFloat(v float64) string {

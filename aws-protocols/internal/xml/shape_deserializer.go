@@ -37,7 +37,7 @@ type deserCtx struct {
 
 	// for map, ReadX after ReadMapKey will leave the stream at </value>
 	// which the next call to ReadMapKey must consume
-	inEntry bool
+	inMapEntry bool
 }
 
 // ShapeDeserializer implements unmarshaling of XML into Smithy shapes.
@@ -238,8 +238,8 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 // ReadMapKey implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMapKey(ks *smithy.Schema) (string, bool, error) {
 	ctx := d.top()
-	if ctx.inEntry {
-		ctx.inEntry = false
+	if ctx.inMapEntry {
+		ctx.inMapEntry = false
 		if _, _, err := d.nextStart(); err != nil {
 			return "", false, err
 		}
@@ -338,7 +338,7 @@ func (d *ShapeDeserializer) readEntry(ks, vs *smithy.Schema) (string, bool, erro
 				return "", false, err
 			}
 		case strings.EqualFold(child.Name.Local, vname):
-			ctx.inEntry = true
+			ctx.inMapEntry = true
 			return key, true, nil
 		default:
 			if err := d.skip(); err != nil {
