@@ -40,14 +40,19 @@ public final class StructureSerializer implements Writable {
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        var schemaRef = "schemas." + SchemaGenerator.getSchemaName(shape, ctx.service());
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
-            writer.write("s.WriteMap(schemas.$L)", SchemaGenerator.getSchemaName(shape, ctx.service()));
+            writer.write("s.WriteStruct($L)", schemaRef);
+            writer.write("v.SerializeMembers(s)");
+            writer.write("s.CloseStruct()");
+        });
+        writer.write("");
+        writer.openBlock("func (v *$L) SerializeMembers(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
             for (var member : members) {
                 var target = ShapeUtil.expectMember(ctx.model(), shape, member.getMemberName());
                 var ident = String.format("v.%s", ctx.symbolProvider().toMemberName(member));
                 generateSerializeMember(writer, member, target, ident);
             }
-            writer.write("s.CloseMap()");
         });
         writer.write("");
     }
@@ -86,7 +91,7 @@ public final class StructureSerializer implements Writable {
             case LIST, SET, MAP, UNION ->
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
             case STRUCTURE ->
-                    writer.write("if ($2L != nil) { s.WriteStruct($1L, $2L) }", schemaName, ident);
+                    writer.write("if ($2L != nil) { s.WriteStruct($1L)\n$2L.SerializeMembers(s)\ns.CloseStruct() }", schemaName, ident);
             case DOCUMENT -> {
                 writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
                 writer.write("s.WriteDocument($L, &smithydocument.Opaque{Value: $L})", schemaName, ident);

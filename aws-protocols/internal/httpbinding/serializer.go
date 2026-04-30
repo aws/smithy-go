@@ -642,34 +642,6 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 		return
 	}
 
-	// TODO(serde2): there is some weirdness going on here because the
-	// generated Serialize() methods use WriteMap to open their structure
-	// declaration. So we need to check if that's what's going on here.
-	//
-	// ShapeSerializer.WriteStruct is specifically for basically just
-	// delegating to the provided Serializable. We're probably going to have to
-	// split out to Serialize + SerializeFields so we can differentiate. It
-	// looks like smithy-java did something like this.
-	for _, m := range schema.Members() {
-		if !isHTTPPayload(m) {
-			continue
-		}
-
-		if _, ok := smithy.SchemaTrait[*traits.Streaming](m); ok {
-			s.streamingContentType = "application/octet-stream"
-			if mt, ok := smithy.SchemaTrait[*traits.MediaType](m); ok {
-				s.streamingContentType = mt.Type
-			}
-		} else if m.Type() == smithy.ShapeTypeStructure {
-			s.hasStructPayload = true
-		}
-	}
-
-	if !hasBodyMembers(schema) {
-		s.noBody = true
-		return
-	}
-
 	s.input.WriteMap(schema)
 }
 
@@ -691,16 +663,49 @@ func (s *ShapeSerializer) CloseMap() {
 		s.currentKey = ""
 		return
 	}
-	if s.noBody {
-		s.noBody = false
-		return
-	}
 	s.input.CloseMap()
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	s.input.WriteStruct(schema, v)
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+	if schema.MemberName() != "" { // the root
+		if isHTTPPayload(schema) {
+			s.hasStructPayload = true
+		}
+		s.input.WriteStruct(schema)
+		return
+	}
+
+	for _, m := range schema.Members() {
+		if !isHTTPPayload(m) {
+			continue
+		}
+
+		if _, ok := smithy.SchemaTrait[*traits.Streaming](m); ok {
+			s.streamingContentType = "application/octet-stream"
+			if mt, ok := smithy.SchemaTrait[*traits.MediaType](m); ok {
+				s.streamingContentType = mt.Type
+			}
+		} else if m.Type() == smithy.ShapeTypeStructure {
+			s.hasStructPayload = true
+		}
+	}
+
+	if !hasBodyMembers(schema) {
+		s.noBody = true
+		return
+	}
+
+	s.input.WriteStruct(schema)
+}
+
+// CloseStruct implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseStruct() {
+	if s.noBody {
+		s.noBody = false
+		return
+	}
+	s.input.CloseStruct()
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].

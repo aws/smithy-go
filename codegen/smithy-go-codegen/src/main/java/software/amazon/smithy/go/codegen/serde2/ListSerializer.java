@@ -96,7 +96,7 @@ public class ListSerializer implements Writable {
             case LIST, SET, MAP, UNION ->
                     wrapNilCheck(goTemplate("serialize$L(s, schema.ListMember(), vv)", member.getId().getName()));
             case STRUCTURE ->
-                    wrapNilCheck(goTemplate("vv.Serialize(s)"));
+                    wrapNilCheck(goTemplate("s.WriteStruct(schema.ListMember())\nvv.SerializeMembers(s)\ns.CloseStruct()"));
             case DOCUMENT ->
                     wrapNilCheck(goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})"));
 
@@ -135,7 +135,7 @@ public class ListSerializer implements Writable {
             case LIST, SET, MAP, UNION ->
                     goTemplate("serialize$L(s, schema.ListMember(), vv)", member.getId().getName());
             case STRUCTURE ->
-                    goTemplate("vv.Serialize(s)");
+                    goTemplate("s.WriteStruct(schema.ListMember())\nvv.SerializeMembers(s)\ns.CloseStruct()");
             case DOCUMENT ->
                     goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})");
 
