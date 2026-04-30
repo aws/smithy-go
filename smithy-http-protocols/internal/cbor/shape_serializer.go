@@ -325,15 +325,22 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	if v == nil {
-		return
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+	if s.rootSchema == nil && len(s.head) == 0 {
+		s.rootSchema = schema
 	}
 	s.writeKey(schema)
 	if s.top() == ctxMapValue {
 		s.pop()
 	}
-	v.Serialize(s)
+	s.buf = append(s.buf, compose(majorTypeMap, minorIndefinite))
+	s.push(ctxMap)
+}
+
+// CloseStruct implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseStruct() {
+	s.pop()
+	s.buf = append(s.buf, 0xff)
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
