@@ -97,7 +97,7 @@ public class MapSerializer implements Writable {
             case LIST, SET, MAP, UNION ->
                     wrapNilCheck(goTemplate("serialize$L(s, schema.MapValue(), vv)", value.getId().getName()));
             case STRUCTURE ->
-                    wrapNilCheck(goTemplate("vv.Serialize(s)"));
+                    wrapNilCheck(goTemplate("s.WriteStruct(schema.MapValue())\nvv.SerializeMembers(s)\ns.CloseStruct()"));
             case DOCUMENT ->
                     wrapNilCheck(goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})"));
 
@@ -136,7 +136,7 @@ public class MapSerializer implements Writable {
             case LIST, SET, MAP, UNION ->
                     goTemplate("serialize$L(s, schema.MapValue(), vv)", value.getId().getName());
             case STRUCTURE ->
-                    goTemplate("vv.Serialize(s)");
+                    goTemplate("s.WriteStruct(schema.MapValue())\nvv.SerializeMembers(s)\ns.CloseStruct()");
             case DOCUMENT ->
                     goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})");
 
