@@ -48,7 +48,8 @@ type ShapeSerializer interface {
 	WriteTime(*Schema, time.Time)
 	WriteTimePtr(*Schema, *time.Time)
 
-	WriteStruct(*Schema, Serializable)
+	WriteStruct(*Schema)
+	CloseStruct()
 
 	WriteUnion(schema, variant *Schema, v Serializable)
 

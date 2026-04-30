@@ -191,8 +191,11 @@ func (s *ShapeSerializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	v.Serialize(s)
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+}
+
+// CloseStruct implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseStruct() {
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].

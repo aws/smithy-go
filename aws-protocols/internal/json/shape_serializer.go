@@ -428,19 +428,26 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	if v == nil {
-		return
-	}
-
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
 	switch enc := s.head.Top().(type) {
 	case *smithyjson.Object:
-		s.head.Push(enc.Key(s.jsonMemberName(schema)))
+		s.head.Push(enc.Key(s.jsonMemberName(schema)).Object())
 	case *smithyjson.Array:
-		s.head.Push(enc.Value())
+		s.head.Push(enc.Value().Object())
+	case smithyjson.Value:
+		s.head.Pop()
+		s.head.Push(enc.Object())
+	default:
+		s.head.Push(s.root.Object())
 	}
+}
 
-	v.Serialize(s)
+// CloseStruct implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseStruct() {
+	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
+		enc.Close()
+		s.head.Pop()
+	}
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
