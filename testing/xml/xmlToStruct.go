@@ -137,7 +137,7 @@ func StructToXML(e *xml.Encoder, node *XMLNode, sorted bool) error {
 	// Sort Attributes
 	attrs := node.Attr
 	if sorted {
-		sortedAttrs := make([]xml.Attr, len(attrs))
+		sortedAttrs := make([]xml.Attr, 0, len(attrs))
 		for _, k := range node.Attr {
 			sortedAttrs = append(sortedAttrs, k)
 		}
@@ -145,7 +145,21 @@ func StructToXML(e *xml.Encoder, node *XMLNode, sorted bool) error {
 		attrs = sortedAttrs
 	}
 
-	st := xml.StartElement{Name: node.Name, Attr: attrs}
+	// Filter out default xmlns attributes that encoding/xml will regenerate
+	// from Name.Space. Without this, XML produced with literal xmlns
+	// attributes (rather than through encoding/xml's namespace-aware API)
+	// gets those declarations doubled on re-encode. Prefixed namespace
+	// declarations (xmlns:prefix="...") are preserved since the encoder
+	// does not regenerate those.
+	filtered := make([]xml.Attr, 0, len(attrs))
+	for _, a := range attrs {
+		if a.Name.Space == "" && a.Name.Local == "xmlns" {
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+
+	st := xml.StartElement{Name: node.Name, Attr: filtered}
 	e.EncodeToken(st)
 	// return fmt.Errorf("encoder string : %s, %s, %s", node.Name.Local, node.Name.Space, st.Attr)
 

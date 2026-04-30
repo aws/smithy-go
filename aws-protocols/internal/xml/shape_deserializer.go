@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -30,6 +29,9 @@ type deserCtx struct {
 	schema    *smithy.Schema
 	flattened bool
 
+	startElem xml.StartElement // cached to read @xmlAttributes
+	attrIndex int
+
 	// for flattened list/map, ReadStructMember consumes the start element
 	// when it discovers the member, subsequent calls to ReadMapKey or
 	// ReadListItem will do that instead
@@ -42,9 +44,12 @@ type deserCtx struct {
 
 // ShapeDeserializer implements unmarshaling of XML into Smithy shapes.
 //
-// ShapeDeserializer expects the **inner XML** of the protocol response that
-// represents the operation output. For example, an awsquery response body
-// looks like this:
+// ShapeDeserializer consumes whole XML — the payload handed to
+// NewShapeDeserializer must include the outermost tag that opens the shape
+// being read. This is because the deserializer retains the outer
+// StartElement so @xmlAttribute members can draw from its attributes.
+//
+// For example, an awsquery response body looks like this:
 //
 //	<[OperationName]Response>
 //	    <[OperationName]Result>
@@ -58,16 +63,30 @@ type deserCtx struct {
 //	    </ResponseMetadata>
 //	</[OperationName]Response>
 //
-// The deserializer must receive "<Member1>...</MemberN>" to operate correctly.
+// The deserializer must receive the Result element including its opening
+// and closing tags — that is:
+//
+//	<[OperationName]Result>
+//	    <Member1>...</Member1>
+//	    ...
+//	    <MemberN>...</MemberN>
+//	</[OperationName]Result>
+//
+// The outer Response wrapper must not be included.
 type ShapeDeserializer struct {
 	dec    *xml.Decoder
 	peeked xml.Token
 	stack  []deserCtx
+
+	// most recent start element we saw in the token stream, when we go into a
+	// struct context we grab it so we can read any @xmlAttributes
+	currStart *xml.StartElement
+	currAttr  *string
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
 
-// NewShapeDeseralizer returns a new ShapeDeserializer.
+// NewShapeDeserializer returns a new ShapeDeserializer.
 func NewShapeDeserializer(p []byte) *ShapeDeserializer {
 	return &ShapeDeserializer{
 		dec: xml.NewDecoder(bytes.NewReader(p)),
@@ -93,7 +112,7 @@ func (d *ShapeDeserializer) top() *deserCtx {
 }
 
 func xmlMemberName(schema *smithy.Schema) string {
-	if t, ok := smithy.SchemaTrait[*traits.XMLName](schema); ok {
+	if t, ok := smithy.SchemaDirectTrait[*traits.XMLName](schema); ok {
 		return t.Name
 	}
 	return schema.MemberName()
@@ -115,7 +134,12 @@ func findMember(schema *smithy.Schema, elemName string) *smithy.Schema {
 
 // ReadStruct implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
-	d.push(deserCtx{kind: ctxKindStruct, schema: s})
+	if err := d.ensureStart(); err != nil {
+		return err
+	}
+
+	start := *d.currStart
+	d.push(deserCtx{kind: ctxKindStruct, schema: s, startElem: start})
 	return nil
 }
 
@@ -126,16 +150,13 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct")
 	}
 
+	if m := d.nextAttrMember(ctx); m != nil {
+		return m, nil
+	}
+
 	for {
 		start, ok, err := d.nextStart()
 		if err != nil {
-			// on the top-level struct we are guaranteed to get an EOF since
-			// we're operating on inner XML
-			if err == io.EOF && len(d.stack) == 1 {
-				d.pop()
-				return nil, nil
-			}
-
 			return nil, err
 		}
 		if !ok {
@@ -151,8 +172,49 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 			continue
 		}
 
+		if _, isAttr := smithy.SchemaTrait[*traits.XMLAttribute](member); isAttr {
+			if err := d.skip(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
 		return member, nil
 	}
+}
+
+func (d *ShapeDeserializer) nextAttrMember(ctx *deserCtx) *smithy.Schema {
+	attrs := ctx.startElem.Attr
+	for ctx.attrIndex < len(attrs) {
+		a := attrs[ctx.attrIndex]
+		ctx.attrIndex++
+
+		member := findAttrMember(ctx.schema, a.Name.Local)
+		if member == nil {
+			continue
+		}
+
+		val := a.Value
+		d.currAttr = &val
+		return member
+	}
+	return nil
+}
+
+func findAttrMember(schema *smithy.Schema, elemName string) *smithy.Schema {
+	if schema == nil {
+		return nil
+	}
+
+	for _, m := range schema.Members() {
+		if _, ok := smithy.SchemaTrait[*traits.XMLAttribute](m); !ok {
+			continue
+		}
+		if strings.EqualFold(stripPrefix(xmlMemberName(m)), elemName) {
+			return m
+		}
+	}
+	return nil
 }
 
 // ReadList implements [smithy.ShapeDeserializer].
@@ -312,12 +374,12 @@ func (d *ShapeDeserializer) readEntry(ks, vs *smithy.Schema) (string, bool, erro
 	ctx := d.top()
 
 	kname := "key"
-	if xn, ok := smithy.SchemaTrait[*traits.XMLName](ks); ok {
+	if xn, ok := smithy.SchemaDirectTrait[*traits.XMLName](ks); ok {
 		kname = xn.Name
 	}
 
 	vname := "value"
-	if xn, ok := smithy.SchemaTrait[*traits.XMLName](vs); ok {
+	if xn, ok := smithy.SchemaDirectTrait[*traits.XMLName](vs); ok {
 		vname = xn.Name
 	}
 
@@ -552,23 +614,29 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	start, ok, err := d.nextStart()
-	if err != nil {
+	if err := d.ensureStart(); err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, nil
-	}
 
-	member := findMember(s, start.Name.Local)
-	if member == nil {
-		if err := d.skip(); err != nil {
+	for {
+		start, ok, err := d.nextStart()
+		if err != nil {
 			return nil, err
 		}
-		return d.ReadUnion(s)
-	}
+		if !ok {
+			return nil, nil
+		}
 
-	return member, nil
+		member := findMember(s, start.Name.Local)
+		if member == nil {
+			if err := d.skip(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		return member, nil
+	}
 }
 
 // ReadDocument is unimplemented for XML.
@@ -590,10 +658,25 @@ func (d *ShapeDeserializer) token() (xml.Token, error) {
 		return tok, nil
 	}
 
-	return d.dec.Token()
+	tok, err := d.dec.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	if start, ok := tok.(xml.StartElement); ok {
+		d.currStart = &start
+	}
+
+	return tok, nil
 }
 
 func (d *ShapeDeserializer) chardata() (string, error) {
+	if d.currAttr != nil {
+		v := *d.currAttr
+		d.currAttr = nil
+		return v, nil
+	}
+
 	// a single "inner XML" node can be multiple xml.CharData so we need to
 	// accumulate them
 	var buf strings.Builder
@@ -658,6 +741,18 @@ func (d *ShapeDeserializer) nextStart() (xml.StartElement, bool, error) {
 	}
 }
 
+// make sure we have the start element when we go into a struct/union context
+func (d *ShapeDeserializer) ensureStart() error {
+	if d.currStart == nil {
+		if _, ok, err := d.nextStart(); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("expected start element")
+		}
+	}
+	return nil
+}
+
 func (d *ShapeDeserializer) readInt(bits int) (int64, error) {
 	text, err := d.chardata()
 	if err != nil {
@@ -683,4 +778,11 @@ func (d *ShapeDeserializer) readFloat() (float64, error) {
 	default:
 		return strconv.ParseFloat(text, 64)
 	}
+}
+
+func stripPrefix(name string) string {
+	if _, after, ok := strings.Cut(name, ":"); ok {
+		return after
+	}
+	return name
 }

@@ -87,6 +87,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTJSON1 = smithy("aws-protocols/restjson1");
     public static final GoDependency SMITHY_AWS_PROTOCOLS_AWSQUERY = smithy("aws-protocols/awsquery");
     public static final GoDependency SMITHY_AWS_PROTOCOLS_EC2QUERY = smithy("aws-protocols/ec2query");
+    public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTXML = smithy( "aws-protocols/restxml");
 
     public static final GoDependency SMITHY_HTTP_PROTOCOLS = smithy("smithy-http-protocols");
     public static final GoDependency SMITHY_HTTP_PROTOCOLS_RPCV2 = smithy("smithy-http-protocols/rpcv2");

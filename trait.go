@@ -4,7 +4,7 @@ package smithy
 // related to (de)serialization are included in code-generated Schemas for the
 // client.
 type Trait interface {
-	TraitID() string
+	TraitID() string // TODO(serde2): should return a ShapeID
 }
 
 // TODO(serde2): investigate performance tradeoff of using an "indexed" map for

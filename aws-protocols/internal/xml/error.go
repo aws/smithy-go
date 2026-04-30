@@ -12,7 +12,7 @@ func GetProtocolErrorInfo(payload []byte) (code, message string, errorBody []byt
 	code = "UnknownError"
 	message = code
 
-	errorBody, err = ExtractElement(payload, "Error")
+	errorBody, err = ExtractElement(payload, "Error", true)
 	if err != nil || len(errorBody) == 0 {
 		return
 	}
@@ -20,11 +20,11 @@ func GetProtocolErrorInfo(payload []byte) (code, message string, errorBody []byt
 	// we are in a fragment here so just leverage ExtractElement to get the
 	// inner XML of these, instead of having to wrap in a tag to pass to the
 	// stdlib decoder
-	c, err := ExtractElement(errorBody, "Code")
+	c, err := ExtractElement(errorBody, "Code", false)
 	if err != nil && err != io.EOF {
 		return
 	}
-	m, err := ExtractElement(errorBody, "Message")
+	m, err := ExtractElement(errorBody, "Message", false)
 	if err != nil && err != io.EOF {
 		return
 	}
