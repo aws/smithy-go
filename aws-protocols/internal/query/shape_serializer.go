@@ -382,11 +382,7 @@ func (s *ShapeSerializer) WriteTimePtr(schema *smithy.Schema, v *time.Time) {
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializable) {
-	if v == nil {
-		return
-	}
-
+func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
 	saved := s.currPrefix
 	switch s.top() {
 	case ctxKindMapValue:
@@ -400,8 +396,13 @@ func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema, v smithy.Serializab
 		s.appendMemberPrefix(schema)
 	}
 
-	v.Serialize(s)
-	s.currPrefix = saved
+	s.push(serCtx{kind: ctxKindStruct, prefix: saved})
+}
+
+// CloseStruct implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseStruct() {
+	ctx := s.pop()
+	s.currPrefix = ctx.prefix
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].
@@ -489,13 +490,6 @@ func (s *ShapeSerializer) CloseList() {
 
 // WriteMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
-	// Structs use WriteMap/CloseMap as a generic "begin object" scope.
-	if schema != nil && schema.Type() == smithy.ShapeTypeStructure {
-		saved := s.enterContainer(schema)
-		s.push(serCtx{kind: ctxKindStruct, prefix: saved})
-		return
-	}
-
 	saved := s.enterContainer(schema)
 
 	_, flattened := smithy.SchemaTrait[*traits.XMLFlattened](schema)
@@ -547,11 +541,6 @@ func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
 
 // CloseMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseMap() {
-	if s.top() == ctxKindStruct {
-		ctx := s.pop()
-		s.currPrefix = ctx.prefix
-		return
-	}
 	if s.top() != ctxKindMap {
 		return
 	}
