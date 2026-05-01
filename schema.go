@@ -67,7 +67,8 @@ type Schema struct {
 	id       ShapeID
 	typ      ShapeType
 	members  map[string]*Schema // member name -> schema
-	traits   map[string]Trait   // trait ID -> trait
+	traits   map[string]Trait   // trait ID -> non-indexed traits only
+	indexed  []Trait            // indexed trait slots, sized to max index present
 	targetID ShapeID            // for member schemas, the target's shape ID
 
 	listMember       *Schema
@@ -75,39 +76,51 @@ type Schema struct {
 }
 
 // NewSchema creates a new Schema with the given shape ID and traits.
-func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Schema {
-	traitMap := make(map[string]Trait, len(traits))
-	for _, t := range traits {
-		traitMap[t.TraitID()] = t
-	}
-	return &Schema{
+func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
+	s := &Schema{
 		id:      id,
 		typ:     typ,
 		members: make(map[string]*Schema, numMembers),
-		traits:  traitMap,
 	}
+	for _, t := range ts {
+		s.addTrait(t)
+	}
+	return s
+}
+
+func (s *Schema) addTrait(t Trait) {
+	if it, ok := t.(IndexableTrait); ok {
+		idx := it.TraitIndex()
+		if idx >= len(s.indexed) {
+			s.indexed = append(s.indexed, make([]Trait, idx-len(s.indexed)+1)...)
+		}
+		s.indexed[idx] = t
+		return
+	}
+
+	if s.traits == nil {
+		s.traits = map[string]Trait{}
+	}
+	s.traits[t.TraitID()] = t
 }
 
 // AddMember adds a member to the schema derived from the target, with
 // optional trait overrides. The member schema is returned for caller
 // reference.
-func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
+func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	m := &Schema{
 		id:         ShapeID{Member: name},
 		typ:        target.typ,
 		members:    target.members,
 		traits:     maps.Clone(target.traits),
+		indexed:    cloneIndexed(target.indexed),
 		targetID:   target.id,
 		listMember: target.listMember,
 		mapKey:     target.mapKey,
 		mapValue:   target.mapValue,
 	}
-
-	if len(m.traits) == 0 && len(traits) != 0 {
-		m.traits = map[string]Trait{}
-	}
-	for _, t := range traits {
-		m.traits[t.TraitID()] = t
+	for _, t := range ts {
+		m.addTrait(t)
 	}
 
 	s.members[name] = m
@@ -120,6 +133,16 @@ func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema
 		s.mapValue = m
 	}
 	return m
+}
+
+func cloneIndexed(src []Trait) []Trait {
+	if src == nil {
+		return nil
+	}
+
+	dst := make([]Trait, len(src))
+	copy(dst, src)
+	return dst
 }
 
 // ListMember returns the "member" schema for list types.
@@ -192,17 +215,27 @@ func (s *OperationSchema) IsOutputEventStream() bool {
 	return s.outputStream
 }
 
-// Trait returns the target trait on the schema if it exists.
+// SchemaTrait returns the target trait on the schema if it exists.
 func SchemaTrait[T Trait](s *Schema) (T, bool) {
-	var trait T
+	var zero T
 
 	if s == nil {
-		return trait, false
+		return zero, false
 	}
 
-	opaque, ok := s.traits[trait.TraitID()]
+	if it, ok := Trait(zero).(IndexableTrait); ok {
+		idx := it.TraitIndex()
+		if idx >= len(s.indexed) {
+			return zero, false
+		}
+
+		tt, ok := s.indexed[idx].(T)
+		return tt, ok
+	}
+
+	opaque, ok := s.traits[zero.TraitID()]
 	if !ok {
-		return trait, false
+		return zero, false
 	}
 
 	tt, ok := opaque.(T)

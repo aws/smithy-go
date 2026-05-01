@@ -7,6 +7,10 @@ type Trait interface {
 	TraitID() string
 }
 
-// TODO(serde2): investigate performance tradeoff of using an "indexed" map for
-// the known traits (basically the ones defined here) since the rest- and
-// xml-based protocols do a ton of trait lookup (which translates to map lookup)
+// IndexableTrait is optionally implemented by Trait values that have a
+// reserved index in Schema's indexed trait slice. All traits defined in the
+// traits package implement this interface.
+type IndexableTrait interface {
+	Trait
+	TraitIndex() int
+}
