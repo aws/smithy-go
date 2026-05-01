@@ -132,7 +132,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
     private Writable writerSetup(UnionShape inputEventStream) {
         var service = ctx.service();
-        var schemaName = "schemas." + SchemaGenerator.getSchemaName(inputEventStream, service);
+        var schemaName = SchemaGenerator.getSchemaRef(inputEventStream, service);
         var adapterName = EventStreamGenerator.getEventStreamWriterAdapterName(service, inputEventStream);
 
         return goTemplate("""
@@ -178,7 +178,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
     private Writable readerSetup(UnionShape outputEventStream) {
         var service = ctx.service();
-        var schemaName = "schemas." + SchemaGenerator.getSchemaName(outputEventStream, service);
+        var schemaName = SchemaGenerator.getSchemaRef(outputEventStream, service);
         var adapterConstructor = EventStreamGenerator
                 .getEventStreamReaderAdapterConstructor(service, outputEventStream);
 
@@ -202,7 +202,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
     private Writable initialRequest() {
         var inputShape = ctx.model().expectShape(operation.getInputShape());
-        var inputSchemaName = "schemas." + SchemaGenerator.getSchemaName(inputShape, ctx.service());
+        var inputSchemaName = SchemaGenerator.getSchemaRef(inputShape, ctx.service());
 
         return goTemplate("""
                 if m.options.Protocol.HasInitialEventMessage() {
@@ -223,7 +223,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
     }
 
     private Writable initialResponse(software.amazon.smithy.model.shapes.Shape outputShape) {
-        var outputSchemaName = "schemas." + SchemaGenerator.getSchemaName(outputShape, ctx.service());
+        var outputSchemaName = SchemaGenerator.getSchemaRef(outputShape, ctx.service());
 
         return goTemplate("""
                 if m.options.Protocol.HasInitialEventMessage() {
@@ -338,7 +338,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
     private Writable v2ReaderSetup(UnionShape outputEventStream) {
         var service = ctx.service();
-        var schemaName = "schemas." + SchemaGenerator.getSchemaName(outputEventStream, service);
+        var schemaName = SchemaGenerator.getSchemaRef(outputEventStream, service);
         var adapterConstructor = EventStreamGenerator
                 .getEventStreamReaderAdapterConstructor(service, outputEventStream);
 

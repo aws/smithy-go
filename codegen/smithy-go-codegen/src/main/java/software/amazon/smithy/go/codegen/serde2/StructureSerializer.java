@@ -40,7 +40,7 @@ public final class StructureSerializer implements Writable {
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
-        var schemaRef = "schemas." + SchemaGenerator.getSchemaName(shape, ctx.service());
+        var schemaRef = SchemaGenerator.getSchemaRef(shape, ctx.service());
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", symbol.getName(), () -> {
             writer.write("s.WriteStruct($L)", schemaRef);
             writer.write("v.SerializeMembers(s)");
@@ -58,7 +58,7 @@ public final class StructureSerializer implements Writable {
     }
 
     private void generateSerializeMember(GoWriter writer, MemberShape member, Shape target, String ident) {
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
+        var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
         var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
             case BYTE ->
@@ -75,10 +75,13 @@ public final class StructureSerializer implements Writable {
             case DOUBLE ->
                     writer.write("s.WriteFloat64$L($L, $L)", ptrSuffix, schemaName, ident);
 
-            case STRING ->
-                    writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
-            case ENUM ->
-                    writer.write("s.WriteString($L, string($L))", schemaName, ident);
+            case STRING, ENUM -> {
+                    if (ShapeUtil.isEnum(target)) {
+                        writer.write("s.WriteString($L, string($L))", schemaName, ident);
+                    } else {
+                        writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
+                    }
+            }
             case INT_ENUM ->
                     writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
             case BOOLEAN ->

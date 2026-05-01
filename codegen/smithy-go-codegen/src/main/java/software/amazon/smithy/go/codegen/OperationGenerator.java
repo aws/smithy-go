@@ -289,9 +289,9 @@ public final class OperationGenerator implements Runnable {
             writer.write("if err != nil { return err }");
         } else {
             writer.addUseImports(SmithyGoDependency.SMITHY);
-            var opSchemaName = "schemas." + SchemaGenerator.getSchemaName(operation, service);
-            var inputSchemaName = "schemas." + SchemaGenerator.getSchemaName(input, service);
-            var outputSchemaName = "schemas." + SchemaGenerator.getSchemaName(output, service);
+            var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+            var inputSchemaName = SchemaGenerator.getSchemaRef(input, service);
+            var outputSchemaName = SchemaGenerator.getSchemaRef(output, service);
             var opSchema = String.format("smithy.NewOperationSchema(%s, %s, %s)",
                     opSchemaName, inputSchemaName, outputSchemaName);
             writer.write("""

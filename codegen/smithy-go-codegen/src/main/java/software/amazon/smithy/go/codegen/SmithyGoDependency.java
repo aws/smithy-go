@@ -71,6 +71,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
     public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
+    public static final GoDependency SMITHY_PRELUDE = smithy("prelude", "smithyprelude");
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
     public static final GoDependency SMITHY_DOCUMENT_CBOR = smithy("document/cbor", "smithydocumentcbor");
     public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");

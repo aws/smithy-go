@@ -52,13 +52,13 @@ public class UnionDeserializer implements Writable {
             var unionSymbol = ctx.symbolProvider().toSymbol(shape);
             for (var member : members) {
                 var memberName = ctx.symbolProvider().toMemberName(member);
-                var variantSchema = SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
+                var variantSchema = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
                 
                 var memberSymbol = unionSymbol.toBuilder()
                         .name(memberName)
                         .build();
                 
-                w.write("case schemas.$L:", variantSchema);
+                w.write("case $L:", variantSchema);
                 w.indent();
                 w.write("vv := &$T{}", memberSymbol);
                 w.write("*v = vv");
