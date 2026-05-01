@@ -132,6 +132,7 @@ public class UnionGenerator {
                 case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
                 case STRUCTURE -> writer.write("s.WriteStruct($L)\nv.Value.SerializeMembers(s)\ns.CloseStruct()", schemaName); // struct variants are value types
                 case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
+                case UNION -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
                 case DOCUMENT -> {
                     writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
                     writer.write("s.WriteDocument($L, &smithydocument.Opaque{Value: v.Value})", schemaName);

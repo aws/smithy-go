@@ -34,6 +34,7 @@ import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
 import software.amazon.smithy.aws.traits.protocols.Ec2QueryTrait;
 import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
+import software.amazon.smithy.aws.traits.protocols.RestXmlTrait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
@@ -55,6 +56,7 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.traits.XmlNamespaceTrait;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -298,9 +300,24 @@ final class ServiceGenerator implements Runnable {
                     SmithyGoDependency.SMITHY_AWS_PROTOCOLS_EC2QUERY.func("New"),
                     service.getVersion()
             );
+        } else if (preferred.equals(RestXmlTrait.ID)) {
+            return restXmlNew();
         } else {
             throw new CodegenException("unsupported schema-serde protocol " + preferred);
         }
+    }
+
+    private Writable restXmlNew() {
+        var ns = service.getTrait(XmlNamespaceTrait.class);
+        if (ns.isEmpty()) {
+            return goTemplate("$T()",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("New"));
+        }
+        var t = ns.get();
+        return goTemplate("$T($S, $S)",
+                SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("NewWithNamespace"),
+                t.getUri(),
+                t.getPrefix().orElse(""));
     }
 
     private Writable generateGetOptions() {

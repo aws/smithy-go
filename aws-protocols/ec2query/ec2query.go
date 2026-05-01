@@ -81,7 +81,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Response")
+	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Response", true)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
