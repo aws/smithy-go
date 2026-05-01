@@ -28,6 +28,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.SimpleShape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
@@ -113,7 +114,7 @@ public class UnionGenerator {
     private void generateMemberSerializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
+        var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
         writer.openBlock("func (v *$L) Serialize(s smithy.ShapeSerializer) {", "}", memberName, () -> {
             switch (target.getType()) {
                 case BYTE -> writer.write("s.WriteInt8($L, v.Value)", schemaName);
@@ -123,10 +124,15 @@ public class UnionGenerator {
                 case FLOAT -> writer.write("s.WriteFloat32($L, v.Value)", schemaName);
                 case DOUBLE -> writer.write("s.WriteFloat64($L, v.Value)", schemaName);
                 case BOOLEAN -> writer.write("s.WriteBool($L, v.Value)", schemaName);
-                case STRING -> writer.write("s.WriteString($L, v.Value)", schemaName);
+                case STRING, ENUM -> {
+                    if (ShapeUtil.isEnum(target)) {
+                        writer.write("s.WriteString($L, string(v.Value))", schemaName);
+                    } else {
+                        writer.write("s.WriteString($L, v.Value)", schemaName);
+                    }
+                }
                 case BLOB -> writer.write("s.WriteBlob($L, v.Value)", schemaName);
                 case TIMESTAMP -> writer.write("s.WriteTime($L, v.Value)", schemaName);
-                case ENUM -> writer.write("s.WriteString($L, string(v.Value))", schemaName);
                 case INT_ENUM -> writer.write("s.WriteInt32($L, int32(v.Value))", schemaName);
                 case BIG_INTEGER -> writer.write("s.WriteBigInteger($L, v.Value)", schemaName);
                 case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
@@ -144,7 +150,7 @@ public class UnionGenerator {
     private void generateMemberDeserializer(GoWriter writer, MemberShape member, String memberName, Shape target) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
-        var schemaName = "schemas." + SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
+        var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
         writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", memberName, () -> {
             switch (target.getType()) {
                 case BYTE -> writer.write("return d.ReadInt8($L, &v.Value)", schemaName);
@@ -154,15 +160,18 @@ public class UnionGenerator {
                 case FLOAT -> writer.write("return d.ReadFloat32($L, &v.Value)", schemaName);
                 case DOUBLE -> writer.write("return d.ReadFloat64($L, &v.Value)", schemaName);
                 case BOOLEAN -> writer.write("return d.ReadBool($L, &v.Value)", schemaName);
-                case STRING -> writer.write("return d.ReadString($L, &v.Value)", schemaName);
+                case STRING, ENUM -> {
+                    if (ShapeUtil.isEnum(target)) {
+                        writer.write("var s string");
+                        writer.write("if err := d.ReadString($L, &s); err != nil { return err }", schemaName);
+                        writer.write("v.Value = $T(s)", symbolProvider.toSymbol(target));
+                        writer.write("return nil");
+                    } else {
+                        writer.write("return d.ReadString($L, &v.Value)", schemaName);
+                    }
+                }
                 case BLOB -> writer.write("return d.ReadBlob($L, &v.Value)", schemaName);
                 case TIMESTAMP -> writer.write("return d.ReadTime($L, &v.Value)", schemaName);
-                case ENUM -> {
-                    writer.write("var s string");
-                    writer.write("if err := d.ReadString($L, &s); err != nil { return err }", schemaName);
-                    writer.write("v.Value = $T(s)", symbolProvider.toSymbol(target));
-                    writer.write("return nil");
-                }
                 case INT_ENUM -> {
                     writer.write("var i int32");
                     writer.write("if err := d.ReadInt32($L, &i); err != nil { return err }", schemaName);

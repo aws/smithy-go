@@ -9,6 +9,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.UnsupportedShapeException;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -38,10 +39,10 @@ public class StructureDeserializer implements Writable {
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.openBlock("func (v *$L) Deserialize(d smithy.ShapeDeserializer) error {", "}", symbol.getName(), () -> {
-            writer.openBlock("return smithy.ReadStruct(d, schemas.$L, func(s *smithy.Schema) error {", "})", SchemaGenerator.getSchemaName(shape, ctx.service()), () -> {
+            writer.openBlock("return smithy.ReadStruct(d, $L, func(s *smithy.Schema) error {", "})", SchemaGenerator.getSchemaRef(shape, ctx.service()), () -> {
                 writer.openBlock("switch s {", "}", () -> {
                     for (var member : members) {
-                        writer.write("case schemas.$L:", SchemaGenerator.getMemberSchemaName(shape, member, ctx.service()));
+                        writer.write("case $L:", SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service()));
                         renderMember(writer, member, ctx.model().expectShape(member.getTarget()), "v." + ctx.symbolProvider().toMemberName(member));
                     }
                 });
@@ -51,50 +52,53 @@ public class StructureDeserializer implements Writable {
     }
 
     private void renderMember(GoWriter writer, MemberShape member, Shape target, String ident) {
-        var schemaName = SchemaGenerator.getMemberSchemaName(shape, member, ctx.service());
+        var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
         var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
         switch (target.getType()) {
             case BYTE ->
-                    writer.write("return d.ReadInt8$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadInt8$L($L, &$L)", ptrSuffix, schemaName, ident);
             case SHORT ->
-                    writer.write("return d.ReadInt16$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadInt16$L($L, &$L)", ptrSuffix, schemaName, ident);
             case INTEGER ->
-                    writer.write("return d.ReadInt32$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadInt32$L($L, &$L)", ptrSuffix, schemaName, ident);
             case LONG ->
-                    writer.write("return d.ReadInt64$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadInt64$L($L, &$L)", ptrSuffix, schemaName, ident);
 
             case FLOAT ->
-                    writer.write("return d.ReadFloat32$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadFloat32$L($L, &$L)", ptrSuffix, schemaName, ident);
             case DOUBLE ->
-                    writer.write("return d.ReadFloat64$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadFloat64$L($L, &$L)", ptrSuffix, schemaName, ident);
 
-            case STRING ->
-                    writer.write("return d.ReadString$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
-            case ENUM ->
-                    writer.write("""
-                            var ev string
-                            if err := d.ReadString(schemas.$1L, &ev); err != nil {
-                                return err
-                            }
-                            $2L = $3T(ev)
-                            return nil""", schemaName, ident, ctx.symbolProvider().toSymbol(target));
+            case STRING, ENUM -> {
+                    if (ShapeUtil.isEnum(target)) {
+                        writer.write("""
+                                var ev string
+                                if err := d.ReadString($1L, &ev); err != nil {
+                                    return err
+                                }
+                                $2L = $3T(ev)
+                                return nil""", schemaName, ident, ctx.symbolProvider().toSymbol(target));
+                    } else {
+                        writer.write("return d.ReadString$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    }
+            }
             case INT_ENUM ->
                     writer.write("""
                             var ev int32
-                            if err := d.ReadInt32(schemas.$1L, &ev); err != nil {
+                            if err := d.ReadInt32($1L, &ev); err != nil {
                                 return err
                             }
                             $2L = $3T(ev)
                             return nil""", schemaName, ident, ctx.symbolProvider().toSymbol(target));
             case BOOLEAN ->
-                    writer.write("return d.ReadBool$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadBool$L($L, &$L)", ptrSuffix, schemaName, ident);
             case TIMESTAMP ->
-                    writer.write("return d.ReadTime$L(schemas.$L, &$L)", ptrSuffix, schemaName, ident);
+                    writer.write("return d.ReadTime$L($L, &$L)", ptrSuffix, schemaName, ident);
             case BLOB ->
-                    writer.write("return d.ReadBlob(schemas.$L, &$L)", schemaName, ident);
+                    writer.write("return d.ReadBlob($L, &$L)", schemaName, ident);
 
             case LIST, SET, MAP, UNION ->
-                    writer.write("return deserialize$L(d, schemas.$L, &$L)", target.getId().getName(), schemaName, ident);
+                    writer.write("return deserialize$L(d, $L, &$L)", target.getId().getName(), schemaName, ident);
             case STRUCTURE -> {
                 if (nilIndex.isNillable(member)) {
                     writer.write("""
@@ -110,7 +114,7 @@ public class StructureDeserializer implements Writable {
                 writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
                 writer.write("""
                         var dv smithydocument.Value
-                        if err := d.ReadDocument(schemas.$L, &dv); err != nil {
+                        if err := d.ReadDocument($L, &dv); err != nil {
                             return err
                         }
                         if ov, ok := dv.(smithydocument.Opaque); ok {

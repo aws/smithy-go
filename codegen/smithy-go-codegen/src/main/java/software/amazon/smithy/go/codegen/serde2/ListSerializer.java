@@ -82,10 +82,10 @@ public class ListSerializer implements Writable {
             case DOUBLE ->
                     wrapNilCheck(goTemplate("s.WriteFloat64(schema.ListMember(), *vv)"));
 
-            case STRING ->
-                    wrapNilCheck(goTemplate("s.WriteString(schema.ListMember(), *vv)"));
-            case ENUM ->
-                    wrapNilCheck(goTemplate("s.WriteString(schema.ListMember(), string(*vv))"));
+            case STRING, ENUM ->
+                    ShapeUtil.isEnum(member)
+                            ? wrapNilCheck(goTemplate("s.WriteString(schema.ListMember(), string(*vv))"))
+                            : wrapNilCheck(goTemplate("s.WriteString(schema.ListMember(), *vv)"));
             case BOOLEAN ->
                     wrapNilCheck(goTemplate("s.WriteBool(schema.ListMember(), *vv)"));
             case TIMESTAMP ->
