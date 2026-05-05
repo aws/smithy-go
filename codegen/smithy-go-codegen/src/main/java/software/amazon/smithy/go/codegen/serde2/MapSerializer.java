@@ -83,10 +83,10 @@ public class MapSerializer implements Writable {
             case DOUBLE ->
                     wrapNilCheck(goTemplate("s.WriteFloat64(schema.MapValue(), *vv)"));
 
-            case STRING ->
-                    wrapNilCheck(goTemplate("s.WriteString(schema.MapValue(), *vv)"));
-            case ENUM ->
-                    wrapNilCheck(goTemplate("s.WriteString(schema.MapValue(), string(*vv))"));
+            case STRING, ENUM ->
+                    ShapeUtil.isEnum(value)
+                            ? wrapNilCheck(goTemplate("s.WriteString(schema.MapValue(), string(*vv))"))
+                            : wrapNilCheck(goTemplate("s.WriteString(schema.MapValue(), *vv)"));
             case BOOLEAN ->
                     wrapNilCheck(goTemplate("s.WriteBool(schema.MapValue(), *vv)"));
             case TIMESTAMP ->

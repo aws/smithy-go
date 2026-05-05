@@ -299,7 +299,7 @@ final class ServiceGenerator implements Runnable {
                     service.getVersion()
             );
         } else {
-            throw new CodegenException("unsupported schema-serde protocol " + preferred);
+            return goTemplate("nil");
         }
     }
 
