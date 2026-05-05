@@ -54,7 +54,8 @@ public class MapDeserializer implements Writable {
                 "shapeName", shape.getId().getName(),
                 "symbol", ctx.symbolProvider().toSymbol(shape),
                 "valueSymbol", switch (value.getType()) {
-                    case ENUM -> GoUniverseTypes.String;
+                    case STRING, ENUM -> ShapeUtil.isEnum(value)
+                            ? GoUniverseTypes.String : ctx.symbolProvider().toSymbol(value);
                     case INT_ENUM -> GoUniverseTypes.Int32;
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
@@ -89,7 +90,8 @@ public class MapDeserializer implements Writable {
                 "shapeName", shape.getId().getName(),
                 "symbol", ctx.symbolProvider().toSymbol(shape),
                 "valueSymbol", switch (value.getType()) {
-                    case ENUM -> GoUniverseTypes.String;
+                    case STRING, ENUM -> ShapeUtil.isEnum(value)
+                            ? GoUniverseTypes.String : ctx.symbolProvider().toSymbol(value);
                     case INT_ENUM -> GoUniverseTypes.Int32;
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
@@ -101,11 +103,13 @@ public class MapDeserializer implements Writable {
 
     private Writable renderSparseCast() {
         return switch (value.getType()) {
-            case ENUM, INT_ENUM -> goTemplate("""
+            case STRING, ENUM, INT_ENUM -> ShapeUtil.isEnum(value)
+                    ? goTemplate("""
                     func() $T {
                         ev := $T(vv)
                         return &ev
-                    }()""", ctx.symbolProvider().toSymbol(value));
+                    }()""", ctx.symbolProvider().toSymbol(value))
+                    : goTemplate("&vv");
 
             // don't need the address-of
             case BLOB, LIST, SET, MAP, UNION ->
@@ -119,7 +123,9 @@ public class MapDeserializer implements Writable {
 
     private Writable renderDenseCast() {
         return switch (value.getType()) {
-            case ENUM, INT_ENUM -> goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(value));
+            case STRING, ENUM, INT_ENUM -> ShapeUtil.isEnum(value)
+                    ? goTemplate("$T(vv)", ctx.symbolProvider().toSymbol(value))
+                    : goTemplate("vv");
             case DOCUMENT -> renderDocumentCast();
             default -> goTemplate("vv");
         };
