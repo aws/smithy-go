@@ -145,8 +145,7 @@ final class ServiceGenerator implements Runnable {
         return goTemplate("""
                 const ServiceID = $S
                 const ServiceAPIVersion = $S
-                const serviceName = $S
-                """, serviceId, service.getVersion(), service.getId().getName());
+                """, serviceId, service.getVersion());
     }
 
     private Writable generateClient() {
@@ -409,7 +408,6 @@ final class ServiceGenerator implements Runnable {
                 ) {
                     ctx = middleware.ClearStackValues(ctx)
                     ctx = middleware.WithServiceID(ctx, ServiceID)
-                    ctx = middleware.WithServiceName(ctx, serviceName)
                     ctx = middleware.WithOperationName(ctx, opID)
 
                     $newStack:W
