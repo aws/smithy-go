@@ -2,7 +2,6 @@ package smithy
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/aws/smithy-go/traits"
@@ -64,29 +63,48 @@ func stoid(s string) ShapeID {
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	id           ShapeID
-	typ          ShapeType
-	members      map[string]*Schema // member name -> schema
-	traits       map[string]Trait   // trait ID -> trait (effective view; for members, target's traits merged with member's overrides)
-	directTraits map[string]Trait   // trait ID -> trait (member schemas only: only traits declared directly on the member)
-	targetID     ShapeID            // for member schemas, the target's shape ID
+	id         ShapeID
+	typ        ShapeType
+	members    map[string]*Schema // member name -> schema
+	traits     map[string]Trait   // trait ID -> non-indexed traits only
+	indexed    []Trait            // indexed trait slots, sized to max index present
+	directMask uint64             // bitmask: bit i set means indexed[i] was declared directly on this schema
+	targetID   ShapeID            // for member schemas, the target's shape ID
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
 }
 
 // NewSchema creates a new Schema with the given shape ID and traits.
-func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Schema {
-	traitMap := make(map[string]Trait, len(traits))
-	for _, t := range traits {
-		traitMap[t.TraitID()] = t
-	}
-	return &Schema{
+func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
+	s := &Schema{
 		id:      id,
 		typ:     typ,
 		members: make(map[string]*Schema, numMembers),
-		traits:  traitMap,
 	}
+	for _, t := range ts {
+		s.addTrait(t, true)
+	}
+	return s
+}
+
+func (s *Schema) addTrait(t Trait, direct bool) {
+	if it, ok := t.(IndexableTrait); ok {
+		idx := it.TraitIndex()
+		if idx >= len(s.indexed) {
+			s.indexed = append(s.indexed, make([]Trait, idx-len(s.indexed)+1)...)
+		}
+		s.indexed[idx] = t
+		if direct {
+			s.directMask |= 1 << uint(idx)
+		}
+		return
+	}
+
+	if s.traits == nil {
+		s.traits = map[string]Trait{}
+	}
+	s.traits[t.TraitID()] = t
 }
 
 // AddMember adds a member to the schema derived from the target, with
@@ -97,30 +115,23 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Sche
 // inherits all of the target's traits, then applies the overrides. The
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
-func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
-	directs := make(map[string]Trait, len(traits))
-	for _, t := range traits {
-		directs[t.TraitID()] = t
-	}
-
-	merged := maps.Clone(target.traits)
-	if merged == nil {
-		merged = map[string]Trait{}
-	}
-	for id, t := range directs {
-		merged[id] = t
-	}
-
+func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	m := &Schema{
-		id:           ShapeID{Member: name},
-		typ:          target.typ,
-		members:      target.members,
-		traits:       merged,
-		directTraits: directs,
-		targetID:     target.id,
-		listMember:   target.listMember,
-		mapKey:       target.mapKey,
-		mapValue:     target.mapValue,
+		id:         ShapeID{Member: name},
+		typ:        target.typ,
+		members:    target.members,
+		indexed:    cloneIndexed(target.indexed),
+		traits:     cloneTraits(target.traits),
+		directMask: 0, // inherited traits are not direct
+		targetID:   target.id,
+		listMember: target.listMember,
+		mapKey:     target.mapKey,
+		mapValue:   target.mapValue,
+	}
+
+	// member-declared traits override and are direct
+	for _, t := range ts {
+		m.addTrait(t, true)
 	}
 
 	s.members[name] = m
@@ -133,6 +144,26 @@ func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema
 		s.mapValue = m
 	}
 	return m
+}
+
+func cloneIndexed(src []Trait) []Trait {
+	if src == nil {
+		return nil
+	}
+	dst := make([]Trait, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func cloneTraits(src map[string]Trait) map[string]Trait {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]Trait, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 // ListMember returns the "member" schema for list types.
@@ -216,19 +247,7 @@ func (s *OperationSchema) IsOutputEventStream() bool {
 // declared directly on the member if present, else the trait inherited from
 // the target shape.
 func SchemaTrait[T Trait](s *Schema) (T, bool) {
-	var trait T
-
-	if s == nil {
-		return trait, false
-	}
-
-	opaque, ok := s.traits[trait.TraitID()]
-	if !ok {
-		return trait, false
-	}
-
-	tt, ok := opaque.(T)
-	return tt, ok
+	return schemaTrait[T](s, false)
 }
 
 // SchemaDirectTrait returns the target trait on the schema if it was
@@ -238,20 +257,31 @@ func SchemaTrait[T Trait](s *Schema) (T, bool) {
 // member itself, ignoring any trait inherited from the target shape. For
 // non-member schemas this is equivalent to [SchemaTrait].
 func SchemaDirectTrait[T Trait](s *Schema) (T, bool) {
-	var trait T
+	return schemaTrait[T](s, true)
+}
+
+func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
+	var zero T
 
 	if s == nil {
-		return trait, false
+		return zero, false
 	}
 
-	source := s.directTraits
-	if source == nil {
-		source = s.traits
+	if it, ok := Trait(zero).(IndexableTrait); ok {
+		idx := it.TraitIndex()
+		if idx >= len(s.indexed) {
+			return zero, false
+		}
+		if directOnly && s.directMask&(1<<uint(idx)) == 0 {
+			return zero, false
+		}
+		tt, ok := s.indexed[idx].(T)
+		return tt, ok
 	}
 
-	opaque, ok := source[trait.TraitID()]
+	opaque, ok := s.traits[zero.TraitID()]
 	if !ok {
-		return trait, false
+		return zero, false
 	}
 
 	tt, ok := opaque.(T)

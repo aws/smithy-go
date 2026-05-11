@@ -7,6 +7,15 @@ type Trait interface {
 	TraitID() string // TODO(serde2): should return a ShapeID
 }
 
-// TODO(serde2): investigate performance tradeoff of using an "indexed" map for
-// the known traits (basically the ones defined here) since the rest- and
-// xml-based protocols do a ton of trait lookup (which translates to map lookup)
+// IndexableTrait is optionally implemented by Trait values that have a
+// reserved index in Schema's indexed trait slice. All traits defined in the
+// traits package implement this interface.
+//
+// You SHOULD NOT implement this outside of a smithy-go trait unless you know
+// what you are doing. If you implement this and return a value that collides
+// with one of the primary serde-based indexed traits (see index.go) you will
+// probably break something.
+type IndexableTrait interface {
+	Trait
+	TraitIndex() int
+}
