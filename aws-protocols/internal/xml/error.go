@@ -1,6 +1,11 @@
 package xml
 
-import "io"
+import "encoding/xml"
+
+type protocolError struct {
+	Code    string `xml:"Code"`
+	Message string `xml:"Message"`
+}
 
 // GetProtocolErrorInfo extracts Smithy error details from a query-protocol
 // response.
@@ -17,25 +22,17 @@ func GetProtocolErrorInfo(payload []byte) (code, message string, errorBody []byt
 		return
 	}
 
-	// we are in a fragment here so just leverage ExtractElement to get the
-	// inner XML of these, instead of having to wrap in a tag to pass to the
-	// stdlib decoder
-	c, err := ExtractElement(errorBody, "Code")
-	if err != nil && err != io.EOF {
-		return
-	}
-	m, err := ExtractElement(errorBody, "Message")
-	if err != nil && err != io.EOF {
+	var errinf protocolError
+	if err = xml.Unmarshal(errorBody, &errinf); err != nil {
 		return
 	}
 
-    // clear err if it was io.EOF
 	err = nil
-	if len(c) > 0 {
-		code = string(c)
+	if len(errinf.Code) > 0 {
+		code = errinf.Code
 	}
-	if len(m) > 0 {
-		message = string(m)
+	if len(errinf.Message) > 0 {
+		message = errinf.Message
 	}
 	return
 }

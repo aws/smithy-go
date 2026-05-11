@@ -24,11 +24,11 @@ import (
 // serializer for whatever protocol is being used.
 //
 // ShapeSerializer adds some API surface on top of the normal
-// smithy.ShapeSerializer. Specifically it adds [GetRequestBody] for handing
-// REST-protocol payloads, since the actual source of the payload is going to
-// vary on a per-operation basis and isn't known until the input's Serialize is
-// called. The caller (so, the protocol implementation) should set the HTTP
-// request body according to the return of GetRequestBody.
+// smithy.ShapeSerializer. Specifically it adds [ShapeSerializer.Build] for
+// handing REST-protocol payloads, since the actual source of the payload is
+// going to vary on a per-operation basis and isn't known until the input's
+// Serialize is called. The caller (so, the protocol implementation) should
+// set the HTTP request body by calling Build after Serialize.
 type ShapeSerializer struct {
 	request *smithyhttp.Request
 	encoder *httpbinding.Encoder
@@ -82,19 +82,15 @@ func NewShapeSerializer(op *smithy.Schema, req *smithyhttp.Request, in smithy.Sh
 	}, nil
 }
 
-// GetRequestBody resolves the serialized body after Serialize has been called.
-// It encodes the httpbinding values into the request and returns the stream
-// and content type for the body.
+// Build encodes HTTP binding values into the request and sets the request
+// body. The defaultContentType is used for the protocol body (e.g.
+// "application/json") when no explicit payload is present.
 //
 // The body is resolved in the following priority:
 //  1. Streaming payload (input implements StreamingInput with non-nil stream)
 //  2. Raw payload bytes (blob/string member with @httpPayload)
 //  3. Serialized protocol body (e.g. JSON)
 //  4. Empty struct payload (struct member with @httpPayload, sends "{}")
-//
-// Build encodes HTTP binding values into the request and sets the request
-// body. The defaultContentType is used for the protocol body (e.g.
-// "application/json") when no explicit payload is present.
 func (s *ShapeSerializer) Build(in smithy.Serializable, defaultContentType string) error {
 	req := s.request
 
