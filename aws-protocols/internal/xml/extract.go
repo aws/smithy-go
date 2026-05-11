@@ -7,12 +7,14 @@ import (
 )
 
 // ExtractElement finds the first occurrence of the named element in the XML
-// and returns its INNER content as raw bytes.
+// and returns it as raw bytes, including the element's opening and closing
+// tags.
 //
 // This is used to extract both success and error responses from the protocol
 // XML that wraps them.
 //
-// e.g. for awsquery, with an operation output shape named XmlListsResult:
+// For example for awsquery, with an operation output shape named
+// XmlListsResult:
 //
 //	<XmlListsResponse>
 //	 	<XmlListsResult>
@@ -21,11 +23,13 @@ import (
 //	 	</XmlListsResult>
 //	</XmlListsResponse>
 //
-// ExtractElement gives you "<member1>foo</member1>...".
+// ExtractElement(payload, "XmlListsResult") yields:
 //
-// ExtractElement will forward the io.EOF returned by the underlying decoder if
-// the target element is not found, which the caller can index on if they're
-// looking for an optional element.
+//	<XmlListsResult><member1>foo</member1>...</XmlListsResult>
+//
+// ExtractElement will forward the io.EOF returned by the underlying decoder
+// if the target element is not found, which the caller can index on if
+// they're looking for an optional element.
 func ExtractElement(payload []byte, name string) ([]byte, error) {
 	dec := xml.NewDecoder(bytes.NewReader(payload))
 	for {
@@ -34,39 +38,40 @@ func ExtractElement(payload []byte, name string) ([]byte, error) {
 			return nil, err
 		}
 
-		if start, ok := tok.(xml.StartElement); ok {
-			if strings.EqualFold(start.Name.Local, name) {
-				return extract(dec)
-			}
+		start, ok := tok.(xml.StartElement)
+		if !ok || !strings.EqualFold(start.Name.Local, name) {
+			continue
 		}
-	}
-}
 
-func extract(dec *xml.Decoder) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := xml.NewEncoder(&buf)
-	depth := 1
-
-	for depth > 0 {
-		tok, err := dec.Token()
-		if err != nil {
+		var buf bytes.Buffer
+		enc := xml.NewEncoder(&buf)
+		if err := enc.EncodeToken(start); err != nil {
+			return nil, err
+		}
+		if err := enc.Flush(); err != nil {
 			return nil, err
 		}
 
-		switch t := tok.(type) {
-		case xml.StartElement:
-			depth++
-			enc.EncodeToken(t)
-		case xml.EndElement:
-			depth--
-			if depth > 0 {
-				enc.EncodeToken(t)
+		depth := 1
+		for depth > 0 {
+			tok, err := dec.Token()
+			if err != nil {
+				return nil, err
 			}
-		case xml.CharData:
-			enc.EncodeToken(t)
+			if err := enc.EncodeToken(tok); err != nil {
+				return nil, err
+			}
+			switch tok.(type) {
+			case xml.StartElement:
+				depth++
+			case xml.EndElement:
+				depth--
+			}
 		}
-	}
 
-	enc.Flush()
-	return buf.Bytes(), nil
+		if err := enc.Flush(); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
 }

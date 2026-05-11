@@ -64,11 +64,12 @@ func stoid(s string) ShapeID {
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
 type Schema struct {
-	id       ShapeID
-	typ      ShapeType
-	members  map[string]*Schema // member name -> schema
-	traits   map[string]Trait   // trait ID -> trait
-	targetID ShapeID            // for member schemas, the target's shape ID
+	id           ShapeID
+	typ          ShapeType
+	members      map[string]*Schema // member name -> schema
+	traits       map[string]Trait   // trait ID -> trait (effective view; for members, target's traits merged with member's overrides)
+	directTraits map[string]Trait   // trait ID -> trait (member schemas only: only traits declared directly on the member)
+	targetID     ShapeID            // for member schemas, the target's shape ID
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
@@ -91,23 +92,35 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Sche
 // AddMember adds a member to the schema derived from the target, with
 // optional trait overrides. The member schema is returned for caller
 // reference.
+//
+// The member schema's effective trait view (accessed via [SchemaTrait])
+// inherits all of the target's traits, then applies the overrides. The
+// member's direct trait view (accessed via [SchemaDirectTrait]) contains
+// only the overrides, i.e. the traits declared directly on the member.
 func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
-	m := &Schema{
-		id:         ShapeID{Member: name},
-		typ:        target.typ,
-		members:    target.members,
-		traits:     maps.Clone(target.traits),
-		targetID:   target.id,
-		listMember: target.listMember,
-		mapKey:     target.mapKey,
-		mapValue:   target.mapValue,
+	directs := make(map[string]Trait, len(traits))
+	for _, t := range traits {
+		directs[t.TraitID()] = t
 	}
 
-	if len(m.traits) == 0 && len(traits) != 0 {
-		m.traits = map[string]Trait{}
+	merged := maps.Clone(target.traits)
+	if merged == nil {
+		merged = map[string]Trait{}
 	}
-	for _, t := range traits {
-		m.traits[t.TraitID()] = t
+	for id, t := range directs {
+		merged[id] = t
+	}
+
+	m := &Schema{
+		id:           ShapeID{Member: name},
+		typ:          target.typ,
+		members:      target.members,
+		traits:       merged,
+		directTraits: directs,
+		targetID:     target.id,
+		listMember:   target.listMember,
+		mapKey:       target.mapKey,
+		mapValue:     target.mapValue,
 	}
 
 	s.members[name] = m
@@ -140,6 +153,11 @@ func (s *Schema) MapValue() *Schema {
 // MemberName returns the member component of the schema's shape ID.
 func (s *Schema) MemberName() string {
 	return s.id.Member
+}
+
+// ID returns the shape ID of the schema.
+func (s *Schema) ID() ShapeID {
+	return s.id
 }
 
 // TargetID returns the shape ID of the member's target shape.
@@ -192,7 +210,11 @@ func (s *OperationSchema) IsOutputEventStream() bool {
 	return s.outputStream
 }
 
-// Trait returns the target trait on the schema if it exists.
+// SchemaTrait returns the target trait on the schema if it exists.
+//
+// For member schemas this returns the effective trait, which is the trait
+// declared directly on the member if present, else the trait inherited from
+// the target shape.
 func SchemaTrait[T Trait](s *Schema) (T, bool) {
 	var trait T
 
@@ -201,6 +223,33 @@ func SchemaTrait[T Trait](s *Schema) (T, bool) {
 	}
 
 	opaque, ok := s.traits[trait.TraitID()]
+	if !ok {
+		return trait, false
+	}
+
+	tt, ok := opaque.(T)
+	return tt, ok
+}
+
+// SchemaDirectTrait returns the target trait on the schema if it was
+// declared directly on the schema.
+//
+// For member schemas this returns the trait only if it was declared on the
+// member itself, ignoring any trait inherited from the target shape. For
+// non-member schemas this is equivalent to [SchemaTrait].
+func SchemaDirectTrait[T Trait](s *Schema) (T, bool) {
+	var trait T
+
+	if s == nil {
+		return trait, false
+	}
+
+	source := s.directTraits
+	if source == nil {
+		source = s.traits
+	}
+
+	opaque, ok := source[trait.TraitID()]
 	if !ok {
 		return trait, false
 	}

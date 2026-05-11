@@ -165,9 +165,7 @@ func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
 	if err := d.ReadString(s, &val); err != nil {
 		return err
 	}
-	if val != "" {
-		*v = &val
-	}
+	*v = &val
 	return nil
 }
 

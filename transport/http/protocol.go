@@ -7,6 +7,9 @@ import (
 	"github.com/aws/smithy-go"
 )
 
+// TODO(serde2): review API surface for all Protocol impls, their New()s, and
+// the way they are configured (options vs codec options)
+
 // ClientProtocol defines the interface through which client-side operation
 // request/responses are (de)serialized across the wire.
 //
@@ -14,7 +17,7 @@ import (
 // to do so. In practice, a generated client will utilize one of the predefined
 // protocols implemented as part of the Smithy client runtime.
 type ClientProtocol interface {
-	ID() string
+	ID() string // TODO(serde2): this should return shape ID
 	SerializeRequest(context.Context, *smithy.OperationSchema, smithy.Serializable, *Request) error
 	DeserializeResponse(ctx context.Context, schema *smithy.OperationSchema, types *smithy.TypeRegistry, resp *Response, out smithy.Deserializable) error
 
