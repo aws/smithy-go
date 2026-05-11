@@ -29,6 +29,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.EnumTrait;
 import software.amazon.smithy.model.traits.UnitTypeTrait;
 
 public final class ShapeUtil {
@@ -81,5 +82,11 @@ public final class ShapeUtil {
 
     public static Shape expectMember(Model model, MapShape shape) {
         return model.expectShape(shape.getValue().getTarget());
+    }
+
+    // Returns true for both IDL2 enum shapes and IDL1 string + @enum shapes.
+    public static boolean isEnum(Shape shape) {
+        return shape.getType() == ShapeType.ENUM
+                || (shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class));
     }
 }

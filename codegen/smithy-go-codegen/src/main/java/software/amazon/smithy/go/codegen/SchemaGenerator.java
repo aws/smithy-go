@@ -6,6 +6,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import java.util.Map;
 import java.util.Optional;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
+import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -32,6 +33,9 @@ public class SchemaGenerator implements Writable {
     private static final String SYNTHETIC_NAMESPACE = "smithy.go.synthetic";
 
     public static String getSchemaName(Shape shape, ServiceShape service) {
+        if (Prelude.isPublicPreludeShape(shape)) {
+            return "smithyprelude." + shape.getId().getName();
+        }
         var name = shape.getId().getName(service);
         if (shape.getId().getNamespace().equals(SYNTHETIC_NAMESPACE)) {
             name = "SmithyGoSynthetic_" + name;
@@ -57,8 +61,28 @@ public class SchemaGenerator implements Writable {
         return shape.getId();
     }
 
+    // Returns the schema reference for use outside the schemas package (e.g. in
+    // serde generators). Prelude shapes are already package-qualified, local
+    // shapes get the "schemas." prefix.
+    public static String getSchemaRef(Shape shape, ServiceShape service) {
+        if (Prelude.isPublicPreludeShape(shape)) {
+            return getSchemaName(shape, service);
+        }
+        return "schemas." + getSchemaName(shape, service);
+    }
+
+    public static String getMemberSchemaRef(Shape shape, MemberShape member, ServiceShape service) {
+        if (Prelude.isPublicPreludeShape(shape)) {
+            return getSchemaName(shape, service) + "_" + member.getMemberName();
+        }
+        return "schemas." + getMemberSchemaName(shape, member, service);
+    }
+
     @Override
     public void accept(GoWriter writer) {
+        if (Prelude.isPublicPreludeShape(shape)) {
+            return;
+        }
         var service = ctx.service();
         var modelID = modelShapeID(shape);
         writer.addUseImports(SmithyGoDependency.SMITHY);
@@ -81,7 +105,7 @@ public class SchemaGenerator implements Writable {
     }
 
     public void acceptMembersInit(GoWriter writer) {
-        if (shape.members().isEmpty()) {
+        if (shape.members().isEmpty() || Prelude.isPublicPreludeShape(shape)) {
             return;
         }
         writer.writeGoTemplate("""
@@ -103,6 +127,20 @@ public class SchemaGenerator implements Writable {
         var target = ctx.model().expectShape(member.getTarget());
         var service = ctx.service();
         var memberTraits = member.getAllTraits().values();
+
+        if (Prelude.isPublicPreludeShape(target)) {
+            return goTemplate("""
+                            $preludeImport:D$ident:L = $schema:L.AddMember($name:S, $target:L$traits:W)
+                            """,
+                    Map.of(
+                            "preludeImport", SmithyGoDependency.SMITHY_PRELUDE,
+                            "ident", getMemberSchemaName(shape, member, service),
+                            "schema", getSchemaName(shape, service),
+                            "name", member.getMemberName(),
+                            "target", getSchemaName(target, service),
+                            "traits", renderVariadicTraits(memberTraits)
+                    ));
+        }
 
         return goTemplate("""
                         $ident:L = $schema:L.AddMember($name:S, $target:L$traits:W)

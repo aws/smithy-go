@@ -303,7 +303,7 @@ final class ServiceGenerator implements Runnable {
         } else if (preferred.equals(RestXmlTrait.ID)) {
             return restXmlNew();
         } else {
-            throw new CodegenException("unsupported schema-serde protocol " + preferred);
+            return goTemplate("nil");
         }
     }
 
