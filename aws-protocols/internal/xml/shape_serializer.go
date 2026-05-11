@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
@@ -34,9 +35,7 @@ type serCtx struct {
 type ShapeSerializer struct {
 	w *writer
 
-	// TODO(serde2): SerdeStack[T], obviously this primitive has been reduped a
-	// bunch at this point
-	stack []serCtx
+	stack serde.Stack[serCtx]
 
 	opts ShapeSerializerOptions
 }
@@ -56,8 +55,9 @@ func NewShapeSerializer(opts ...func(*ShapeSerializerOptions)) *ShapeSerializer 
 		fn(&o)
 	}
 	return &ShapeSerializer{
-		w:    newWriter(),
-		opts: o,
+		w:     newWriter(),
+		stack: serde.NewStack[serCtx](),
+		opts:  o,
 	}
 }
 
@@ -222,12 +222,12 @@ func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
 		w:           s.w,
 	}
 	s.w = newWriter()
-	s.push(ctx)
+	s.stack.Push(ctx)
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 
 	var ns *traits.XMLNamespace
 	if isPayload(ctx.schema) {
@@ -237,7 +237,7 @@ func (s *ShapeSerializer) CloseStruct() {
 	}
 
 	// special case for the root struct where the service set a namespace
-	if ns == nil && len(s.stack) == 0 && s.opts.RootNamespaceURI != "" {
+	if ns == nil && s.stack.Len() == 0 && s.opts.RootNamespaceURI != "" {
 		ns = &traits.XMLNamespace{
 			URI:    s.opts.RootNamespaceURI,
 			Prefix: s.opts.RootNamespacePrefix,
@@ -277,7 +277,7 @@ func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 		ename = ""
 	}
 
-	s.push(serCtx{
+	s.stack.Push(serCtx{
 		kind:        ctxKindList,
 		wrapperName: ename,
 		itemName:    iname,
@@ -288,7 +288,7 @@ func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 
 // CloseList implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseList() {
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 	if !ctx.flat {
 		s.w.writeEnd(ctx.wrapperName)
 	}
@@ -308,7 +308,7 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 		s.w.writeStart(wrapperName, ns, nil)
 	}
 
-	s.push(serCtx{
+	s.stack.Push(serCtx{
 		kind:        ctxKindMap,
 		wrapperName: wrapperName,
 		itemName:    itemName,
@@ -319,7 +319,7 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 
 // WriteKey implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, k string) {
-	top := s.top()
+	top := s.stack.Top()
 	if top == nil || top.kind != ctxKindMap {
 		return
 	}
@@ -342,7 +342,7 @@ func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, k string) {
 
 // CloseMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseMap() {
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 
 	if ctx.inMapEntry {
 		s.w.writeEnd(ctx.itemName)
@@ -356,24 +356,6 @@ func (s *ShapeSerializer) CloseMap() {
 // WriteDocument is unimplemented for XML.
 func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value) {
 	panic("WriteDocument not supported for XML")
-}
-
-func (s *ShapeSerializer) push(ctx serCtx) {
-	s.stack = append(s.stack, ctx)
-}
-
-func (s *ShapeSerializer) pop() serCtx {
-	n := len(s.stack)
-	ctx := s.stack[n-1]
-	s.stack = s.stack[:n-1]
-	return ctx
-}
-
-func (s *ShapeSerializer) top() *serCtx {
-	if len(s.stack) == 0 {
-		return nil
-	}
-	return &s.stack[len(s.stack)-1]
 }
 
 func (s *ShapeSerializer) writeScalar(schema *smithy.Schema, v string) {
@@ -392,7 +374,7 @@ func (s *ShapeSerializer) bufferAttribute(schema *smithy.Schema, v string) bool 
 		return false
 	}
 
-	top := s.top()
+	top := s.stack.Top()
 	if top == nil || top.kind != ctxKindStruct {
 		return false
 	}

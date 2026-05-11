@@ -6,58 +6,58 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/eventstream"
 )
 
 // Codec orchestrates event stream message serde for protocols that use the
-// standard event stream binary framing. All existing AWS protocols (and the
-// Smithy rpcv2Cbor protocol) use this framing.
+// standard event stream binary framing.
 type Codec struct {
-	Codec       smithy.Codec
-	ContentType string
+	Serializer   func() smithy.ShapeSerializer
+	Deserializer func([]byte) smithy.ShapeDeserializer
+	ContentType  string
 
-	encoder    *Encoder
-	decoder    *Decoder
+	encoder    *eventstream.Encoder
+	decoder    *eventstream.Decoder
 	payloadBuf []byte
 }
 
-func (c *Codec) enc() *Encoder {
+func (c *Codec) enc() *eventstream.Encoder {
 	if c.encoder == nil {
-		c.encoder = NewEncoder()
+		c.encoder = eventstream.NewEncoder()
 	}
 	return c.encoder
 }
 
-func (c *Codec) dec() *Decoder {
+func (c *Codec) dec() *eventstream.Decoder {
 	if c.decoder == nil {
-		c.decoder = NewDecoder()
+		c.decoder = eventstream.NewDecoder()
 	}
 	return c.decoder
 }
 
 // SerializeEventMessage serializes an event to the input stream.
 func (c *Codec) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error {
-	var msg Message
+	var msg eventstream.Message
 
-	inner := c.Codec.Serializer()
-	ss := NewShapeSerializer(&msg, inner)
+	inner := c.Serializer()
+	ss := eventstream.NewShapeSerializer(&msg, inner)
 
 	v.Serialize(ss)
 
-	msg.Headers.Set(MessageTypeHeader, StringValue(EventMessageType))
-	msg.Headers.Set(EventTypeHeader, StringValue(variant.MemberName()))
+	msg.Headers.Set(eventstream.MessageTypeHeader, eventstream.StringValue(eventstream.EventMessageType))
+	msg.Headers.Set(eventstream.EventTypeHeader, eventstream.StringValue(variant.MemberName()))
 
 	if ct := ss.ContentType(); ct != "" {
-		msg.Headers.Set(ContentTypeHeader, StringValue(ct))
+		msg.Headers.Set(eventstream.ContentTypeHeader, eventstream.StringValue(ct))
 	} else if payload := inner.Bytes(); len(payload) > 0 {
 		msg.Payload = payload
-		msg.Headers.Set(ContentTypeHeader, StringValue(c.ContentType))
+		msg.Headers.Set(eventstream.ContentTypeHeader, eventstream.StringValue(c.ContentType))
 	}
 
 	return c.enc().Encode(w, msg)
 }
 
-// DeserializeEventMessage reads an event from the output stream. Returns
-// io.EOF when the stream is complete.
+// DeserializeEventMessage reads an event from the output stream.
 func (c *Codec) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
 	for {
 		c.payloadBuf = c.payloadBuf[0:0]
@@ -69,25 +69,25 @@ func (c *Codec) DeserializeEventMessage(schema *smithy.Schema, types *smithy.Typ
 			return nil, fmt.Errorf("decode event: %w", err)
 		}
 
-		msgType := msg.Headers.Get(MessageTypeHeader)
+		msgType := msg.Headers.Get(eventstream.MessageTypeHeader)
 		if msgType == nil {
-			return nil, fmt.Errorf("missing %s header", MessageTypeHeader)
+			return nil, fmt.Errorf("missing %s header", eventstream.MessageTypeHeader)
 		}
 
 		switch msgType.String() {
-		case EventMessageType:
+		case eventstream.EventMessageType:
 			event, err := c.deserializeEvent(schema, types, &msg)
 			if err != nil {
 				return nil, err
 			}
 			return event, nil
-		case ExceptionMessageType:
+		case eventstream.ExceptionMessageType:
 			return nil, c.deserializeException(schema, types, &msg)
-		case ErrorMessageType:
+		case eventstream.ErrorMessageType:
 			return nil, deserializeError(&msg)
 		default:
 			mc := msg.Clone()
-			return nil, &UnknownMessageError{
+			return nil, &eventstream.UnknownMessageError{
 				Type:    msgType.String(),
 				Message: &mc,
 			}
@@ -95,10 +95,10 @@ func (c *Codec) DeserializeEventMessage(schema *smithy.Schema, types *smithy.Typ
 	}
 }
 
-func (c *Codec) deserializeEvent(schema *smithy.Schema, types *smithy.TypeRegistry, msg *Message) (smithy.Deserializable, error) {
-	eventType := msg.Headers.Get(EventTypeHeader)
+func (c *Codec) deserializeEvent(schema *smithy.Schema, types *smithy.TypeRegistry, msg *eventstream.Message) (smithy.Deserializable, error) {
+	eventType := msg.Headers.Get(eventstream.EventTypeHeader)
 	if eventType == nil {
-		return nil, fmt.Errorf("missing %s header", EventTypeHeader)
+		return nil, fmt.Errorf("missing %s header", eventstream.EventTypeHeader)
 	}
 
 	member := schema.Member(eventType.String())
@@ -116,8 +116,8 @@ func (c *Codec) deserializeEvent(schema *smithy.Schema, types *smithy.TypeRegist
 		return nil, fmt.Errorf("event type %s is not deserializable", eventType.String())
 	}
 
-	inner := c.Codec.Deserializer(msg.Payload)
-	ed := NewShapeDeserializer(msg, inner)
+	inner := c.Deserializer(msg.Payload)
+	ed := eventstream.NewShapeDeserializer(msg, inner)
 	if err := instance.Deserialize(ed); err != nil {
 		return nil, fmt.Errorf("deserialize event %s: %w", eventType.String(), err)
 	}
@@ -125,16 +125,16 @@ func (c *Codec) deserializeEvent(schema *smithy.Schema, types *smithy.TypeRegist
 	return instance, nil
 }
 
-func (c *Codec) unknownEvent(tag string, msg *Message) (*UnknownUnionMember, error) {
+func (c *Codec) unknownEvent(tag string, msg *eventstream.Message) (*eventstream.UnknownUnionMember, error) {
 	var buf bytes.Buffer
 	c.enc().Encode(&buf, *msg)
-	return &UnknownUnionMember{Tag: tag, Value: buf.Bytes()}, nil
+	return &eventstream.UnknownUnionMember{Tag: tag, Value: buf.Bytes()}, nil
 }
 
-func (c *Codec) deserializeException(schema *smithy.Schema, types *smithy.TypeRegistry, msg *Message) error {
-	exType := msg.Headers.Get(ExceptionTypeHeader)
+func (c *Codec) deserializeException(schema *smithy.Schema, types *smithy.TypeRegistry, msg *eventstream.Message) error {
+	exType := msg.Headers.Get(eventstream.ExceptionTypeHeader)
 	if exType == nil {
-		return fmt.Errorf("missing %s header", ExceptionTypeHeader)
+		return fmt.Errorf("missing %s header", eventstream.ExceptionTypeHeader)
 	}
 
 	var id string
@@ -152,8 +152,8 @@ func (c *Codec) deserializeException(schema *smithy.Schema, types *smithy.TypeRe
 		}
 	}
 
-	inner := c.Codec.Deserializer(msg.Payload)
-	ed := NewShapeDeserializer(msg, inner)
+	inner := c.Deserializer(msg.Payload)
+	ed := eventstream.NewShapeDeserializer(msg, inner)
 	if err := perr.Deserialize(ed); err != nil {
 		return fmt.Errorf("deserialize exception %s: %w", exType.String(), err)
 	}
@@ -164,15 +164,15 @@ func (c *Codec) deserializeException(schema *smithy.Schema, types *smithy.TypeRe
 // SerializeInitialRequest serializes the operation input as the first event
 // stream message with :event-type "initial-request".
 func (c *Codec) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error {
-	ss := c.Codec.Serializer()
+	ss := c.Serializer()
 	v.Serialize(ss)
 
-	var msg Message
-	msg.Headers.Set(MessageTypeHeader, StringValue(EventMessageType))
-	msg.Headers.Set(EventTypeHeader, StringValue("initial-request"))
+	var msg eventstream.Message
+	msg.Headers.Set(eventstream.MessageTypeHeader, eventstream.StringValue(eventstream.EventMessageType))
+	msg.Headers.Set(eventstream.EventTypeHeader, eventstream.StringValue("initial-request"))
 	if payload := ss.Bytes(); len(payload) > 0 {
 		msg.Payload = payload
-		msg.Headers.Set(ContentTypeHeader, StringValue(c.ContentType))
+		msg.Headers.Set(eventstream.ContentTypeHeader, eventstream.StringValue(c.ContentType))
 	}
 
 	return c.enc().Encode(w, msg)
@@ -187,13 +187,13 @@ func (c *Codec) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, o
 		return fmt.Errorf("decode initial response: %w", err)
 	}
 
-	eventType := msg.Headers.Get(EventTypeHeader)
+	eventType := msg.Headers.Get(eventstream.EventTypeHeader)
 	if eventType == nil || eventType.String() != "initial-response" {
 		return fmt.Errorf("expected initial-response, got %v", eventType)
 	}
 
 	if len(msg.Payload) > 0 {
-		sd := c.Codec.Deserializer(msg.Payload)
+		sd := c.Deserializer(msg.Payload)
 		if err := out.Deserialize(sd); err != nil {
 			return fmt.Errorf("deserialize initial response: %w", err)
 		}
@@ -202,36 +202,13 @@ func (c *Codec) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, o
 	return nil
 }
 
-// UnknownUnionMember is returned when a union member is returned over the
-// wire, but has an unknown tag.
-type UnknownUnionMember struct {
-	Tag   string
-	Value []byte
-}
-
-// Deserialize is a no-op. The raw bytes are already captured in Value.
-func (*UnknownUnionMember) Deserialize(smithy.ShapeDeserializer) error {
-	return nil
-}
-
-// UnknownMessageError provides an error when a message is received from the
-// stream, but the reader is unable to determine what kind of message it is.
-type UnknownMessageError struct {
-	Type    string
-	Message *Message
-}
-
-func (e *UnknownMessageError) Error() string {
-	return "unknown event stream message type, " + e.Type
-}
-
-func deserializeError(msg *Message) error {
+func deserializeError(msg *eventstream.Message) error {
 	code := "UnknownError"
 	message := code
-	if v := msg.Headers.Get(ErrorCodeHeader); v != nil {
+	if v := msg.Headers.Get(eventstream.ErrorCodeHeader); v != nil {
 		code = v.String()
 	}
-	if v := msg.Headers.Get(ErrorMessageHeader); v != nil {
+	if v := msg.Headers.Get(eventstream.ErrorMessageHeader); v != nil {
 		message = v.String()
 	}
 	return &smithy.GenericAPIError{

@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
-import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
 import software.amazon.smithy.aws.traits.protocols.Ec2QueryTrait;
 import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
@@ -56,7 +55,6 @@ import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.traits.XmlNamespaceTrait;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -266,8 +264,10 @@ final class ServiceGenerator implements Runnable {
 
     private Writable generateExperimentalSerdeResolvers() {
         ensureSupportedProtocol();
-        // TODO(serde2) dynamically resolve a symbol based on traits
-        return goTemplate("options.Protocol = $W", resolveDefaultProtocol());
+        return writer -> {
+            writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+            writer.write("options.Protocol = $W", resolveDefaultProtocol());
+        };
     }
 
     private Writable resolveDefaultProtocol() {
@@ -278,46 +278,29 @@ final class ServiceGenerator implements Runnable {
                 .get();
 
         if (preferred.equals(AwsJson1_0Trait.ID)) {
-            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New"));
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New10"));
         } else if (preferred.equals(AwsJson1_1Trait.ID)) {
-            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11"));
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11"));
         } else if (preferred.equals(RestJson1Trait.ID)) {
-            return goTemplate("$T()", SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New"));
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New"));
         } else if (preferred.equals(Rpcv2CborTrait.ID)) {
-            return goTemplate("$T($W)",
-                    SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.func("NewCBOR"),
-                    service.hasTrait(AwsQueryCompatibleTrait.class)
-                            ? goTemplate("$T", SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.valueSymbol("UseQueryCompatible"))
-                            : emptyGoTemplate()
-            );
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.func("NewCBOR"));
         } else if (preferred.equals(AwsQueryTrait.ID)) {
-            return goTemplate("$T($S)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_AWSQUERY.func("New"),
-                    service.getVersion()
-            );
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_AWSQUERY.func("New"));
         } else if (preferred.equals(Ec2QueryTrait.ID)) {
-            return goTemplate("$T($S)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_EC2QUERY.func("New"),
-                    service.getVersion()
-            );
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_EC2QUERY.func("New"));
         } else if (preferred.equals(RestXmlTrait.ID)) {
-            return restXmlNew();
+            return goTemplate("$T(schemas.Service)",
+                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("New"));
         } else {
             return goTemplate("nil");
         }
-    }
-
-    private Writable restXmlNew() {
-        var ns = service.getTrait(XmlNamespaceTrait.class);
-        if (ns.isEmpty()) {
-            return goTemplate("$T()",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("New"));
-        }
-        var t = ns.get();
-        return goTemplate("$T($S, $S)",
-                SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("NewWithNamespace"),
-                t.getUri(),
-                t.getPrefix().orElse(""));
     }
 
     private Writable generateGetOptions() {

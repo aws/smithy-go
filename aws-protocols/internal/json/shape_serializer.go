@@ -16,13 +16,13 @@ import (
 // ShapeSerializer implements marshaling of Smithy shapes to JSON.
 type ShapeSerializer struct {
 	root *smithyjson.Encoder
-	head stack
+	head jsonStack
 
-	opts ShapeSerializerOptions
+	opts Options
 }
 
-// ShapeSerializerOptions configures ShapeSerializer.
-type ShapeSerializerOptions struct {
+// Options configures JSON shape serialization and deserialization.
+type Options struct {
 	// Controls whether scalar zero values (numbers, strings, bools) are
 	// written. If false (the default), zero values are not encoded.
 	//
@@ -34,7 +34,7 @@ type ShapeSerializerOptions struct {
 	// name is used as-is.
 	//
 	// How this is set in practice depends on the protocol. RPC-style protocols
-	// like awsjson10 ignore @jsonName, REST-style protocols like restjson1
+	// like awsjson ignore @jsonName, REST-style protocols like restjson1
 	// respect it.
 	UseJSONName bool
 }
@@ -42,13 +42,14 @@ type ShapeSerializerOptions struct {
 var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
 
 // NewShapeSerializer creates a new ShapeSerializer.
-func NewShapeSerializer(opts ...func(*ShapeSerializerOptions)) *ShapeSerializer {
-	o := ShapeSerializerOptions{}
+func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
+	o := Options{}
 	for _, fn := range opts {
 		fn(&o)
 	}
 	return &ShapeSerializer{
 		root: smithyjson.NewEncoder(),
+		head: newJSONStack(),
 		opts: o,
 	}
 }
@@ -547,28 +548,32 @@ func (s *ShapeSerializer) writeDocumentRaw(schema *smithy.Schema, p []byte) {
 	}
 }
 
-type stack struct {
+type jsonStack struct {
 	values []any
+}
+
+func newJSONStack() jsonStack {
+	return jsonStack{values: make([]any, 0, 8)}
 }
 
 type empty struct{}
 
-func (s *stack) Top() any {
+func (s *jsonStack) Top() any {
 	if len(s.values) == 0 {
 		return empty{}
 	}
 	return s.values[len(s.values)-1]
 }
 
-func (s *stack) Push(v any) {
+func (s *jsonStack) Push(v any) {
 	s.values = append(s.values, v)
 }
 
-func (s *stack) Pop() {
+func (s *jsonStack) Pop() {
 	s.values = s.values[:len(s.values)-1]
 }
 
-func (s *stack) Len() int {
+func (s *jsonStack) Len() int {
 	return len(s.values)
 }
 

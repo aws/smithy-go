@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"strings"
-
-	"github.com/aws/smithy-go/traits"
 )
 
 // ShapeType is a type of Smithy shape.
@@ -66,10 +64,10 @@ func stoid(s string) ShapeID {
 type Schema struct {
 	id           ShapeID
 	typ          ShapeType
-	members      map[string]*Schema // member name -> schema
-	traits       map[string]Trait   // trait ID -> trait (effective view; for members, target's traits merged with member's overrides)
-	directTraits map[string]Trait   // trait ID -> trait (member schemas only: only traits declared directly on the member)
-	targetID     ShapeID            // for member schemas, the target's shape ID
+	members      map[string]*Schema  // member name -> schema
+	traits       map[ShapeID]Trait   // trait ID -> trait (effective view; for members, target's traits merged with member's overrides)
+	directTraits map[ShapeID]Trait   // trait ID -> trait (member schemas only: only traits declared directly on the member)
+	targetID     ShapeID             // for member schemas, the target's shape ID
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
@@ -77,7 +75,7 @@ type Schema struct {
 
 // NewSchema creates a new Schema with the given shape ID and traits.
 func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Schema {
-	traitMap := make(map[string]Trait, len(traits))
+	traitMap := make(map[ShapeID]Trait, len(traits))
 	for _, t := range traits {
 		traitMap[t.TraitID()] = t
 	}
@@ -98,14 +96,14 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, traits ...Trait) *Sche
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
 func (s *Schema) AddMember(name string, target *Schema, traits ...Trait) *Schema {
-	directs := make(map[string]Trait, len(traits))
+	directs := make(map[ShapeID]Trait, len(traits))
 	for _, t := range traits {
 		directs[t.TraitID()] = t
 	}
 
 	merged := maps.Clone(target.traits)
 	if merged == nil {
-		merged = map[string]Trait{}
+		merged = map[ShapeID]Trait{}
 	}
 	for id, t := range directs {
 		merged[id] = t
@@ -210,6 +208,17 @@ func (s *OperationSchema) IsOutputEventStream() bool {
 	return s.outputStream
 }
 
+// ServiceSchema describes a service shape.
+type ServiceSchema struct {
+	*Schema
+	Version string
+}
+
+// NewServiceSchema returns a ServiceSchema for the given service shape.
+func NewServiceSchema(schema *Schema, version string) *ServiceSchema {
+	return &ServiceSchema{Schema: schema, Version: version}
+}
+
 // SchemaTrait returns the target trait on the schema if it exists.
 //
 // For member schemas this returns the effective trait, which is the trait
@@ -263,7 +272,7 @@ func isEventStream(s *Schema) bool {
 		if m.typ != ShapeTypeUnion {
 			continue
 		}
-		if _, ok := SchemaTrait[*traits.Streaming](m); ok {
+		if _, ok := m.traits[ShapeID{Namespace: "smithy.api", Name: "streaming"}]; ok {
 			return true
 		}
 	}

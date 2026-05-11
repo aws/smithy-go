@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
@@ -76,7 +77,7 @@ type deserCtx struct {
 type ShapeDeserializer struct {
 	dec    *xml.Decoder
 	peeked xml.Token
-	stack  []deserCtx
+	stack  serde.Stack[deserCtx]
 
 	// most recent start element we saw in the token stream, when we go into a
 	// struct context we grab it so we can read any @xmlAttributes
@@ -89,26 +90,9 @@ var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
 // NewShapeDeserializer returns a new ShapeDeserializer.
 func NewShapeDeserializer(p []byte) *ShapeDeserializer {
 	return &ShapeDeserializer{
-		dec: xml.NewDecoder(bytes.NewReader(p)),
+		dec:   xml.NewDecoder(bytes.NewReader(p)),
+		stack: serde.NewStack[deserCtx](),
 	}
-}
-
-func (d *ShapeDeserializer) push(ctx deserCtx) {
-	d.stack = append(d.stack, ctx)
-}
-
-func (d *ShapeDeserializer) pop() deserCtx {
-	n := len(d.stack)
-	v := d.stack[n-1]
-	d.stack = d.stack[:n-1]
-	return v
-}
-
-func (d *ShapeDeserializer) top() *deserCtx {
-	if len(d.stack) == 0 {
-		return nil
-	}
-	return &d.stack[len(d.stack)-1]
 }
 
 func xmlMemberName(schema *smithy.Schema) string {
@@ -139,13 +123,13 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 	}
 
 	start := *d.currStart
-	d.push(deserCtx{kind: ctxKindStruct, schema: s, startElem: start})
+	d.stack.Push(deserCtx{kind: ctxKindStruct, schema: s, startElem: start})
 	return nil
 }
 
 // ReadStructMember implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 	if ctx == nil || ctx.kind != ctxKindStruct {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct")
 	}
@@ -160,7 +144,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 			return nil, err
 		}
 		if !ok {
-			d.pop()
+			d.stack.Pop()
 			return nil, nil
 		}
 
@@ -220,7 +204,7 @@ func findAttrMember(schema *smithy.Schema, elemName string) *smithy.Schema {
 // ReadList implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 	_, flattened := smithy.SchemaTrait[*traits.XMLFlattened](s)
-	d.push(deserCtx{
+	d.stack.Push(deserCtx{
 		kind:      ctxKindList,
 		schema:    s,
 		flattened: flattened,
@@ -231,7 +215,7 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 
 // ReadListItem implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadListItem(_ *smithy.Schema) (bool, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 	if ctx.flattened {
 		return d.readFlatListItem()
 	}
@@ -246,7 +230,7 @@ func (d *ShapeDeserializer) readWrappedListItem() (bool, error) {
 		return false, err
 	}
 	if !ok {
-		d.pop()
+		d.stack.Pop()
 		return false, nil
 	}
 
@@ -254,7 +238,7 @@ func (d *ShapeDeserializer) readWrappedListItem() (bool, error) {
 }
 
 func (d *ShapeDeserializer) readFlatListItem() (bool, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 	if ctx.first {
 		ctx.first = false
 		return true, nil
@@ -275,11 +259,11 @@ func (d *ShapeDeserializer) readFlatListItem() (bool, error) {
 			}
 
 			d.peeked = t
-			d.pop()
+			d.stack.Pop()
 			return false, nil
 		case xml.EndElement:
 			d.peeked = t
-			d.pop()
+			d.stack.Pop()
 			return false, nil
 		}
 	}
@@ -288,7 +272,7 @@ func (d *ShapeDeserializer) readFlatListItem() (bool, error) {
 // ReadMap implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 	_, flattened := smithy.SchemaTrait[*traits.XMLFlattened](s)
-	d.push(deserCtx{
+	d.stack.Push(deserCtx{
 		kind:      ctxKindMap,
 		schema:    s,
 		flattened: flattened,
@@ -299,7 +283,7 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 
 // ReadMapKey implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMapKey(ks *smithy.Schema) (string, bool, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 	if ctx.inMapEntry {
 		ctx.inMapEntry = false
 		if _, _, err := d.nextStart(); err != nil {
@@ -323,7 +307,7 @@ func (d *ShapeDeserializer) readWrappedMapKey(ks, vs *smithy.Schema) (string, bo
 			return "", false, err
 		}
 		if !a {
-			d.pop()
+			d.stack.Pop()
 			return "", false, nil
 		}
 
@@ -340,7 +324,7 @@ func (d *ShapeDeserializer) readWrappedMapKey(ks, vs *smithy.Schema) (string, bo
 }
 
 func (d *ShapeDeserializer) readFlatMapKey(ks, vs *smithy.Schema) (string, bool, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 	if ctx.first {
 		ctx.first = false
 		return d.readEntry(ks, vs)
@@ -360,18 +344,18 @@ func (d *ShapeDeserializer) readFlatMapKey(ks, vs *smithy.Schema) (string, bool,
 			}
 
 			d.peeked = t
-			d.pop()
+			d.stack.Pop()
 			return "", false, nil
 		case xml.EndElement:
 			d.peeked = t
-			d.pop()
+			d.stack.Pop()
 			return "", false, nil
 		}
 	}
 }
 
 func (d *ShapeDeserializer) readEntry(ks, vs *smithy.Schema) (string, bool, error) {
-	ctx := d.top()
+	ctx := d.stack.Top()
 
 	kname := "key"
 	if xn, ok := smithy.SchemaDirectTrait[*traits.XMLName](ks); ok {

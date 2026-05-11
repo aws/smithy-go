@@ -10,16 +10,24 @@ import (
 	"github.com/aws/smithy-go"
 	internalhttpbinding "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
 	internaljson "github.com/aws/smithy-go/aws-protocols/internal/json"
-	"github.com/aws/smithy-go/eventstream"
+	internales "github.com/aws/smithy-go/internal/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
+// ProtocolOptions configures aws.protocols#restJson1.
+type ProtocolOptions struct{}
+
 // New returns an instance of the aws.protocols#restJson1 protocol.
-func New() *Protocol {
+func New(_ *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
 	return &Protocol{
-		Codec: &eventstream.Codec{
-			Codec:       &internaljson.Codec{},
+		Codec: &internales.Codec{
+			Serializer:  func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
 			ContentType: "application/json",
 		},
 	}
@@ -27,14 +35,14 @@ func New() *Protocol {
 
 // Protocol implements aws.protocols#restJson1.
 type Protocol struct {
-	*eventstream.Codec
+	*internales.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
 // ID identifies the protocol.
-func (*Protocol) ID() string {
-	return "aws.protocols#restJson1"
+func (*Protocol) ID() smithy.ShapeID {
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "restJson1"}
 }
 
 // SerializeRequest serializes a request for restJson1.
@@ -44,7 +52,7 @@ func (p *Protocol) SerializeRequest(
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
-	serializer, err := internalhttpbinding.NewShapeSerializer(op.Schema, req, internaljson.NewShapeSerializer(sUseJSONName))
+	serializer, err := internalhttpbinding.NewShapeSerializer(op.Schema, req, internaljson.NewShapeSerializer(useJSONName))
 	if err != nil {
 		return err
 	}
@@ -172,14 +180,9 @@ func bd(payload []byte) smithy.ShapeDeserializer {
 	if len(payload) == 0 {
 		payload = []byte("{}")
 	}
-	return internaljson.NewShapeDeserializer(payload, dUseJSONName)
+	return internaljson.NewShapeDeserializer(payload, useJSONName)
 }
 
-// TODO(serde2): can we just have one struct?
-func sUseJSONName(o *internaljson.ShapeSerializerOptions) {
-	o.UseJSONName = true
-}
-
-func dUseJSONName(o *internaljson.ShapeDeserializerOptions) {
+func useJSONName(o *internaljson.Options) {
 	o.UseJSONName = true
 }
