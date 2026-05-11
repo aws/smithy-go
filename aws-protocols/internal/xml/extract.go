@@ -7,9 +7,8 @@ import (
 )
 
 // ExtractElement finds the first occurrence of the named element in the XML
-// and returns its content as raw bytes. If preserveEnclosing is true, the
-// matched element's opening and closing tags (with attributes) are included
-// in the result; otherwise only the inner content is returned.
+// and returns it as raw bytes, including the element's opening and closing
+// tags.
 //
 // This is used to extract both success and error responses from the protocol
 // XML that wraps them.
@@ -24,18 +23,14 @@ import (
 //	 	</XmlListsResult>
 //	</XmlListsResponse>
 //
-// ExtractElement(payload, "XmlListsResult", false) yields:
-//
-//	<member1>foo</member1>...
-//
-// ExtractElement(payload, "XmlListsResult", true) yields:
+// ExtractElement(payload, "XmlListsResult") yields:
 //
 //	<XmlListsResult><member1>foo</member1>...</XmlListsResult>
 //
 // ExtractElement will forward the io.EOF returned by the underlying decoder
 // if the target element is not found, which the caller can index on if
 // they're looking for an optional element.
-func ExtractElement(payload []byte, name string, preserveEnclosing bool) ([]byte, error) {
+func ExtractElement(payload []byte, name string) ([]byte, error) {
 	dec := xml.NewDecoder(bytes.NewReader(payload))
 	for {
 		tok, err := dec.Token()
@@ -46,10 +41,6 @@ func ExtractElement(payload []byte, name string, preserveEnclosing bool) ([]byte
 		start, ok := tok.(xml.StartElement)
 		if !ok || !strings.EqualFold(start.Name.Local, name) {
 			continue
-		}
-
-		if !preserveEnclosing {
-			return extract(dec)
 		}
 
 		var buf bytes.Buffer
@@ -83,33 +74,4 @@ func ExtractElement(payload []byte, name string, preserveEnclosing bool) ([]byte
 		}
 		return buf.Bytes(), nil
 	}
-}
-
-func extract(dec *xml.Decoder) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := xml.NewEncoder(&buf)
-	depth := 1
-
-	for depth > 0 {
-		tok, err := dec.Token()
-		if err != nil {
-			return nil, err
-		}
-
-		switch t := tok.(type) {
-		case xml.StartElement:
-			depth++
-			enc.EncodeToken(t)
-		case xml.EndElement:
-			depth--
-			if depth > 0 {
-				enc.EncodeToken(t)
-			}
-		case xml.CharData:
-			enc.EncodeToken(t)
-		}
-	}
-
-	enc.Flush()
-	return buf.Bytes(), nil
 }
