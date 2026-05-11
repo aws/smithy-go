@@ -4,11 +4,13 @@ import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
+import java.util.Optional;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
@@ -47,6 +49,18 @@ public class SchemaGenerator implements Writable {
         return String.format("%s_%s", getSchemaName(shape, service), member.getMemberName());
     }
 
+    // modelShapeID returns the original model shape ID, preferring the
+    // Synthetic trait's archetype (if any) so that synthetic clones of Input /
+    // Output inline shapes carry the Smithy model's shape ID rather than the
+    // Go-codegen synthetic ID.
+    private static ShapeId modelShapeID(Shape shape) {
+        Optional<Synthetic> synth = shape.getTrait(Synthetic.class);
+        if (synth.isPresent() && synth.get().getArchetype().isPresent()) {
+            return synth.get().getArchetype().get();
+        }
+        return shape.getId();
+    }
+
     // Returns the schema reference for use outside the schemas package (e.g. in
     // serde generators). Prelude shapes are already package-qualified, local
     // shapes get the "schemas." prefix.
@@ -70,6 +84,7 @@ public class SchemaGenerator implements Writable {
             return;
         }
         var service = ctx.service();
+        var modelID = modelShapeID(shape);
         writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.writeGoTemplate("""
                         var $ident:L = smithy.NewSchema(smithy.ShapeID{
@@ -80,8 +95,8 @@ public class SchemaGenerator implements Writable {
                         """,
                 Map.of(
                         "ident", getSchemaName(shape, service),
-                        "namespace", shape.getId().getNamespace(),
-                        "name", shape.getId().getName(),
+                        "namespace", modelID.getNamespace(),
+                        "name", modelID.getName(),
                         "type", StringUtils.capitalize(shape.getType().toString()),
                         "numMembers", shape.members().size(),
                         "traits", renderVariadicTraits(shape.getAllTraits().values()),
