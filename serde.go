@@ -9,13 +9,6 @@ import (
 	"github.com/aws/smithy-go/document"
 )
 
-// Codec provides implementations of Serializer and ShapeDeserializer to be
-// used by a Protocol.
-type Codec interface {
-	Serializer() ShapeSerializer
-	Deserializer([]byte) ShapeDeserializer
-}
-
 // ShapeSerializer implements the marshaling of an in-code representation of a
 // shape to an unspecified data format, which is determined by the
 // implementation.
@@ -193,17 +186,12 @@ func ReadStruct(d ShapeDeserializer, schema *Schema, memberFn func(*Schema) erro
 
 	for {
 		ms, err := d.ReadStructMember()
-		if ms == nil {
-			return nil
-		}
-
-		// TODO(serde2): err check should be first. ran into this with XML
-		// because of how that shape deserializer operates on innerXML, you get
-		// a guaranteed EOF in the end, but I have explicitly swallowed that
-		// EOF there when it's on the outer struct since that's how that
-		// deserializer has to work
 		if err != nil {
 			return err
+		}
+
+		if ms == nil {
+			return nil
 		}
 
 		if err := memberFn(ms); err != nil {

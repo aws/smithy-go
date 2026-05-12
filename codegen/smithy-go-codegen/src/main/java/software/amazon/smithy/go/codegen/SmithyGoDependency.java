@@ -85,7 +85,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_METRICS = smithy("metrics");
 
     public static final GoDependency SMITHY_AWS_PROTOCOLS = smithy("aws-protocols");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_JSON10 = smithy("aws-protocols/awsjson10");
+    public static final GoDependency SMITHY_AWS_PROTOCOLS_JSON10 = smithy("aws-protocols/awsjson");
     public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTJSON1 = smithy("aws-protocols/restjson1");
     public static final GoDependency SMITHY_AWS_PROTOCOLS_AWSQUERY = smithy("aws-protocols/awsquery");
     public static final GoDependency SMITHY_AWS_PROTOCOLS_EC2QUERY = smithy("aws-protocols/ec2query");

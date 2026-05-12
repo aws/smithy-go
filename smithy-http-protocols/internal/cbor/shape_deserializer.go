@@ -10,6 +10,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
 	smithycbor "github.com/aws/smithy-go/encoding/cbor"
+	"github.com/aws/smithy-go/internal/serde"
 )
 
 var errUnexpectedEOF = errors.New("unexpected end of CBOR data")
@@ -18,7 +19,7 @@ var errUnexpectedEOF = errors.New("unexpected end of CBOR data")
 type ShapeDeserializer struct {
 	p    []byte
 	off  int
-	head deserStack
+	head serde.Stack[deserCtx]
 	opts ShapeDeserializerOptions
 }
 
@@ -37,25 +38,6 @@ type deserCtx struct {
 	remaining int
 }
 
-type deserStack struct {
-	values []deserCtx
-}
-
-func (s *deserStack) top() *deserCtx {
-	if len(s.values) == 0 {
-		return nil
-	}
-	return &s.values[len(s.values)-1]
-}
-
-func (s *deserStack) push(v deserCtx) {
-	s.values = append(s.values, v)
-}
-
-func (s *deserStack) pop() {
-	s.values = s.values[:len(s.values)-1]
-}
-
 // ShapeDeserializerOptions configures ShapeDeserializer.
 type ShapeDeserializerOptions struct{}
 
@@ -67,7 +49,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*ShapeDeserializerOptions)) *Sh
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &ShapeDeserializer{p: p, opts: o}
+	return &ShapeDeserializer{p: p, head: serde.NewStack[deserCtx](), opts: o}
 }
 
 func (d *ShapeDeserializer) eof() bool {
@@ -433,20 +415,20 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 	}
 	if d.peekMinor() == minorIndefinite {
 		d.off++
-		d.head.push(deserCtx{kind: deserCtxList, remaining: -1})
+		d.head.Push(deserCtx{kind: deserCtxList, remaining: -1})
 		return nil
 	}
 	count, err := d.readArg()
 	if err != nil {
 		return err
 	}
-	d.head.push(deserCtx{kind: deserCtxList, remaining: int(count)})
+	d.head.Push(deserCtx{kind: deserCtxList, remaining: int(count)})
 	return nil
 }
 
 // ReadListItem implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
-	lc := d.head.top()
+	lc := d.head.Top()
 	if lc == nil || lc.kind != deserCtxList {
 		return false, fmt.Errorf("ReadListItem called without ReadList")
 	}
@@ -454,13 +436,13 @@ func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 	if lc.remaining == -1 {
 		if d.off < len(d.p) && d.p[d.off] == 0xff {
 			d.off++
-			d.head.pop()
+			d.head.Pop()
 			return false, nil
 		}
 		return true, nil
 	}
 	if lc.remaining <= 0 {
-		d.head.pop()
+		d.head.Pop()
 		return false, nil
 	}
 	lc.remaining--
@@ -478,20 +460,20 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 	}
 	if d.peekMinor() == minorIndefinite {
 		d.off++
-		d.head.push(deserCtx{kind: deserCtxMap, remaining: -1})
+		d.head.Push(deserCtx{kind: deserCtxMap, remaining: -1})
 		return nil
 	}
 	count, err := d.readArg()
 	if err != nil {
 		return err
 	}
-	d.head.push(deserCtx{kind: deserCtxMap, remaining: int(count)})
+	d.head.Push(deserCtx{kind: deserCtxMap, remaining: int(count)})
 	return nil
 }
 
 // ReadMapKey implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
-	mc := d.head.top()
+	mc := d.head.Top()
 	if mc == nil || mc.kind != deserCtxMap {
 		return "", false, errors.New("ReadMapKey called without ReadMap")
 	}
@@ -499,12 +481,12 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	if mc.remaining == -1 {
 		if d.off < len(d.p) && d.p[d.off] == 0xff {
 			d.off++
-			d.head.pop()
+			d.head.Pop()
 			return "", false, nil
 		}
 	} else {
 		if mc.remaining <= 0 {
-			d.head.pop()
+			d.head.Pop()
 			return "", false, nil
 		}
 		mc.remaining--
@@ -528,20 +510,20 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 	}
 	if d.peekMinor() == minorIndefinite {
 		d.off++
-		d.head.push(deserCtx{kind: deserCtxStruct, schema: s, remaining: -1})
+		d.head.Push(deserCtx{kind: deserCtxStruct, schema: s, remaining: -1})
 		return nil
 	}
 	count, err := d.readArg()
 	if err != nil {
 		return err
 	}
-	d.head.push(deserCtx{kind: deserCtxStruct, schema: s, remaining: int(count)})
+	d.head.Push(deserCtx{kind: deserCtxStruct, schema: s, remaining: int(count)})
 	return nil
 }
 
 // ReadStructMember implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
-	sc := d.head.top()
+	sc := d.head.Top()
 	if sc == nil || sc.kind != deserCtxStruct {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct")
 	}
@@ -549,12 +531,12 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	if sc.remaining == -1 {
 		if d.off < len(d.p) && d.p[d.off] == 0xff {
 			d.off++
-			d.head.pop()
+			d.head.Pop()
 			return nil, nil
 		}
 	} else {
 		if sc.remaining <= 0 {
-			d.head.pop()
+			d.head.Pop()
 			return nil, nil
 		}
 		sc.remaining--
@@ -578,7 +560,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	top := d.head.top()
+	top := d.head.Top()
 	if top == nil || top.kind != deserCtxUnion { // first call: open the map
 		if d.eof() {
 			return nil, errUnexpectedEOF
@@ -588,26 +570,26 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		}
 		if d.peekMinor() == minorIndefinite {
 			d.off++
-			d.head.push(deserCtx{kind: deserCtxUnion, schema: s, remaining: -1})
+			d.head.Push(deserCtx{kind: deserCtxUnion, schema: s, remaining: -1})
 		} else {
 			count, err := d.readArg()
 			if err != nil {
 				return nil, err
 			}
-			d.head.push(deserCtx{kind: deserCtxUnion, schema: s, remaining: int(count)})
+			d.head.Push(deserCtx{kind: deserCtxUnion, schema: s, remaining: int(count)})
 		}
 	}
 
-	uc := d.head.top()
+	uc := d.head.Top()
 	for {
 		if uc.remaining == -1 {
 			if d.off < len(d.p) && d.p[d.off] == 0xff {
 				d.off++
-				d.head.pop()
+				d.head.Pop()
 				return nil, nil
 			}
 		} else if uc.remaining <= 0 {
-			d.head.pop()
+			d.head.Pop()
 			return nil, nil
 		} else {
 			uc.remaining--

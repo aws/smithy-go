@@ -1,4 +1,4 @@
-package awsjson10
+package awsjson
 
 import (
 	"bytes"
@@ -9,54 +9,73 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
-	"github.com/aws/smithy-go/eventstream"
+	internaljson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalerrors "github.com/aws/smithy-go/internal/errors"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// New returns an instance of the awsJson 1.0 protocol.
-func New() *Protocol {
+// ProtocolOptions configures aws.protocols#awsJson1_0.
+type ProtocolOptions struct{}
+
+// New10 returns an instance of the awsJson 1.0 protocol.
+func New10(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
 	return &Protocol{
-		version: "1.0",
-		Codec: &eventstream.Codec{
-			Codec:       &awsjson.Codec{},
-			ContentType: "application/json",
+		version:         "1.0",
+		queryCompatible: qc,
+		serviceName:     service.Schema.ID().Name,
+		Codec: &internales.Codec{
+			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			ContentType:  "application/json",
 		},
 	}
 }
 
 // New11 returns an instance of the awsJson 1.1 protocol.
-//
-// TODO(serde2): figure out how we want to organize awsjson10 vs 11
-// TODO(serde2): this doesn't do query compatible yet
-func New11() *Protocol {
+func New11(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
 	return &Protocol{
-		version: "1.1",
-		Codec: &eventstream.Codec{
-			Codec:       &awsjson.Codec{},
-			ContentType: "application/json",
+		version:         "1.1",
+		queryCompatible: qc,
+		serviceName:     service.Schema.ID().Name,
+		Codec: &internales.Codec{
+			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			ContentType:  "application/json",
 		},
 	}
 }
 
-// Protocol implements aws.protocols#awsJson10.
+// Protocol implements aws.protocols#awsJson1_0 and aws.protocols#awsJson1_1.
 type Protocol struct {
-	version            string
-	UseQueryCompatible bool
+	version         string
+	queryCompatible bool
+	serviceName     string
 
-	*eventstream.Codec
+	*internales.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
 // ID identifies the protocol.
-func (p *Protocol) ID() string {
+func (p *Protocol) ID() smithy.ShapeID {
 	if p.version == "1.1" {
-		return "aws.protocols#awsJson1_1"
+		return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsJson1_1"}
 	}
-	return "aws.protocols#awsJson1_0"
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsJson1_0"}
 }
 
 // SerializeRequest serializes a request for AWS Json 1.0.
@@ -67,18 +86,18 @@ func (p *Protocol) SerializeRequest(
 	req *smithyhttp.Request,
 ) error {
 	req.Method = http.MethodPost
-	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", middleware.GetServiceName(ctx), middleware.GetOperationName(ctx)))
+	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", p.serviceName, middleware.GetOperationName(ctx)))
 	if schema.IsInputEventStream() {
 		req.Header.Set("Content-Type", "application/vnd.amazon.eventstream")
 		return nil
 	}
 
 	req.Header.Set("Content-Type", "application/x-amz-json-"+p.version)
-	if p.UseQueryCompatible {
-		req.Header.Set("X-Amzn-Query-Compatible", "true")
+	if p.queryCompatible {
+		req.Header.Set("X-Amzn-Query-Mode", "true")
 	}
 
-	ss := awsjson.NewShapeSerializer()
+	ss := internaljson.NewShapeSerializer()
 	in.Serialize(ss)
 
 	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
@@ -115,7 +134,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	sd := awsjson.NewShapeDeserializer(payload)
+	sd := internaljson.NewShapeDeserializer(payload)
 	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
@@ -150,7 +169,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	body := io.TeeReader(errorBody, ringBuffer)
 	decoder := json.NewDecoder(body)
 	decoder.UseNumber()
-	bodyInfo, err := awsjson.GetProtocolErrorInfo(decoder)
+	bodyInfo, err := internaljson.GetProtocolErrorInfo(decoder)
 	if err != nil {
 		var snapshot bytes.Buffer
 		io.Copy(&snapshot, ringBuffer)
@@ -162,31 +181,46 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	}
 
 	errorBody.Seek(0, io.SeekStart)
-	if typ, ok := awsjson.ResolveProtocolErrorType(headerCode, bodyInfo); ok {
+	if typ, ok := internaljson.ResolveProtocolErrorType(headerCode, bodyInfo); ok {
 		errorCode = typ
 	}
 	if len(bodyInfo.Message) != 0 {
 		errorMessage = bodyInfo.Message
 	}
 
-	errorCode = awsjson.SanitizeErrorCode(errorCode)
+	errorCode = internaljson.SanitizeErrorCode(errorCode)
+
+	var queryCode string
+	var queryFault smithy.ErrorFault
+	if p.queryCompatible {
+		queryHeader := response.Header.Get("X-Amzn-Query-Error")
+		queryCode, queryFault = internalerrors.ParseQueryError(queryHeader)
+	}
 
 	perr, ok := types.DeserializableError(errorCode)
 	if !ok {
-		return &smithy.GenericAPIError{
-			Code:    errorCode,
-			Message: errorMessage,
+		code := errorCode
+		if queryCode != "" {
+			code = queryCode
 		}
-
+		return &smithy.GenericAPIError{
+			Code:    code,
+			Message: errorMessage,
+			Fault:   queryFault,
+		}
 	}
 
 	errorBody.Seek(0, io.SeekStart)
 	errorBytes, _ := io.ReadAll(errorBody)
 	if len(errorBytes) > 0 {
-		deser := awsjson.NewShapeDeserializer(errorBytes)
+		deser := internaljson.NewShapeDeserializer(errorBytes)
 		if err := perr.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
 		}
+	}
+
+	if queryCode != "" {
+		internalerrors.SetErrorCodeOverride(perr, queryCode)
 	}
 
 	return perr

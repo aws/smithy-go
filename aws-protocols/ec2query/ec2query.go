@@ -1,39 +1,45 @@
 package ec2query
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"bytes"
 
 	"github.com/aws/smithy-go"
 	internalquery "github.com/aws/smithy-go/aws-protocols/internal/query"
 	internalxml "github.com/aws/smithy-go/aws-protocols/internal/xml"
-	"github.com/aws/smithy-go/eventstream"
+	internales "github.com/aws/smithy-go/internal/eventstream"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
+// ProtocolOptions configures aws.protocols#ec2Query.
+type ProtocolOptions struct{}
+
 // Protocol implements aws.protocols#ec2Query.
 type Protocol struct {
-	eventstream.NoEventStream
+	internales.NoEventStream
 
-	// Service API version (e.g. "2016-11-15"), sent as the "Version"
-	// parameter in every request.
-	Version string
+	version string
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
-// New returns an instance of the ec2Query protocol.
-func New(version string) *Protocol {
-	return &Protocol{Version: version}
+// New returns an instance of the ec2Query protocol. The service version is
+// pulled from the ServiceVersion trait on the service schema.
+func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	return &Protocol{version: service.Version}
 }
 
 // ID identifies the protocol.
-func (*Protocol) ID() string {
-	return "aws.protocols#ec2Query"
+func (*Protocol) ID() smithy.ShapeID {
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "ec2Query"}
 }
 
 // SerializeRequest serializes a request for ec2Query.
@@ -46,7 +52,7 @@ func (p *Protocol) SerializeRequest(
 	req.Method = http.MethodPost
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.Version,
+	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version,
 		func(o *internalquery.ShapeSerializerOptions) { o.EC2Mode = true },
 	)
 	in.Serialize(ss)

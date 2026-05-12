@@ -1,12 +1,14 @@
 package traits
 
+import smithy "github.com/aws/smithy-go"
+
 // JSONName represents smithy.api#jsonName.
 type JSONName struct {
 	Name string
 }
 
 // TraitID identifies the trait.
-func (*JSONName) TraitID() string { return "smithy.api#jsonName" }
+func (*JSONName) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "jsonName"} }
 
 // MediaType represents smithy.api#mediaType.
 type MediaType struct {
@@ -14,7 +16,7 @@ type MediaType struct {
 }
 
 // TraitID identifies the trait.
-func (*MediaType) TraitID() string { return "smithy.api#mediaType" }
+func (*MediaType) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "mediaType"} }
 
 // TimestampFormat represents smithy.api#timestampFormat.
 type TimestampFormat struct {
@@ -22,19 +24,19 @@ type TimestampFormat struct {
 }
 
 // TraitID identifies the trait.
-func (*TimestampFormat) TraitID() string { return "smithy.api#timestampFormat" }
+func (*TimestampFormat) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "timestampFormat"} }
 
 // XMLAttribute represents smithy.api#xmlAttribute.
 type XMLAttribute struct{}
 
 // TraitID identifies the trait.
-func (*XMLAttribute) TraitID() string { return "smithy.api#xmlAttribute" }
+func (*XMLAttribute) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "xmlAttribute"} }
 
 // XMLFlattened represents smithy.api#xmlFlattened.
 type XMLFlattened struct{}
 
 // TraitID identifies the trait.
-func (*XMLFlattened) TraitID() string { return "smithy.api#xmlFlattened" }
+func (*XMLFlattened) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "xmlFlattened"} }
 
 // XMLName represents smithy.api#xmlName.
 type XMLName struct {
@@ -42,7 +44,7 @@ type XMLName struct {
 }
 
 // TraitID identifies the trait.
-func (*XMLName) TraitID() string { return "smithy.api#xmlName" }
+func (*XMLName) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "xmlName"} }
 
 // XMLNamespace represents smithy.api#xmlNamespace.
 type XMLNamespace struct {
@@ -51,4 +53,4 @@ type XMLNamespace struct {
 }
 
 // TraitID identifies the trait.
-func (*XMLNamespace) TraitID() string { return "smithy.api#xmlNamespace" }
+func (*XMLNamespace) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "xmlNamespace"} }
