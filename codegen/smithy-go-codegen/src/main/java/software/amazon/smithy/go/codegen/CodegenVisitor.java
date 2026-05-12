@@ -295,6 +295,16 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     new SchemaGenerator(ctx, op).accept(writer);
                 }
 
+                // Generate the service schema: first the underlying *Schema
+                // (which carries traits like xmlNamespace), then wrap it in
+                // NewServiceSchema with the service version.
+                new SchemaGenerator(ctx, service).accept(writer);
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.write("var Service = smithy.NewServiceSchema($L, $S)",
+                        SchemaGenerator.getSchemaName(service, service),
+                        service.getVersion());
+                writer.write("");
+
                 writer.write("");
                 writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
                 writer.openBlock("func init() {", "}", () -> {

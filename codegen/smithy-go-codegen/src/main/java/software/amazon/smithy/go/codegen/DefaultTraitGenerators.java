@@ -4,6 +4,7 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRAITS
 
 import java.util.HashMap;
 import java.util.Map;
+import software.amazon.smithy.aws.traits.protocols.AwsQueryCompatibleTrait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryErrorTrait;
 import software.amazon.smithy.aws.traits.protocols.Ec2QueryNameTrait;
 import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
@@ -84,6 +85,7 @@ public class DefaultTraitGenerators {
         GENERATORS.put(AwsQueryErrorTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("AWSQueryError"),
                 "ErrorCode", AwsQueryErrorTrait::getCode,
                 "StatusCode", AwsQueryErrorTrait::getHttpResponseCode));
+        GENERATORS.put(AwsQueryCompatibleTrait.ID, new SimpleTraitGenerator<AwsQueryCompatibleTrait>(SMITHY_TRAITS.struct("AWSQueryCompatible")));
         GENERATORS.put(Ec2QueryNameTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("EC2QueryName"),
                 "Name", Ec2QueryNameTrait::getValue));
 

@@ -3,6 +3,7 @@ package software.amazon.smithy.go.codegen;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.Map;
+import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 public class TypeRegistry implements Writable {
@@ -17,6 +18,9 @@ public class TypeRegistry implements Writable {
         var shapes = ctx.serdeShapes(StructureShape.class).stream().toList();
 
         writer.addUseImports(SmithyGoDependency.SMITHY);
+        if (shapes.stream().anyMatch(Prelude::isPublicPreludeShape)) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PRELUDE);
+        }
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
         writer.writeGoTemplate("""
                 // TypeRegistry is the type registry for this service.
@@ -31,8 +35,8 @@ public class TypeRegistry implements Writable {
     private Writable renderEntry(StructureShape shape) {
         return goTemplate("""
                 $S: &smithy.TypeRegistryEntry{
-                    Schema: schemas.$L,
+                    Schema: $L,
                     New: func() any { return &$T{} },
-                },""", shape.getId().toString(), SchemaGenerator.getSchemaName(shape, ctx.service()), ctx.symbolProvider().toSymbol(shape));
+                },""", shape.getId().toString(), SchemaGenerator.getSchemaRef(shape, ctx.service()), ctx.symbolProvider().toSymbol(shape));
     }
 }

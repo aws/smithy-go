@@ -18,8 +18,8 @@ import (
 // ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
 type ShapeDeserializer struct {
 	dec  *json.Decoder
-	head stack
-	opts ShapeDeserializerOptions
+	head jsonStack
+	opts Options
 
 	// json.Decoder does not have a Peek() but we need to be able to
 	// "lookahead" for conditionally pulling a null token out in ReadNil.
@@ -27,24 +27,15 @@ type ShapeDeserializer struct {
 	hasPeek bool
 }
 
-// ShapeDeserializerOptions configures ShapeDeserializer.
-type ShapeDeserializerOptions struct {
-	// UseJSONName controls whether the @jsonName trait is used to
-	// match JSON object keys to struct members. If false (the default),
-	// only the member name is used. Protocols like restJson1 set this
-	// to true, while RPC protocols like awsJson1_0 leave it false.
-	UseJSONName bool
-}
-
 // NewShapeDeserializer creates a new ShapeDeserializer.
-func NewShapeDeserializer(p []byte, opts ...func(*ShapeDeserializerOptions)) *ShapeDeserializer {
-	o := ShapeDeserializerOptions{}
+func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
+	o := Options{}
 	for _, fn := range opts {
 		fn(&o)
 	}
 	dec := json.NewDecoder(bytes.NewReader(p))
 	dec.UseNumber()
-	return &ShapeDeserializer{dec: dec, opts: o}
+	return &ShapeDeserializer{dec: dec, head: newJSONStack(), opts: o}
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
