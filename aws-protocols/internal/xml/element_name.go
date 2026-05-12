@@ -17,7 +17,7 @@ func (s *ShapeSerializer) ename(schema *smithy.Schema) string {
 	// we don't use the one on the target
 	if t, ok := smithy.SchemaDirectTrait[*traits.XMLName](schema); ok {
 		return t.Name
-	} else if len(s.stack) == 0 { // the root
+	} else if s.stack.Len() == 0 { // the root
 		return schema.ID().Name
 	}
 
@@ -26,7 +26,7 @@ func (s *ShapeSerializer) ename(schema *smithy.Schema) string {
 
 // wraps ename to check for the context of "am i in a list or map"
 func (s *ShapeSerializer) ctxEname(schema *smithy.Schema) string {
-	if top := s.top(); top != nil {
+	if top := s.stack.Top(); top != nil {
 		switch top.kind {
 		case ctxKindList:
 			return top.itemName
@@ -58,7 +58,7 @@ func (s *ShapeSerializer) structEname(schema *smithy.Schema) string {
 
 // resolution for @xmlNamespace, which is generally sane
 func (s *ShapeSerializer) xmlns(schema *smithy.Schema) *traits.XMLNamespace {
-	if top := s.top(); top != nil {
+	if top := s.stack.Top(); top != nil {
 		switch {
 		case top.flat && (top.kind == ctxKindList || top.kind == ctxKindMap):
 			// flattened lists/maps have no wrapper, inherit the

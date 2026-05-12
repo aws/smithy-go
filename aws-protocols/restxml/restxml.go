@@ -9,50 +9,57 @@ import (
 	"github.com/aws/smithy-go"
 	internalhttpbinding "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
 	internalxml "github.com/aws/smithy-go/aws-protocols/internal/xml"
-	"github.com/aws/smithy-go/eventstream"
+	internales "github.com/aws/smithy-go/internal/eventstream"
+	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Protocol implements aws.protocols#restXml.
 type Protocol struct {
-	*eventstream.Codec
+	*internales.Codec
 
 	seropts func(*internalxml.ShapeSerializerOptions)
 }
 
+// ProtocolOptions configures aws.protocols#restXml.
+type ProtocolOptions struct{}
+
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
-// New returns an instance of the aws.protocols#restXml protocol.
-func New() *Protocol {
-	return &Protocol{
-		Codec: &eventstream.Codec{
-			Codec:       internalxml.NewCodec(),
-			ContentType: "application/xml",
-		},
+// New returns an instance of the aws.protocols#restXml protocol. If the
+// service schema carries an xmlNamespace trait, it is applied as the root
+// xmlns attribute on serialized request bodies.
+func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
 	}
-}
+	var xmlOpts func(*internalxml.ShapeSerializerOptions)
+	if ns, ok := smithy.SchemaTrait[*traits.XMLNamespace](service.Schema); ok {
+		xmlOpts = func(o *internalxml.ShapeSerializerOptions) {
+			o.RootNamespaceURI = ns.URI
+			o.RootNamespacePrefix = ns.Prefix
+		}
+	}
 
-// NewWithNamespace returns an instance of the aws.protocols#restXml protocol
-// configured with the given XML namespace URI (and optional prefix) to emit
-// as an xmlns attribute on the request body's root element. Corresponds to
-// the service-level @xmlNamespace trait.
-func NewWithNamespace(uri, prefix string) *Protocol {
-	xmlOpts := func(o *internalxml.ShapeSerializerOptions) {
-		o.RootNamespaceURI = uri
-		o.RootNamespacePrefix = prefix
-	}
 	return &Protocol{
-		Codec: &eventstream.Codec{
-			Codec:       internalxml.NewCodec(xmlOpts),
-			ContentType: "application/xml",
+		Codec: &internales.Codec{
+			Serializer: func() smithy.ShapeSerializer {
+				if xmlOpts != nil {
+					return internalxml.NewShapeSerializer(xmlOpts)
+				}
+				return internalxml.NewShapeSerializer()
+			},
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internalxml.NewShapeDeserializer(p) },
+			ContentType:  "application/xml",
 		},
 		seropts: xmlOpts,
 	}
 }
 
 // ID identifies the protocol.
-func (*Protocol) ID() string {
-	return "aws.protocols#restXml"
+func (*Protocol) ID() smithy.ShapeID {
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "restXml"}
 }
 
 // HasInitialEventMessage implements [smithyhttp.ClientProtocol].
