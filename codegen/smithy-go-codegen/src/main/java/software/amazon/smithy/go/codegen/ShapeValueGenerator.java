@@ -111,6 +111,17 @@ public final class ShapeValueGenerator {
     }
 
     /**
+     * Writes a non-pointable structure shape value inline (no leading &amp;).
+     */
+    public void writeStructureShapeValueInline(GoWriter writer, StructureShape shape, Node params) {
+        Symbol symbol = symbolProvider.toSymbol(shape);
+        writer.write("$T{", symbol);
+        params.accept(new ShapeValueNodeVisitor(writer, this, shape, ListUtils.copyOf(shape.getAllTraits().values()),
+                config));
+        writer.writeInline("}");
+    }
+
+    /**
      * Writes generation of a member shape value type declaration for the given the parameters.
      *
      * @param writer writer to write generated code with.
@@ -709,12 +720,21 @@ public final class ShapeValueGenerator {
         public Void stringNode(StringNode node) {
             switch (currentShape.getType()) {
                 case BLOB:
+                    writer.writeInline("$S", node.getValue());
+                    break;
                 case STRING:
                     writer.writeInline("$S", node.getValue());
                     break;
 
                 case ENUM:
                     writer.writeInline("$S", node.getValue());
+                    break;
+
+                case TIMESTAMP:
+                    writer.addUseImports(SmithyGoDependency.TIME);
+                    writer.writeInline(
+                            "func() time.Time { t, _ := time.Parse(time.RFC3339, $S); return t }()",
+                            node.getValue());
                     break;
 
                 case BIG_INTEGER:
