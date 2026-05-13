@@ -1,15 +1,15 @@
 package json
 
 import (
-	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/aws-protocols/internal/json/internal/stdlib"
 	"github.com/aws/smithy-go/document"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
@@ -17,14 +17,12 @@ import (
 
 // ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
 type ShapeDeserializer struct {
-	dec  *json.Decoder
-	head jsonStack
+	p    parser
+	head stackT[any]
 	opts Options
 
-	// json.Decoder does not have a Peek() but we need to be able to
-	// "lookahead" for conditionally pulling a null token out in ReadNil.
-	peeked  json.Token
-	hasPeek bool
+	// it's easier to just maintain the "peeked" token here actually
+	peeked []byte
 }
 
 // NewShapeDeserializer creates a new ShapeDeserializer.
@@ -33,58 +31,48 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	for _, fn := range opts {
 		fn(&o)
 	}
-	dec := json.NewDecoder(bytes.NewReader(p))
-	dec.UseNumber()
-	return &ShapeDeserializer{dec: dec, head: newJSONStack(), opts: o}
+	return &ShapeDeserializer{
+		p: parser{
+			tok:   scanner{p: p},
+			parse: (*parser).parseValue,
+		},
+		opts: o,
+	}
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
 
-func (d *ShapeDeserializer) token() (json.Token, error) {
-	if d.hasPeek {
-		d.hasPeek = false
+func (d *ShapeDeserializer) next() ([]byte, error) {
+	if d.peeked != nil {
+		peeked := d.peeked
+		d.peeked = nil
+		return peeked, nil
+	}
+	return d.p.Next()
+}
+
+func (d *ShapeDeserializer) peek() ([]byte, error) {
+	if d.peeked != nil {
 		return d.peeked, nil
 	}
-	return d.dec.Token()
-}
-
-func (d *ShapeDeserializer) more() bool {
-	if d.hasPeek {
-		return true
-	}
-	return d.dec.More()
-}
-
-func (d *ShapeDeserializer) expectDelim(e json.Delim) error {
-	tok, err := d.token()
+	tok, err := d.p.Next()
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	if a, ok := tok.(json.Delim); ok {
-		if e != a {
-			return fmt.Errorf("expect %s, got %s", e, a)
-		}
-		return nil
-	}
-
-	return fmt.Errorf("expect delim, got %T", tok)
+	d.peeked = tok
+	return tok, nil
 }
 
 // ReadNil implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadNil(s *smithy.Schema) (bool, error) {
-	tok, err := d.token()
+	tok, err := d.peek()
 	if err != nil {
 		return false, err
 	}
-	if tok == nil {
+	if isN(tok) {
+		d.peeked = nil
 		return true, nil
 	}
-
-	// The only way to "unread" it is to note it and have token() return it
-	// next time.
-	d.peeked = tok
-	d.hasPeek = true
 	return false, nil
 }
 
@@ -137,17 +125,16 @@ func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
 }
 
 func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return 0, err
 	}
 
-	num, ok := tok.(json.Number)
-	if !ok {
-		return 0, fmt.Errorf("expected number, got %T", tok)
+	if isS(tok) || isLCB(tok) || isLSB(tok) {
+		return 0, fmt.Errorf("expected number, got %s", tok)
 	}
 
-	n, err := num.Int64()
+	n, err := strconv.ParseInt(string(tok), 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -184,44 +171,48 @@ func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error 
 }
 
 func (d *ShapeDeserializer) readFloat() (float64, error) {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return 0, err
 	}
 
-	switch v := tok.(type) {
-	case json.Number:
-		return v.Float64()
-	case string:
+	if isS(tok) {
+		s, err := unquote(tok)
+		if err != nil {
+			return 0, err
+		}
 		switch {
-		case strings.EqualFold(v, "NaN"):
+		case strings.EqualFold(s, "NaN"):
 			return math.NaN(), nil
-		case strings.EqualFold(v, "Infinity"):
+		case strings.EqualFold(s, "Infinity"):
 			return math.Inf(1), nil
-		case strings.EqualFold(v, "-Infinity"):
+		case strings.EqualFold(s, "-Infinity"):
 			return math.Inf(-1), nil
 		default:
-			return 0, fmt.Errorf("unexpected string value for float: %s", v)
+			return 0, fmt.Errorf("unexpected string value for float: %s", s)
 		}
-	default:
-		return 0, fmt.Errorf("expected number, got %T", tok)
 	}
+
+	return strconv.ParseFloat(string(tok), 64)
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
 
-	b, ok := tok.(bool)
-	if !ok {
-		return fmt.Errorf("expected bool, got %T", tok)
+	switch {
+	case isT(tok):
+		*v = true
+		return nil
+	case isF(tok):
+		*v = false
+		return nil
+	default:
+		return fmt.Errorf("expected bool, got %s", tok)
 	}
-
-	*v = b
-	return nil
 }
 
 // ReadBoolPtr implements [smithy.ShapeDeserializer].
@@ -231,7 +222,7 @@ func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
 
 // ReadString implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
@@ -239,12 +230,16 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 		return nil
 	}
 
-	str, ok := tok.(string)
-	if !ok {
-		return fmt.Errorf("expected string, got %T", tok)
+	if !isS(tok) {
+		return fmt.Errorf("expected string, got %s", tok)
 	}
 
-	*v = str
+	sv, err := unquote(tok)
+	if err != nil {
+		return err
+	}
+
+	*v = sv
 	return nil
 }
 
@@ -306,17 +301,21 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 		return err
 	}
 
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
 
-	str, ok := tok.(string)
-	if !ok {
-		return fmt.Errorf("expected string, got %T", tok)
+	if !isS(tok) {
+		return fmt.Errorf("expected string, got %s", tok)
 	}
 
-	b, err := base64.StdEncoding.DecodeString(str)
+	sv, err := unquote(tok)
+	if err != nil {
+		return err
+	}
+
+	b, err := base64.StdEncoding.DecodeString(sv)
 	if err != nil {
 		return fmt.Errorf("decode base64 blob: %w", err)
 	}
@@ -327,59 +326,55 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 
 // ReadList implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
-
-	delim, ok := tok.(json.Delim)
-	if !ok || delim != '[' {
-		return fmt.Errorf("expected '[', got %v", tok)
+	if !isLSB(tok) {
+		return fmt.Errorf("expected '[', got %s", tok)
 	}
-
 	return nil
 }
 
 // ReadListItem implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
-	if !d.more() {
-		return false, d.expectDelim(']')
+	tok, err := d.peek()
+	if err != nil {
+		return false, err
 	}
-
+	if isRSB(tok) {
+		d.peeked = nil
+		return false, nil
+	}
 	return true, nil
 }
 
 // ReadMap implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
-
-	delim, ok := tok.(json.Delim)
-	if !ok || delim != '{' {
-		return fmt.Errorf("expected '{', got %v", tok)
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
 	}
-
 	return nil
 }
 
 // ReadMapKey implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
-	if !d.more() {
-		return "", false, d.expectDelim('}')
-	}
-
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return "", false, err
 	}
-
-	key, ok := tok.(string)
-	if !ok {
-		return "", false, fmt.Errorf("expected string key, got %T", tok)
+	if isRCB(tok) {
+		return "", false, nil
 	}
 
+	key, err := unquote(tok)
+	if err != nil {
+		return "", false, err
+	}
 	return key, true, nil
 }
 
@@ -389,35 +384,31 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 		return err
 	}
 
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return err
 	}
-
-	delim, ok := tok.(json.Delim)
-	if !ok || delim != '{' {
-		return fmt.Errorf("expected '{', got %v", tok)
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
 	}
-
 	d.head.Push(s)
 	return nil
 }
 
 // ReadStructMember implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
-	if !d.more() {
-		d.head.Pop()
-		return nil, d.expectDelim('}')
-	}
-
-	tok, err := d.token()
+	tok, err := d.next()
 	if err != nil {
 		return nil, err
 	}
+	if isRCB(tok) {
+		d.head.Pop()
+		return nil, nil
+	}
 
-	key, ok := tok.(string)
-	if !ok {
-		return nil, fmt.Errorf("expected string key, got %T", tok)
+	key, err := unquote(tok)
+	if err != nil {
+		return nil, err
 	}
 
 	schema, ok := d.head.Top().(*smithy.Schema)
@@ -435,10 +426,10 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		}
 	}
 	if member == nil {
-		if err := d.skip(); err != nil {
+		if err := d.p.Skip(); err != nil {
 			return nil, err
 		}
-		return d.ReadStructMember() // just try the next one
+		return d.ReadStructMember()
 	}
 
 	return member, nil
@@ -455,25 +446,29 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			return nil, err
 		}
 
-		tok, err := d.token()
+		tok, err := d.next()
 		if err != nil {
 			return nil, err
 		}
-		delim, ok := tok.(json.Delim)
-		if !ok || delim != '{' {
-			return nil, fmt.Errorf("expected '{', got %v", tok)
+		if !isLCB(tok) {
+			return nil, fmt.Errorf("expected '{', got %s", tok)
 		}
 		d.head.Push(&unionCtx{schema: s})
 	}
 
-	for d.more() {
-		tok, err := d.token()
+	for {
+		tok, err := d.next()
 		if err != nil {
 			return nil, err
 		}
-		key, ok := tok.(string)
-		if !ok {
-			return nil, fmt.Errorf("expected string key, got %T", tok)
+		if isRCB(tok) {
+			d.head.Pop()
+			return nil, nil
+		}
+
+		key, err := unquote(tok)
+		if err != nil {
+			return nil, err
 		}
 
 		// skip null values
@@ -495,7 +490,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			}
 		}
 		if member == nil {
-			if err := d.skip(); err != nil {
+			if err := d.p.Skip(); err != nil {
 				return nil, err
 			}
 			continue
@@ -503,62 +498,15 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 
 		return member, nil
 	}
-
-	d.head.Pop()
-	return nil, d.expectDelim('}')
-}
-
-// used to skip over a struct member that we didn't have a schema for, though
-// it also calls itself
-func (d *ShapeDeserializer) skip() error {
-	tok, err := d.token()
-	if err != nil {
-		return err
-	}
-
-	switch v := tok.(type) {
-	case json.Delim:
-		switch v {
-		case '{':
-			for d.more() {
-				if _, err := d.token(); err != nil { // the key
-					return err
-				}
-				if err := d.skip(); err != nil { // the value
-					return err
-				}
-			}
-			_, err := d.token() // the '}'
-			return err
-		case '[':
-			for d.more() {
-				if err := d.skip(); err != nil {
-					return err
-				}
-			}
-			_, err := d.token() // the ']'
-			return err
-		default:
-			return fmt.Errorf("unexpected delimiter: %v", v)
-		}
-	default:
-		return nil // scalar, don't have to do anything else
-	}
 }
 
 // ReadDocument reads a JSON value into a document Value.
-//
-// For now this produces an [document.Opaque] wrapping the raw decoded value,
-// which is what the legacy document bridge in generated code expects. The
-// jsonToValue conversion is available for future use when the new typed
-// document path is wired up end-to-end.
 func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Value) error {
-	var raw any
-	if err := d.dec.Decode(&raw); err != nil {
+	vv, err := d.p.Value()
+	if err != nil {
 		return err
 	}
-
-	*v = document.Opaque{Value: raw}
+	*v = document.Opaque{Value: vv}
 	return nil
 }
 
@@ -573,39 +521,18 @@ func readPtr[T any](d *ShapeDeserializer, s *smithy.Schema, v **T, read func(*sm
 	return read(s, *v)
 }
 
-func jsonToValue(v any) (document.Value, error) {
-	switch vv := v.(type) {
-	case nil:
-		return document.Null{}, nil
-	case bool:
-		return document.Boolean(vv), nil
-	case json.Number:
-		return document.Number(vv.String()), nil
-	case float64:
-		return document.Number(fmt.Sprintf("%v", vv)), nil
-	case string:
-		return document.String(vv), nil
-	case []any:
-		list := make(document.List, len(vv))
-		for i, item := range vv {
-			dv, err := jsonToValue(item)
-			if err != nil {
-				return nil, err
-			}
-			list[i] = dv
-		}
-		return list, nil
-	case map[string]any:
-		m := make(document.Map, len(vv))
-		for k, item := range vv {
-			dv, err := jsonToValue(item)
-			if err != nil {
-				return nil, err
-			}
-			m[k] = dv
-		}
-		return m, nil
-	default:
-		return nil, fmt.Errorf("unexpected JSON type %T", v)
+func unquote(tok []byte) (string, error) {
+	if s, ok := stdlib.UnquoteBytes(tok); ok {
+		return string(s), nil
 	}
+	return "", fmt.Errorf("cannot unquote %s", tok)
 }
+
+func isN(tok []byte) bool   { return tok[0] == 'n' }
+func isT(tok []byte) bool   { return tok[0] == 't' }
+func isF(tok []byte) bool   { return tok[0] == 'f' }
+func isS(tok []byte) bool   { return tok[0] == '"' }
+func isLCB(tok []byte) bool { return tok[0] == '{' }
+func isRCB(tok []byte) bool { return tok[0] == '}' }
+func isLSB(tok []byte) bool { return tok[0] == '[' }
+func isRSB(tok []byte) bool { return tok[0] == ']' }

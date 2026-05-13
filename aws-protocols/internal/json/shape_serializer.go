@@ -16,7 +16,7 @@ import (
 // ShapeSerializer implements marshaling of Smithy shapes to JSON.
 type ShapeSerializer struct {
 	root *smithyjson.Encoder
-	head jsonStack
+	head stackT[any]
 
 	opts Options
 }
@@ -49,7 +49,6 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 	}
 	return &ShapeSerializer{
 		root: smithyjson.NewEncoder(),
-		head: newJSONStack(),
 		opts: o,
 	}
 }
@@ -546,35 +545,6 @@ func (s *ShapeSerializer) writeDocumentRaw(schema *smithy.Schema, p []byte) {
 	default:
 		s.root.Write(p)
 	}
-}
-
-type jsonStack struct {
-	values []any
-}
-
-func newJSONStack() jsonStack {
-	return jsonStack{values: make([]any, 0, 8)}
-}
-
-type empty struct{}
-
-func (s *jsonStack) Top() any {
-	if len(s.values) == 0 {
-		return empty{}
-	}
-	return s.values[len(s.values)-1]
-}
-
-func (s *jsonStack) Push(v any) {
-	s.values = append(s.values, v)
-}
-
-func (s *jsonStack) Pop() {
-	s.values = s.values[:len(s.values)-1]
-}
-
-func (s *jsonStack) Len() int {
-	return len(s.values)
 }
 
 // jsonMemberName returns the JSON key for a schema member, using the
