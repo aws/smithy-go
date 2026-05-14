@@ -18,16 +18,20 @@ type scanner struct {
 }
 
 func (s *scanner) Next() ([]byte, error) {
-	for ; s.i < len(s.p); s.i++ {
-		c := s.p[s.i]
+	i := s.i
+	for ; i < len(s.p); i++ {
+		c := s.p[i]
 		if whitespace[c] {
 			continue
 		}
+		if delim[c] {
+			i++
+			s.i = i
+			return s.p[i-1 : i], nil
+		}
 
+		s.i = i
 		switch c {
-		case '{', '}', '[', ']', ':', ',':
-			s.i++
-			return s.p[s.i-1 : s.i], nil
 		case '"':
 			return s.scanString()
 		case 't':
@@ -41,6 +45,7 @@ func (s *scanner) Next() ([]byte, error) {
 		}
 	}
 
+	s.i = i
 	return nil, io.EOF
 }
 
@@ -50,33 +55,37 @@ func (s *scanner) IsEOF() bool {
 
 func (s *scanner) scanString() ([]byte, error) {
 	start := s.i
-	s.i++ // skip opening "
+	i := s.i + 1 // skip opening "
 
-	for s.i < len(s.p) {
-		c := s.p[s.i]
+	for i < len(s.p) {
+		c := s.p[i]
 		if c < 0x20 {
-			return nil, fmt.Errorf("invalid control character at offset %d", s.i)
+			s.i = i
+			return nil, fmt.Errorf("invalid control character at offset %d", i)
 		}
 
 		if c == '\\' {
-			s.i++
+			s.i = i + 1
 			if err := s.scanEscape(); err != nil {
 				return nil, err
 			}
+			i = s.i
 			continue
 		}
 
 		if c == '"' {
-			s.i++
+			i++
+			s.i = i
 
 			// we want the quotes here because this lets the token consumer
 			// know that it's a string without additional identifying data
 			// (e.g. a token type enum)
-			return s.p[start:s.i], nil
+			return s.p[start:i], nil
 		}
 
-		s.i++
+		i++
 	}
+	s.i = i
 	return nil, fmt.Errorf("unterminated string at offset %d", start)
 }
 
@@ -110,47 +119,49 @@ func (s *scanner) scanUnicodeEscape() error {
 }
 
 func (s *scanner) scanNumber() ([]byte, error) {
-	start := s.i
-	if s.i < len(s.p) && s.p[s.i] == '-' {
-		s.i++
+	i := s.i
+	if i < len(s.p) && s.p[i] == '-' {
+		i++
 	}
-	digitStart := s.i
-	s.scanDigits()
-	if s.i == digitStart {
-		return nil, fmt.Errorf("unexpected token at offset %d", start)
+	digitStart := i
+	for i < len(s.p) && s.p[i] >= '0' && s.p[i] <= '9' {
+		i++
 	}
-	if s.p[digitStart] == '0' && s.i-digitStart > 1 {
+	if i == digitStart {
+		return nil, fmt.Errorf("unexpected token at offset %d", s.i)
+	}
+	if s.p[digitStart] == '0' && i-digitStart > 1 {
 		return nil, fmt.Errorf("leading zeros not allowed at offset %d", digitStart)
 	}
 
-	if s.i < len(s.p) && s.p[s.i] == '.' {
-		s.i++
-		digitStart = s.i
-		s.scanDigits()
-		if s.i == digitStart {
-			return nil, fmt.Errorf("no digits after decimal point at offset %d", s.i)
+	if i < len(s.p) && s.p[i] == '.' {
+		i++
+		digitStart = i
+		for i < len(s.p) && s.p[i] >= '0' && s.p[i] <= '9' {
+			i++
+		}
+		if i == digitStart {
+			return nil, fmt.Errorf("no digits after decimal point at offset %d", i)
 		}
 	}
 
-	if s.i < len(s.p) && (s.p[s.i] == 'e' || s.p[s.i] == 'E') {
-		s.i++
-		if s.i < len(s.p) && (s.p[s.i] == '+' || s.p[s.i] == '-') {
-			s.i++
+	if i < len(s.p) && (s.p[i] == 'e' || s.p[i] == 'E') {
+		i++
+		if i < len(s.p) && (s.p[i] == '+' || s.p[i] == '-') {
+			i++
 		}
-		digitStart = s.i
-		s.scanDigits()
-		if s.i == digitStart {
-			return nil, fmt.Errorf("no digits after exponent at offset %d", s.i)
+		digitStart = i
+		for i < len(s.p) && s.p[i] >= '0' && s.p[i] <= '9' {
+			i++
+		}
+		if i == digitStart {
+			return nil, fmt.Errorf("no digits after exponent at offset %d", i)
 		}
 	}
 
-	return s.p[start:s.i], nil
-}
-
-func (s *scanner) scanDigits() {
-	for s.i < len(s.p) && s.p[s.i] >= '0' && s.p[s.i] <= '9' {
-		s.i++
-	}
+	start := s.i
+	s.i = i
+	return s.p[start:i], nil
 }
 
 func (s *scanner) scanLiteral(lit string) ([]byte, error) {
@@ -168,4 +179,13 @@ var whitespace = [256]bool{
 	'\t': true,
 	'\n': true,
 	'\r': true,
+}
+
+var delim = [256]bool{
+	'{': true,
+	'}': true,
+	'[': true,
+	']': true,
+	':': true,
+	',': true,
 }

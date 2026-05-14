@@ -426,18 +426,21 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, nil
 	}
 
-	key, err := unquote(tok)
-	if err != nil {
-		return nil, err
-	}
-
 	top := d.head.Top()
 	if top == nil || top.kind != ctxStruct {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct?")
 	}
 
-	member := top.schema.Member(key)
+	member, err := memberFromToken(top.schema, tok)
+	if err != nil {
+		return nil, err
+	}
+
 	if member == nil && d.opts.UseJSONName {
+		key, err := unquote(tok)
+		if err != nil {
+			return nil, err
+		}
 		for _, m := range top.schema.Members() {
 			if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 				member = m
@@ -482,11 +485,6 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			return nil, nil
 		}
 
-		key, err := unquote(tok)
-		if err != nil {
-			return nil, err
-		}
-
 		// skip null values
 		isNil, err := d.ReadNil(nil)
 		if err != nil {
@@ -496,8 +494,16 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			continue
 		}
 
-		member := s.Member(key)
+		member, err := memberFromToken(s, tok)
+		if err != nil {
+			return nil, err
+		}
+
 		if member == nil && d.opts.UseJSONName {
+			key, err := unquote(tok)
+			if err != nil {
+				return nil, err
+			}
 			for _, m := range s.Members() {
 				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 					member = m
@@ -542,6 +548,23 @@ func unquote(tok []byte) (string, error) {
 		return string(s), nil
 	}
 	return "", fmt.Errorf("cannot unquote %s", tok)
+}
+
+func memberFromToken(s *smithy.Schema, tok []byte) (*smithy.Schema, error) {
+	// the fast path should be basically everything since members will usually
+	// not have escaped chars, so we save an allocation by skipping unquote
+	inner := tok[1 : len(tok)-1]
+	if m := s.Member(string(inner)); m != nil {
+		return m, nil
+	}
+
+	// otherwise unquote it like everything else
+	unq, err := unquote(tok)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.Member(unq), nil
 }
 
 func isN(tok []byte) bool   { return tok[0] == 'n' }
