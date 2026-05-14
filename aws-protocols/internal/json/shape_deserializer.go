@@ -11,14 +11,29 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/aws-protocols/internal/json/internal/stdlib"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
 
+type ctxKind int8
+
+const (
+	ctxList ctxKind = iota + 1
+	ctxMap
+	ctxStruct
+	ctxUnion
+)
+
+type deserCtx struct {
+	kind   ctxKind
+	schema *smithy.Schema // for ctxStruct
+}
+
 // ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
 type ShapeDeserializer struct {
 	p    parser
-	head stackT[any]
+	head serde.Stack[deserCtx]
 	opts Options
 
 	// it's easier to just maintain the "peeked" token here actually
@@ -36,6 +51,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 			tok:   scanner{p: p},
 			parse: (*parser).parseValue,
 		},
+		head: serde.NewStack[deserCtx](),
 		opts: o,
 	}
 }
@@ -333,6 +349,7 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 	if !isLSB(tok) {
 		return fmt.Errorf("expected '[', got %s", tok)
 	}
+	d.head.Push(deserCtx{kind: ctxList})
 	return nil
 }
 
@@ -344,6 +361,7 @@ func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 	}
 	if isRSB(tok) {
 		d.peeked = nil
+		d.head.Pop()
 		return false, nil
 	}
 	return true, nil
@@ -358,6 +376,7 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 	if !isLCB(tok) {
 		return fmt.Errorf("expected '{', got %s", tok)
 	}
+	d.head.Push(deserCtx{kind: ctxMap})
 	return nil
 }
 
@@ -368,6 +387,7 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 		return "", false, err
 	}
 	if isRCB(tok) {
+		d.head.Pop()
 		return "", false, nil
 	}
 
@@ -391,7 +411,7 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 	if !isLCB(tok) {
 		return fmt.Errorf("expected '{', got %s", tok)
 	}
-	d.head.Push(s)
+	d.head.Push(deserCtx{kind: ctxStruct, schema: s})
 	return nil
 }
 
@@ -411,14 +431,14 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, err
 	}
 
-	schema, ok := d.head.Top().(*smithy.Schema)
-	if !ok {
+	top := d.head.Top()
+	if top == nil || top.kind != ctxStruct {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct?")
 	}
 
-	member := schema.Member(key)
+	member := top.schema.Member(key)
 	if member == nil && d.opts.UseJSONName {
-		for _, m := range schema.Members() {
+		for _, m := range top.schema.Members() {
 			if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 				member = m
 				break
@@ -435,13 +455,9 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	return member, nil
 }
 
-type unionCtx struct {
-	schema *smithy.Schema
-}
-
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	if _, ok := d.head.Top().(*unionCtx); !ok {
+	if top := d.head.Top(); top == nil || top.kind != ctxUnion {
 		if isNil, err := d.ReadNil(s); isNil || err != nil {
 			return nil, err
 		}
@@ -453,7 +469,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		if !isLCB(tok) {
 			return nil, fmt.Errorf("expected '{', got %s", tok)
 		}
-		d.head.Push(&unionCtx{schema: s})
+		d.head.Push(deserCtx{kind: ctxUnion})
 	}
 
 	for {
