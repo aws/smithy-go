@@ -3,8 +3,6 @@ package smithy
 import (
 	"fmt"
 	"strings"
-
-	"github.com/aws/smithy-go/traits"
 )
 
 // ShapeType is a type of Smithy shape.
@@ -65,9 +63,9 @@ func stoid(s string) ShapeID {
 type Schema struct {
 	id         ShapeID
 	typ        ShapeType
-	members    map[string]*Schema // member name -> schema
-	traits     map[string]Trait   // trait ID -> non-indexed traits only
-	indexed    []Trait            // indexed trait slots, sized to max index present
+	members    map[string]*Schema  // member name -> schema
+	traits     map[ShapeID]Trait   // trait ID -> non-indexed traits only
+	indexed    []Trait             // indexed trait slots, sized to max index present
 	directMask uint64             // bitmask: bit i set means indexed[i] was declared directly on this schema
 	targetID   ShapeID            // for member schemas, the target's shape ID
 
@@ -102,7 +100,7 @@ func (s *Schema) addTrait(t Trait, direct bool) {
 	}
 
 	if s.traits == nil {
-		s.traits = map[string]Trait{}
+		s.traits = map[ShapeID]Trait{}
 	}
 	s.traits[t.TraitID()] = t
 }
@@ -155,11 +153,11 @@ func cloneIndexed(src []Trait) []Trait {
 	return dst
 }
 
-func cloneTraits(src map[string]Trait) map[string]Trait {
+func cloneTraits(src map[ShapeID]Trait) map[ShapeID]Trait {
 	if src == nil {
 		return nil
 	}
-	dst := make(map[string]Trait, len(src))
+	dst := make(map[ShapeID]Trait, len(src))
 	for k, v := range src {
 		dst[k] = v
 	}
@@ -241,6 +239,17 @@ func (s *OperationSchema) IsOutputEventStream() bool {
 	return s.outputStream
 }
 
+// ServiceSchema describes a service shape.
+type ServiceSchema struct {
+	*Schema
+	Version string
+}
+
+// NewServiceSchema returns a ServiceSchema for the given service shape.
+func NewServiceSchema(schema *Schema, version string) *ServiceSchema {
+	return &ServiceSchema{Schema: schema, Version: version}
+}
+
 // SchemaTrait returns the target trait on the schema if it exists.
 //
 // For member schemas this returns the effective trait, which is the trait
@@ -293,7 +302,7 @@ func isEventStream(s *Schema) bool {
 		if m.typ != ShapeTypeUnion {
 			continue
 		}
-		if _, ok := SchemaTrait[*traits.Streaming](m); ok {
+		if _, ok := m.traits[ShapeID{Namespace: "smithy.api", Name: "streaming"}]; ok {
 			return true
 		}
 	}

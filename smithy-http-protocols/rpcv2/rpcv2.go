@@ -8,11 +8,12 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	"github.com/aws/smithy-go/eventstream"
+	internales "github.com/aws/smithy-go/internal/eventstream"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
 	internalcbor "github.com/aws/smithy-go/smithy-http-protocols/internal/cbor"
+	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -21,53 +22,38 @@ import (
 // RPCv2 protocol family:
 //   - CBOR: https://smithy.io/2.0/additional-specs/protocols/smithy-rpc-v2.html
 type Protocol struct {
-	options ProtocolOptions
+	queryCompatible bool
+	serviceName     string
 
-	codec       smithy.Codec
-	contentType string
-	protocolID  string
-
-	*eventstream.Codec
-}
-
-// ProtocolOptions configures a Protocol.
-type ProtocolOptions struct {
-	// When enabled, support reading legacy AWS query error codes in error
-	// responses.
-	//
-	// See https://smithy.io/2.0/aws/protocols/aws-query-protocol.html#aws-protocols-awsquerycompatible-trait.
-	UseQueryCompatible bool
-}
-
-// UseQueryCompatible enables support for AWS query compatibility.
-func UseQueryCompatible(o *ProtocolOptions) {
-	o.UseQueryCompatible = true
+	*internales.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
+// ProtocolOptions configures smithy.protocols#rpcv2Cbor.
+type ProtocolOptions struct{}
+
 // NewCBOR returns an instance of the smithy.protocols#rpcv2Cbor protocol.
-func NewCBOR(opts ...func(*ProtocolOptions)) *Protocol {
-	var options ProtocolOptions
-	for _, opt := range opts {
-		opt(&options)
+func NewCBOR(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
 	}
-	codec := &internalcbor.Codec{}
+	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
 	return &Protocol{
-		options:     options,
-		codec:       codec,
-		contentType: "application/cbor",
-		protocolID:  "smithy.protocols#rpcv2Cbor",
-		Codec: &eventstream.Codec{
-			Codec:       codec,
-			ContentType: "application/cbor",
+		queryCompatible: qc,
+		serviceName:     service.Schema.ID().Name,
+		Codec: &internales.Codec{
+			Serializer:   func() smithy.ShapeSerializer { return internalcbor.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internalcbor.NewShapeDeserializer(p) },
+			ContentType:  "application/cbor",
 		},
 	}
 }
 
 // ID identifies the protocol.
-func (p *Protocol) ID() string {
-	return p.protocolID
+func (p *Protocol) ID() smithy.ShapeID {
+	return smithy.ShapeID{Namespace: "smithy.protocols", Name: "rpcv2Cbor"}
 }
 
 // SerializeRequest serializes a request for rpcv2Cbor.
@@ -79,10 +65,10 @@ func (p *Protocol) SerializeRequest(
 ) error {
 	req.Method = http.MethodPost
 	req.URL.Path = fmt.Sprintf("/service/%s/operation/%s",
-		middleware.GetServiceName(ctx), middleware.GetOperationName(ctx))
+		p.serviceName, middleware.GetOperationName(ctx))
 	req.Header.Set("Smithy-Protocol", "rpc-v2-cbor")
 	req.Header.Set("Accept", "application/cbor")
-	if p.options.UseQueryCompatible {
+	if p.queryCompatible {
 		req.Header.Set("X-Amzn-Query-Mode", "true")
 	}
 
@@ -91,7 +77,7 @@ func (p *Protocol) SerializeRequest(
 		return nil
 	}
 
-	ss := p.codec.Serializer()
+	ss := internalcbor.NewShapeSerializer()
 	in.Serialize(ss)
 
 	payload := ss.Bytes()
@@ -99,13 +85,11 @@ func (p *Protocol) SerializeRequest(
 		return nil
 	}
 
-	// operations targeting Unit MUST NOT have a body, check if we backfilled
-	// an input
-	if cs, ok := ss.(*internalcbor.ShapeSerializer); ok && cs.IsUnitShape() {
+	if ss.IsUnitShape() {
 		return nil
 	}
 
-	req.Header.Set("Content-Type", p.contentType)
+	req.Header.Set("Content-Type", "application/cbor")
 
 	sreq, err := req.SetStream(bytes.NewReader(payload))
 	if err != nil {
@@ -141,7 +125,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	sd := p.codec.Deserializer(payload)
+	sd := internalcbor.NewShapeDeserializer(payload)
 	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
@@ -199,7 +183,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 
 	var queryCode string
 	var queryFault smithy.ErrorFault
-	if p.options.UseQueryCompatible {
+	if p.queryCompatible {
 		queryHeader := response.Header.Get("X-Amzn-Query-Error")
 		queryCode, queryFault = internalerrors.ParseQueryError(queryHeader)
 	}
@@ -218,7 +202,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	}
 
 	if len(bodyBytes) > 0 {
-		deser := p.codec.Deserializer(bodyBytes)
+		deser := internalcbor.NewShapeDeserializer(bodyBytes)
 		if err := perr.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
 		}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
@@ -46,7 +47,7 @@ type ShapeSerializer struct {
 	opts ShapeSerializerOptions
 
 	values     url.Values
-	stack      []serCtx
+	stack      serde.Stack[serCtx]
 	currPrefix string // runs as values are written e.g. for list
 }
 
@@ -84,7 +85,7 @@ func NewShapeSerializer(action, version string, opts ...func(*ShapeSerializerOpt
 	v := url.Values{}
 	v.Set("Action", action)
 	v.Set("Version", version)
-	return &ShapeSerializer{values: v, opts: o}
+	return &ShapeSerializer{values: v, stack: serde.NewStack[serCtx](), opts: o}
 }
 
 // Bytes returns the encoded query string as bytes.
@@ -110,25 +111,11 @@ func (s *ShapeSerializer) Bytes() []byte {
 }
 
 func (s *ShapeSerializer) top() ctxKind {
-	if len(s.stack) == 0 {
+	t := s.stack.Top()
+	if t == nil {
 		return ctxKindNone
 	}
-	return s.stack[len(s.stack)-1].kind
-}
-
-func (s *ShapeSerializer) push(ctx serCtx) {
-	s.stack = append(s.stack, ctx)
-}
-
-func (s *ShapeSerializer) pop() serCtx {
-	n := len(s.stack)
-	v := s.stack[n-1]
-	s.stack = s.stack[:n-1]
-	return v
-}
-
-func (s *ShapeSerializer) topCtx() *serCtx {
-	return &s.stack[len(s.stack)-1]
+	return t.kind
 }
 
 func (s *ShapeSerializer) withWriteZero(fn func()) {
@@ -142,7 +129,7 @@ func (s *ShapeSerializer) skipZeroValue() bool {
 	if s.opts.WriteZeroValues {
 		return false
 	}
-	if len(s.stack) == 0 {
+	if s.stack.Len() == 0 {
 		return false
 	}
 
@@ -184,7 +171,7 @@ func (s *ShapeSerializer) resolveKey(schema *smithy.Schema) string {
 		valPrefix := s.consumeMapValue()
 		return valPrefix
 	case ctxKindList:
-		ctx := s.topCtx()
+		ctx := s.stack.Top()
 		ctx.listIndex++
 		return s.currPrefix + "." + strconv.Itoa(ctx.listIndex)
 	default:
@@ -208,8 +195,9 @@ func (s *ShapeSerializer) writeValue(key, value string) {
 }
 
 func (s *ShapeSerializer) bufferMapEntry(key, value string) bool {
-	for i := len(s.stack) - 1; i >= 0; i-- {
-		ctx := &s.stack[i]
+	vals := s.stack.Values()
+	for i := len(vals) - 1; i >= 0; i-- {
+		ctx := &vals[i]
 		if ctx.kind != ctxKindMap {
 			continue
 		}
@@ -389,19 +377,19 @@ func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
 		valPrefix := s.consumeMapValue()
 		s.currPrefix, saved = valPrefix, s.currPrefix
 	case ctxKindList:
-		ctx := s.topCtx()
+		ctx := s.stack.Top()
 		ctx.listIndex++
 		s.currPrefix = s.currPrefix + "." + strconv.Itoa(ctx.listIndex)
 	default:
 		s.appendMemberPrefix(schema)
 	}
 
-	s.push(serCtx{kind: ctxKindStruct, prefix: saved})
+	s.stack.Push(serCtx{kind: ctxKindStruct, prefix: saved})
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 	s.currPrefix = ctx.prefix
 }
 
@@ -410,7 +398,7 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 	saved := s.currPrefix
 	s.appendMemberPrefix(schema)
 	if s.top() == ctxKindMapValue {
-		s.pop()
+		s.stack.Pop()
 	}
 	v.Serialize(s)
 	s.currPrefix = saved
@@ -433,11 +421,11 @@ func (s *ShapeSerializer) enterContainer(schema *smithy.Schema) string {
 		// with the map prefix. Pop ctxMapValue and use its saved prefix
 		// as the restore point — s.prefix (the value path) is already
 		// the correct working prefix.
-		ctx := s.pop()
+		ctx := s.stack.Pop()
 		saved = ctx.prefix
 		return saved
 	case ctxKindList:
-		ctx := s.topCtx()
+		ctx := s.stack.Top()
 		ctx.listIndex++
 		s.currPrefix = s.currPrefix + "." + strconv.Itoa(ctx.listIndex)
 	}
@@ -466,7 +454,7 @@ func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 		s.currPrefix = s.currPrefix + "." + locName
 	}
 
-	s.push(serCtx{
+	s.stack.Push(serCtx{
 		kind:       ctxKindList,
 		flattened:  flattened,
 		prefix:     saved,
@@ -480,7 +468,7 @@ func (s *ShapeSerializer) CloseList() {
 		return
 	}
 
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 	if ctx.listIndex == 0 && !s.opts.EC2Mode {
 		s.writeValue(ctx.listPrefix, "")
 	}
@@ -511,7 +499,7 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 		}
 	}
 
-	s.push(serCtx{
+	s.stack.Push(serCtx{
 		kind:         ctxKindMap,
 		flattened:    flattened,
 		prefix:       saved,
@@ -522,7 +510,7 @@ func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 
 // WriteKey implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
-	ctx := s.topCtx()
+	ctx := s.stack.Top()
 	ctx.mapIndex++
 
 	prefix := s.currPrefix + "." + strconv.Itoa(ctx.mapIndex)
@@ -535,7 +523,7 @@ func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
 
 	// Push ctxMapValue with the current prefix so the next value write can
 	// restore it. Set s.prefix to the value path.
-	s.push(serCtx{kind: ctxKindMapValue, prefix: s.currPrefix})
+	s.stack.Push(serCtx{kind: ctxKindMapValue, prefix: s.currPrefix})
 	s.currPrefix = prefix + "." + ctx.mapValueName
 }
 
@@ -545,7 +533,7 @@ func (s *ShapeSerializer) CloseMap() {
 		return
 	}
 
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 
 	// Sort entries by map key for deterministic output.
 	sort.Slice(ctx.mapBuf, func(i, j int) bool {
@@ -579,7 +567,7 @@ func (s *ShapeSerializer) WriteDocument(_ *smithy.Schema, _ document.Value) {
 }
 
 func (s *ShapeSerializer) consumeMapValue() string {
-	ctx := s.pop()
+	ctx := s.stack.Pop()
 	valPrefix := s.currPrefix
 	s.currPrefix = ctx.prefix
 	return valPrefix

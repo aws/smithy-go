@@ -10,6 +10,7 @@ import software.amazon.smithy.go.codegen.UnsupportedShapeException;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
+import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -32,6 +33,9 @@ public final class StructureSerializer implements Writable {
     @Override
     public void accept(GoWriter writer) {
         writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        if (Prelude.isPublicPreludeShape(shape)) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PRELUDE);
+        }
 
         var symbol = ctx.symbolProvider().toSymbol(shape);
         var members = shape.members().stream()
