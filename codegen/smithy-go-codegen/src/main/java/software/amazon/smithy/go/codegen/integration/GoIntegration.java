@@ -23,6 +23,7 @@ import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.endpoints.FnProvider;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.TriConsumer;
@@ -171,6 +172,14 @@ public interface GoIntegration extends SmithyIntegration<GoSettings, GoWriter, G
      */
     default List<ProtocolGenerator> getProtocolGenerators() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Gets a custom endpoint rule function provider. Returning null (the default) indicates no custom functions.
+     * The returned provider is consulted before the built-in default provider.
+     */
+    default FnProvider getEndpointFnProvider() {
+        return null;
     }
 
     /**
