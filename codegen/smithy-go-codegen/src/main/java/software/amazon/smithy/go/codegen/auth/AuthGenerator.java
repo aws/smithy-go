@@ -15,35 +15,25 @@
 
 package software.amazon.smithy.go.codegen.auth;
 
-import software.amazon.smithy.codegen.core.CodegenException;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
+import software.amazon.smithy.go.codegen.GoWriter;
 
-/**
- * Entry point into smithy client auth generation.
- */
 public class AuthGenerator {
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
+    private final GoWriter writer;
 
-    public AuthGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public AuthGenerator(GoCodegenContext ctx, GoWriter writer) {
+        this.ctx = ctx;
+        this.writer = writer;
     }
 
     public void generate() {
-        if (context.getWriter().isEmpty()) {
-            throw new CodegenException("writer is required");
-        }
-
-        context.getWriter().get()
-                .write("$W\n", new AuthParametersGenerator(context).generate())
-                .write("$W\n", new AuthParametersResolverGenerator(context).generate())
-                .write("$W\n", getResolverGenerator().generate())
-                .write("$W\n", new ResolveAuthSchemeMiddlewareGenerator(context).generate())
-                .write("$W\n", new GetIdentityMiddlewareGenerator(context).generate())
-                .write("$W\n", new SignRequestMiddlewareGenerator(context).generate());
-    }
-
-    // TODO(i&a): allow consuming generators to overwrite
-    private AuthSchemeResolverGenerator getResolverGenerator() {
-        return new AuthSchemeResolverGenerator(context);
+        writer
+                .write("$W\n", new AuthParametersGenerator(ctx).generate())
+                .write("$W\n", new AuthParametersResolverGenerator(ctx).generate())
+                .write("$W\n", new AuthSchemeResolverGenerator(ctx).generate())
+                .write("$W\n", new ResolveAuthSchemeMiddlewareGenerator().generate())
+                .write("$W\n", new GetIdentityMiddlewareGenerator().generate())
+                .write("$W\n", new SignRequestMiddlewareGenerator().generate());
     }
 }

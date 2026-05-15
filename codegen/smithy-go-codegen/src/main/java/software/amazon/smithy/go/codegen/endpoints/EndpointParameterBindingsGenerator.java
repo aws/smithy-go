@@ -22,9 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.Writable;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.language.syntax.parameters.Parameter;
 import software.amazon.smithy.rulesengine.traits.ClientContextParamsTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
@@ -36,14 +37,14 @@ import software.amazon.smithy.utils.MapUtils;
  * conditionally through EndpointParameterOperationBindingsGenerator.
  */
 public class EndpointParameterBindingsGenerator {
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
 
     private final Map<String, Writable> builtinBindings;
 
-    public EndpointParameterBindingsGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
-        this.builtinBindings = context.getIntegrations().stream()
-                .flatMap(it -> it.getClientPlugins(context.getModel(), context.getService()).stream())
+    public EndpointParameterBindingsGenerator(GoCodegenContext ctx) {
+        this.ctx = ctx;
+        this.builtinBindings = ctx.integrations().stream()
+                .flatMap(it -> it.getClientPlugins(ctx.model(), ctx.service()).stream())
                 .flatMap(it -> it.getEndpointBuiltinBindings().entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -70,8 +71,8 @@ public class EndpointParameterBindingsGenerator {
                 """,
                 MapUtils.of(
                         "context", GoStdlibTypes.Context.Context,
-                        "builtinBindings", context.getService().hasTrait(EndpointRuleSetTrait.class)
-                                || context.getService().hasTrait(EndpointBddTrait.class)
+                        "builtinBindings", ctx.service().hasTrait(EndpointRuleSetTrait.class)
+                                || ctx.service().hasTrait(EndpointBddTrait.class)
                                 ? generateBuiltinBindings()
                                 : emptyGoTemplate(),
                         "clientContextBindings", generateClientContextBindings()
@@ -80,15 +81,15 @@ public class EndpointParameterBindingsGenerator {
 
     private Writable generateBuiltinBindings() {
         var bindings = new HashMap<String, Writable>();
-        for (var integration: context.getIntegrations()) {
-            var plugins = integration.getClientPlugins(context.getModel(), context.getService());
+        for (var integration: ctx.integrations()) {
+            var plugins = integration.getClientPlugins(ctx.model(), ctx.service());
             for (var plugin: plugins) {
                 bindings.putAll(plugin.getEndpointBuiltinBindings());
             }
         }
 
         var params = new ArrayList<Parameter>();
-        context.getEndpointRules().getParameters().forEach(params::add);
+        getEndpointRules().getParameters().forEach(params::add);
         var boundBuiltins = params.stream()
                 .filter(it -> it.isBuiltIn() && bindings.containsKey(it.getBuiltIn().get()))
                 .toList();
@@ -115,13 +116,13 @@ public class EndpointParameterBindingsGenerator {
     }
 
     private Writable generateClientContextBindings() {
-        if (!context.getService().hasTrait(ClientContextParamsTrait.class)) {
+        if (!ctx.service().hasTrait(ClientContextParamsTrait.class)) {
             return goTemplate("");
         }
 
         var allParams = new ArrayList<Parameter>();
-        context.getEndpointRules().getParameters().forEach(allParams::add);
-        var contextParams = context.getService().expectTrait(ClientContextParamsTrait.class).getParameters();
+        getEndpointRules().getParameters().forEach(allParams::add);
+        var contextParams = ctx.service().expectTrait(ClientContextParamsTrait.class).getParameters();
         var params = allParams.stream()
                 .filter(it -> contextParams.containsKey(it.getName().getName().getValue()) && !it.isBuiltIn())
                 .toList();
@@ -131,5 +132,17 @@ public class EndpointParameterBindingsGenerator {
                         EndpointParametersGenerator.getExportedParameterName(it));
             });
         };
+    }
+
+    private EndpointRuleSet getEndpointRules() {
+        var service = ctx.service();
+        if (service.hasTrait(EndpointRuleSetTrait.class)) {
+            return EndpointRuleSet.fromNode(service.expectTrait(EndpointRuleSetTrait.class).getRuleSet());
+        }
+        var bddTrait = service.expectTrait(EndpointBddTrait.class);
+        return EndpointRuleSet.builder()
+                .version(bddTrait.getVersion().toString())
+                .parameters(bddTrait.getParameters())
+                .build();
     }
 }
