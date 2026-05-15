@@ -298,6 +298,9 @@ func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
 }
 
 func isEventStream(s *Schema) bool {
+	if s == nil {
+		return false
+	}
 	for _, m := range s.members {
 		if m.typ != ShapeTypeUnion {
 			continue

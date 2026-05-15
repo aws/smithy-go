@@ -25,21 +25,11 @@ public class SchemaGenerator implements Writable {
         this.shape = shape;
     }
 
-	// TODO(serde2): synthetic shapes (smithy.go.synthetic namespace) can
-	// collide with modeled shapes that happen to have the same name (e.g.
-	// ConverseOutput is both a modeled union and a synthetic operation output
-	// in bedrockruntime). For now just throw a prefix on there so it doesn't
-	// conflict but I don't like that.
-    private static final String SYNTHETIC_NAMESPACE = "smithy.go.synthetic";
-
     public static String getSchemaName(Shape shape, ServiceShape service) {
         if (Prelude.isPublicPreludeShape(shape)) {
             return "smithyprelude." + shape.getId().getName();
         }
-        var name = shape.getId().getName(service);
-        if (shape.getId().getNamespace().equals(SYNTHETIC_NAMESPACE)) {
-            name = "SmithyGoSynthetic_" + name;
-        }
+        var name = modelShapeID(shape).getName(service);
         return ShapeUtil.isExported(shape)
                 ? name
                 : "_" + name;
@@ -63,8 +53,12 @@ public class SchemaGenerator implements Writable {
 
     // Returns the schema reference for use outside the schemas package (e.g. in
     // serde generators). Prelude shapes are already package-qualified, local
-    // shapes get the "schemas." prefix.
+    // shapes get the "schemas." prefix. Stub synthetics (no archetype) return
+    // "nil" since no schema is generated for them.
     public static String getSchemaRef(Shape shape, ServiceShape service) {
+        if (CodegenUtils.isStubSynthetic(shape)) {
+            return "nil";
+        }
         if (Prelude.isPublicPreludeShape(shape)) {
             return getSchemaName(shape, service);
         }
