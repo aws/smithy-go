@@ -426,6 +426,7 @@ public final class ProtocolDocumentGenerator {
 
         writer.openBlock("func (m $P) $L(v interface{}) error {", "}", typeSymbol, UNMARSHAL_SMITHY_DOCUMENT_METHOD,
                 unmarshalMethodDefinition);
+        writer.write("");
         writer.openBlock("func (m $P) $L() ([]byte, error) {", "}", typeSymbol, MARSHAL_SMITHY_DOCUMENT_METHOD,
                 marshalMethodDefinition);
         writer.write("");
