@@ -292,8 +292,10 @@ public final class OperationGenerator implements Runnable {
         } else {
             writer.addUseImports(SmithyGoDependency.SMITHY);
             var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
-            var inputSchemaName = SchemaGenerator.getSchemaRef(input, service);
-            var outputSchemaName = SchemaGenerator.getSchemaRef(output, service);
+            var inputSchemaName = CodegenUtils.isStubSynthetic(input)
+                    ? "nil" : SchemaGenerator.getSchemaRef(input, service);
+            var outputSchemaName = CodegenUtils.isStubSynthetic(output)
+                    ? "nil" : SchemaGenerator.getSchemaRef(output, service);
             var opSchema = String.format("smithy.NewOperationSchema(%s, %s, %s)",
                     opSchemaName, inputSchemaName, outputSchemaName);
             writer.write("""

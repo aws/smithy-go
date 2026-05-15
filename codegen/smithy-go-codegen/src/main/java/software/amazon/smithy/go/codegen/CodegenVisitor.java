@@ -90,6 +90,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final ProtocolDocumentGenerator protocolDocumentGenerator;
     private final EventStreamGenerator eventStreamGenerator;
     private final GoCodegenContext ctx;
+    private final Set<ShapeId> emittedSchemas = new HashSet<>();
 
     CodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -286,10 +287,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
-                for (Shape shape : shapes) {
-                    new SchemaGenerator(ctx, shape).accept(writer);
-                }
-
                 var operations = TopDownIndex.of(model).getContainedOperations(service);
                 for (OperationShape op : operations) {
                     new SchemaGenerator(ctx, op).accept(writer);
@@ -314,13 +311,17 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     // ListMember() are non-nil when the member schema is created.
                     var shapeIds = new HashSet<ShapeId>();
                     for (Shape s : shapes) {
-                        shapeIds.add(s.getId());
+                        if (!s.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
+                            shapeIds.add(s.getId());
+                        }
                     }
 
                     var sorted = new ArrayList<Shape>();
                     var visited = new HashSet<ShapeId>();
                     for (Shape s : shapes) {
-                        topoVisit(s, model, shapeIds, visited, sorted);
+                        if (shapeIds.contains(s.getId())) {
+                            topoVisit(s, model, shapeIds, visited, sorted);
+                        }
                     }
 
                     for (Shape shape : sorted) {
@@ -427,16 +428,40 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     protected Void getDefault(Shape shape) {
+        if (settings.useExperimentalSerde()
+                && !shape.isMemberShape()
+                && !shape.isOperationShape()
+                && !shape.isServiceShape()
+                && !shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())
+                && emittedSchemas.add(shape.getId())) {
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    writer -> new SchemaGenerator(ctx, shape).accept(writer));
+        }
         return null;
     }
 
     @Override
     public Void structureShape(StructureShape shape) {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
+            // For synthetic clones with an archetype, generate the schema under
+            // the archetype's name. Stub synthetics (no archetype) are skipped.
+            if (settings.useExperimentalSerde() && !CodegenUtils.isStubSynthetic(shape)) {
+                var archetypeId = shape.getTrait(Synthetic.class).get().getArchetype().get();
+                if (emittedSchemas.add(archetypeId)) {
+                    var archetype = model.expectShape(archetypeId, StructureShape.class);
+                    ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                            writer -> new SchemaGenerator(ctx, archetype).accept(writer));
+                }
+            }
             return null;
         }
         writers.useShapeWriter(shape, writer ->
                 new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
+
+        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    writer -> new SchemaGenerator(ctx, shape).accept(writer));
+        }
 
         return null;
     }
@@ -445,6 +470,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void stringShape(StringShape shape) {
         if (shape.hasTrait(EnumTrait.class)) {
             writers.useShapeWriter(shape, writer -> new EnumGenerator(symbolProvider, writer, shape).run());
+        }
+        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
         return null;
     }
@@ -455,8 +484,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
 
-        if (settings.useExperimentalSerde()) {
-            // TODO schema probably
+        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
         return null;
     }
@@ -521,6 +551,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     @Override
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
+        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
+                    writer -> new SchemaGenerator(ctx, shape).accept(writer));
+        }
         return null;
     }
 
