@@ -1,13 +1,19 @@
 package json
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
+
+	"github.com/aws/smithy-go/internal/serde"
 )
 
+// matches stdlib
+const maxDepth = 10_000
+
 const (
-	inObject = iota + 1
+	inObject int8 = iota + 1
 	inArray
 )
 
@@ -19,7 +25,7 @@ func errUnexpectedToken(c byte) error {
 // that the syntax of the JSON is valid.
 type parser struct {
 	tok   scanner
-	stack stackT[int8]
+	stack serde.Stack[int8]
 	done  bool
 
 	// parse changes as tokens are called to handle state transitions
@@ -77,10 +83,16 @@ func (p *parser) parseValue(tok []byte) ([]byte, error) {
 	case '{':
 		p.parse = (*parser).parseObjectKey
 		p.stack.Push(inObject)
+		if p.stack.Len() > maxDepth {
+			return nil, errors.New("exceeded max nesting depth")
+		}
 		return tok, nil
 	case '[':
 		p.parse = (*parser).parseArrayValue
 		p.stack.Push(inArray)
+		if p.stack.Len() > maxDepth {
+			return nil, errors.New("exceeded max nesting depth")
+		}
 		return tok, nil
 	case ',', ':', '}', ']':
 		return nil, errUnexpectedToken(tok[0])
@@ -213,7 +225,13 @@ func (p *parser) close() {
 }
 
 func (p *parser) afterValue() {
-	switch p.stack.Top() {
+	top := p.stack.Top()
+	if top == nil {
+		p.done = true
+		return
+	}
+
+	switch *top {
 	case inObject:
 		p.parse = (*parser).parseObjectComma
 	case inArray:
