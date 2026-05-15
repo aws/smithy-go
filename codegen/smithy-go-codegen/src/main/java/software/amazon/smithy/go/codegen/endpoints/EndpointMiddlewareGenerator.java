@@ -19,13 +19,13 @@ import static software.amazon.smithy.go.codegen.GoStackStepMiddlewareGenerator.c
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACING;
 
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
 import software.amazon.smithy.utils.MapUtils;
@@ -38,10 +38,10 @@ public final class EndpointMiddlewareGenerator {
     public static final String MIDDLEWARE_NAME = "resolveEndpointV2Middleware";
     public static final String MIDDLEWARE_ID = "ResolveEndpointV2";
 
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
 
-    public EndpointMiddlewareGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public EndpointMiddlewareGenerator(GoCodegenContext ctx) {
+        this.ctx = ctx;
     }
 
     public static Writable generateAddToProtocolFinalizers() {
@@ -101,8 +101,8 @@ public final class EndpointMiddlewareGenerator {
 
     private Writable generatePreResolutionHooks() {
         return (GoWriter writer) -> {
-            for (GoIntegration integration : context.getIntegrations()) {
-                integration.renderPreEndpointResolutionHook(context.getSettings(), writer, context.getModel());
+            for (GoIntegration integration : ctx.integrations()) {
+                integration.renderPreEndpointResolutionHook(ctx.settings(), writer, ctx.model());
             }
         };
     }
@@ -186,8 +186,8 @@ public final class EndpointMiddlewareGenerator {
 
     private Writable generatePostResolutionHooks() {
         return (GoWriter writer) -> {
-            for (GoIntegration integration : context.getIntegrations()) {
-                integration.renderPostEndpointResolutionHook(context.getSettings(), writer, context.getModel());
+            for (GoIntegration integration : ctx.integrations()) {
+                integration.renderPostEndpointResolutionHook(ctx.settings(), writer, ctx.model());
             }
         };
     }

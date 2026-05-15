@@ -24,17 +24,13 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
 public class ResolveAuthSchemeMiddlewareGenerator {
     public static final String MIDDLEWARE_NAME = "resolveAuthSchemeMiddleware";
     public static final String MIDDLEWARE_ID = "ResolveAuthScheme";
 
-    private final ProtocolGenerator.GenerationContext context;
-
-    public ResolveAuthSchemeMiddlewareGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public ResolveAuthSchemeMiddlewareGenerator() {
     }
 
     public static Writable generateAddToProtocolFinalizers() {

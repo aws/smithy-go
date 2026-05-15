@@ -23,17 +23,13 @@ import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.endpoints.EndpointMiddlewareGenerator;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
 public class SignRequestMiddlewareGenerator {
     public static final String MIDDLEWARE_NAME = "signRequestMiddleware";
     public static final String MIDDLEWARE_ID = "Signing";
 
-    private final ProtocolGenerator.GenerationContext context;
-
-    public SignRequestMiddlewareGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public SignRequestMiddlewareGenerator() {
     }
 
     public static Writable generateAddToProtocolFinalizers() {

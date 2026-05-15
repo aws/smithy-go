@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import software.amazon.smithy.aws.traits.auth.UnsignedPayloadTrait;
 import software.amazon.smithy.go.codegen.ChainWritable;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.AuthSchemeDefinition;
@@ -41,15 +42,25 @@ public class AuthSchemeResolverGenerator {
     public static final String INTERFACE_NAME = "AuthSchemeResolver";
     public static final String DEFAULT_NAME = "defaultAuthSchemeResolver";
 
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
+    private final ProtocolGenerator.GenerationContext legacyContext;
     private final ServiceIndex serviceIndex;
     private final Map<ShapeId, AuthSchemeDefinition> schemeDefinitions;
 
-    public AuthSchemeResolverGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
-        this.serviceIndex = ServiceIndex.of(context.getModel());
-        this.schemeDefinitions = context.getIntegrations().stream()
-                .flatMap(it -> it.getClientPlugins(context.getModel(), context.getService()).stream())
+    public AuthSchemeResolverGenerator(GoCodegenContext ctx) {
+        this.ctx = ctx;
+        this.legacyContext = ProtocolGenerator.GenerationContext.builder()
+                .protocolName("")
+                .integrations(ctx.integrations())
+                .model(ctx.model())
+                .service(ctx.service())
+                .settings(ctx.settings())
+                .symbolProvider(ctx.symbolProvider())
+                .delegator((software.amazon.smithy.go.codegen.GoDelegator) ctx.writerDelegator())
+                .build();
+        this.serviceIndex = ServiceIndex.of(ctx.model());
+        this.schemeDefinitions = ctx.integrations().stream()
+                .flatMap(it -> it.getClientPlugins(ctx.model(), ctx.service()).stream())
                 .flatMap(it -> it.getAuthSchemeDefinitions().entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -60,10 +71,10 @@ public class AuthSchemeResolverGenerator {
     // 3. it has an unsigned payload
     private boolean hasAuthOverrides(OperationShape operation) {
         var serviceSchemes = serviceIndex
-                .getEffectiveAuthSchemes(context.getService(), ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
+                .getEffectiveAuthSchemes(ctx.service(), ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .keySet();
         var operationSchemes = serviceIndex
-                .getEffectiveAuthSchemes(context.getService(), operation, ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
+                .getEffectiveAuthSchemes(ctx.service(), operation, ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .keySet();
         return !serviceSchemes.equals(operationSchemes) || operation.hasTrait(UnsignedPayloadTrait.class);
     }
@@ -136,8 +147,8 @@ public class AuthSchemeResolverGenerator {
 
     private Writable generateOperationAuthOptions() {
         var options = new ChainWritable();
-        TopDownIndex.of(context.getModel())
-                .getContainedOperations(context.getService()).stream()
+        TopDownIndex.of(ctx.model())
+                .getContainedOperations(ctx.service()).stream()
                 .filter(this::hasAuthOverrides)
                 .forEach(it -> {
                     options.add(generateOperationAuthOptionsEntry(it));
@@ -156,12 +167,12 @@ public class AuthSchemeResolverGenerator {
     private Writable generateOperationAuthOptionsEntry(OperationShape operation) {
         var options = new ChainWritable();
         serviceIndex
-                .getEffectiveAuthSchemes(context.getService(), operation, ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
+                .getEffectiveAuthSchemes(ctx.service(), operation, ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .entrySet().stream()
                 .filter(it -> schemeDefinitions.containsKey(it.getKey()))
                 .forEach(it -> {
                     var definition = schemeDefinitions.get(it.getKey());
-                    options.add(definition.generateOperationOption(context, operation));
+                    options.add(definition.generateOperationOption(legacyContext, operation));
                 });
 
         return options.isEmpty()
@@ -181,12 +192,12 @@ public class AuthSchemeResolverGenerator {
     private Writable generateServiceAuthOptions() {
         var options = new ChainWritable();
         serviceIndex
-                .getEffectiveAuthSchemes(context.getService(), ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
+                .getEffectiveAuthSchemes(ctx.service(), ServiceIndex.AuthSchemeMode.NO_AUTH_AWARE)
                 .entrySet().stream()
                 .filter(it -> schemeDefinitions.containsKey(it.getKey()))
                 .forEach(it -> {
                     var definition = schemeDefinitions.get(it.getKey());
-                    options.add(definition.generateServiceOption(context, context.getService()));
+                    options.add(definition.generateServiceOption(legacyContext, ctx.service()));
                 });
 
         return goTemplate("""
