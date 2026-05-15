@@ -103,7 +103,7 @@ public class EventStreamProtocolTestGenerator {
         }
 
         // Generate the harness file
-        delegator.useFileWriter("eventstream_protocol_test_harness_test.go", settings.getModuleName(), writer -> {
+        delegator.useFileWriter("eventstream_protocol_test.go", settings.getModuleName(), writer -> {
             generateHarnessFile(writer);
         });
 
@@ -518,8 +518,8 @@ public class EventStreamProtocolTestGenerator {
 
         // Filter to only sendable (non-error) events for assertion
         List<Event> sendableEvents = requestEvents.stream()
+                .filter(e -> e.getParams().isPresent())
                 .filter(e -> {
-                    if (e.getParams().isEmpty()) return false;
                     String mn = e.getParams().get().getMembers().keySet().iterator().next().getValue();
                     MemberShape um = eventUnion.getMember(mn).get();
                     StructureShape ts = model.expectShape(um.getTarget(), StructureShape.class);
