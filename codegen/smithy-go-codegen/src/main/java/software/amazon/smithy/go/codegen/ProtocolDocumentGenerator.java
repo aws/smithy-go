@@ -420,8 +420,9 @@ public final class ProtocolDocumentGenerator {
         });
         writer.write("");
 
-        // for schema-serde (if the service doesn't do that yet then this is just unused for now)
-        writer.write("func (m $P) Value() any { return m.value }", typeSymbol);
+        if (settings.useExperimentalSerde()) {
+            writer.write("func (m $P) Value() any { return m.value }", typeSymbol);
+        }
 
         writer.openBlock("func (m $P) $L(v interface{}) error {", "}", typeSymbol, UNMARSHAL_SMITHY_DOCUMENT_METHOD,
                 unmarshalMethodDefinition);
