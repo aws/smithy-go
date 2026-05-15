@@ -33,6 +33,10 @@ import software.amazon.smithy.build.PluginContext;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
+import software.amazon.smithy.go.codegen.auth.AuthGenerator;
+import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
@@ -381,33 +385,21 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         }
 
-        // This is all stuff that we'll still need to do but it DEPENDS on ProtocolGenerator right now
-        //
-        // TODO: With serde/schema decoupling, protocol generators are going away. Endpoint/auth resolution is going to
-        //       need to be decoupled from that and I don't really know how yet. Probably just separate integrations /
-        //       integration hooks.
-        if (protocolGenerator != null) {
-            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
-                    .protocolName(protocolGenerator.getProtocolName())
-                    .integrations(integrations)
-                    .model(model)
-                    .service(service)
-                    .settings(settings)
-                    .symbolProvider(symbolProvider)
-                    .delegator(writers);
+        {
+            FnProvider fnProvider = integrations.stream()
+                    .map(GoIntegration::getEndpointFnProvider)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(new FnGenerator.DefaultFnProvider());
+            var endpointGenerator = new EndpointResolutionGenerator(fnProvider);
             writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolution(context);
+                endpointGenerator.generate(ctx, writer);
             });
-
-            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateAuth(context);
-            });
-
             writers.useFileWriter("endpoints_test.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolutionTests(context);
+                endpointGenerator.generateTests(ctx, writer);
+            });
+            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
+                new AuthGenerator(ctx, writer).generate();
             });
         }
 

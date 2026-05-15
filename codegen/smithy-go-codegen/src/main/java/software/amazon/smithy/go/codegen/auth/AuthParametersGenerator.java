@@ -20,9 +20,9 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.ListUtils;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -37,14 +37,14 @@ public class AuthParametersGenerator {
 
     public static final Symbol STRUCT_SYMBOL = SymbolUtils.createPointableSymbolBuilder(STRUCT_NAME).build();
 
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
 
     private final ArrayList<AuthParameter> fields = new ArrayList<>(
             ListUtils.of(AuthParameter.OPERATION)
     );
 
-    public AuthParametersGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public AuthParametersGenerator(GoCodegenContext ctx) {
+        this.ctx = ctx;
     }
 
     public Writable generate() {
@@ -88,9 +88,9 @@ public class AuthParametersGenerator {
     }
 
     private void loadFields() {
-        for (var integration: context.getIntegrations()) {
+        for (var integration: ctx.integrations()) {
             var plugins = integration.getClientPlugins().stream().filter(it ->
-                    it.matchesService(context.getModel(), context.getService())).toList();
+                    it.matchesService(ctx.model(), ctx.service())).toList();
             for (var plugin: plugins) {
                 fields.addAll(plugin.getAuthParameters());
             }
