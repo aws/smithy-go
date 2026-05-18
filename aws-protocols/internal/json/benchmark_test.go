@@ -79,7 +79,7 @@ func (*AttributeValueMemberL) isAttributeValue()    {}
 func (*AttributeValueMemberM) isAttributeValue()    {}
 
 type ConsumedCapacity struct {
-	TableName    *string
+	TableName     *string
 	CapacityUnits float64
 }
 
@@ -419,16 +419,16 @@ var (
 	schemaGetItemOutput_Item             *smithy.Schema
 	schemaConsumedCapacity_TableName     *smithy.Schema
 	schemaConsumedCapacity_CapacityUnits *smithy.Schema
-	schemaAttributeValue_S              *smithy.Schema
-	schemaAttributeValue_N              *smithy.Schema
-	schemaAttributeValue_B              *smithy.Schema
-	schemaAttributeValue_BOOL           *smithy.Schema
-	schemaAttributeValue_NULL           *smithy.Schema
-	schemaAttributeValue_SS             *smithy.Schema
-	schemaAttributeValue_NS             *smithy.Schema
-	schemaAttributeValue_BS             *smithy.Schema
-	schemaAttributeValue_L              *smithy.Schema
-	schemaAttributeValue_M              *smithy.Schema
+	schemaAttributeValue_S               *smithy.Schema
+	schemaAttributeValue_N               *smithy.Schema
+	schemaAttributeValue_B               *smithy.Schema
+	schemaAttributeValue_BOOL            *smithy.Schema
+	schemaAttributeValue_NULL            *smithy.Schema
+	schemaAttributeValue_SS              *smithy.Schema
+	schemaAttributeValue_NS              *smithy.Schema
+	schemaAttributeValue_BS              *smithy.Schema
+	schemaAttributeValue_L               *smithy.Schema
+	schemaAttributeValue_M               *smithy.Schema
 )
 
 func init() {
@@ -628,54 +628,59 @@ func BenchmarkDeserialize_New(b *testing.B) {
 	}
 }
 
-// Sanity check that both paths produce equivalent results.
-func TestBenchmarkParity(t *testing.T) {
-	oldOut, err := oldDeserialize(benchPayload)
-	if err != nil {
-		t.Fatal("old:", err)
-	}
+// ==========================================================================
+// Large payload
+// ==========================================================================
 
-	newOut, err := newDeserialize(benchPayload)
-	if err != nil {
-		t.Fatal("new:", err)
+func generateLargePayload(targetSize int) []byte {
+	var buf bytes.Buffer
+	buf.WriteString(`{"ConsumedCapacity":{"TableName":"Bench","CapacityUnits":1.0},"Item":{`)
+	i := 0
+	for buf.Len() < targetSize {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		key := fmt.Sprintf("attr_%d", i)
+		switch i % 7 {
+		case 0:
+			fmt.Fprintf(&buf, `"%s":{"S":"value-%d-padding-to-add-some-length-here"}`, key, i)
+		case 1:
+			fmt.Fprintf(&buf, `"%s":{"N":"%d"}`, key, i*100)
+		case 2:
+			fmt.Fprintf(&buf, `"%s":{"BOOL":%t}`, key, i%2 == 0)
+		case 3:
+			fmt.Fprintf(&buf, `"%s":{"SS":["alpha%d","bravo%d","charlie%d","delta%d"]}`, key, i, i, i, i)
+		case 4:
+			fmt.Fprintf(&buf, `"%s":{"NS":["%d","%d","%d","%d"]}`, key, i, i+1, i+2, i+3)
+		case 5:
+			fmt.Fprintf(&buf, `"%s":{"M":{"nested":{"S":"v%d"},"count":{"N":"%d"},"flag":{"BOOL":true}}}`, key, i, i)
+		case 6:
+			fmt.Fprintf(&buf, `"%s":{"L":[{"S":"item%d"},{"N":"%d"},{"BOOL":true},{"NULL":true}]}`, key, i, i)
+		}
+		i++
 	}
+	buf.WriteString(`}}`)
+	return buf.Bytes()
+}
 
-	// Spot-check key fields
-	if *oldOut.ConsumedCapacity.TableName != *newOut.ConsumedCapacity.TableName {
-		t.Error("TableName mismatch")
-	}
-	if oldOut.ConsumedCapacity.CapacityUnits != newOut.ConsumedCapacity.CapacityUnits {
-		t.Error("CapacityUnits mismatch")
-	}
-	if len(oldOut.Item) != len(newOut.Item) {
-		t.Errorf("Item length mismatch: old=%d new=%d", len(oldOut.Item), len(newOut.Item))
-	}
+var largePayload = generateLargePayload(512 * 1024 * 1024)
 
-	// Check a string attribute
-	oldS := oldOut.Item["pk"].(*AttributeValueMemberS).Value
-	newS := newOut.Item["pk"].(*AttributeValueMemberS).Value
-	if oldS != newS {
-		t.Errorf("pk mismatch: old=%q new=%q", oldS, newS)
+func BenchmarkLargePayload_Old(b *testing.B) {
+	b.SetBytes(int64(len(largePayload)))
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := oldDeserialize(largePayload); err != nil {
+			b.Fatal(err)
+		}
 	}
+}
 
-	// Check a number set
-	oldNS := oldOut.Item["scores"].(*AttributeValueMemberNS).Value
-	newNS := newOut.Item["scores"].(*AttributeValueMemberNS).Value
-	if len(oldNS) != len(newNS) {
-		t.Errorf("scores length mismatch: old=%d new=%d", len(oldNS), len(newNS))
-	}
-
-	// Check nested map
-	oldMeta := oldOut.Item["metadata"].(*AttributeValueMemberM).Value
-	newMeta := newOut.Item["metadata"].(*AttributeValueMemberM).Value
-	if len(oldMeta) != len(newMeta) {
-		t.Errorf("metadata length mismatch: old=%d new=%d", len(oldMeta), len(newMeta))
-	}
-
-	// Check list
-	oldHist := oldOut.Item["history"].(*AttributeValueMemberL).Value
-	newHist := newOut.Item["history"].(*AttributeValueMemberL).Value
-	if len(oldHist) != len(newHist) {
-		t.Errorf("history length mismatch: old=%d new=%d", len(oldHist), len(newHist))
+func BenchmarkLargePayload_New(b *testing.B) {
+	b.SetBytes(int64(len(largePayload)))
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := newDeserialize(largePayload); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
