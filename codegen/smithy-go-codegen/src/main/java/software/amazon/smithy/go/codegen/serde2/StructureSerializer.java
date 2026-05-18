@@ -63,42 +63,42 @@ public final class StructureSerializer implements Writable {
 
     private void generateSerializeMember(GoWriter writer, MemberShape member, Shape target, String ident) {
         var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
-        var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
+        var isNillable = nilIndex.isNillable(member);
         switch (target.getType()) {
             case BYTE ->
-                    writer.write("s.WriteInt8$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteInt8", schemaName);
             case SHORT ->
-                    writer.write("s.WriteInt16$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteInt16", schemaName);
             case INTEGER ->
-                    writer.write("s.WriteInt32$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteInt32", schemaName);
             case LONG ->
-                    writer.write("s.WriteInt64$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteInt64", schemaName);
 
             case FLOAT ->
-                    writer.write("s.WriteFloat32$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteFloat32", schemaName);
             case DOUBLE ->
-                    writer.write("s.WriteFloat64$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "0", "WriteFloat64", schemaName);
 
             case STRING, ENUM -> {
-                    if (ShapeUtil.isEnum(target)) {
-                        writer.write("s.WriteString($L, string($L))", schemaName, ident);
-                    } else {
-                        writer.write("s.WriteString$L($L, $L)", ptrSuffix, schemaName, ident);
-                    }
+                if (ShapeUtil.isEnum(target)) {
+                    writer.write("if $1L != \"\" { s.WriteString($2L, string($1L)) }", ident, schemaName);
+                } else {
+                    writeScalar(writer, isNillable, ident, "\"\"", "WriteString", schemaName);
+                }
             }
             case INT_ENUM ->
-                    writer.write("s.WriteInt32($L, int32($L))", schemaName, ident);
+                    writer.write("if $1L != 0 { s.WriteInt32($2L, int32($1L)) }", ident, schemaName);
             case BOOLEAN ->
-                    writer.write("s.WriteBool$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "false", "WriteBool", schemaName);
             case TIMESTAMP ->
-                    writer.write("s.WriteTime$L($L, $L)", ptrSuffix, schemaName, ident);
+                    writeScalar(writer, isNillable, ident, "", "WriteTime", schemaName);
             case BLOB ->
                     writer.write("s.WriteBlob($L, $L)", schemaName, ident);
 
             case LIST, SET, MAP, UNION ->
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
             case STRUCTURE ->
-                    writer.write("if ($2L != nil) { s.WriteStruct($1L)\n$2L.SerializeMembers(s)\ns.CloseStruct() }", schemaName, ident);
+                    writer.write("if $2L != nil { s.WriteStruct($1L)\n$2L.SerializeMembers(s)\ns.CloseStruct() }", schemaName, ident);
             case DOCUMENT -> {
                 writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
                 writer.write("s.WriteDocument($L, &smithydocument.Opaque{Value: $L})", schemaName, ident);
@@ -109,6 +109,22 @@ public final class StructureSerializer implements Writable {
 
             // invalid in this context
             case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape " + target.getType());
+        }
+    }
+
+    // Generates a nil-guarded (pointer) or zero-guarded (value) scalar write.
+    // writeMethod is e.g. "WriteInt32". schemaName is the schema ref. ident is
+    // the Go expression for the member value (e.g. "v.Foo").
+    private void writeScalar(GoWriter writer, boolean isNillable, String ident, String zeroValue,
+                             String writeMethod, String schemaName) {
+        if (isNillable) {
+            writer.write("if $1L != nil { s.$3L($2L, *$1L) }", ident, schemaName, writeMethod);
+        } else {
+            if (zeroValue.isEmpty()) {
+                writer.write("if !$1L.IsZero() { s.$3L($2L, $1L) }", ident, schemaName, writeMethod);
+            } else {
+                writer.write("if $1L != " + zeroValue + " { s.$3L($2L, $1L) }", ident, schemaName, writeMethod);
+            }
         }
     }
 }

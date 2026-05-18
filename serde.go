@@ -12,6 +12,19 @@ import (
 // ShapeSerializer implements the marshaling of an in-code representation of a
 // shape to an unspecified data format, which is determined by the
 // implementation.
+//
+// A ShapeSerializer is consumed by the **code-generated** Serialize() method
+// of a modeled structure. For example:
+//
+//	func (v *PutItemInput) Serialize(s smithy.ShapeSerializer) {
+//		s.WriteStruct(schemas.PutItemInput)
+//		v.SerializeMembers(s)
+//		s.CloseStruct()
+//	}
+//
+//	func (v *PutItemInput) SerializeMembers(s smithy.ShapeSerializer) {
+//		// TODO(serde2)
+//	}
 type ShapeSerializer interface {
 	Bytes() []byte
 
@@ -19,34 +32,21 @@ type ShapeSerializer interface {
 	WriteInt16(*Schema, int16)
 	WriteInt32(*Schema, int32)
 	WriteInt64(*Schema, int64)
-	WriteInt8Ptr(*Schema, *int8)
-	WriteInt16Ptr(*Schema, *int16)
-	WriteInt32Ptr(*Schema, *int32)
-	WriteInt64Ptr(*Schema, *int64)
-
 	WriteFloat32(*Schema, float32)
 	WriteFloat64(*Schema, float64)
-	WriteFloat32Ptr(*Schema, *float32)
-	WriteFloat64Ptr(*Schema, *float64)
-
 	WriteBool(*Schema, bool)
-	WriteBoolPtr(*Schema, *bool)
-
 	WriteString(*Schema, string)
-	WriteStringPtr(*Schema, *string)
-
-	WriteBigInteger(*Schema, big.Int)
-	WriteBigDecimal(*Schema, big.Float)
+	WriteBigInt(*Schema, *big.Int)
+	WriteBigFloat(*Schema, *big.Float)
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
-	WriteTimePtr(*Schema, *time.Time)
+
+	WriteUnion(schema, variant *Schema, v Serializable)
+	WriteDocument(*Schema, document.Value)
+	WriteNil(*Schema)
 
 	WriteStruct(*Schema)
 	CloseStruct()
-
-	WriteUnion(schema, variant *Schema, v Serializable)
-
-	WriteNil(*Schema)
 
 	WriteList(*Schema)
 	CloseList()
@@ -54,8 +54,6 @@ type ShapeSerializer interface {
 	WriteMap(*Schema)
 	WriteKey(*Schema, string)
 	CloseMap()
-
-	WriteDocument(*Schema, document.Value)
 }
 
 // ShapeDeserializer implements the unmarshaling from some unspecified data
