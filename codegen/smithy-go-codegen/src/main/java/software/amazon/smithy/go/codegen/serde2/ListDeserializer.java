@@ -39,8 +39,9 @@ public class ListDeserializer implements Writable {
     private void renderDense(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
+                    var vv $memberSymbol:T
                     return smithy.ReadList(d, s, func() error {
-                        var vv $memberSymbol:T
+                        $zeroValue:W
                         if err := $deserializeMember:W; err != nil {
                             return err
                         }
@@ -59,6 +60,7 @@ public class ListDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(member);
                 },
+                "zeroValue", renderZeroValue(),
                 "deserializeMember", renderDeserializeMember(),
                 "cast", renderDenseCast()
         ));
@@ -67,6 +69,7 @@ public class ListDeserializer implements Writable {
     private void renderSparse(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
+                    var vv $memberSymbol:T
                     return smithy.ReadList(d, s, func() error {
                         if isNil, err := d.ReadNil(s.ListMember()); err != nil {
                             return err
@@ -75,7 +78,7 @@ public class ListDeserializer implements Writable {
                             return nil
                         }
 
-                        var vv $memberSymbol:T
+                        $zeroValue:W
                         if err := $deserializeMember:W; err != nil {
                             return err
                         }
@@ -94,9 +97,18 @@ public class ListDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(member);
                 },
+                "zeroValue", renderZeroValue(),
                 "deserializeMember", renderDeserializeMember(),
                 "cast", renderSparseCast()
         ));
+    }
+
+    private Writable renderZeroValue() {
+        return switch (member.getType()) {
+            case STRUCTURE ->
+                    goTemplate("vv = $T{}", ctx.symbolProvider().toSymbol(member));
+            default -> goTemplate("");
+        };
     }
 
     private Writable renderSparseCast() {

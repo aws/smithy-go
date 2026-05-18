@@ -40,8 +40,9 @@ public class MapDeserializer implements Writable {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T)
+                    var vv $valueSymbol:T
                     return smithy.ReadMap(d, s, func(k string) error {
-                        var vv $valueSymbol:T
+                        $zeroValue:W
                         if err := $deserializeValue:W; err != nil {
                             return err
                         }
@@ -60,6 +61,7 @@ public class MapDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
                 },
+                "zeroValue", renderZeroValue(),
                 "deserializeValue", renderDeserializeValue(),
                 "cast", renderDenseCast()
         ));
@@ -69,6 +71,7 @@ public class MapDeserializer implements Writable {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T)
+                    var vv $valueSymbol:T
                     return smithy.ReadMap(d, s, func(k string) error {
                         if isNil, err := d.ReadNil(s.MapValue()); err != nil {
                             return err
@@ -77,7 +80,7 @@ public class MapDeserializer implements Writable {
                             return nil
                         }
 
-                        var vv $valueSymbol:T
+                        $zeroValue:W
                         if err := $deserializeValue:W; err != nil {
                             return err
                         }
@@ -96,9 +99,18 @@ public class MapDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
                 },
+                "zeroValue", renderZeroValue(),
                 "deserializeValue", renderDeserializeValue(),
                 "cast", renderSparseCast()
         ));
+    }
+
+    private Writable renderZeroValue() {
+        return switch (value.getType()) {
+            case STRUCTURE ->
+                    goTemplate("vv = $T{}", ctx.symbolProvider().toSymbol(value));
+            default -> goTemplate("");
+        };
     }
 
     private Writable renderSparseCast() {
