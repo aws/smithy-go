@@ -3,6 +3,7 @@ package httpbinding
 import (
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -149,26 +150,6 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	return d.body.ReadString(s, v)
 }
 
-// ReadStringPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	if d.inBindings {
-		if _, ok := isHTTPHeader(s); ok {
-			hv, err := d.readHeaderString(s)
-			if err != nil {
-				return err
-			}
-			*v = &hv
-			return nil
-		}
-		if _, ok := smithy.SchemaTrait[*traits.HTTPPayload](s); ok {
-			val := string(d.payload)
-			*v = &val
-			return nil
-		}
-	}
-	return d.body.ReadStringPtr(s, v)
-}
-
 // ReadBool implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	if !d.inBindings {
@@ -193,19 +174,6 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	return nil
 }
 
-// ReadBoolPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
-	if !d.inBindings {
-		return d.body.ReadBoolPtr(s, v)
-	}
-	var vv bool
-	if err := d.ReadBool(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
-}
-
 // ReadInt8 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	if !d.inBindings {
@@ -214,38 +182,12 @@ func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	return readHeaderInt[int8](d, s, v)
 }
 
-// ReadInt8Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
-	if !d.inBindings {
-		return d.body.ReadInt8Ptr(s, v)
-	}
-	var vv int8
-	if err := d.ReadInt8(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
-}
-
 // ReadInt16 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
 	if !d.inBindings {
 		return d.body.ReadInt16(s, v)
 	}
 	return readHeaderInt[int16](d, s, v)
-}
-
-// ReadInt16Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt16Ptr(s *smithy.Schema, v **int16) error {
-	if !d.inBindings {
-		return d.body.ReadInt16Ptr(s, v)
-	}
-	var vv int16
-	if err := d.ReadInt16(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
 }
 
 // ReadInt32 implements [smithy.ShapeDeserializer].
@@ -266,38 +208,12 @@ func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
 	return readHeaderInt[int32](d, s, v)
 }
 
-// ReadInt32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
-	if !d.inBindings {
-		return d.body.ReadInt32Ptr(s, v)
-	}
-	var vv int32
-	if err := d.ReadInt32(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
-}
-
 // ReadInt64 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	if !d.inBindings {
 		return d.body.ReadInt64(s, v)
 	}
 	return readHeaderInt[int64](d, s, v)
-}
-
-// ReadInt64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
-	if !d.inBindings {
-		return d.body.ReadInt64Ptr(s, v)
-	}
-	var vv int64
-	if err := d.ReadInt64(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
 }
 
 // ReadFloat32 implements [smithy.ShapeDeserializer].
@@ -308,38 +224,12 @@ func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	return readHeaderFloat[float32](d, s, v)
 }
 
-// ReadFloat32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat32Ptr(s *smithy.Schema, v **float32) error {
-	if !d.inBindings {
-		return d.body.ReadFloat32Ptr(s, v)
-	}
-	var vv float32
-	if err := d.ReadFloat32(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
-}
-
 // ReadFloat64 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 	if !d.inBindings {
 		return d.body.ReadFloat64(s, v)
 	}
 	return readHeaderFloat[float64](d, s, v)
-}
-
-// ReadFloat64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
-	if !d.inBindings {
-		return d.body.ReadFloat64Ptr(s, v)
-	}
-	var vv float64
-	if err := d.ReadFloat64(s, &vv); err != nil {
-		return err
-	}
-	*v = &vv
-	return nil
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -356,27 +246,6 @@ func (d *ShapeDeserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 		return nil
 	}
 	return d.body.ReadTime(s, v)
-}
-
-// ReadTimePtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadTimePtr(s *smithy.Schema, v **time.Time) error {
-	if d.inHeaderList {
-		var val time.Time
-		if err := d.ReadTime(s, &val); err != nil {
-			return err
-		}
-		*v = &val
-		return nil
-	}
-	if d.inBindings {
-		t, err := d.readHeaderTime(s)
-		if err != nil {
-			return err
-		}
-		*v = &t
-		return nil
-	}
-	return d.body.ReadTimePtr(s, v)
 }
 
 func (d *ShapeDeserializer) readHeaderTime(s *smithy.Schema) (time.Time, error) {
@@ -614,4 +483,14 @@ func readHeaderFloat[T floatn](d *ShapeDeserializer, s *smithy.Schema, v *T) err
 
 	*v = T(n)
 	return nil
+}
+
+// ReadBigInt is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
+	return fmt.Errorf("unimplemented")
+}
+
+// ReadBigFloat is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
+	return fmt.Errorf("unimplemented")
 }
