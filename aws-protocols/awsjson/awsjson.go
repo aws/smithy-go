@@ -10,8 +10,8 @@ import (
 
 	"github.com/aws/smithy-go"
 	internaljson "github.com/aws/smithy-go/aws-protocols/internal/json"
-	internales "github.com/aws/smithy-go/internal/eventstream"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
+	internales "github.com/aws/smithy-go/internal/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/traits"
