@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -218,26 +219,6 @@ func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	return readInt(d, v, math.MinInt64, math.MaxInt64)
 }
 
-// ReadInt8Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
-	return readPtr(d, s, v, d.ReadInt8)
-}
-
-// ReadInt16Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt16Ptr(s *smithy.Schema, v **int16) error {
-	return readPtr(d, s, v, d.ReadInt16)
-}
-
-// ReadInt32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
-	return readPtr(d, s, v, d.ReadInt32)
-}
-
-// ReadInt64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
-	return readPtr(d, s, v, d.ReadInt64)
-}
-
 // ReadFloat32 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	return readFloat(d, v)
@@ -246,16 +227,6 @@ func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 // ReadFloat64 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 	return readFloat(d, v)
-}
-
-// ReadFloat32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat32Ptr(s *smithy.Schema, v **float32) error {
-	return readPtr(d, s, v, d.ReadFloat32)
-}
-
-// ReadFloat64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
-	return readPtr(d, s, v, d.ReadFloat64)
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
@@ -279,11 +250,6 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	default:
 		return fmt.Errorf("expected bool, got minor %d", minor)
 	}
-}
-
-// ReadBoolPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
-	return readPtr(d, s, v, d.ReadBool)
 }
 
 // ReadString implements [smithy.ShapeDeserializer].
@@ -330,11 +296,6 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	return nil
 }
 
-// ReadStringPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	return readPtr(d, s, v, d.ReadString)
-}
-
 // ReadTime implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error {
 	if d.eof() {
@@ -375,11 +336,6 @@ func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error 
 	default:
 		return fmt.Errorf("unexpected major type %d in timestamp tag", major)
 	}
-}
-
-// ReadTimePtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadTimePtr(schema *smithy.Schema, v **time.Time) error {
-	return readPtr(d, schema, v, d.ReadTime)
 }
 
 // ReadBlob implements [smithy.ShapeDeserializer].
@@ -555,6 +511,12 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return d.ReadStructMember()
 	}
 
+	if isNil, err := d.ReadNil(member); err != nil {
+		return nil, err
+	} else if isNil {
+		return d.ReadStructMember()
+	}
+
 	return member, nil
 }
 
@@ -701,16 +663,6 @@ func (d *ShapeDeserializer) skipIndefiniteBytes() error {
 	return nil
 }
 
-func readPtr[T any](d *ShapeDeserializer, s *smithy.Schema, v **T, read func(*smithy.Schema, *T) error) error {
-	if isNil, err := d.ReadNil(s); isNil || err != nil {
-		return err
-	}
-	if *v == nil {
-		*v = new(T)
-	}
-	return read(s, *v)
-}
-
 type tint interface {
 	int8 | int16 | int32 | int64
 }
@@ -764,4 +716,14 @@ func GetProtocolErrorInfo(p []byte) (typ, message string, err error) {
 	}
 
 	return typ, message, nil
+}
+
+// ReadBigInt is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
+	return fmt.Errorf("unimplemented")
+}
+
+// ReadBigFloat is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
+	return fmt.Errorf("unimplemented")
 }

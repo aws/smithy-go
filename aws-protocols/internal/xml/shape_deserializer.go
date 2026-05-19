@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"math/big"
 	"math"
 	"strconv"
 	"strings"
@@ -417,11 +418,6 @@ func (d *ShapeDeserializer) ReadBool(_ *smithy.Schema, v *bool) error {
 	return nil
 }
 
-// ReadBoolPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
-	return readPtr(d, s, v, d.ReadBool)
-}
-
 // ReadInt8 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	n, err := d.readInt(8)
@@ -466,26 +462,6 @@ func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	return nil
 }
 
-// ReadInt8Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
-	return readPtr(d, s, v, d.ReadInt8)
-}
-
-// ReadInt16Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt16Ptr(s *smithy.Schema, v **int16) error {
-	return readPtr(d, s, v, d.ReadInt16)
-}
-
-// ReadInt32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
-	return readPtr(d, s, v, d.ReadInt32)
-}
-
-// ReadInt64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
-	return readPtr(d, s, v, d.ReadInt64)
-}
-
 // ReadFloat32 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	n, err := d.readFloat()
@@ -508,16 +484,6 @@ func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 	return nil
 }
 
-// ReadFloat32Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat32Ptr(s *smithy.Schema, v **float32) error {
-	return readPtr(d, s, v, d.ReadFloat32)
-}
-
-// ReadFloat64Ptr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
-	return readPtr(d, s, v, d.ReadFloat64)
-}
-
 // ReadString implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadString(_ *smithy.Schema, v *string) error {
 	text, err := d.chardata()
@@ -527,11 +493,6 @@ func (d *ShapeDeserializer) ReadString(_ *smithy.Schema, v *string) error {
 
 	*v = text
 	return nil
-}
-
-// ReadStringPtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	return readPtr(d, s, v, d.ReadString)
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -570,11 +531,6 @@ func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error 
 	}
 
 	return nil
-}
-
-// ReadTimePtr implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadTimePtr(schema *smithy.Schema, v **time.Time) error {
-	return readPtr(d, schema, v, d.ReadTime)
 }
 
 // ReadBlob implements [smithy.ShapeDeserializer].
@@ -626,13 +582,6 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 // ReadDocument is unimplemented for XML.
 func (d *ShapeDeserializer) ReadDocument(_ *smithy.Schema, _ *document.Value) error {
 	return fmt.Errorf("Document not supported")
-}
-
-func readPtr[T any](d *ShapeDeserializer, s *smithy.Schema, v **T, read func(*smithy.Schema, *T) error) error {
-	if *v == nil {
-		*v = new(T)
-	}
-	return read(s, *v)
 }
 
 func (d *ShapeDeserializer) token() (xml.Token, error) {
@@ -769,4 +718,14 @@ func stripPrefix(name string) string {
 		return after
 	}
 	return name
+}
+
+// ReadBigInt is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
+	return fmt.Errorf("unimplemented")
+}
+
+// ReadBigFloat is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
+	return fmt.Errorf("unimplemented")
 }
