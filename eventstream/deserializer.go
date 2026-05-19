@@ -2,6 +2,7 @@ package eventstream
 
 import (
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -115,18 +116,6 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	return d.inner.ReadString(s, v)
 }
 
-func (d *ShapeDeserializer) ReadStringPtr(s *smithy.Schema, v **string) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val string
-	if err := d.ReadString(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
-}
-
 func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	if d.inBindings && isEventHeader(s) {
 		hv := d.Message.Headers.Get(s.MemberName())
@@ -141,18 +130,6 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 		return nil
 	}
 	return d.inner.ReadBool(s, v)
-}
-
-func (d *ShapeDeserializer) ReadBoolPtr(s *smithy.Schema, v **bool) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val bool
-	if err := d.ReadBool(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
 }
 
 func (d *ShapeDeserializer) readHeaderInt64(name string) (int64, bool, error) {
@@ -194,35 +171,11 @@ func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	return d.inner.ReadInt8(s, v)
 }
 
-func (d *ShapeDeserializer) ReadInt8Ptr(s *smithy.Schema, v **int8) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val int8
-	if err := d.ReadInt8(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
-}
-
 func (d *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
 	if d.inBindings && isEventHeader(s) {
 		return readEventHeaderInt(d, s, v)
 	}
 	return d.inner.ReadInt16(s, v)
-}
-
-func (d *ShapeDeserializer) ReadInt16Ptr(s *smithy.Schema, v **int16) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val int16
-	if err := d.ReadInt16(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
 }
 
 func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
@@ -232,18 +185,6 @@ func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
 	return d.inner.ReadInt32(s, v)
 }
 
-func (d *ShapeDeserializer) ReadInt32Ptr(s *smithy.Schema, v **int32) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val int32
-	if err := d.ReadInt32(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
-}
-
 func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	if d.inBindings && isEventHeader(s) {
 		return readEventHeaderInt(d, s, v)
@@ -251,32 +192,12 @@ func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	return d.inner.ReadInt64(s, v)
 }
 
-func (d *ShapeDeserializer) ReadInt64Ptr(s *smithy.Schema, v **int64) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val int64
-	if err := d.ReadInt64(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
-}
-
 func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	return d.inner.ReadFloat32(s, v)
 }
 
-func (d *ShapeDeserializer) ReadFloat32Ptr(s *smithy.Schema, v **float32) error {
-	return d.inner.ReadFloat32Ptr(s, v)
-}
-
 func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 	return d.inner.ReadFloat64(s, v)
-}
-
-func (d *ShapeDeserializer) ReadFloat64Ptr(s *smithy.Schema, v **float64) error {
-	return d.inner.ReadFloat64Ptr(s, v)
 }
 
 func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
@@ -317,18 +238,6 @@ func (d *ShapeDeserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 	return d.inner.ReadTime(s, v)
 }
 
-func (d *ShapeDeserializer) ReadTimePtr(s *smithy.Schema, v **time.Time) error {
-	if d.inBindings && isEventHeader(s) && d.Message.Headers.Get(s.MemberName()) == nil {
-		return nil
-	}
-	var val time.Time
-	if err := d.ReadTime(s, &val); err != nil {
-		return err
-	}
-	*v = &val
-	return nil
-}
-
 func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 	return d.inner.ReadList(s)
 }
@@ -361,4 +270,14 @@ func isEventBound(schema *smithy.Schema) bool {
 	_, h := smithy.SchemaTrait[*traits.EventHeader](schema)
 	_, p := smithy.SchemaTrait[*traits.EventPayload](schema)
 	return h || p
+}
+
+// ReadBigInt is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
+	return fmt.Errorf("unimplemented")
+}
+
+// ReadBigFloat is unimplemented and will return an error.
+func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
+	return fmt.Errorf("unimplemented")
 }
