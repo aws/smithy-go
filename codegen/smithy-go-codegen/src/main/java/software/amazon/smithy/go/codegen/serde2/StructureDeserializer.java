@@ -57,21 +57,21 @@ public class StructureDeserializer implements Writable {
 
     private void renderMember(GoWriter writer, MemberShape member, Shape target, String ident) {
         var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
-        var ptrSuffix = nilIndex.isNillable(member) ? "Ptr" : "";
+        var isNillable = nilIndex.isNillable(member);
         switch (target.getType()) {
             case BYTE ->
-                    writer.write("return d.ReadInt8$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadInt8", "int8");
             case SHORT ->
-                    writer.write("return d.ReadInt16$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadInt16", "int16");
             case INTEGER ->
-                    writer.write("return d.ReadInt32$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadInt32", "int32");
             case LONG ->
-                    writer.write("return d.ReadInt64$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadInt64", "int64");
 
             case FLOAT ->
-                    writer.write("return d.ReadFloat32$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadFloat32", "float32");
             case DOUBLE ->
-                    writer.write("return d.ReadFloat64$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadFloat64", "float64");
 
             case STRING, ENUM -> {
                     if (ShapeUtil.isEnum(target)) {
@@ -83,7 +83,7 @@ public class StructureDeserializer implements Writable {
                                 $2L = $3T(ev)
                                 return nil""", schemaName, ident, ctx.symbolProvider().toSymbol(target));
                     } else {
-                        writer.write("return d.ReadString$L($L, &$L)", ptrSuffix, schemaName, ident);
+                        writeReadScalar(writer, isNillable, ident, schemaName, "ReadString", "string");
                     }
             }
             case INT_ENUM ->
@@ -95,9 +95,9 @@ public class StructureDeserializer implements Writable {
                             $2L = $3T(ev)
                             return nil""", schemaName, ident, ctx.symbolProvider().toSymbol(target));
             case BOOLEAN ->
-                    writer.write("return d.ReadBool$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadBool", "bool");
             case TIMESTAMP ->
-                    writer.write("return d.ReadTime$L($L, &$L)", ptrSuffix, schemaName, ident);
+                    writeReadScalar(writer, isNillable, ident, schemaName, "ReadTime", "time.Time");
             case BLOB ->
                     writer.write("return d.ReadBlob($L, &$L)", schemaName, ident);
 
@@ -132,6 +132,15 @@ public class StructureDeserializer implements Writable {
 
             // invalid in this context
             case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new UnsupportedShapeException(target.getType());
+        }
+    }
+
+    private void writeReadScalar(GoWriter writer, boolean isNillable, String ident, String schemaName,
+                                 String readMethod, String goType) {
+        if (isNillable) {
+            writer.write("$1L = new($4L)\nreturn d.$3L($2L, $1L)", ident, schemaName, readMethod, goType);
+        } else {
+            writer.write("return d.$3L($2L, &$1L)", ident, schemaName, readMethod);
         }
     }
 }
