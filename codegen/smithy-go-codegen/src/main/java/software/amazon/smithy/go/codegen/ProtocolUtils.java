@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.integration.EventStreamProtocolTestGenerator;
 import software.amazon.smithy.go.codegen.integration.HttpProtocolTestGenerator;
 import software.amazon.smithy.go.codegen.integration.HttpProtocolUnitTestGenerator;
 import software.amazon.smithy.go.codegen.integration.HttpProtocolUnitTestGenerator.ConfigValue;
@@ -322,5 +323,7 @@ public final class ProtocolUtils {
                         .settings(ctx.settings())
                         .addClientConfigValues(configValues)
         ).generateProtocolTests();
+
+        new EventStreamProtocolTestGenerator(ctx).generateProtocolTests();
     }
 }
