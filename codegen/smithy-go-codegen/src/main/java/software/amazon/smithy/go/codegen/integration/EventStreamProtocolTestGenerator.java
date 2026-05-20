@@ -46,12 +46,9 @@ public class EventStreamProtocolTestGenerator {
             "MissingRequiredInitialResponseOutput",
             "DuplexMissingRequiredInitialResponseOutput",
 
-            // SDK silently drops unrecognized/malformed event stream messages
-            // instead of surfacing an error.
-            "ClientUnexpectedErrorOutput",
-            "DuplexClientUnexpectedErrorOutput",
-            "MissingEventTypeOutput",
-            "DuplexMissingEventTypeOutput",
+            // SDK does not validate the type of the :event-type header. A blob
+            // value is treated as an unknown event (UnknownUnionMember) rather
+            // than surfacing an error.
             "MalformedEventTypeOutput",
             "DuplexMalformedEventTypeOutput",
 
