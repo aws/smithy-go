@@ -78,9 +78,11 @@ func (s *ShapeSerializer) writeComma() {
 
 func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
 	s.writeComma()
+	if jk := schema.JSONKey(); len(jk) > 0 && !s.opts.UseJSONName {
+		s.buf = append(s.buf, jk...)
+		return
+	}
 	name := s.jsonMemberName(schema)
-	// member names are Smithy identifiers: ASCII alphanumeric + underscore,
-	// guaranteed safe — skip escape scanning
 	s.buf = append(s.buf, '"')
 	s.buf = append(s.buf, name...)
 	s.buf = append(s.buf, '"', ':')

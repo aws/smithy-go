@@ -71,6 +71,8 @@ type Schema struct {
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
+
+	jsonKey []byte // pre-computed `"memberName":` for serialization fast path
 }
 
 // NewSchema creates a new Schema with the given shape ID and traits.
@@ -114,6 +116,12 @@ func (s *Schema) addTrait(t Trait, direct bool) {
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
 func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
+	// pre-compute `"name":` for fast serialization
+	jk := make([]byte, 0, len(name)+3)
+	jk = append(jk, '"')
+	jk = append(jk, name...)
+	jk = append(jk, '"', ':')
+
 	m := &Schema{
 		id:         ShapeID{Member: name},
 		typ:        target.typ,
@@ -125,6 +133,7 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 		listMember: target.listMember,
 		mapKey:     target.mapKey,
 		mapValue:   target.mapValue,
+		jsonKey:    jk,
 	}
 
 	// member-declared traits override and are direct
@@ -207,6 +216,11 @@ func (s *Schema) Member(name string) *Schema {
 // MemberBytes looks up a member by byte-slice key without allocating a string.
 func (s *Schema) MemberBytes(name []byte) *Schema {
 	return s.members[string(name)]
+}
+
+// JSONKey returns the pre-computed `"memberName":` bytes for serialization.
+func (s *Schema) JSONKey() []byte {
+	return s.jsonKey
 }
 
 // Members returns the schema's members as a map of name to schema.
