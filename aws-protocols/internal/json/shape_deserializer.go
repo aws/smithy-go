@@ -39,8 +39,8 @@ type ShapeDeserializer struct {
 	head serde.Stack[deserCtx]
 	opts Options
 
-	// it's easier to just maintain the "peeked" token here actually
-	peeked []byte
+	peeked        []byte
+	peekedEscaped bool
 }
 
 var deserPool = sync.Pool{
@@ -81,6 +81,7 @@ func (d *ShapeDeserializer) next() ([]byte, error) {
 	if d.peeked != nil {
 		peeked := d.peeked
 		d.peeked = nil
+		d.p.escaped = d.peekedEscaped
 		return peeked, nil
 	}
 	return d.p.Next()
@@ -95,6 +96,7 @@ func (d *ShapeDeserializer) peek() ([]byte, error) {
 		return nil, err
 	}
 	d.peeked = tok
+	d.peekedEscaped = d.p.escaped
 	return tok, nil
 }
 
@@ -272,9 +274,8 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 		return fmt.Errorf("expected string, got %s", tok)
 	}
 
-	inner := tok[1 : len(tok)-1]
-	if !stdlib.HasEscape(inner) {
-		*v = unsafeString(inner)
+	if !d.p.escaped {
+		*v = unsafeString(tok[1 : len(tok)-1])
 		return nil
 	}
 
@@ -409,9 +410,8 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 		return "", false, nil
 	}
 
-	inner := tok[1 : len(tok)-1]
-	if !stdlib.HasEscape(inner) {
-		return unsafeString(inner), true, nil
+	if !d.p.escaped {
+		return unsafeString(tok[1 : len(tok)-1]), true, nil
 	}
 
 	key, err := unquote(tok)

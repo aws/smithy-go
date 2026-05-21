@@ -43,6 +43,9 @@ type parser struct {
 	stack serde.Stack[int8]
 	done  bool
 	state parseState
+
+	// set by scanString: true if the last string token contained escapes
+	escaped bool
 }
 
 func (p *parser) Next() ([]byte, error) {
@@ -317,6 +320,7 @@ func hasLess(v uint64, n byte) uint64 {
 func (p *parser) scanString() ([]byte, error) {
 	start := p.i
 	i := p.i + 1 // skip opening "
+	p.escaped = false
 
 	// SWAR: scan 8 bytes at a time for '"', '\', or control chars (< 0x20)
 	for i+8 <= len(p.p) {
@@ -336,6 +340,7 @@ func (p *parser) scanString() ([]byte, error) {
 		}
 
 		if c == '\\' {
+			p.escaped = true
 			p.i = i + 1
 			if err := p.scanEscape(); err != nil {
 				return nil, err
