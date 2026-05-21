@@ -42,17 +42,20 @@ public class HttpProtocolTestGenerator {
     private final HttpProtocolUnitTestResponseGenerator.Builder responseTestBuilder;
     private final HttpProtocolUnitTestResponseErrorGenerator.Builder responseErrorTestBuilder;
     private final String SERDE_BENCHMARK_TAG = "serde-benchmark";
+    private final String protocolName;
 
     /**
      * Initializes the protocol generator.
      *
      * @param ctx                      codegen context.
+     * @param protocolName             the protocol name prefix for generated middleware types.
      * @param requestTestBuilder       builder that will create a request test generator.
      * @param responseTestBuilder      build that will create a response test generator.
      * @param responseErrorTestBuilder builder that will create a response API error test generator.
      */
     public HttpProtocolTestGenerator(
             GoCodegenContext ctx,
+            String protocolName,
             HttpProtocolUnitTestRequestGenerator.Builder requestTestBuilder,
             HttpProtocolUnitTestResponseGenerator.Builder responseTestBuilder,
             HttpProtocolUnitTestResponseErrorGenerator.Builder responseErrorTestBuilder
@@ -62,6 +65,7 @@ public class HttpProtocolTestGenerator {
         this.service = ctx.settings().getService(ctx.model());
         this.symbolProvider = ctx.symbolProvider();
         this.delegator = (GoDelegator) ctx.writerDelegator();
+        this.protocolName = protocolName;
 
         this.requestTestBuilder = requestTestBuilder;
         this.responseTestBuilder = responseTestBuilder;
@@ -119,6 +123,7 @@ public class HttpProtocolTestGenerator {
                                 .symbolProvider(symbolProvider)
                                 .service(service)
                                 .operation(operation)
+                                .protocolName(protocolName)
                                 .testCases(serdBenchmarkCases)
                                 .build()
                                 .generateSerdBenchmarkFunction(writer);
