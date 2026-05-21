@@ -79,6 +79,8 @@ func (s *ShapeSerializer) writeComma() {
 func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
 	s.writeComma()
 	name := s.jsonMemberName(schema)
+	// member names are Smithy identifiers: ASCII alphanumeric + underscore,
+	// guaranteed safe — skip escape scanning
 	s.buf = append(s.buf, '"')
 	s.buf = append(s.buf, name...)
 	s.buf = append(s.buf, '"', ':')
@@ -386,6 +388,21 @@ func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 // appendEscapedString writes a JSON-escaped string to the buffer.
 func (s *ShapeSerializer) appendEscapedString(v string) {
 	s.buf = append(s.buf, '"')
+
+	// fast path: check if entire string is safe ASCII
+	safe := true
+	for i := 0; i < len(v); i++ {
+		if !safeSet[v[i]] {
+			safe = false
+			break
+		}
+	}
+	if safe {
+		s.buf = append(s.buf, v...)
+		s.buf = append(s.buf, '"')
+		return
+	}
+
 	start := 0
 	for i := 0; i < len(v); {
 		b := v[i]
