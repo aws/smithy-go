@@ -266,17 +266,40 @@ func (s *Schema) JSONNameKeyComma() []byte {
 
 // SetJSONName pre-computes serialization keys for the @jsonName trait value.
 func (s *Schema) SetJSONName(name string) {
-	jk := make([]byte, 0, len(name)+3)
-	jk = append(jk, '"')
-	jk = append(jk, name...)
-	jk = append(jk, '"', ':')
-	s.jsonNameKey = jk
+	s.jsonNameKey = encodeJSONKey(name, false)
+	s.jsonNameKeyComma = encodeJSONKey(name, true)
+}
 
-	jkc := make([]byte, 0, len(name)+4)
-	jkc = append(jkc, ',', '"')
-	jkc = append(jkc, name...)
-	jkc = append(jkc, '"', ':')
-	s.jsonNameKeyComma = jkc
+func encodeJSONKey(name string, withComma bool) []byte {
+	// JSON-escape the name to handle special characters
+	buf := make([]byte, 0, len(name)+5)
+	if withComma {
+		buf = append(buf, ',')
+	}
+	buf = append(buf, '"')
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch c {
+		case '"':
+			buf = append(buf, '\\', '"')
+		case '\\':
+			buf = append(buf, '\\', '\\')
+		case '\n':
+			buf = append(buf, '\\', 'n')
+		case '\r':
+			buf = append(buf, '\\', 'r')
+		case '\t':
+			buf = append(buf, '\\', 't')
+		default:
+			if c < 0x20 {
+				buf = append(buf, '\\', 'u', '0', '0', "0123456789abcdef"[c>>4], "0123456789abcdef"[c&0xF])
+			} else {
+				buf = append(buf, c)
+			}
+		}
+	}
+	buf = append(buf, '"', ':')
+	return buf
 }
 
 // Members returns the schema's members as a map of name to schema.

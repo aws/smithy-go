@@ -33,12 +33,18 @@ type ShapeSerializer struct {
 	// comma[depth] is true if we need a comma before the next element
 	comma [64]bool
 	depth int
+	noKey bool // when true, next write skips key emission (used after union variant key)
 }
+
+const (
+	defaultBufSize  = 1024
+	maxCacheableBuf = defaultBufSize * 4
+)
 
 var serPool = sync.Pool{
 	New: func() any {
 		return &ShapeSerializer{
-			buf: make([]byte, 0, 1024),
+			buf: make([]byte, 0, defaultBufSize),
 		}
 	},
 }
@@ -55,18 +61,22 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 	s.buf = s.buf[:0]
 	s.opts = o
 	s.depth = 0
+	s.noKey = false
 	s.comma = [64]bool{}
 	return s
 }
 
 // Close returns the serializer to the pool for reuse.
 func (s *ShapeSerializer) Close() {
+	if cap(s.buf) > maxCacheableBuf {
+		s.buf = make([]byte, 0, defaultBufSize)
+	}
 	serPool.Put(s)
 }
 
-// Bytes returns the serialized JSON bytes.
+// Bytes returns a copy of the serialized JSON bytes, safe to retain after Close().
 func (s *ShapeSerializer) Bytes() []byte {
-	return s.buf
+	return append([]byte(nil), s.buf...)
 }
 
 func (s *ShapeSerializer) writeComma() {
@@ -74,6 +84,19 @@ func (s *ShapeSerializer) writeComma() {
 		s.buf = append(s.buf, ',')
 	}
 	s.comma[s.depth] = true
+}
+
+// writePrefix handles the key-or-comma logic before a value, respecting noKey.
+func (s *ShapeSerializer) writePrefix(schema *smithy.Schema) {
+	if s.noKey {
+		s.noKey = false
+		return
+	}
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
+	}
 }
 
 func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
@@ -98,11 +121,7 @@ func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
 
 // WriteBool implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	if v {
 		s.buf = append(s.buf, "true"...)
 	} else {
@@ -127,21 +146,13 @@ func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
 
 // WriteInt64 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = strconv.AppendInt(s.buf, v, 10)
 }
 
 // WriteFloat32 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	if math.IsInf(float64(v), 1) {
 		s.buf = append(s.buf, `"Infinity"`...)
 	} else if math.IsInf(float64(v), -1) {
@@ -155,11 +166,7 @@ func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 
 // WriteFloat64 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	if math.IsInf(v, 1) {
 		s.buf = append(s.buf, `"Infinity"`...)
 	} else if math.IsInf(v, -1) {
@@ -173,21 +180,13 @@ func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 
 // WriteString implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.appendEscapedString(v)
 }
 
 // WriteBlob implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	if v == nil {
 		s.buf = append(s.buf, "null"...)
 		return
@@ -202,11 +201,7 @@ func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
 
 // WriteList implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, '[')
 	s.depth++
 	s.comma[s.depth] = false
@@ -220,11 +215,7 @@ func (s *ShapeSerializer) CloseList() {
 
 // WriteMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++
 	s.comma[s.depth] = false
@@ -264,20 +255,14 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 
 // WriteUnion implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++
 	s.comma[s.depth] = false
 
-	// write the variant key
-	name := s.jsonMemberName(variant)
-	s.buf = append(s.buf, '"')
-	s.buf = append(s.buf, name...)
-	s.buf = append(s.buf, '"', ':')
+	// write the variant key, then suppress key on the next write (the value)
+	s.writeKey(variant)
+	s.noKey = true
 
 	v.Serialize(s)
 
@@ -287,11 +272,7 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Se
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++
 	s.comma[s.depth] = false
@@ -305,11 +286,7 @@ func (s *ShapeSerializer) CloseStruct() {
 
 // WriteNil implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, "null"...)
 }
 
@@ -377,11 +354,7 @@ func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
 }
 
 func (s *ShapeSerializer) writeRaw(schema *smithy.Schema, p []byte) {
-	if schema != nil && s.depth > 0 {
-		s.writeKey(schema)
-	} else {
-		s.writeComma()
-	}
+	s.writePrefix(schema)
 	s.buf = append(s.buf, p...)
 }
 
@@ -402,7 +375,7 @@ func (s *ShapeSerializer) appendEscapedString(v string) {
 	// fast path: check if entire string is safe ASCII
 	safe := true
 	for i := 0; i < len(v); i++ {
-		if !safeSet[v[i]] {
+		if v[i] >= utf8.RuneSelf || !safeSet[v[i]] {
 			safe = false
 			break
 		}
@@ -563,7 +536,7 @@ var safeSet = [utf8.RuneSelf]bool{
 	'|':      true,
 	'}':      true,
 	'~':      true,
-	'': true,
+	'': false,
 }
 
 var hex = "0123456789abcdef"

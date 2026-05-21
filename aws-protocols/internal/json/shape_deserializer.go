@@ -177,14 +177,22 @@ func parseInt(b []byte) (int64, bool) {
 		}
 	}
 
+	const cutoff = math.MaxUint64/10 + 1
 	var n uint64
 	for _, c := range b {
 		if c < '0' || c > '9' {
 			return 0, false
 		}
-		n = n*10 + uint64(c-'0')
-		if n > 1<<63 {
-			if neg && n == 1<<63 {
+		if n >= cutoff {
+			return 0, false
+		}
+		nn := n*10 + uint64(c-'0')
+		if nn < n {
+			return 0, false
+		}
+		n = nn
+		if n > uint64(math.MaxInt64) {
+			if neg && n == uint64(math.MaxInt64)+1 {
 				return math.MinInt64, true
 			}
 			return 0, false
@@ -518,6 +526,9 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			return nil, nil
 		}
 
+		// save escaped before peek overwrites it
+		keyEscaped := d.p.escaped
+
 		// inline null check
 		ptok, err := d.peek()
 		if err != nil {
@@ -528,7 +539,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			continue
 		}
 
-		member, err := memberFromToken(s, tok, d.p.escaped)
+		member, err := memberFromToken(s, tok, keyEscaped)
 		if err != nil {
 			return nil, err
 		}
