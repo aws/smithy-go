@@ -72,7 +72,17 @@ type Schema struct {
 	listMember       *Schema
 	mapKey, mapValue *Schema
 
-	jsonKey []byte // pre-computed `"memberName":` for serialization fast path
+	jsonKey      []byte // pre-computed `"memberName":` for serialization
+	jsonKeyComma []byte // pre-computed `,"memberName":` for serialization (after first field)
+
+	// flat member lookup: ordered list of (name, schema) for linear scan
+	// faster than map for small member counts (< ~20)
+	memberList []memberEntry
+}
+
+type memberEntry struct {
+	name   string
+	schema *Schema
 }
 
 // NewSchema creates a new Schema with the given shape ID and traits.
@@ -116,11 +126,16 @@ func (s *Schema) addTrait(t Trait, direct bool) {
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
 func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
-	// pre-compute `"name":` for fast serialization
+	// pre-compute `"name":` and `,"name":` for fast serialization
 	jk := make([]byte, 0, len(name)+3)
 	jk = append(jk, '"')
 	jk = append(jk, name...)
 	jk = append(jk, '"', ':')
+
+	jkc := make([]byte, 0, len(name)+4)
+	jkc = append(jkc, ',', '"')
+	jkc = append(jkc, name...)
+	jkc = append(jkc, '"', ':')
 
 	m := &Schema{
 		id:         ShapeID{Member: name},
@@ -133,7 +148,8 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 		listMember: target.listMember,
 		mapKey:     target.mapKey,
 		mapValue:   target.mapValue,
-		jsonKey:    jk,
+		jsonKey:      jk,
+		jsonKeyComma: jkc,
 	}
 
 	// member-declared traits override and are direct
@@ -142,6 +158,7 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	}
 
 	s.members[name] = m
+	s.memberList = append(s.memberList, memberEntry{name: name, schema: m})
 	switch name {
 	case "member":
 		s.listMember = m
@@ -215,12 +232,23 @@ func (s *Schema) Member(name string) *Schema {
 
 // MemberBytes looks up a member by byte-slice key without allocating a string.
 func (s *Schema) MemberBytes(name []byte) *Schema {
-	return s.members[string(name)]
+	for i := range s.memberList {
+		e := &s.memberList[i]
+		if len(e.name) == len(name) && e.name == string(name) {
+			return e.schema
+		}
+	}
+	return nil
 }
 
 // JSONKey returns the pre-computed `"memberName":` bytes for serialization.
 func (s *Schema) JSONKey() []byte {
 	return s.jsonKey
+}
+
+// JSONKeyComma returns pre-computed `,"memberName":` bytes for serialization.
+func (s *Schema) JSONKeyComma() []byte {
+	return s.jsonKeyComma
 }
 
 // Members returns the schema's members as a map of name to schema.
