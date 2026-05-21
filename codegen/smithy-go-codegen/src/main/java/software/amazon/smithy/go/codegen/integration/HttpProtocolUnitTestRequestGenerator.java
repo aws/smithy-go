@@ -89,15 +89,21 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
-        writer.write("serializeStart := time.Now()");
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
         writer.addUseImports(SmithyGoDependency.CONTEXT);
         writer.writeGoTemplate("""
-                _, err := $client:L.$operation:T(context.Background(), c.Params)
+                in := middleware.SerializeInput{
+                    Parameters: c.Params,
+                    Request:    smithyhttp.NewStackRequest().(*smithyhttp.Request),
+                }
+
+                serializeStart := time.Now()
+                _, _, err := serializer.HandleSerialize(context.Background(), in, nopNext)
                 if err != nil {
                     t.Fatalf("error when running serd test for %s: %v", name, err)
                 }
-                """, MapUtils.of("client", clientName, "operation", opSymbol));
-        writer.writeGoTemplate("""
+
                 serializeEnd := time.Now()
                 if i >= 1000 {
                     timings = append(timings, serializeEnd.Sub(serializeStart))
@@ -264,7 +270,25 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
-        // No request capture needed for benchmarks.
+        String serializerName = ProtocolGenerator.getSerializeMiddlewareName(
+                operation.getId(), service, protocolName);
+        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.write("""
+                serializer := &$L{}
+                nopNext := middleware.SerializeHandlerFunc(func(ctx context.Context, in middleware.SerializeInput) (middleware.SerializeOutput, middleware.Metadata, error) {
+                    return middleware.SerializeOutput{}, middleware.Metadata{}, nil
+                })
+                """, serializerName);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+    }
+
+    @Override
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
     }
 
     @Override

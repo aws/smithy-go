@@ -291,6 +291,10 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
         generateTestServer(writer, "server", this::generateTestServerHandler);
     }
 
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+        generateBenchmarkServer(writer);
+    }
+
     public void generateBenchmarkFunction(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.TESTING);
         writer.openBlock("func " + benchmarkFuncNameFormat() + "(b *testing.B) {", "}", benchmarkFuncNameArgs(),
@@ -355,7 +359,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                     writer.openBlock("for name, c := range cases {", "}", () -> {
                         writer.openBlock("t.Run(name, func(t *testing.T) {", "})", () -> {
                             generateSerdBenchmarkBodySetup(writer);
-                            generateBenchmarkServer(writer);
+                            generateSerdBenchmarkServer(writer);
                             generateSerdBenchmarkTestClient(writer, "client");
                             writer.addUseImports(SmithyGoDependency.TIME);
                             writer.addUseImports(SmithyGoDependency.SLICES);
