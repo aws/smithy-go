@@ -320,8 +320,15 @@ public class HttpProtocolTestGenerator {
 
     private <T extends HttpMessageTestCase> List<T> filterProtocolTestCases(List<T> testCases) {
         List<T> filtered = new ArrayList<>();
+        var protocol = settings.getProtocol();
+        if (protocol == null) {
+            // schema-serde path: resolve from service traits
+            var protocols = software.amazon.smithy.model.knowledge.ServiceIndex.of(model)
+                    .getProtocols(service).keySet();
+            protocol = protocols.isEmpty() ? null : protocols.iterator().next();
+        }
         for (T testCase : testCases) {
-            if (testCase.getProtocol().equals(settings.getProtocol())) {
+            if (protocol == null || testCase.getProtocol().equals(protocol)) {
                 filtered.add(testCase);
             }
         }

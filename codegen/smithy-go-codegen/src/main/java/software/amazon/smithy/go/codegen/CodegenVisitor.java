@@ -315,9 +315,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     // ListMember() are non-nil when the member schema is created.
                     var shapeIds = new HashSet<ShapeId>();
                     for (Shape s : shapes) {
-                        if (!s.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
-                            shapeIds.add(s.getId());
-                        }
+                        shapeIds.add(s.getId());
                     }
 
                     var sorted = new ArrayList<Shape>();

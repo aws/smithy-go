@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -25,7 +26,10 @@ public class TypeRegistry implements Writable {
 
         // Errors: needed for DeserializableError lookup
         var shapes = new HashSet<StructureShape>();
-        shapes.addAll(model.getStructureShapesWithTrait(ErrorTrait.class));
+        var operationIndex = OperationIndex.of(model);
+        for (var op : TopDownIndex.of(model).getContainedOperations(service)) {
+            shapes.addAll(operationIndex.getErrors(op, service));
+        }
 
         // Event stream events: needed for LookupEntry by target ID
         var streamIndex = EventStreamIndex.of(model);
@@ -44,7 +48,9 @@ public class TypeRegistry implements Writable {
         if (sorted.stream().anyMatch(Prelude::isPublicPreludeShape)) {
             writer.addUseImports(SmithyGoDependency.SMITHY_PRELUDE);
         }
-        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        if (!sorted.isEmpty()) {
+            writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        }
         writer.writeGoTemplate("""
                 // TypeRegistry is the type registry for this service.
                 var TypeRegistry = &smithy.TypeRegistry{

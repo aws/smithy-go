@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
@@ -85,33 +86,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     @Override
     String serdBenchmarkFunctionNameFormat() {
         return "TestSerdClient_$L_$L";
-    }
-
-    @Override
-    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
-        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.writeGoTemplate("""
-                in := middleware.SerializeInput{
-                    Parameters: c.Params,
-                    Request:    smithyhttp.NewStackRequest().(*smithyhttp.Request),
-                }
-
-                serializeStart := time.Now()
-                _, _, err := serializer.HandleSerialize(context.Background(), in, nopNext)
-                if err != nil {
-                    t.Fatalf("error when running serd test for %s: %v", name, err)
-                }
-
-                serializeEnd := time.Now()
-                if i >= 1000 {
-                    timings = append(timings, serializeEnd.Sub(serializeStart))
-                }
-                if benchmarkStart.Add(30000000000).Before(serializeEnd) {
-                    break
-                }
-                """);
     }
 
     /**
@@ -270,17 +244,43 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
-        String serializerName = ProtocolGenerator.getSerializeMiddlewareName(
-                operation.getId(), service, protocolName);
-        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+        var inputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getInputShape()), service);
+        var outputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getOutputShape()), service);
+
+        writer.addUseImports(SmithyGoDependency.SMITHY);
         writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addImport(settings.getModuleName() + "/schemas", "schemas");
         writer.write("""
-                serializer := &$L{}
-                nopNext := middleware.SerializeHandlerFunc(func(ctx context.Context, in middleware.SerializeInput) (middleware.SerializeOutput, middleware.Metadata, error) {
-                    return middleware.SerializeOutput{}, middleware.Metadata{}, nil
-                })
-                """, serializerName);
+                protocol := New(Options{}).options.Protocol
+                opSchema := smithy.NewOperationSchema($L, $L, $L)
+                """, opSchemaName, inputSchemaName, outputSchemaName);
+    }
+
+    @Override
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.writeGoTemplate("""
+                req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
+
+                serializeStart := time.Now()
+                err := protocol.SerializeRequest(context.Background(), opSchema, c.Params, req)
+                if err != nil {
+                    t.Fatalf("error when running serd test for %s: %v", name, err)
+                }
+
+                serializeEnd := time.Now()
+                if i >= 1000 {
+                    timings = append(timings, serializeEnd.Sub(serializeStart))
+                }
+                if benchmarkStart.Add(30000000000).Before(serializeEnd) {
+                    break
+                }
+                """);
     }
 
     @Override

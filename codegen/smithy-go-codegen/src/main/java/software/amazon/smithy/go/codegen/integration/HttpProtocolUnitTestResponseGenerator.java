@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.protocoltests.traits.HttpResponseTestCase;
 import software.amazon.smithy.utils.MapUtils;
@@ -234,31 +235,33 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     @Override
     public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
         writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.NET_HTTP);
         writer.writeGoTemplate("""
-                _, err := $clientName:L.$opSymbol:T(context.Background(), &params, func(o *Options) {
-        			o.APIOptions = append(o.APIOptions, []func(*middleware.Stack) error{
-						func(s *middleware.Stack) error {
-							return s.Deserialize.Insert(middleware.DeserializeMiddlewareFunc("deserilaizerbenchmark", func(ctx context.Context, input middleware.DeserializeInput, next middleware.DeserializeHandler) (out middleware.DeserializeOutput, metadata middleware.Metadata, err error){
-								deserializeStart := time.Now()
-								out, metadata, err = next.HandleDeserialize(ctx, input)
-								deserializeEnd := time.Now()
-								if i >= 1000 {
-									timings = append(timings, deserializeEnd.Sub(deserializeStart))
-								}
-								return
-							}), "OperationDeserializer", middleware.Before)
-						},
-					}...)
-				})
-				if err != nil {
-				    t.Fatalf("error when running deserd test for %s: %v", name, err)
-				}
-				if benchmarkStart.Add(30000000000).Before(time.Now()) {
+                resp := &smithyhttp.Response{
+                    Response: &http.Response{
+                        StatusCode: c.StatusCode,
+                        Header:     c.Header.Clone(),
+                        Body:       io.NopCloser(bytes.NewReader(c.Body)),
+                    },
+                }
+                output := &$outputSymbol:T{}
+
+                deserializeStart := time.Now()
+                err := protocol.DeserializeResponse(context.Background(), opSchema, TypeRegistry, resp, output)
+                if err != nil {
+                    t.Fatalf("error when running deserd test for %s: %v", name, err)
+                }
+
+                deserializeEnd := time.Now()
+                if i >= 1000 {
+                    timings = append(timings, deserializeEnd.Sub(deserializeStart))
+                }
+                if benchmarkStart.Add(30000000000).Before(deserializeEnd) {
                     break
                 }
     """,
-                MapUtils.of("clientName", clientName, "opSymbol", opSymbol));
+                MapUtils.of("outputSymbol", outputSymbol));
     }
 
     @Override
@@ -274,15 +277,28 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
 
     @Override
     protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
-        generateBenchmarkBodySetup(writer);
-        if (inputSymbol.getName().toLowerCase().contains("getobject") ||
-                inputSymbol.getName().toLowerCase().contains("copyobject")) { // deserd benchmark for copyobject/getobject needs bucket/key input
-            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
-            writer.writeGoTemplate("""
-                    params.Bucket = ptr.String("Bucket")
-                    params.Key = ptr.String("Key")
-                    """);
-        }
+        var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+        var inputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getInputShape()), service);
+        var outputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getOutputShape()), service);
+
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addUseImports(SmithyGoDependency.BYTES);
+        writer.addUseImports(SmithyGoDependency.IO);
+        writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+        writer.write("""
+                protocol := New(Options{}).options.Protocol
+                opSchema := smithy.NewOperationSchema($L, $L, $L)
+                """, opSchemaName, inputSchemaName, outputSchemaName);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+    }
+
+    @Override
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
     }
 
     /**
