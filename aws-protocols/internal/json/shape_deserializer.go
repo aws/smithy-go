@@ -59,7 +59,8 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 		fn(&o)
 	}
 	d := deserPool.Get().(*ShapeDeserializer)
-	d.p.tok = scanner{p: p}
+	d.p.p = p
+	d.p.i = 0
 	d.p.state = stValue
 	d.p.done = false
 	d.p.stack.Reset()

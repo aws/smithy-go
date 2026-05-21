@@ -43,7 +43,7 @@ func FuzzParser(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		p := parser{
-			tok:   scanner{p: b},
+			p:     b,
 			state: stValue,
 		}
 		for {

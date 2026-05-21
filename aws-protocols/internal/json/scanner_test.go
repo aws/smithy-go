@@ -13,9 +13,9 @@ import (
 	"testing"
 )
 
-func testParse(p []byte) error {
+func testParse(input []byte) error {
 	pr := parser{
-		tok:   scanner{p: p},
+		p:     input,
 		state: stValue,
 	}
 	for {
@@ -170,7 +170,7 @@ func TestTokenStream(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.json, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.json)},
+				p:     []byte(tt.json),
 				state: stValue,
 			}
 			var got []string
@@ -274,7 +274,7 @@ func TestValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.in)},
+				p:     []byte(tt.in),
 				state: stValue,
 			}
 			got, err := p.Value()
@@ -404,7 +404,7 @@ func TestStringEscapes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			tok := scanner{p: []byte(tt.in)}
+			tok := parser{p: []byte(tt.in), state: stValue}
 			raw, err := tok.Next()
 			if err != nil {
 				t.Fatalf("tokenize error: %v", err)
@@ -432,7 +432,7 @@ func TestInvalidStrings(t *testing.T) {
 		"\"hello\r\"", // unescaped carriage return
 	}
 	for _, tt := range tests {
-		tok := scanner{p: []byte(tt)}
+		tok := parser{p: []byte(tt), state: stValue}
 		_, err := tok.Next()
 		if err == nil {
 			t.Errorf("tokenize(%q) = nil, want error", tt)
@@ -455,7 +455,7 @@ func TestFloatSpecialValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.in)},
+				p:     []byte(tt.in),
 				state: stValue,
 			}
 			v, err := p.Value()
@@ -490,7 +490,7 @@ func TestSkip(t *testing.T) {
 		t.Run(tt.json, func(t *testing.T) {
 			wrapped := `[` + tt.json + `]`
 			p := parser{
-				tok:   scanner{p: []byte(wrapped)},
+				p:     []byte(wrapped),
 				state: stValue,
 			}
 			tok, err := p.Next()
