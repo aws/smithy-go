@@ -77,20 +77,23 @@ func (s *ShapeSerializer) writeComma() {
 }
 
 func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
-	if !s.opts.UseJSONName {
-		if s.comma[s.depth] {
-			s.buf = append(s.buf, schema.JSONKeyComma()...)
-		} else {
-			s.comma[s.depth] = true
-			s.buf = append(s.buf, schema.JSONKey()...)
+	if s.opts.UseJSONName {
+		if jk := schema.JSONNameKeyComma(); jk != nil {
+			if s.comma[s.depth] {
+				s.buf = append(s.buf, jk...)
+			} else {
+				s.comma[s.depth] = true
+				s.buf = append(s.buf, schema.JSONNameKey()...)
+			}
+			return
 		}
-		return
 	}
-	s.writeComma()
-	name := s.jsonMemberName(schema)
-	s.buf = append(s.buf, '"')
-	s.buf = append(s.buf, name...)
-	s.buf = append(s.buf, '"', ':')
+	if s.comma[s.depth] {
+		s.buf = append(s.buf, schema.JSONKeyComma()...)
+	} else {
+		s.comma[s.depth] = true
+		s.buf = append(s.buf, schema.JSONKey()...)
+	}
 }
 
 // WriteBool implements [smithy.ShapeSerializer].

@@ -75,6 +75,9 @@ type Schema struct {
 	jsonKey      []byte // pre-computed `"memberName":` for serialization
 	jsonKeyComma []byte // pre-computed `,"memberName":` for serialization (after first field)
 
+	jsonNameKey      []byte // pre-computed `"jsonName":` (when @jsonName trait present)
+	jsonNameKeyComma []byte // pre-computed `,"jsonName":` (when @jsonName trait present)
+
 	// flat member lookup: ordered list of (name, schema) for linear scan
 	// faster than map for small member counts (< ~20)
 	memberList []memberEntry
@@ -249,6 +252,31 @@ func (s *Schema) JSONKey() []byte {
 // JSONKeyComma returns pre-computed `,"memberName":` bytes for serialization.
 func (s *Schema) JSONKeyComma() []byte {
 	return s.jsonKeyComma
+}
+
+// JSONNameKey returns pre-computed `"jsonName":` bytes, or nil if no jsonName set.
+func (s *Schema) JSONNameKey() []byte {
+	return s.jsonNameKey
+}
+
+// JSONNameKeyComma returns pre-computed `,"jsonName":` bytes, or nil if no jsonName set.
+func (s *Schema) JSONNameKeyComma() []byte {
+	return s.jsonNameKeyComma
+}
+
+// SetJSONName pre-computes serialization keys for the @jsonName trait value.
+func (s *Schema) SetJSONName(name string) {
+	jk := make([]byte, 0, len(name)+3)
+	jk = append(jk, '"')
+	jk = append(jk, name...)
+	jk = append(jk, '"', ':')
+	s.jsonNameKey = jk
+
+	jkc := make([]byte, 0, len(name)+4)
+	jkc = append(jkc, ',', '"')
+	jkc = append(jkc, name...)
+	jkc = append(jkc, '"', ':')
+	s.jsonNameKeyComma = jkc
 }
 
 // Members returns the schema's members as a map of name to schema.
