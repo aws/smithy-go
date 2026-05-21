@@ -3,6 +3,7 @@ package json
 import (
 	"fmt"
 	"io"
+	"unsafe"
 )
 
 // scanner scans json tokens without the allocation overhead of json.Token.
@@ -57,6 +58,17 @@ func (s *scanner) scanString() ([]byte, error) {
 	start := s.i
 	i := s.i + 1 // skip opening "
 
+	// SWAR: scan 8 bytes at a time for '"', '\', or control chars (< 0x20)
+	for i+8 <= len(s.p) {
+		v := *(*uint64)(unsafe.Pointer(&s.p[i]))
+		// detect quote (0x22), backslash (0x5C), or any byte < 0x20
+		mask := hasLess(v, 0x20) | hasValue(v, '"') | hasValue(v, '\\')
+		if mask != 0 {
+			break
+		}
+		i += 8
+	}
+
 	for i < len(s.p) {
 		c := s.p[i]
 		if c < 0x20 {
@@ -76,10 +88,6 @@ func (s *scanner) scanString() ([]byte, error) {
 		if c == '"' {
 			i++
 			s.i = i
-
-			// we want the quotes here because this lets the token consumer
-			// know that it's a string without additional identifying data
-			// (e.g. a token type enum)
 			return s.p[start:i], nil
 		}
 
@@ -87,6 +95,20 @@ func (s *scanner) scanString() ([]byte, error) {
 	}
 	s.i = i
 	return nil, fmt.Errorf("unterminated string at offset %d", start)
+}
+
+const (
+	lo = uint64(0x0101010101010101)
+	hi = uint64(0x8080808080808080)
+)
+
+func hasValue(v uint64, c byte) uint64 {
+	x := v ^ (lo * uint64(c))
+	return (x - lo) & ^x & hi
+}
+
+func hasLess(v uint64, n byte) uint64 {
+	return (v - lo*uint64(n)) & ^v & hi
 }
 
 func (s *scanner) scanEscape() error {
