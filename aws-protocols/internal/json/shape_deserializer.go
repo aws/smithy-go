@@ -148,9 +148,9 @@ func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
 		return 0, fmt.Errorf("expected number, got %s", tok)
 	}
 
-	n, err := strconv.ParseInt(string(tok), 10, 64)
-	if err != nil {
-		return 0, err
+	n, ok := parseInt(tok)
+	if !ok {
+		return 0, fmt.Errorf("invalid int: %s", tok)
 	}
 
 	if n < min || n > max {
@@ -158,6 +158,40 @@ func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
 	}
 
 	return n, nil
+}
+
+// parseInt parses a decimal int directly from bytes, avoiding string alloc.
+func parseInt(b []byte) (int64, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
+	neg := false
+	if b[0] == '-' {
+		neg = true
+		b = b[1:]
+		if len(b) == 0 {
+			return 0, false
+		}
+	}
+
+	var n uint64
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + uint64(c-'0')
+		if n > 1<<63 {
+			if neg && n == 1<<63 {
+				return math.MinInt64, true
+			}
+			return 0, false
+		}
+	}
+
+	if neg {
+		return -int64(n), true
+	}
+	return int64(n), true
 }
 
 // ReadFloat32 implements [smithy.ShapeDeserializer].
@@ -197,7 +231,11 @@ func (d *ShapeDeserializer) readFloat() (float64, error) {
 		}
 	}
 
-	return strconv.ParseFloat(string(tok), 64)
+	// fast path: if it's a plain integer, parse directly without alloc
+	if n, ok := parseInt(tok); ok {
+		return float64(n), nil
+	}
+	return strconv.ParseFloat(unsafeString(tok), 64)
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
@@ -479,12 +517,13 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			return nil, nil
 		}
 
-		// skip null values
-		isNil, err := d.ReadNil(nil)
+		// inline null check
+		ptok, err := d.peek()
 		if err != nil {
 			return nil, err
 		}
-		if isNil {
+		if isN(ptok) {
+			d.peeked = nil
 			continue
 		}
 

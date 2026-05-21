@@ -19,16 +19,18 @@ type scanner struct {
 }
 
 func (s *scanner) Next() ([]byte, error) {
+	p := s.p
 	i := s.i
-	for ; i < len(s.p); i++ {
-		c := s.p[i]
-		if whitespace[c] {
+	for ; i < len(p); i++ {
+		c := p[i]
+		cc := charClass[c]
+		if cc == ccWhite {
 			continue
 		}
-		if delim[c] {
+		if cc == ccDelim {
 			i++
 			s.i = i
-			return s.p[i-1 : i], nil
+			return p[i-1 : i], nil
 		}
 
 		s.i = i
@@ -194,6 +196,27 @@ func (s *scanner) scanLiteral(lit string) ([]byte, error) {
 	start := s.i
 	s.i = end
 	return s.p[start:end], nil
+}
+
+// charClass encodes character classification into a single lookup.
+// 0 = regular character, 1 = whitespace, 2 = delimiter
+const (
+	ccNone  byte = 0
+	ccWhite byte = 1
+	ccDelim byte = 2
+)
+
+var charClass = [256]byte{
+	' ':  ccWhite,
+	'\t': ccWhite,
+	'\n': ccWhite,
+	'\r': ccWhite,
+	'{':  ccDelim,
+	'}':  ccDelim,
+	'[':  ccDelim,
+	']':  ccDelim,
+	':':  ccDelim,
+	',':  ccDelim,
 }
 
 var whitespace = [256]bool{

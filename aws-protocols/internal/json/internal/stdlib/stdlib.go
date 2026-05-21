@@ -41,8 +41,8 @@ func Getu4(s []byte) rune {
 
 // HasEscape reports whether s contains a backslash or control character.
 func HasEscape(s []byte) bool {
-	for _, c := range s {
-		if c == '\\' || c < ' ' {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' || s[i] < ' ' {
 			return true
 		}
 	}
