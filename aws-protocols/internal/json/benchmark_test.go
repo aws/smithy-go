@@ -637,7 +637,7 @@ func BenchmarkDeserialize_New(b *testing.B) {
 func newSerialize(out *GetItemOutput) ([]byte, error) {
 	s := NewShapeSerializer()
 	newSerializeGetItemOutput(s, out)
-	return s.Bytes(), nil
+	b := s.Bytes(); s.Close(); return b, nil
 }
 
 func newSerializeGetItemOutput(s smithy.ShapeSerializer, v *GetItemOutput) {

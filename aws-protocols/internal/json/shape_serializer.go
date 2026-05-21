@@ -1,36 +1,46 @@
 package json
 
 import (
+	"encoding/base64"
 	"math"
 	"math/big"
+	"strconv"
+	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
 	smithydocumentjson "github.com/aws/smithy-go/document/json"
-	smithyjson "github.com/aws/smithy-go/encoding/json"
+	"github.com/aws/smithy-go/encoding"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
 
-// ShapeSerializer implements marshaling of Smithy shapes to JSON.
-type ShapeSerializer struct {
-	root *smithyjson.Encoder
-	head stackT[any]
-
-	opts Options
-}
-
 // Options configures JSON shape serialization and deserialization.
 type Options struct {
-	// Controls whether the @jsonName trait is used to
-	// determine JSON object keys. If false (the default), the member
-	// name is used as-is.
-	//
-	// How this is set in practice depends on the protocol. RPC-style protocols
-	// like awsjson ignore @jsonName, REST-style protocols like restjson1
-	// respect it.
+	// Controls whether the @jsonName trait is used to determine JSON object
+	// keys. If false (the default), the member name is used as-is.
 	UseJSONName bool
+}
+
+// ShapeSerializer implements marshaling of Smithy shapes to JSON.
+// It writes directly to a []byte buffer without intermediate allocations.
+type ShapeSerializer struct {
+	buf  []byte
+	opts Options
+
+	// comma[depth] is true if we need a comma before the next element
+	comma [64]bool
+	depth int
+}
+
+var serPool = sync.Pool{
+	New: func() any {
+		return &ShapeSerializer{
+			buf: make([]byte, 0, 1024),
+		}
+	},
 }
 
 var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
@@ -41,232 +51,186 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &ShapeSerializer{
-		root: smithyjson.NewEncoder(),
-		opts: o,
-	}
+	s := serPool.Get().(*ShapeSerializer)
+	s.buf = s.buf[:0]
+	s.opts = o
+	s.depth = 0
+	s.comma = [64]bool{}
+	return s
+}
+
+// Close returns the serializer to the pool for reuse.
+func (s *ShapeSerializer) Close() {
+	serPool.Put(s)
 }
 
 // Bytes returns the serialized JSON bytes.
 func (s *ShapeSerializer) Bytes() []byte {
-	return s.root.Bytes()
+	return s.buf
+}
+
+func (s *ShapeSerializer) writeComma() {
+	if s.depth > 0 && s.comma[s.depth] {
+		s.buf = append(s.buf, ',')
+	}
+	s.comma[s.depth] = true
+}
+
+func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
+	s.writeComma()
+	name := s.jsonMemberName(schema)
+	s.buf = append(s.buf, '"')
+	s.buf = append(s.buf, name...)
+	s.buf = append(s.buf, '"', ':')
 }
 
 // WriteBool implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Boolean(v)
-	case *smithyjson.Array:
-		enc.Value().Boolean(v)
-	case smithyjson.Value:
-		enc.Boolean(v)
-		s.head.Pop()
-	default:
-		s.root.Boolean(v)
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
+	}
+	if v {
+		s.buf = append(s.buf, "true"...)
+	} else {
+		s.buf = append(s.buf, "false"...)
 	}
 }
 
 // WriteInt8 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Byte(v)
-	case *smithyjson.Array:
-		enc.Value().Byte(v)
-	case smithyjson.Value:
-		enc.Byte(v)
-		s.head.Pop()
-	default:
-		s.root.Byte(v)
-	}
+	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt16 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Short(v)
-	case *smithyjson.Array:
-		enc.Value().Short(v)
-	case smithyjson.Value:
-		enc.Short(v)
-		s.head.Pop()
-	default:
-		s.root.Short(v)
-	}
+	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt32 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Integer(v)
-	case *smithyjson.Array:
-		enc.Value().Integer(v)
-	case smithyjson.Value:
-		enc.Integer(v)
-		s.head.Pop()
-	default:
-		s.root.Integer(v)
-	}
+	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt64 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Long(v)
-	case *smithyjson.Array:
-		enc.Value().Long(v)
-	case smithyjson.Value:
-		enc.Long(v)
-		s.head.Pop()
-	default:
-		s.root.Long(v)
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = strconv.AppendInt(s.buf, v, 10)
 }
 
 // WriteFloat32 implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
-	var jv smithyjson.Value
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		jv = enc.Key(s.jsonMemberName(schema))
-	case *smithyjson.Array:
-		jv = enc.Value()
-	case smithyjson.Value:
-		jv = enc
-		s.head.Pop()
-	default:
-		s.root.Float(v)
-		return
-	}
-
-	if math.IsInf(float64(v), 1) {
-		jv.String("Infinity")
-	} else if math.IsInf(float64(v), -1) {
-		jv.String("-Infinity")
-	} else if math.IsNaN(float64(v)) {
-		jv.String("NaN")
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
 	} else {
-		jv.Float(v)
+		s.writeComma()
+	}
+	if math.IsInf(float64(v), 1) {
+		s.buf = append(s.buf, `"Infinity"`...)
+	} else if math.IsInf(float64(v), -1) {
+		s.buf = append(s.buf, `"-Infinity"`...)
+	} else if math.IsNaN(float64(v)) {
+		s.buf = append(s.buf, `"NaN"`...)
+	} else {
+		s.buf = encoding.EncodeFloat(s.buf, float64(v), 32)
 	}
 }
-func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
-	var jv smithyjson.Value
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		jv = enc.Key(s.jsonMemberName(schema))
-	case *smithyjson.Array:
-		jv = enc.Value()
-	case smithyjson.Value:
-		jv = enc
-		s.head.Pop()
-	default:
-		s.root.Double(v)
-		return
-	}
 
-	if math.IsInf(v, 1) {
-		jv.String("Infinity")
-	} else if math.IsInf(v, -1) {
-		jv.String("-Infinity")
-	} else if math.IsNaN(v) {
-		jv.String("NaN")
+// WriteFloat64 implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
 	} else {
-		jv.Double(v)
+		s.writeComma()
+	}
+	if math.IsInf(v, 1) {
+		s.buf = append(s.buf, `"Infinity"`...)
+	} else if math.IsInf(v, -1) {
+		s.buf = append(s.buf, `"-Infinity"`...)
+	} else if math.IsNaN(v) {
+		s.buf = append(s.buf, `"NaN"`...)
+	} else {
+		s.buf = encoding.EncodeFloat(s.buf, v, 64)
 	}
 }
 
 // WriteString implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).String(v)
-	case *smithyjson.Array:
-		enc.Value().String(v)
-	case smithyjson.Value:
-		enc.String(v)
-		s.head.Pop()
-	default:
-		s.root.Value.String(v)
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.appendEscapedString(v)
 }
 
 // WriteBlob implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Base64EncodeBytes(v)
-	case *smithyjson.Array:
-		enc.Value().Base64EncodeBytes(v)
-	case smithyjson.Value:
-		enc.Base64EncodeBytes(v)
-		s.head.Pop()
-	default:
-		s.root.Value.Base64EncodeBytes(v)
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	if v == nil {
+		s.buf = append(s.buf, "null"...)
+		return
+	}
+	s.buf = append(s.buf, '"')
+	encodedLen := base64.StdEncoding.EncodedLen(len(v))
+	start := len(s.buf)
+	s.buf = append(s.buf, make([]byte, encodedLen)...)
+	base64.StdEncoding.Encode(s.buf[start:], v)
+	s.buf = append(s.buf, '"')
 }
 
 // WriteList implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		s.head.Push(enc.Key(s.jsonMemberName(schema)).Array())
-	case *smithyjson.Array:
-		s.head.Push(enc.Value().Array())
-	case smithyjson.Value:
-		s.head.Pop()
-		s.head.Push(enc.Array())
-	default:
-		s.head.Push(s.root.Array())
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, '[')
+	s.depth++
+	s.comma[s.depth] = false
 }
 
 // CloseList implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseList() {
-	if enc, ok := s.head.Top().(*smithyjson.Array); ok {
-		enc.Close()
-		s.head.Pop()
-	}
+	s.buf = append(s.buf, ']')
+	s.depth--
 }
 
 // WriteMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		s.head.Push(enc.Key(s.jsonMemberName(schema)).Object())
-	case *smithyjson.Array:
-		s.head.Push(enc.Value().Object())
-	case smithyjson.Value:
-		s.head.Pop()
-		s.head.Push(enc.Object())
-	default:
-		s.head.Push(s.root.Object())
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, '{')
+	s.depth++
+	s.comma[s.depth] = false
 }
 
 // WriteKey implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteKey(schema *smithy.Schema, key string) {
-	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
-		s.head.Push(enc.Key(key))
-	}
+func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
+	s.writeComma()
+	s.appendEscapedString(key)
+	s.buf = append(s.buf, ':')
+	// next value should not add comma (key already did)
+	s.comma[s.depth] = false
 }
 
 // CloseMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseMap() {
-	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
-		enc.Close()
-		s.head.Pop()
-
-		// if this is a map _inside_ a map, pop off the underlying key encoder
-		// as well (for scalar values that's not necessarily since we can
-		// deterministically do it there)
-		if _, ok := s.head.Top().(smithyjson.Value); ok {
-			s.head.Pop()
-		}
-	}
+	s.buf = append(s.buf, '}')
+	s.depth--
 }
 
 // WriteTime implements [smithy.ShapeSerializer].
@@ -288,72 +252,62 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 
 // WriteUnion implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		s.head.Push(enc.Key(s.jsonMemberName(schema)).Object())
-	case *smithyjson.Array:
-		s.head.Push(enc.Value().Object())
-	case smithyjson.Value:
-		s.head.Pop()
-		s.head.Push(enc.Object())
-	default:
-		s.head.Push(s.root.Object())
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, '{')
+	s.depth++
+	s.comma[s.depth] = false
 
-	top := s.head.Top().(*smithyjson.Object)
-	s.head.Push(top.Key(s.jsonMemberName(variant)))
+	// write the variant key
+	name := s.jsonMemberName(variant)
+	s.buf = append(s.buf, '"')
+	s.buf = append(s.buf, name...)
+	s.buf = append(s.buf, '"', ':')
 
 	v.Serialize(s)
 
-	top.Close()
-	s.head.Pop()
+	s.buf = append(s.buf, '}')
+	s.depth--
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		s.head.Push(enc.Key(s.jsonMemberName(schema)).Object())
-	case *smithyjson.Array:
-		s.head.Push(enc.Value().Object())
-	case smithyjson.Value:
-		s.head.Pop()
-		s.head.Push(enc.Object())
-	default:
-		s.head.Push(s.root.Object())
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, '{')
+	s.depth++
+	s.comma[s.depth] = false
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
-	if enc, ok := s.head.Top().(*smithyjson.Object); ok {
-		enc.Close()
-		s.head.Pop()
-	}
+	s.buf = append(s.buf, '}')
+	s.depth--
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Null()
-	case *smithyjson.Array:
-		enc.Value().Null()
-	case smithyjson.Value:
-		enc.Null()
-		s.head.Pop()
-	default:
-		s.root.Null()
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, "null"...)
 }
 
 // WriteBigInt is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
+func (s *ShapeSerializer) WriteBigInt(_ *smithy.Schema, _ *big.Int) {
 	panic("unimplemented")
 }
 
 // WriteBigFloat is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
+func (s *ShapeSerializer) WriteBigFloat(_ *smithy.Schema, _ *big.Float) {
 	panic("unimplemented")
 }
 
@@ -365,7 +319,7 @@ func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value)
 	case document.Boolean:
 		s.WriteBool(schema, bool(vv))
 	case document.Number:
-		s.writeDocumentRaw(schema, []byte(vv))
+		s.writeRaw(schema, []byte(vv))
 	case document.String:
 		s.WriteString(schema, string(vv))
 	case document.Blob:
@@ -402,35 +356,24 @@ func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value)
 func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
 	if m, ok := v.(document.Marshaler); ok {
 		p, _ := m.MarshalSmithyDocument()
-		s.writeDocumentRaw(schema, p)
+		s.writeRaw(schema, p)
 		return
 	}
 	denc := smithydocumentjson.NewEncoder()
-
-	// TODO(serde2): we should expose an alternative Encode() API that
-	// explicitly does not return errors since schema-serde Serialize is
-	// errorless
 	p, _ := denc.Encode(v)
-
-	s.writeDocumentRaw(schema, p)
+	s.writeRaw(schema, p)
 }
 
-func (s *ShapeSerializer) writeDocumentRaw(schema *smithy.Schema, p []byte) {
-	switch enc := s.head.Top().(type) {
-	case *smithyjson.Object:
-		enc.Key(s.jsonMemberName(schema)).Write(p)
-	case *smithyjson.Array:
-		enc.Value().Write(p)
-	case smithyjson.Value:
-		enc.Write(p)
-		s.head.Pop()
-	default:
-		s.root.Write(p)
+func (s *ShapeSerializer) writeRaw(schema *smithy.Schema, p []byte) {
+	if schema != nil && s.depth > 0 {
+		s.writeKey(schema)
+	} else {
+		s.writeComma()
 	}
+	s.buf = append(s.buf, p...)
 }
 
-// jsonMemberName returns the JSON key for a schema member, using the
-// jsonName trait if UseJSONName is enabled, otherwise the member name.
+// jsonMemberName returns the JSON key for a schema member.
 func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 	if s.opts.UseJSONName {
 		if jn, ok := smithy.SchemaTrait[*traits.JSONName](schema); ok {
@@ -439,3 +382,161 @@ func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 	}
 	return schema.MemberName()
 }
+
+// appendEscapedString writes a JSON-escaped string to the buffer.
+func (s *ShapeSerializer) appendEscapedString(v string) {
+	s.buf = append(s.buf, '"')
+	start := 0
+	for i := 0; i < len(v); {
+		b := v[i]
+		if b < utf8.RuneSelf {
+			if safeSet[b] {
+				i++
+				continue
+			}
+			if start < i {
+				s.buf = append(s.buf, v[start:i]...)
+			}
+			switch b {
+			case '\\', '"':
+				s.buf = append(s.buf, '\\', b)
+			case '\n':
+				s.buf = append(s.buf, '\\', 'n')
+			case '\r':
+				s.buf = append(s.buf, '\\', 'r')
+			case '\t':
+				s.buf = append(s.buf, '\\', 't')
+			default:
+				s.buf = append(s.buf, '\\', 'u', '0', '0', hex[b>>4], hex[b&0xF])
+			}
+			i++
+			start = i
+			continue
+		}
+		c, size := utf8.DecodeRuneInString(v[i:])
+		if c == utf8.RuneError && size == 1 {
+			if start < i {
+				s.buf = append(s.buf, v[start:i]...)
+			}
+			s.buf = append(s.buf, `�`...)
+			i += size
+			start = i
+			continue
+		}
+		if c == ' ' || c == ' ' {
+			if start < i {
+				s.buf = append(s.buf, v[start:i]...)
+			}
+			s.buf = append(s.buf, '\\', 'u', '2', '0', '2', hex[c&0xF])
+			i += size
+			start = i
+			continue
+		}
+		i += size
+	}
+	if start < len(v) {
+		s.buf = append(s.buf, v[start:]...)
+	}
+	s.buf = append(s.buf, '"')
+}
+
+var safeSet = [utf8.RuneSelf]bool{
+	' ':      true,
+	'!':      true,
+	'"':      false,
+	'#':      true,
+	'$':      true,
+	'%':      true,
+	'&':      true,
+	'\'':     true,
+	'(':      true,
+	')':      true,
+	'*':      true,
+	'+':      true,
+	',':      true,
+	'-':      true,
+	'.':      true,
+	'/':      true,
+	'0':      true,
+	'1':      true,
+	'2':      true,
+	'3':      true,
+	'4':      true,
+	'5':      true,
+	'6':      true,
+	'7':      true,
+	'8':      true,
+	'9':      true,
+	':':      true,
+	';':      true,
+	'<':      true,
+	'=':      true,
+	'>':      true,
+	'?':      true,
+	'@':      true,
+	'A':      true,
+	'B':      true,
+	'C':      true,
+	'D':      true,
+	'E':      true,
+	'F':      true,
+	'G':      true,
+	'H':      true,
+	'I':      true,
+	'J':      true,
+	'K':      true,
+	'L':      true,
+	'M':      true,
+	'N':      true,
+	'O':      true,
+	'P':      true,
+	'Q':      true,
+	'R':      true,
+	'S':      true,
+	'T':      true,
+	'U':      true,
+	'V':      true,
+	'W':      true,
+	'X':      true,
+	'Y':      true,
+	'Z':      true,
+	'[':      true,
+	'\\':     false,
+	']':      true,
+	'^':      true,
+	'_':      true,
+	'`':      true,
+	'a':      true,
+	'b':      true,
+	'c':      true,
+	'd':      true,
+	'e':      true,
+	'f':      true,
+	'g':      true,
+	'h':      true,
+	'i':      true,
+	'j':      true,
+	'k':      true,
+	'l':      true,
+	'm':      true,
+	'n':      true,
+	'o':      true,
+	'p':      true,
+	'q':      true,
+	'r':      true,
+	's':      true,
+	't':      true,
+	'u':      true,
+	'v':      true,
+	'w':      true,
+	'x':      true,
+	'y':      true,
+	'z':      true,
+	'{':      true,
+	'|':      true,
+	'}':      true,
+	'~':      true,
+	'': true,
+}
+
+var hex = "0123456789abcdef"
