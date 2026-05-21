@@ -12,6 +12,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoDelegator;
+import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ShapeValueGenerator;
@@ -40,6 +41,16 @@ import software.amazon.smithy.protocoltests.traits.eventstream.EventType;
  */
 public class EventStreamProtocolTestGenerator {
     private static final Logger LOGGER = Logger.getLogger(EventStreamProtocolTestGenerator.class.getName());
+
+    private static final GoDependency AWS_EVENTSTREAM = GoDependency.moduleDependency(
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+            "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+            "v0.0.0", "eventstream");
+
+    private static final GoDependency AWS_CREDENTIALS = GoDependency.moduleDependency(
+            "github.com/aws/aws-sdk-go-v2/credentials",
+            "github.com/aws/aws-sdk-go-v2/credentials",
+            "v0.0.0", "credentials");
 
     private static final Set<String> SKIP_TESTS = Set.of(
             // SDK does not validate required fields on responses client-side.
@@ -131,7 +142,7 @@ public class EventStreamProtocolTestGenerator {
         writer.addUseImports(SmithyGoDependency.STRINGS);
         writer.addUseImports(SmithyGoDependency.SYNC);
         // FUTURE(serde2): event stream runtime goes over to smithy so this will go away
-        writer.addImport("github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream", "eventstream");
+        writer.addUseImports(AWS_EVENTSTREAM);
 
         writer.write("""
                 // eventstreamMockHTTPClient implements aws.HTTPClient for event stream testing.
@@ -256,7 +267,7 @@ public class EventStreamProtocolTestGenerator {
                 .anyMatch(tc ->
                         tc.getEvents().stream().anyMatch(e -> e.getType() == EventType.REQUEST));
         if (hasResponseEvents || hasRequestEvents) {
-            writer.addImport("github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream", "eventstream");
+            writer.addUseImports(AWS_EVENTSTREAM);
         }
 
         boolean needsTime = testCases.stream().anyMatch(tc ->
@@ -334,7 +345,7 @@ public class EventStreamProtocolTestGenerator {
             writer.write("");
 
             // Create client with mock — provide fake creds for signing
-            writer.addImport("github.com/aws/aws-sdk-go-v2/credentials", "credentials");
+            writer.addUseImports(AWS_CREDENTIALS);
             writer.openBlock("client := New(Options{", "})", () -> {
                 writer.write("HTTPClient: mock,");
                 writer.write("Credentials: credentials.NewStaticCredentialsProvider(\"AKID\", \"SECRET\", \"SESSION\"),");
