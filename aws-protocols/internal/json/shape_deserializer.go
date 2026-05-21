@@ -439,9 +439,13 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return d.ReadStructMember()
 	}
 
-	if isNil, err := d.ReadNil(member); err != nil {
+	// inline null check to avoid function call overhead of ReadNil
+	ptok, err := d.peek()
+	if err != nil {
 		return nil, err
-	} else if isNil {
+	}
+	if isN(ptok) {
+		d.peeked = nil
 		return d.ReadStructMember()
 	}
 
