@@ -454,7 +454,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct?")
 	}
 
-	member, err := memberFromToken(top.schema, tok)
+	member, err := memberFromToken(top.schema, tok, d.p.escaped)
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +528,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			continue
 		}
 
-		member, err := memberFromToken(s, tok)
+		member, err := memberFromToken(s, tok, d.p.escaped)
 		if err != nil {
 			return nil, err
 		}
@@ -577,10 +577,16 @@ func unquote(tok []byte) (string, error) {
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
 
-func memberFromToken(s *smithy.Schema, tok []byte) (*smithy.Schema, error) {
+func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema, error) {
 	inner := tok[1 : len(tok)-1]
 	if m := s.MemberBytes(inner); m != nil {
 		return m, nil
+	}
+
+	// if the string had no escapes, the raw bytes ARE the unquoted form —
+	// no point re-trying the lookup
+	if !escaped {
+		return nil, nil
 	}
 
 	unq, err := unquote(tok)
