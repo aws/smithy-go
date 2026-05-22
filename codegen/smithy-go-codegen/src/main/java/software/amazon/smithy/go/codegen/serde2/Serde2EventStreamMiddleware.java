@@ -328,7 +328,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                                 ? (Writable) w -> w.write("stream.Reader = eventReader")
                                 : (Writable) w -> {}),
                         Map.entry("asyncError", outputInfo.isPresent()
-                                ? (Writable) w -> w.write("asyncResult <- deserializeResult{err: err}")
+                                ? (Writable) w -> w.write("""
+                                        asyncResult <- deserializeResult{err: err}
+                                        middleware.AddEventStreamOutputToMetadata(&md, output)""")
                                 : (Writable) w -> {}),
                         Map.entry("asyncPipe", outputInfo.isPresent()
                                 ? (Writable) w -> w.write("asyncResult <- deserializeResult{reader: resp.Body}")
