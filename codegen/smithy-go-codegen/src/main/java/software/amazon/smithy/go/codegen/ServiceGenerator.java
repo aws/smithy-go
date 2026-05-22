@@ -257,7 +257,7 @@ final class ServiceGenerator implements Runnable {
                                         .map(this::generateClientMemberResolver)
                                         .toList()
                         ).compose(),
-                    "experimentalSerdeResolvers", settings.useExperimentalSerde()? generateExperimentalSerdeResolvers() : emptyGoTemplate()
+                    "experimentalSerdeResolvers", !settings.useLegacySerde()? generateExperimentalSerdeResolvers() : emptyGoTemplate()
                 ));
     }
 

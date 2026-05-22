@@ -104,7 +104,7 @@ public class UnionGenerator {
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
 
-            if (ctx.settings().useExperimentalSerde()) {
+            if (!ctx.settings().useLegacySerde()) {
                 generateMemberSerializer(writer, member, exportedMemberName, target);
                 generateMemberDeserializer(writer, member, exportedMemberName, target);
             }

@@ -277,7 +277,7 @@ public final class OperationGenerator implements Runnable {
                     return err
                 }""");
 
-        if (!ctx.settings().useExperimentalSerde()) {
+        if (ctx.settings().useLegacySerde()) {
             // Add request serializer middleware
             String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
                     operation.getId(), service, protocolGenerator.getProtocolName());

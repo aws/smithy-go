@@ -85,7 +85,7 @@ public class ClientOptions implements Writable {
 
                     $fields:W
 
-                    $experimentalSerdeProtocolFields:W
+                    $schemaSerdeProtocolFields:W
 
                     $protocolFields:W
                 }
@@ -106,13 +106,13 @@ public class ClientOptions implements Writable {
                         "copy", generateCopy(),
                         "getIdentityResolver", generateGetIdentityResolver(),
                         "helpers", generateHelpers(),
-                        "experimentalSerdeProtocolFields", ctx.settings().useExperimentalSerde()
-                                ? generateExperimentalSerdeProtocolFields()
+                        "schemaSerdeProtocolFields", !ctx.settings().useLegacySerde()
+                                ? generateSchemaSerdeProtocolFields()
                                 : emptyGoTemplate()
                 ));
     }
 
-    private Writable generateExperimentalSerdeProtocolFields() {
+    private Writable generateSchemaSerdeProtocolFields() {
         ensureSupportedProtocol();
         return goTemplate("""
                 $D
