@@ -466,6 +466,7 @@ func init() {
 
 func newDeserialize(data []byte) (*GetItemOutput, error) {
 	d := NewShapeDeserializer(data)
+	defer d.Close()
 	var out GetItemOutput
 	if err := newDeserializeGetItemOutput(d, &out); err != nil {
 		return nil, err
@@ -490,7 +491,8 @@ func newDeserializeConsumedCapacity(d smithy.ShapeDeserializer, v *ConsumedCapac
 	return smithy.ReadStruct(d, schemaConsumedCapacity, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaConsumedCapacity_TableName:
-			v.TableName = new(string); return d.ReadString(schemaConsumedCapacity_TableName, v.TableName)
+			v.TableName = new(string)
+			return d.ReadString(schemaConsumedCapacity_TableName, v.TableName)
 		case schemaConsumedCapacity_CapacityUnits:
 			return d.ReadFloat64(schemaConsumedCapacity_CapacityUnits, &v.CapacityUnits)
 		}

@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -42,20 +43,35 @@ type ShapeDeserializer struct {
 	peeked []byte
 }
 
+var deserPool = sync.Pool{
+	New: func() any {
+		return &ShapeDeserializer{
+			p:    parser{stack: serde.NewStack[int8]()},
+			head: serde.NewStack[deserCtx](),
+		}
+	},
+}
+
 // NewShapeDeserializer creates a new ShapeDeserializer.
 func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	o := Options{}
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &ShapeDeserializer{
-		p: parser{
-			tok:   scanner{p: p},
-			state: stValue,
-		},
-		head: serde.NewStack[deserCtx](),
-		opts: o,
-	}
+	d := deserPool.Get().(*ShapeDeserializer)
+	d.p.tok = scanner{p: p}
+	d.p.state = stValue
+	d.p.done = false
+	d.p.stack.Reset()
+	d.head.Reset()
+	d.peeked = nil
+	d.opts = o
+	return d
+}
+
+// Close returns the deserializer to the pool for reuse.
+func (d *ShapeDeserializer) Close() {
+	deserPool.Put(d)
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
