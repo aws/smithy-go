@@ -16,7 +16,7 @@ import (
 
 // Protocol implements aws.protocols#restXml.
 type Protocol struct {
-	*internales.Codec
+	eventstream *internales.Codec
 
 	seropts func(*internalxml.ShapeSerializerOptions)
 }
@@ -43,7 +43,7 @@ func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protoco
 	}
 
 	return &Protocol{
-		Codec: &internales.Codec{
+		eventstream: &internales.Codec{
 			Serializer: func() smithy.ShapeSerializer {
 				if xmlOpts != nil {
 					return internalxml.NewShapeSerializer(xmlOpts)
@@ -65,6 +65,26 @@ func (*Protocol) ID() smithy.ShapeID {
 // HasInitialEventMessage implements [smithyhttp.ClientProtocol].
 func (*Protocol) HasInitialEventMessage() bool {
 	return false
+}
+
+// SerializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeEventMessage(schema, variant, v, w)
+}
+
+// DeserializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
+	return p.eventstream.DeserializeEventMessage(schema, types, r)
+}
+
+// SerializeInitialRequest implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeInitialRequest(schema, v, w)
+}
+
+// DeserializeInitialResponse implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error {
+	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
 // SerializeRequest serializes a request for restxml.
