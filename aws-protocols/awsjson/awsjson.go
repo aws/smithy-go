@@ -97,6 +97,15 @@ func (p *Protocol) SerializeRequest(
 		req.Header.Set("X-Amzn-Query-Mode", "true")
 	}
 
+	if schema.Input == nil {
+		sreq, err := req.SetStream(bytes.NewReader([]byte("{}")))
+		if err != nil {
+			return fmt.Errorf("set stream: %w", err)
+		}
+		*req = *sreq
+		return nil
+	}
+
 	ss := internaljson.NewShapeSerializer()
 	in.Serialize(ss)
 
@@ -122,6 +131,10 @@ func (p *Protocol) DeserializeResponse(
 	}
 
 	if schema.IsOutputEventStream() {
+		return nil
+	}
+
+	if schema.Output == nil {
 		return nil
 	}
 

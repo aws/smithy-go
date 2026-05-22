@@ -44,7 +44,9 @@ public class TypeRegistry implements Writable {
         if (sorted.stream().anyMatch(Prelude::isPublicPreludeShape)) {
             writer.addUseImports(SmithyGoDependency.SMITHY_PRELUDE);
         }
-        writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        if (sorted.stream().anyMatch(s -> !Prelude.isPublicPreludeShape(s))) {
+            writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
+        }
         writer.writeGoTemplate("""
                 // TypeRegistry is the type registry for this service.
                 var TypeRegistry = &smithy.TypeRegistry{

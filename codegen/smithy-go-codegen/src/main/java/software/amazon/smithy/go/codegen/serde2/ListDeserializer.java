@@ -107,6 +107,8 @@ public class ListDeserializer implements Writable {
         return switch (member.getType()) {
             case STRUCTURE ->
                     goTemplate("vv = $T{}", ctx.symbolProvider().toSymbol(member));
+            case LIST, SET, MAP ->
+                    goTemplate("vv = nil");
             default -> goTemplate("");
         };
     }

@@ -54,7 +54,9 @@ func (p *Protocol) SerializeRequest(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version)
-	in.Serialize(ss)
+	if schema.Input != nil {
+		in.Serialize(ss)
+	}
 
 	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
 	if err != nil {
@@ -88,6 +90,9 @@ func (p *Protocol) DeserializeResponse(
 
 	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Result")
 	if err != nil {
+		if schema.Output == nil {
+			return nil
+		}
 		return &smithy.DeserializationError{Err: err}
 	}
 

@@ -55,7 +55,9 @@ func (p *Protocol) SerializeRequest(
 	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version,
 		func(o *internalquery.ShapeSerializerOptions) { o.EC2Mode = true },
 	)
-	in.Serialize(ss)
+	if schema.Input != nil {
+		in.Serialize(ss)
+	}
 
 	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
 	if err != nil {

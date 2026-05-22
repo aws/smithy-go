@@ -93,7 +93,7 @@ public final class StructureSerializer implements Writable {
             case TIMESTAMP ->
                     writeScalar(writer, isNillable, ident, "", "WriteTime", schemaName);
             case BLOB ->
-                    writer.write("s.WriteBlob($L, $L)", schemaName, ident);
+                    writer.write("if $2L != nil { s.WriteBlob($1L, $2L) }", schemaName, ident);
 
             case LIST, SET, MAP, UNION ->
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
