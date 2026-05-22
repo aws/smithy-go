@@ -156,13 +156,13 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 		return d.body.ReadBool(s, v)
 	}
 
-	trait, _ := isHTTPHeader(s)
+	name, _ := isHTTPHeader(s)
 
 	var hv string
 	if d.inHeaderList {
 		hv = d.nextHeaderValue()
 	} else {
-		hv = d.response.Header.Get(trait.Name)
+		hv = d.response.Header.Get(name)
 	}
 
 	n, err := strconv.ParseBool(hv)
@@ -249,8 +249,8 @@ func (d *ShapeDeserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 }
 
 func (d *ShapeDeserializer) readHeaderTime(s *smithy.Schema) (time.Time, error) {
-	h, _ := isHTTPHeader(s)
-	hv := d.response.Header.Get(h.Name)
+	name, _ := isHTTPHeader(s)
+	hv := d.response.Header.Get(name)
 	t, err := parseTimestamp(s, "http-date", hv)
 	if err != nil {
 		return time.Time{}, err
@@ -280,12 +280,12 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 		return nil
 	}
 
-	h, ok := isHTTPHeader(s)
+	name, ok := isHTTPHeader(s)
 	if !ok {
 		return fmt.Errorf("ReadBlob: unhandled http binding")
 	}
 
-	hv := d.response.Header.Get(h.Name)
+	hv := d.response.Header.Get(name)
 	b, err := base64.StdEncoding.DecodeString(hv)
 	if err != nil {
 		return err
@@ -300,7 +300,7 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 		return d.body.ReadList(s)
 	}
 
-	h, ok := isHTTPHeader(s)
+	name, ok := isHTTPHeader(s)
 	if !ok {
 		return fmt.Errorf("ReadList called outside of payload / http binding")
 	}
@@ -308,14 +308,14 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 	d.inHeaderList = true
 	d.headerListIdx = 0
 	if s.ListMember() != nil && s.ListMember().Type() == smithy.ShapeTypeTimestamp && timestampFormat(s.ListMember(), "http-date") == "http-date" {
-		vs, err := smithyhttp.SplitHTTPDateTimestampHeaderListValues(d.response.Header.Values(h.Name))
+		vs, err := smithyhttp.SplitHTTPDateTimestampHeaderListValues(d.response.Header.Values(name))
 		if err != nil {
 			return err
 		}
 
 		d.headerListValues = vs
 	} else {
-		vs, err := smithyhttp.SplitHeaderListValues(d.response.Header.Values(h.Name))
+		vs, err := smithyhttp.SplitHeaderListValues(d.response.Header.Values(name))
 		if err != nil {
 			return err
 		}
@@ -394,8 +394,8 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 }
 
 func (d *ShapeDeserializer) isBindingSet(schema *smithy.Schema) bool {
-	if trait, ok := isHTTPHeader(schema); ok {
-		return len(d.response.Header.Values(trait.Name)) > 0
+	if name, ok := isHTTPHeader(schema); ok {
+		return len(d.response.Header.Values(name)) > 0
 	}
 
 	if trait, ok := isHTTPPrefixHeaders(schema); ok {
@@ -420,9 +420,9 @@ func (d *ShapeDeserializer) isBindingSet(schema *smithy.Schema) bool {
 }
 
 func (d *ShapeDeserializer) readHeaderString(s *smithy.Schema) (string, error) {
-	trait, _ := isHTTPHeader(s)
+	name, _ := isHTTPHeader(s)
 
-	hv := d.response.Header.Get(trait.Name)
+	hv := d.response.Header.Get(name)
 	if _, ok := smithy.SchemaTrait[*traits.MediaType](s); ok {
 		b, err := base64.StdEncoding.DecodeString(hv)
 		if err != nil {
@@ -444,13 +444,13 @@ type intn interface {
 }
 
 func readHeaderInt[T intn](d *ShapeDeserializer, s *smithy.Schema, v *T) error {
-	trait, _ := isHTTPHeader(s)
+	name, _ := isHTTPHeader(s)
 
 	var hv string
 	if d.inHeaderList {
 		hv = d.nextHeaderValue()
 	} else {
-		hv = d.response.Header.Get(trait.Name)
+		hv = d.response.Header.Get(name)
 	}
 
 	n, err := strconv.ParseInt(hv, 10, 64)
@@ -467,13 +467,13 @@ type floatn interface {
 }
 
 func readHeaderFloat[T floatn](d *ShapeDeserializer, s *smithy.Schema, v *T) error {
-	trait, _ := isHTTPHeader(s)
+	name, _ := isHTTPHeader(s)
 
 	var hv string
 	if d.inHeaderList {
 		hv = d.nextHeaderValue()
 	} else {
-		hv = d.response.Header.Get(trait.Name)
+		hv = d.response.Header.Get(name)
 	}
 
 	n, err := strconv.ParseFloat(hv, 64)

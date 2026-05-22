@@ -177,8 +177,8 @@ func (s *ShapeSerializer) resolveBinding(schema *smithy.Schema) (bind, string) {
 	if s.listMode == listModeQuery {
 		return bindQueryList, s.listName
 	}
-	if h, ok := isHTTPHeader(schema); ok {
-		return bindHeader, h.Name
+	if name, ok := isHTTPHeader(schema); ok {
+		return bindHeader, name
 	}
 	if isHTTPLabel(schema) {
 		return bindLabel, schema.MemberName()
@@ -196,12 +196,12 @@ func (s *ShapeSerializer) Bytes() []byte {
 	return s.input.Bytes()
 }
 
-func isHTTPHeader(schema *smithy.Schema) (*traits.HTTPHeader, bool) {
+func isHTTPHeader(schema *smithy.Schema) (string, bool) {
 	h, ok := smithy.SchemaTrait[*traits.HTTPHeader](schema)
-	if ok {
-		h.Name = http.CanonicalHeaderKey(h.Name)
+	if !ok {
+		return "", false
 	}
-	return h, ok
+	return http.CanonicalHeaderKey(h.Name), true
 }
 
 func isHTTPLabel(schema *smithy.Schema) bool {
@@ -452,8 +452,8 @@ func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
 		}
 		return
 	}
-	if h, ok := isHTTPHeader(schema); ok {
-		s.encoder.SetHeader(h.Name).Blob(v)
+	if name, ok := isHTTPHeader(schema); ok {
+		s.encoder.SetHeader(name).Blob(v)
 		return
 	}
 	s.input.WriteBlob(schema, v)
@@ -486,9 +486,9 @@ func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 		s.listName = s.currentKey
 		return
 	}
-	if h, ok := isHTTPHeader(schema); ok {
+	if name, ok := isHTTPHeader(schema); ok {
 		s.listMode = listModeHeader
-		s.listName = h.Name
+		s.listName = name
 		s.listHasItems = false
 		return
 	}
