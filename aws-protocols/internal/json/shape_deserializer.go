@@ -535,7 +535,7 @@ func unquote(tok []byte) (string, error) {
 
 func memberFromToken(s *smithy.Schema, tok []byte) (*smithy.Schema, error) {
 	inner := tok[1 : len(tok)-1]
-	if m := s.Member(unsafeString(inner)); m != nil {
+	if m := s.MemberBytes(inner); m != nil {
 		return m, nil
 	}
 

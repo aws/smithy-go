@@ -204,6 +204,11 @@ func (s *Schema) Member(name string) *Schema {
 	return s.members[name]
 }
 
+// MemberBytes looks up a member by byte-slice key without allocating a string.
+func (s *Schema) MemberBytes(name []byte) *Schema {
+	return s.members[string(name)]
+}
+
 // Members returns the schema's members as a map of name to schema.
 func (s *Schema) Members() map[string]*Schema {
 	return s.members
