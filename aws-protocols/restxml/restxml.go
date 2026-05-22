@@ -79,7 +79,9 @@ func (p *Protocol) SerializeRequest(
 		return err
 	}
 
-	in.Serialize(serializer)
+	if op.Input != nil {
+		in.Serialize(serializer)
+	}
 
 	contentType := "application/xml"
 	if op.IsInputEventStream() {
@@ -102,6 +104,10 @@ func (p *Protocol) DeserializeResponse(
 ) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return p.deserializeError(types, resp)
+	}
+
+	if op.Output == nil {
+		return nil
 	}
 
 	if so, ok := out.(smithy.StreamingOutput); ok {

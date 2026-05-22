@@ -57,7 +57,9 @@ func (p *Protocol) SerializeRequest(
 		return err
 	}
 
-	in.Serialize(serializer)
+	if op.Input != nil {
+		in.Serialize(serializer)
+	}
 
 	contentType := "application/json"
 	if op.IsInputEventStream() {
@@ -80,6 +82,10 @@ func (p *Protocol) DeserializeResponse(
 ) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return p.deserializeError(types, resp)
+	}
+
+	if op.Output == nil {
+		return nil
 	}
 
 	// @httpPayload + @streaming = do not touch the body at all, it's the

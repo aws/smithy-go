@@ -109,6 +109,8 @@ public class MapDeserializer implements Writable {
         return switch (value.getType()) {
             case STRUCTURE ->
                     goTemplate("vv = $T{}", ctx.symbolProvider().toSymbol(value));
+            case LIST, SET, MAP ->
+                    goTemplate("vv = nil");
             default -> goTemplate("");
         };
     }
@@ -128,6 +130,9 @@ public class MapDeserializer implements Writable {
                     goTemplate("vv");
 
             case DOCUMENT -> renderDocumentCast();
+
+            case STRUCTURE -> goTemplate("func() *$T { cp := vv; return &cp }()",
+                    ctx.symbolProvider().toSymbol(value));
 
             default -> goTemplate("&vv");
         };

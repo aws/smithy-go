@@ -486,7 +486,11 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 
 // ReadDocument reads a JSON value into a document Value.
 func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Value) error {
-	vv, err := d.p.Value()
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	vv, err := d.p.value(tok)
 	if err != nil {
 		return err
 	}

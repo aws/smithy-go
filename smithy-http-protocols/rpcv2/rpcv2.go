@@ -77,6 +77,10 @@ func (p *Protocol) SerializeRequest(
 		return nil
 	}
 
+	if schema.Input == nil {
+		return nil
+	}
+
 	ss := internalcbor.NewShapeSerializer()
 	in.Serialize(ss)
 
