@@ -626,3 +626,225 @@ func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
 func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
 	return fmt.Errorf("unimplemented")
 }
+
+// DirectReadStruct is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads struct members directly.
+func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+	// null check
+	tok, err := d.peek()
+	if err != nil {
+		return err
+	}
+	if isN(tok) {
+		d.peeked = nil
+		return nil
+	}
+
+	// consume '{'
+	tok, err = d.next()
+	if err != nil {
+		return err
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		keyEscaped := d.p.escaped
+
+		member, err := memberFromToken(schema, tok, keyEscaped)
+		if err != nil {
+			return err
+		}
+
+		if member == nil && d.opts.UseJSONName {
+			key, qerr := unquote(tok)
+			if qerr != nil {
+				return qerr
+			}
+			for _, m := range schema.Members() {
+				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+					member = m
+					break
+				}
+			}
+		}
+		if member == nil {
+			if err := d.p.Skip(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// inline null check for the value
+		ptok, err := d.peek()
+		if err != nil {
+			return err
+		}
+		if isN(ptok) {
+			d.peeked = nil
+			continue
+		}
+
+		if err := memberFn(member); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadUnion is a concrete-type fast path that avoids interface dispatch.
+// It opens the union object, finds the single non-null member, calls memberFn,
+// then drains to the closing brace.
+func (d *ShapeDeserializer) DirectReadUnion(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+	// open phase: consume '{' (or 'null')
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if isN(tok) {
+		return nil
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	// find the single non-null member
+	var member *smithy.Schema
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		keyEscaped := d.p.escaped
+
+		ptok, err := d.peek()
+		if err != nil {
+			return err
+		}
+		if isN(ptok) {
+			d.peeked = nil
+			continue
+		}
+
+		member, err = memberFromToken(schema, tok, keyEscaped)
+		if err != nil {
+			return err
+		}
+
+		if member == nil && d.opts.UseJSONName {
+			key, err := unquote(tok)
+			if err != nil {
+				return err
+			}
+			for _, m := range schema.Members() {
+				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+					member = m
+					break
+				}
+			}
+		}
+		if member == nil {
+			if err := d.p.Skip(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		break
+	}
+
+	// call the member function
+	if err := memberFn(member); err != nil {
+		return err
+	}
+
+	// drain remaining members to closing '}'
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		// skip any extra keys (lenient: tolerate services sending extra fields)
+		if err := d.p.Skip(); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadMap is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads map entries directly.
+func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(string) error) error {
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		var key string
+		if !d.p.escaped {
+			key = unsafeString(tok[1 : len(tok)-1])
+		} else {
+			key, err = unquote(tok)
+			if err != nil {
+				return err
+			}
+		}
+
+		if err := memberFn(key); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadList is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads list elements directly using peek.
+func (d *ShapeDeserializer) DirectReadList(schema *smithy.Schema, memberFn func() error) error {
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if !isLSB(tok) {
+		return fmt.Errorf("expected '[', got %s", tok)
+	}
+
+	for {
+		tok, err = d.peek()
+		if err != nil {
+			return err
+		}
+		if isRSB(tok) {
+			d.peeked = nil
+			return nil
+		}
+		if err := memberFn(); err != nil {
+			return err
+		}
+	}
+}

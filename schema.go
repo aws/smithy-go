@@ -81,6 +81,11 @@ type Schema struct {
 	// flat member lookup: ordered list of (name, schema) for linear scan
 	// faster than map for small member counts (< ~20)
 	memberList []memberEntry
+
+	// byteIndex maps first byte of member name to index in memberList.
+	// -1 means no member starts with that byte, -2 means multiple members
+	// share that first byte (fall back to linear scan).
+	byteIndex [256]int16
 }
 
 type memberEntry struct {
@@ -94,6 +99,9 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
 		id:      id,
 		typ:     typ,
 		members: make(map[string]*Schema, numMembers),
+	}
+	for i := range s.byteIndex {
+		s.byteIndex[i] = -1
 	}
 	for _, t := range ts {
 		s.addTrait(t, true)
@@ -144,6 +152,8 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 		id:         ShapeID{Member: name},
 		typ:        target.typ,
 		members:    target.members,
+		memberList: target.memberList,
+		byteIndex:  target.byteIndex,
 		indexed:    cloneIndexed(target.indexed),
 		traits:     cloneTraits(target.traits),
 		directMask: 0, // inherited traits are not direct
@@ -161,7 +171,19 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	}
 
 	s.members[name] = m
+	idx := len(s.memberList)
 	s.memberList = append(s.memberList, memberEntry{name: name, schema: m})
+
+	// maintain byteIndex
+	if len(name) > 0 {
+		b := name[0]
+		if s.byteIndex[b] == -1 {
+			s.byteIndex[b] = int16(idx)
+		} else {
+			s.byteIndex[b] = -2 // collision
+		}
+	}
+
 	switch name {
 	case "member":
 		s.listMember = m
@@ -235,13 +257,32 @@ func (s *Schema) Member(name string) *Schema {
 
 // MemberBytes looks up a member by byte-slice key without allocating a string.
 func (s *Schema) MemberBytes(name []byte) *Schema {
-	for i := range s.memberList {
-		e := &s.memberList[i]
-		if len(e.name) == len(name) && e.name == string(name) {
-			return e.schema
+	if len(s.memberList) > 0 {
+		if len(name) == 0 {
+			return nil
 		}
+		idx := s.byteIndex[name[0]]
+		if idx == -1 {
+			return nil
+		}
+		if idx >= 0 {
+			e := &s.memberList[idx]
+			if len(e.name) == len(name) && e.name == string(name) {
+				return e.schema
+			}
+			return nil
+		}
+		// idx == -2: multiple members with same first byte, linear scan
+		for i := range s.memberList {
+			e := &s.memberList[i]
+			if len(e.name) == len(name) && e.name == string(name) {
+				return e.schema
+			}
+		}
+		return nil
 	}
-	return nil
+	// fallback for member schemas that share the members map but not memberList
+	return s.members[string(name)]
 }
 
 // JSONKey returns the pre-computed `"memberName":` bytes for serialization.

@@ -48,6 +48,8 @@ type ShapeSerializer interface {
 	WriteTime(*Schema, time.Time)
 
 	WriteUnion(schema, variant *Schema, v Serializable)
+	WriteUnionKey(schema, variant *Schema)
+	CloseUnion()
 	WriteDocument(*Schema, document.Value)
 	WriteNil(*Schema)
 

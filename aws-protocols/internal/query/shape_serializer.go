@@ -299,13 +299,24 @@ func (s *ShapeSerializer) CloseStruct() {
 
 // WriteUnion implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
-	saved := s.currPrefix
-	s.appendMemberPrefix(schema)
+	s.WriteUnionKey(schema, variant)
+	v.Serialize(s)
+	s.CloseUnion()
+}
+
+// WriteUnionKey implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteUnionKey(schema, variant *smithy.Schema) {
 	if s.top() == ctxKindMapValue {
 		s.stack.Pop()
 	}
-	v.Serialize(s)
-	s.currPrefix = saved
+	s.stack.Push(serCtx{prefix: s.currPrefix})
+	s.appendMemberPrefix(schema)
+}
+
+// CloseUnion implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseUnion() {
+	ctx := s.stack.Pop()
+	s.currPrefix = ctx.prefix
 }
 
 // WriteNil implements [smithy.ShapeSerializer].

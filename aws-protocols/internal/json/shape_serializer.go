@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
@@ -62,7 +63,7 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 	s.opts = o
 	s.depth = 0
 	s.noKey = false
-	s.comma = [64]bool{}
+	s.comma[0] = false
 	return s
 }
 
@@ -255,17 +256,25 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 
 // WriteUnion implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
+	s.WriteUnionKey(schema, variant)
+	v.Serialize(s)
+	s.CloseUnion()
+}
+
+// WriteUnionKey implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteUnionKey(schema, variant *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++
 	s.comma[s.depth] = false
 
-	// write the variant key, then suppress key on the next write (the value)
 	s.writeKey(variant)
 	s.noKey = true
+}
 
-	v.Serialize(s)
-
+// CloseUnion implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseUnion() {
+	s.noKey = false
 	s.buf = append(s.buf, '}')
 	s.depth--
 }
@@ -372,9 +381,20 @@ func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 func (s *ShapeSerializer) appendEscapedString(v string) {
 	s.buf = append(s.buf, '"')
 
-	// fast path: check if entire string is safe ASCII
+	// fast path: SWAR check if entire string is safe ASCII
+	i := 0
+	p := unsafe.StringData(v)
+	for i+8 <= len(v) {
+		w := *(*uint64)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + uintptr(i)))
+		// high bit set means >= 0x80, hasLess detects control chars,
+		// hasValue detects '"', '\\', and DEL (0x7F)
+		if w&hi|hasLess(w, 0x20)|hasValue(w, '"')|hasValue(w, '\\')|hasValue(w, 0x7F) != 0 {
+			break
+		}
+		i += 8
+	}
 	safe := true
-	for i := 0; i < len(v); i++ {
+	for ; i < len(v); i++ {
 		if v[i] >= utf8.RuneSelf || !safeSet[v[i]] {
 			safe = false
 			break

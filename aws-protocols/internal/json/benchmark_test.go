@@ -474,8 +474,8 @@ func newDeserialize(data []byte) (*GetItemOutput, error) {
 	return &out, nil
 }
 
-func newDeserializeGetItemOutput(d smithy.ShapeDeserializer, v *GetItemOutput) error {
-	return smithy.ReadStruct(d, schemaGetItemOutput, func(ms *smithy.Schema) error {
+func newDeserializeGetItemOutput(d *ShapeDeserializer, v *GetItemOutput) error {
+	return d.DirectReadStruct(schemaGetItemOutput, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaGetItemOutput_ConsumedCapacity:
 			v.ConsumedCapacity = &ConsumedCapacity{}
@@ -487,8 +487,8 @@ func newDeserializeGetItemOutput(d smithy.ShapeDeserializer, v *GetItemOutput) e
 	})
 }
 
-func newDeserializeConsumedCapacity(d smithy.ShapeDeserializer, v *ConsumedCapacity) error {
-	return smithy.ReadStruct(d, schemaConsumedCapacity, func(ms *smithy.Schema) error {
+func newDeserializeConsumedCapacity(d *ShapeDeserializer, v *ConsumedCapacity) error {
+	return d.DirectReadStruct(schemaConsumedCapacity, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaConsumedCapacity_TableName:
 			v.TableName = new(string)
@@ -500,22 +500,22 @@ func newDeserializeConsumedCapacity(d smithy.ShapeDeserializer, v *ConsumedCapac
 	})
 }
 
-func newDeserializeAttributeMap(d smithy.ShapeDeserializer, v *map[string]AttributeValue) error {
-	return smithy.ReadMap(d, schemaAttributeMap, func(key string) error {
+func newDeserializeAttributeMap(d *ShapeDeserializer, v *map[string]AttributeValue) error {
+	return d.DirectReadMap(schemaAttributeMap, func(key string) error {
 		var av AttributeValue
 		if err := newDeserializeAttributeValue(d, &av); err != nil {
 			return err
 		}
 		if *v == nil {
-			*v = map[string]AttributeValue{}
+			*v = make(map[string]AttributeValue, 8)
 		}
 		(*v)[key] = av
 		return nil
 	})
 }
 
-func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue) error {
-	return smithy.ReadUnion(d, schemaAttributeValue, func(ms *smithy.Schema) error {
+func newDeserializeAttributeValue(d *ShapeDeserializer, v *AttributeValue) error {
+	return d.DirectReadUnion(schemaAttributeValue, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaAttributeValue_S:
 			vv := &AttributeValueMemberS{}
@@ -540,7 +540,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_SS:
 			vv := &AttributeValueMemberSS{}
 			*v = vv
-			return smithy.ReadList(d, schemaStringSetAttributeValue, func() error {
+			return d.DirectReadList(schemaStringSetAttributeValue, func() error {
 				var s string
 				if err := d.ReadString(nil, &s); err != nil {
 					return err
@@ -551,7 +551,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_NS:
 			vv := &AttributeValueMemberNS{}
 			*v = vv
-			return smithy.ReadList(d, schemaNumberSetAttributeValue, func() error {
+			return d.DirectReadList(schemaNumberSetAttributeValue, func() error {
 				var s string
 				if err := d.ReadString(nil, &s); err != nil {
 					return err
@@ -562,7 +562,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_BS:
 			vv := &AttributeValueMemberBS{}
 			*v = vv
-			return smithy.ReadList(d, schemaBinarySetAttributeValue, func() error {
+			return d.DirectReadList(schemaBinarySetAttributeValue, func() error {
 				var b []byte
 				if err := d.ReadBlob(nil, &b); err != nil {
 					return err
@@ -573,7 +573,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_L:
 			vv := &AttributeValueMemberL{}
 			*v = vv
-			return smithy.ReadList(d, schemaListAttributeValue, func() error {
+			return d.DirectReadList(schemaListAttributeValue, func() error {
 				var av AttributeValue
 				if err := newDeserializeAttributeValue(d, &av); err != nil {
 					return err
@@ -584,7 +584,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_M:
 			vv := &AttributeValueMemberM{}
 			*v = vv
-			return smithy.ReadMap(d, schemaMapAttributeValue, func(key string) error {
+			return d.DirectReadMap(schemaMapAttributeValue, func(key string) error {
 				var av AttributeValue
 				if err := newDeserializeAttributeValue(d, &av); err != nil {
 					return err
@@ -637,10 +637,12 @@ func BenchmarkDeserialize_New(b *testing.B) {
 func newSerialize(out *GetItemOutput) ([]byte, error) {
 	s := NewShapeSerializer()
 	newSerializeGetItemOutput(s, out)
-	b := s.Bytes(); s.Close(); return b, nil
+	b := s.Bytes()
+	s.Close()
+	return b, nil
 }
 
-func newSerializeGetItemOutput(s smithy.ShapeSerializer, v *GetItemOutput) {
+func newSerializeGetItemOutput(s *ShapeSerializer, v *GetItemOutput) {
 	s.WriteStruct(schemaGetItemOutput)
 	if v.ConsumedCapacity != nil {
 		newSerializeConsumedCapacity(s, schemaGetItemOutput_ConsumedCapacity, v.ConsumedCapacity)
@@ -651,7 +653,7 @@ func newSerializeGetItemOutput(s smithy.ShapeSerializer, v *GetItemOutput) {
 	s.CloseStruct()
 }
 
-func newSerializeConsumedCapacity(s smithy.ShapeSerializer, schema *smithy.Schema, v *ConsumedCapacity) {
+func newSerializeConsumedCapacity(s *ShapeSerializer, schema *smithy.Schema, v *ConsumedCapacity) {
 	s.WriteStruct(schema)
 	if v.TableName != nil {
 		s.WriteString(schemaConsumedCapacity_TableName, *v.TableName)
@@ -660,7 +662,7 @@ func newSerializeConsumedCapacity(s smithy.ShapeSerializer, schema *smithy.Schem
 	s.CloseStruct()
 }
 
-func newSerializeAttributeMap(s smithy.ShapeSerializer, schema *smithy.Schema, m map[string]AttributeValue) {
+func newSerializeAttributeMap(s *ShapeSerializer, schema *smithy.Schema, m map[string]AttributeValue) {
 	s.WriteMap(schema)
 	for k, v := range m {
 		s.WriteKey(nil, k)
@@ -669,75 +671,72 @@ func newSerializeAttributeMap(s smithy.ShapeSerializer, schema *smithy.Schema, m
 	s.CloseMap()
 }
 
-func newSerializeAttributeValue(s smithy.ShapeSerializer, v AttributeValue) {
+func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 	switch av := v.(type) {
 	case *AttributeValueMemberS:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_S, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteString(schemaAttributeValue_S, av.Value)
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_S)
+		s.WriteString(schemaAttributeValue_S, av.Value)
+		s.CloseUnion()
 	case *AttributeValueMemberN:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_N, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteString(schemaAttributeValue_N, av.Value)
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_N)
+		s.WriteString(schemaAttributeValue_N, av.Value)
+		s.CloseUnion()
 	case *AttributeValueMemberB:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_B, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteBlob(schemaAttributeValue_B, av.Value)
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_B)
+		s.WriteBlob(schemaAttributeValue_B, av.Value)
+		s.CloseUnion()
 	case *AttributeValueMemberBOOL:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_BOOL, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteBool(schemaAttributeValue_BOOL, av.Value)
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BOOL)
+		s.WriteBool(schemaAttributeValue_BOOL, av.Value)
+		s.CloseUnion()
 	case *AttributeValueMemberNULL:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_NULL, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteBool(schemaAttributeValue_NULL, av.Value)
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NULL)
+		s.WriteBool(schemaAttributeValue_NULL, av.Value)
+		s.CloseUnion()
 	case *AttributeValueMemberSS:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_SS, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteList(schemaAttributeValue_SS)
-			for _, item := range av.Value {
-				s.WriteString(nil, item)
-			}
-			s.CloseList()
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_SS)
+		s.WriteList(schemaAttributeValue_SS)
+		for _, item := range av.Value {
+			s.WriteString(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
 	case *AttributeValueMemberNS:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_NS, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteList(schemaAttributeValue_NS)
-			for _, item := range av.Value {
-				s.WriteString(nil, item)
-			}
-			s.CloseList()
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NS)
+		s.WriteList(schemaAttributeValue_NS)
+		for _, item := range av.Value {
+			s.WriteString(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
 	case *AttributeValueMemberBS:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_BS, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteList(schemaAttributeValue_BS)
-			for _, item := range av.Value {
-				s.WriteBlob(nil, item)
-			}
-			s.CloseList()
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BS)
+		s.WriteList(schemaAttributeValue_BS)
+		for _, item := range av.Value {
+			s.WriteBlob(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
 	case *AttributeValueMemberL:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_L, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteList(schemaAttributeValue_L)
-			for _, item := range av.Value {
-				newSerializeAttributeValue(s, item)
-			}
-			s.CloseList()
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_L)
+		s.WriteList(schemaAttributeValue_L)
+		for _, item := range av.Value {
+			newSerializeAttributeValue(s, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
 	case *AttributeValueMemberM:
-		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_M, serializerFunc(func(s smithy.ShapeSerializer) {
-			s.WriteMap(schemaAttributeValue_M)
-			for k, item := range av.Value {
-				s.WriteKey(nil, k)
-				newSerializeAttributeValue(s, item)
-			}
-			s.CloseMap()
-		}))
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_M)
+		s.WriteMap(schemaAttributeValue_M)
+		for k, item := range av.Value {
+			s.WriteKey(nil, k)
+			newSerializeAttributeValue(s, item)
+		}
+		s.CloseMap()
+		s.CloseUnion()
 	}
 }
 
-type serializerFunc func(smithy.ShapeSerializer)
-
-func (f serializerFunc) Serialize(s smithy.ShapeSerializer) { f(s) }
 
 var benchOutput *GetItemOutput
 
