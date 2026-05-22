@@ -140,7 +140,7 @@ public final class EventStreamGenerator {
                 });
             });
 
-            if (settings.useExperimentalSerde()) {
+            if (!settings.useLegacySerde()) {
                 inputEvents.forEach(shapeId -> {
                     var union = model.expectShape(shapeId, UnionShape.class);
                     generateWriterAdapter(writer, union);

@@ -109,6 +109,7 @@ public class TestUtils {
             .withMember("generateGoMod", Node.from(generateGoMod))
             .withMember("homepage", Node.from("https://docs.amplify.aws/"))
             .withMember("sdkId", Node.from(sdkId))
+            .withMember("useLegacySerde", Node.from(true))
             .withMember("author", Node.from("Amazon Web Services"))
             .withMember("gitRepo", Node.from("https://github.com/aws-amplify/amplify-codegen.git"))
             .withMember("swiftVersion", Node.from("5.5.0"))

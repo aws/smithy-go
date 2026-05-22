@@ -420,7 +420,7 @@ public final class ProtocolDocumentGenerator {
         });
         writer.write("");
 
-        if (settings.useExperimentalSerde()) {
+        if (!settings.useLegacySerde()) {
             writer.write("func (m $P) Value() any { return m.value }", typeSymbol);
         }
 

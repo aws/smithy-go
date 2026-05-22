@@ -56,7 +56,7 @@ public final class StructureGenerator implements Runnable {
     private Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
-    private final boolean useExperimentalSerde;
+    private final boolean useLegacySerde;
     private final GoCodegenContext ctx;
 
     public StructureGenerator(
@@ -73,7 +73,7 @@ public final class StructureGenerator implements Runnable {
         this.shape = shape;
         this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
-        this.useExperimentalSerde = ctx.settings().useExperimentalSerde();
+        this.useLegacySerde = ctx.settings().useLegacySerde();
     }
 
     public StructureGenerator(
@@ -152,7 +152,7 @@ public final class StructureGenerator implements Runnable {
         // Only generate serde methods when the symbol matches the shape's natural symbol.
         // When a symbol override is provided (e.g. for synthetic shapes like event stream
         // initial reply structs), skip serde to avoid duplicate method declarations.
-        if (useExperimentalSerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
+        if (!useLegacySerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
             if (shape.hasTrait(InputTrait.class)) {
                 writer.write(new StructureSerializer(ctx, shape));
             } else if (shape.hasTrait(OutputTrait.class)) {
@@ -246,7 +246,7 @@ public final class StructureGenerator implements Runnable {
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
 
-        if (useExperimentalSerde) {
+        if (!useLegacySerde) {
             writer.write(new StructureDeserializer(ctx, shape));
         }
     }

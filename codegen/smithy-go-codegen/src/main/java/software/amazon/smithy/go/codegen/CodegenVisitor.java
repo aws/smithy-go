@@ -242,7 +242,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         //
         // There is a block further down after the serde2 stuff that also uses the protocol generator, but that all will
         // have to be pulled out of ProtocolGenerator and just be generic.
-        if (!settings.useExperimentalSerde() && protocolGenerator != null) {
+        if (settings.useLegacySerde() && protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
                     .protocolName(protocolGenerator.getProtocolName())
@@ -280,7 +280,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         LOGGER.info("Generating protocol tests for " + service.getId());
         ProtocolUtils.generateHttpProtocolTests(ctx);
 
-        if (settings.useExperimentalSerde()) {
+        if (!settings.useLegacySerde()) {
             protocolDocumentGenerator.generateLegacyInternalDocumentTypes(ctx);
 
             var shapes = new ArrayList<>(ctx.serdeShapes());
@@ -420,7 +420,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     protected Void getDefault(Shape shape) {
-        if (settings.useExperimentalSerde()
+        if (!settings.useLegacySerde()
                 && !shape.isMemberShape()
                 && !shape.isOperationShape()
                 && !shape.isServiceShape()
@@ -437,7 +437,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             // For synthetic clones with an archetype, generate the schema under
             // the archetype's name. Stub synthetics (no archetype) are skipped.
-            if (settings.useExperimentalSerde() && !CodegenUtils.isStubSynthetic(shape)) {
+            if (!settings.useLegacySerde() && !CodegenUtils.isStubSynthetic(shape)) {
                 var archetypeId = shape.getTrait(Synthetic.class).get().getArchetype().get();
                 if (emittedSchemas.add(archetypeId)) {
                     var archetype = model.expectShape(archetypeId, StructureShape.class);
@@ -450,7 +450,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.useShapeWriter(shape, writer ->
                 new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
 
-        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+        if (!settings.useLegacySerde() && emittedSchemas.add(shape.getId())) {
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
                     writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
@@ -463,7 +463,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         if (shape.hasTrait(EnumTrait.class)) {
             writers.useShapeWriter(shape, writer -> new EnumGenerator(symbolProvider, writer, shape).run());
         }
-        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+        if (!settings.useLegacySerde() && emittedSchemas.add(shape.getId())) {
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
                     writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
@@ -476,7 +476,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
 
-        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+        if (!settings.useLegacySerde() && emittedSchemas.add(shape.getId())) {
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
                     writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
@@ -530,7 +530,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         });
 
-        if (ctx.settings().useExperimentalSerde()) {
+        if (!ctx.settings().useLegacySerde()) {
             writers.useShapeWriter(shape, new Serde2SerializeRequestMiddleware());
             writers.useShapeWriter(shape, new Serde2DeserializeResponseMiddleware());
         }
@@ -543,7 +543,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     @Override
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
-        if (settings.useExperimentalSerde() && emittedSchemas.add(shape.getId())) {
+        if (!settings.useLegacySerde() && emittedSchemas.add(shape.getId())) {
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas",
                     writer -> new SchemaGenerator(ctx, shape).accept(writer));
         }
