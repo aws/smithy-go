@@ -51,7 +51,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	return &ShapeDeserializer{
 		p: parser{
 			tok:   scanner{p: p},
-			parse: (*parser).parseValue,
+			state: stValue,
 		},
 		head: serde.NewStack[deserCtx](),
 		opts: o,

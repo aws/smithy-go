@@ -16,7 +16,7 @@ import (
 func testParse(p []byte) error {
 	pr := parser{
 		tok:   scanner{p: p},
-		parse: (*parser).parseValue,
+		state: stValue,
 	}
 	for {
 		_, err := pr.Next()
@@ -171,7 +171,7 @@ func TestTokenStream(t *testing.T) {
 		t.Run(tt.json, func(t *testing.T) {
 			p := parser{
 				tok:   scanner{p: []byte(tt.json)},
-				parse: (*parser).parseValue,
+				state: stValue,
 			}
 			var got []string
 			for {
@@ -275,7 +275,7 @@ func TestValue(t *testing.T) {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
 				tok:   scanner{p: []byte(tt.in)},
-				parse: (*parser).parseValue,
+				state: stValue,
 			}
 			got, err := p.Value()
 			if err != nil {
@@ -456,7 +456,7 @@ func TestFloatSpecialValues(t *testing.T) {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
 				tok:   scanner{p: []byte(tt.in)},
-				parse: (*parser).parseValue,
+				state: stValue,
 			}
 			v, err := p.Value()
 			if err != nil {
@@ -491,7 +491,7 @@ func TestSkip(t *testing.T) {
 			wrapped := `[` + tt.json + `]`
 			p := parser{
 				tok:   scanner{p: []byte(wrapped)},
-				parse: (*parser).parseValue,
+				state: stValue,
 			}
 			tok, err := p.Next()
 			if err != nil || string(tok) != "[" {

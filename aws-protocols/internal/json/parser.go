@@ -17,6 +17,18 @@ const (
 	inArray
 )
 
+type parseState uint8
+
+const (
+	stValue parseState = iota
+	stObjectKey
+	stObjectColon
+	stObjectComma
+	stObjectKeyAfterComma
+	stArrayValue
+	stArrayComma
+)
+
 func errUnexpectedToken(c byte) error {
 	return fmt.Errorf("unexpected token '%c'", c)
 }
@@ -27,12 +39,7 @@ type parser struct {
 	tok   scanner
 	stack serde.Stack[int8]
 	done  bool
-
-	// parse changes as tokens are called to handle state transitions
-	//
-	// per the Dave Cheney article, https://www.json.org/json-en.html has flow
-	// diagrams that help us build out the state transitions
-	parse func(*parser, []byte) ([]byte, error)
+	state parseState
 }
 
 func (p *parser) Next() ([]byte, error) {
@@ -40,15 +47,116 @@ func (p *parser) Next() ([]byte, error) {
 		return nil, io.EOF
 	}
 
-	next, err := p.tok.Next()
-	if err != nil {
-		if err == io.EOF {
-			return nil, fmt.Errorf("unexpected end of JSON input")
+	for {
+		next, err := p.tok.Next()
+		if err != nil {
+			if err == io.EOF {
+				return nil, fmt.Errorf("unexpected end of JSON input")
+			}
+			return nil, err
 		}
-		return nil, err
-	}
 
-	return p.parse(p, next)
+		switch p.state {
+		case stValue:
+			switch next[0] {
+			case '{':
+				p.state = stObjectKey
+				p.stack.Push(inObject)
+				if p.stack.Len() > maxDepth {
+					return nil, errors.New("exceeded max nesting depth")
+				}
+				return next, nil
+			case '[':
+				p.state = stArrayValue
+				p.stack.Push(inArray)
+				if p.stack.Len() > maxDepth {
+					return nil, errors.New("exceeded max nesting depth")
+				}
+				return next, nil
+			case ',', ':', '}', ']':
+				return nil, errUnexpectedToken(next[0])
+			}
+			p.afterValue()
+			return next, nil
+
+		case stObjectKey:
+			switch next[0] {
+			case '"':
+				p.state = stObjectColon
+				return next, nil
+			case '}':
+				p.close()
+				return next, nil
+			default:
+				return nil, errUnexpectedToken(next[0])
+			}
+
+		case stObjectColon:
+			if next[0] != ':' {
+				return nil, errUnexpectedToken(next[0])
+			}
+			p.state = stValue
+			continue
+
+		case stObjectComma:
+			switch next[0] {
+			case ',':
+				p.state = stObjectKeyAfterComma
+				continue
+			case '}':
+				p.close()
+				return next, nil
+			default:
+				return nil, errUnexpectedToken(next[0])
+			}
+
+		case stObjectKeyAfterComma:
+			if next[0] != '"' {
+				return nil, errUnexpectedToken(next[0])
+			}
+			p.state = stObjectColon
+			return next, nil
+
+		case stArrayValue:
+			if next[0] == ']' {
+				p.close()
+				return next, nil
+			}
+			// handle as value
+			switch next[0] {
+			case '{':
+				p.state = stObjectKey
+				p.stack.Push(inObject)
+				if p.stack.Len() > maxDepth {
+					return nil, errors.New("exceeded max nesting depth")
+				}
+				return next, nil
+			case '[':
+				p.state = stArrayValue
+				p.stack.Push(inArray)
+				if p.stack.Len() > maxDepth {
+					return nil, errors.New("exceeded max nesting depth")
+				}
+				return next, nil
+			case ',', ':', '}':
+				return nil, errUnexpectedToken(next[0])
+			}
+			p.afterValue()
+			return next, nil
+
+		case stArrayComma:
+			switch next[0] {
+			case ',':
+				p.state = stValue
+				continue
+			case ']':
+				p.close()
+				return next, nil
+			default:
+				return nil, errUnexpectedToken(next[0])
+			}
+		}
+	}
 }
 
 func (p *parser) Skip() error {
@@ -76,93 +184,6 @@ func (p *parser) Value() (any, error) {
 		return nil, err
 	}
 	return p.value(tok)
-}
-
-func (p *parser) parseValue(tok []byte) ([]byte, error) {
-	switch tok[0] {
-	case '{':
-		p.parse = (*parser).parseObjectKey
-		p.stack.Push(inObject)
-		if p.stack.Len() > maxDepth {
-			return nil, errors.New("exceeded max nesting depth")
-		}
-		return tok, nil
-	case '[':
-		p.parse = (*parser).parseArrayValue
-		p.stack.Push(inArray)
-		if p.stack.Len() > maxDepth {
-			return nil, errors.New("exceeded max nesting depth")
-		}
-		return tok, nil
-	case ',', ':', '}', ']':
-		return nil, errUnexpectedToken(tok[0])
-	}
-
-	p.afterValue()
-	return tok, nil
-}
-
-func (p *parser) parseObjectKey(tok []byte) ([]byte, error) {
-	switch tok[0] {
-	case '"':
-		p.parse = (*parser).parseObjectColon
-		return tok, nil
-	case '}':
-		p.close()
-		return tok, nil
-	default:
-		return nil, errUnexpectedToken(tok[0])
-	}
-}
-
-func (p *parser) parseObjectColon(tok []byte) ([]byte, error) {
-	if tok[0] != ':' {
-		return nil, errUnexpectedToken(tok[0])
-	}
-	p.parse = (*parser).parseValue
-	return p.Next()
-}
-
-func (p *parser) parseObjectComma(tok []byte) ([]byte, error) {
-	switch tok[0] {
-	case ',':
-		p.parse = (*parser).parseObjectKeyAfterComma
-		return p.Next()
-	case '}':
-		p.close()
-		return tok, nil
-	default:
-		return nil, errUnexpectedToken(tok[0])
-	}
-}
-
-func (p *parser) parseObjectKeyAfterComma(tok []byte) ([]byte, error) {
-	if tok[0] != '"' {
-		return nil, errUnexpectedToken(tok[0])
-	}
-	p.parse = (*parser).parseObjectColon
-	return tok, nil
-}
-
-func (p *parser) parseArrayValue(tok []byte) ([]byte, error) {
-	if tok[0] == ']' {
-		p.close()
-		return tok, nil
-	}
-	return p.parseValue(tok)
-}
-
-func (p *parser) parseArrayComma(tok []byte) ([]byte, error) {
-	switch tok[0] {
-	case ',':
-		p.parse = (*parser).parseValue
-		return p.Next()
-	case ']':
-		p.close()
-		return tok, nil
-	default:
-		return nil, errUnexpectedToken(tok[0])
-	}
 }
 
 func (p *parser) value(tok []byte) (any, error) {
@@ -233,9 +254,9 @@ func (p *parser) afterValue() {
 
 	switch *top {
 	case inObject:
-		p.parse = (*parser).parseObjectComma
+		p.state = stObjectComma
 	case inArray:
-		p.parse = (*parser).parseArrayComma
+		p.state = stArrayComma
 	default:
 		p.done = true
 	}
