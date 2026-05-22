@@ -16,6 +16,8 @@ type ShapeSerializer struct {
 
 	inner       smithy.ShapeSerializer
 	contentType string // may be inflenced by bindings
+	depth       int
+	hasBody     bool
 }
 
 var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
@@ -143,10 +145,31 @@ func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+	s.depth++
+	if s.depth > 1 {
+		s.inner.WriteStruct(schema)
+		return
+	}
+	// At depth 1 (the event struct itself), start a JSON body if there are
+	// implicit body members (members without @eventHeader or @eventPayload).
+	for _, m := range schema.Members() {
+		if !isEventBound(m) {
+			s.inner.WriteStruct(schema)
+			s.hasBody = true
+			return
+		}
+	}
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
+	if s.depth > 1 || s.hasBody {
+		s.inner.CloseStruct()
+	}
+	if s.depth == 1 {
+		s.hasBody = false
+	}
+	s.depth--
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].

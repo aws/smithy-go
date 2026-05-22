@@ -61,15 +61,7 @@ public class EventStreamProtocolTestGenerator {
             // value is treated as an unknown event (UnknownUnionMember) rather
             // than surfacing an error.
             "MalformedEventTypeOutput",
-            "DuplexMalformedEventTypeOutput",
-
-            // FUTURE(serde2): released protocol generation does not handle
-            // "implicit" payload members (i.e. @eventHeader + no @eventPayload +
-            // other members), this is fixed in serde2 so just skip for now.
-            "HeadersAndImplicitPayloadOutput",
-            "DuplexHeadersAndImplicitPayloadOutput",
-            "HeadersAndImplicitPayloadInput",
-            "DuplexHeadersAndImplicitPayloadInput"
+            "DuplexMalformedEventTypeOutput"
     );
 
     private final GoSettings settings;

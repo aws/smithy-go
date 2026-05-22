@@ -297,6 +297,11 @@ func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
 	return tt, ok
 }
 
+// indexStreaming is the indexed trait slot for @streaming, mirrored from
+// traits.indexStreaming. We can't import the traits package from here due to a
+// circular dependency.
+const indexStreaming = 17
+
 func isEventStream(s *Schema) bool {
 	if s == nil {
 		return false
@@ -305,7 +310,7 @@ func isEventStream(s *Schema) bool {
 		if m.typ != ShapeTypeUnion {
 			continue
 		}
-		if _, ok := m.traits[ShapeID{Namespace: "smithy.api", Name: "streaming"}]; ok {
+		if len(m.indexed) > indexStreaming && m.indexed[indexStreaming] != nil {
 			return true
 		}
 	}

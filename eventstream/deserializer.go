@@ -26,6 +26,7 @@ type ShapeDeserializer struct {
 
 	inBody     bool
 	hasPayload bool
+	hasBody    bool
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
@@ -50,6 +51,8 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 		}
 		if isEventBound(m) {
 			d.bindings = append(d.bindings, m)
+		} else {
+			d.hasBody = true
 		}
 	}
 	return nil
@@ -66,15 +69,23 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 
 	// like httpbinding, throw back the bound stuff first before we drop into
 	// the body
-	if d.bindIdx < len(d.bindings) {
+	for d.bindIdx < len(d.bindings) {
 		m := d.bindings[d.bindIdx]
 		d.bindIdx++
+		if isEventHeader(m) && d.Message.Headers.Get(m.MemberName()) == nil {
+			continue
+		}
 		d.inBindings = true
 		return m, nil
 	}
 	d.inBindings = false
 
 	if d.hasPayload {
+		d.depth--
+		return nil, nil
+	}
+
+	if !d.hasBody {
 		d.depth--
 		return nil, nil
 	}
