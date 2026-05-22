@@ -39,6 +39,16 @@ func Getu4(s []byte) rune {
 	return r
 }
 
+// HasEscape reports whether s contains a backslash or control character.
+func HasEscape(s []byte) bool {
+	for _, c := range s {
+		if c == '\\' || c < ' ' {
+			return true
+		}
+	}
+	return false
+}
+
 // UnquoteBytes is copied from Go stdlib.
 func UnquoteBytes(s []byte) (t []byte, ok bool) {
 	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {

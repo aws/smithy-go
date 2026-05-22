@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/aws-protocols/internal/json/internal/stdlib"
@@ -216,6 +217,12 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 		return fmt.Errorf("expected string, got %s", tok)
 	}
 
+	inner := tok[1 : len(tok)-1]
+	if !stdlib.HasEscape(inner) {
+		*v = unsafeString(inner)
+		return nil
+	}
+
 	sv, err := unquote(tok)
 	if err != nil {
 		return err
@@ -345,6 +352,11 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	if isRCB(tok) {
 		d.head.Pop()
 		return "", false, nil
+	}
+
+	inner := tok[1 : len(tok)-1]
+	if !stdlib.HasEscape(inner) {
+		return unsafeString(inner), true, nil
 	}
 
 	key, err := unquote(tok)
@@ -494,22 +506,23 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 	return nil
 }
 
+func unsafeString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
 func unquote(tok []byte) (string, error) {
 	if s, ok := stdlib.UnquoteBytes(tok); ok {
-		return string(s), nil
+		return unsafeString(s), nil
 	}
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
 
 func memberFromToken(s *smithy.Schema, tok []byte) (*smithy.Schema, error) {
-	// the fast path should be basically everything since members will usually
-	// not have escaped chars, so we save an allocation by skipping unquote
 	inner := tok[1 : len(tok)-1]
-	if m := s.Member(string(inner)); m != nil {
+	if m := s.Member(unsafeString(inner)); m != nil {
 		return m, nil
 	}
 
-	// otherwise unquote it like everything else
 	unq, err := unquote(tok)
 	if err != nil {
 		return nil, err
