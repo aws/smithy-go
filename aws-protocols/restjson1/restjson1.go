@@ -25,7 +25,7 @@ func New(_ *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 		fn(&o)
 	}
 	return &Protocol{
-		Codec: &internales.Codec{
+		eventstream: &internales.Codec{
 			Serializer:  func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
 			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
 			ContentType: "application/json",
@@ -35,7 +35,7 @@ func New(_ *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 
 // Protocol implements aws.protocols#restJson1.
 type Protocol struct {
-	*internales.Codec
+	eventstream *internales.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
@@ -123,6 +123,26 @@ func (p *Protocol) DeserializeResponse(
 // HasInitialEventMessage is false for REST-style protocols with HTTP bindings.
 func (*Protocol) HasInitialEventMessage() bool {
 	return false
+}
+
+// SerializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeEventMessage(schema, variant, v, w)
+}
+
+// DeserializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
+	return p.eventstream.DeserializeEventMessage(schema, types, r)
+}
+
+// SerializeInitialRequest implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeInitialRequest(schema, v, w)
+}
+
+// DeserializeInitialResponse implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error {
+	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {

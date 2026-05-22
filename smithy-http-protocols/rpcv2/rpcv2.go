@@ -25,7 +25,7 @@ type Protocol struct {
 	queryCompatible bool
 	serviceName     string
 
-	*internales.Codec
+	eventstream *internales.Codec
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
@@ -43,7 +43,7 @@ func NewCBOR(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Pro
 	return &Protocol{
 		queryCompatible: qc,
 		serviceName:     service.Schema.ID().Name,
-		Codec: &internales.Codec{
+		eventstream: &internales.Codec{
 			Serializer:   func() smithy.ShapeSerializer { return internalcbor.NewShapeSerializer() },
 			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internalcbor.NewShapeDeserializer(p) },
 			ContentType:  "application/cbor",
@@ -140,6 +140,26 @@ func (p *Protocol) DeserializeResponse(
 // HasInitialEventMessage is true because this is an RPC protocol.
 func (*Protocol) HasInitialEventMessage() bool {
 	return true
+}
+
+// SerializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeEventMessage(schema, variant, v, w)
+}
+
+// DeserializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
+	return p.eventstream.DeserializeEventMessage(schema, types, r)
+}
+
+// SerializeInitialRequest implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeInitialRequest(schema, v, w)
+}
+
+// DeserializeInitialResponse implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error {
+	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {

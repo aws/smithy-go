@@ -21,7 +21,7 @@ type ProtocolOptions struct{}
 
 // Protocol implements aws.protocols#awsQuery.
 type Protocol struct {
-	internales.NoEventStream
+	eventstream internales.NoEventStream
 
 	version string
 }
@@ -41,6 +41,31 @@ func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protoco
 // ID identifies the protocol.
 func (*Protocol) ID() smithy.ShapeID {
 	return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsQuery"}
+}
+
+// HasInitialEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) HasInitialEventMessage() bool {
+	return p.eventstream.HasInitialEventMessage()
+}
+
+// SerializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeEventMessage(schema, variant, v, w)
+}
+
+// DeserializeEventMessage implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
+	return p.eventstream.DeserializeEventMessage(schema, types, r)
+}
+
+// SerializeInitialRequest implements [smithyhttp.ClientProtocol].
+func (p *Protocol) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializable, w io.Writer) error {
+	return p.eventstream.SerializeInitialRequest(schema, v, w)
+}
+
+// DeserializeInitialResponse implements [smithyhttp.ClientProtocol].
+func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error {
+	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
 // SerializeRequest serializes a request for awsQuery.
