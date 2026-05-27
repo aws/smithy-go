@@ -36,14 +36,6 @@ public class AuthSchemePropertyGenerator {
         this.generator = generator;
     }
 
-    public static String mapEndpointPropertyAuthSchemeName(String name) {
-        return switch (name) {
-            case "sigv4" -> "aws.auth#sigv4";
-            case "sigv4a" -> "aws.auth#sigv4a";
-            default -> name;
-        };
-    }
-
     public Writable generate(Expression expr) {
         return goTemplate("""
                 $T(&out, []$P{
@@ -61,17 +53,17 @@ public class AuthSchemePropertyGenerator {
 
     private Writable generateOption(ExpressionGenerator generator, RecordLiteral scheme) {
         var members = scheme.members();
-        var schemeName = ((StringLiteral) members.get(Identifier.of("name"))).value().expectLiteral();
+        var nameExpr = (StringLiteral) members.get(Identifier.of("name"));
         return goTemplate("""
                 {
-                    SchemeID: $1S,
+                    SchemeID: $1W,
                     SignerProperties: func() $2T {
                         var sp $2T
                         $3W
                         return sp
                     }(),
                 },""",
-                mapEndpointPropertyAuthSchemeName(schemeName),
+                generator.generate(nameExpr),
                 SmithyGoDependency.SMITHY.struct("Properties"),
                 generateOptionSignerProps(generator, scheme));
     }
