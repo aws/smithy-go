@@ -107,7 +107,7 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                         }
 
                         for _, scheme := range m.options.AuthSchemes {
-                            if scheme.SchemeID() != option.SchemeID {
+                            if !matchSchemeID(scheme.SchemeID(), option.SchemeID) {
                                 continue
                             }
 
@@ -118,6 +118,16 @@ public class ResolveAuthSchemeMiddlewareGenerator {
                     }
 
                     return nil, false
+                }
+
+                func matchSchemeID(registered, option string) bool {
+                    if registered == option {
+                        return true
+                    }
+                    if i := strings.LastIndex(registered, "#"); i != -1 {
+                        return registered[i+1:] == option
+                    }
+                    return false
                 }
 
                 func sortAuthOptions(options []$option:P, preferred []string) []$option:P {

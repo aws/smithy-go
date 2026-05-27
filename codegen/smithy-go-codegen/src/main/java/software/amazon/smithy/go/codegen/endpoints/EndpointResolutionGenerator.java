@@ -88,6 +88,10 @@ public class EndpointResolutionGenerator {
         var bindingGenerator = new EndpointParameterBindingsGenerator(context);
         var middlewareGenerator = new EndpointMiddlewareGenerator(context);
 
+        // Ensure rulesfn import for StringSlice used in scope-emitted code.
+        writer.write("var _ = $T(nil)", SymbolUtils.createValueSymbolBuilder(
+                "StringSlice", SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build());
+
         // Prefer BDD trait over tree-based ruleset when available
         var bddTrait = serviceShape.getTrait(EndpointBddTrait.class);
         if (bddTrait.isPresent()) {

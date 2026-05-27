@@ -112,8 +112,6 @@ public final class EndpointResolverGenerator {
 
     private Writable generateResolverType(Writable resolveMethodBody) {
         return goTemplate("""
-                $stringSlice:W
-
                 // $resolverInterfaceType:T provides the interface for resolving service endpoints.
                 type $resolverInterfaceType:T interface {
                     $resolveEndpointMethodDocs:W
@@ -141,7 +139,6 @@ public final class EndpointResolverGenerator {
                 commonCodegenArgs,
                 MapUtils.of(
                         "context", SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build(),
-                        "stringSlice", generateStringSliceHelper(),
                         "resolverTypeDocs", generateResolverTypeDocs(),
                         "resolveEndpointMethodDocs", generateResolveEndpointMethodDocs(),
                         "resolveMethodBody", resolveMethodBody));
@@ -199,7 +196,7 @@ public final class EndpointResolverGenerator {
                                         w.write("_ = $L", getLocalVarParameterName(param));
                                     }
                                     case STRING_ARRAY -> {
-                                        w.write("$L := stringSlice($L)",
+                                        w.write("$L := rulesfn.StringSlice($L)",
                                                 getLocalVarParameterName(param), getMemberParameterName(param));
                                         w.write("_ = $L", getLocalVarParameterName(param));
                                     }
@@ -328,7 +325,7 @@ public final class EndpointResolverGenerator {
                     }
                     """,
                     MapUtils.of(
-                            "exprVal", isStringSlice ? "stringSlice(exprVal)" : "*exprVal",
+                            "exprVal", isStringSlice ? "rulesfn.StringSlice(exprVal)" : "*exprVal",
                             "conditionIdent", conditionIdentifier,
                             "target", generator.generate(fn),
                             "next", generateRule(
@@ -603,20 +600,6 @@ public final class EndpointResolverGenerator {
         public EndpointResolverGenerator build() {
             return new EndpointResolverGenerator(this);
         }
-    }
-
-    static Writable generateStringSliceHelper() {
-        return goTemplate("""
-                type stringSlice []string
-
-                func (s stringSlice) Get(i int) *string {
-                    if i < 0 || i >= len(s) {
-                        return nil
-                    }
-
-                    v := s[i]
-                    return &v
-                }""");
     }
 
     private boolean isStringSlice(Type type) {

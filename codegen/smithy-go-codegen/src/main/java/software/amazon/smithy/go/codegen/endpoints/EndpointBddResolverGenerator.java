@@ -133,8 +133,6 @@ public final class EndpointBddResolverGenerator {
         var condScope = buildConditionScope(derefScope, conditions);
 
         return goTemplate("""
-                $stringSlice:W
-
                 $nodeArray:W
 
                 $conditionContext:W
@@ -146,8 +144,6 @@ public final class EndpointBddResolverGenerator {
                 $resolverType:W
                 """,
                 MapUtils.of(
-                        "stringSlice", needsStringSlice(conditions, parameters)
-                                ? EndpointResolverGenerator.generateStringSliceHelper() : emptyGoTemplate(),
                         "nodeArray", generateNodeArray(bdd),
                         "conditionContext", generateConditionContext(conditions),
                         "evalCondition", generateEvalCondition(conditions, ptrScope, condScope),
@@ -160,17 +156,8 @@ public final class EndpointBddResolverGenerator {
     // It maps to []string in Go, which needs a stringSlice cast for .Get() index access.
     private static String derefParam(Parameter p, String ptrName) {
         return p.getType() == ParameterType.STRING_ARRAY
-                ? "stringSlice(" + ptrName + ")"
+                ? "rulesfn.StringSlice(" + ptrName + ")"
                 : "*" + ptrName;
-    }
-
-    private static boolean needsStringSlice(List<Condition> conditions, Parameters parameters) {
-        for (Iterator<Parameter> iter = parameters.iterator(); iter.hasNext();) {
-            if (iter.next().getType() == ParameterType.STRING_ARRAY) {
-                return true;
-            }
-        }
-        return conditions.stream().anyMatch(c -> c.getFunction().getName().equals("split"));
     }
 
     // ---- Component 1: Node array ----

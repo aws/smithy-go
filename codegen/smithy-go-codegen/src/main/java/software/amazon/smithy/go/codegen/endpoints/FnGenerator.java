@@ -56,9 +56,11 @@ public class FnGenerator {
             writableFnArgs.add(new ExpressionGenerator(scope, this.fnProvider).generate(expr));
         });
 
-        // Wrap split() in stringSlice() for safe .Get() index access
+        // Wrap split() in rulesfn.StringSlice() for safe .Get() index access
         if (fnDef.getId().equals("split")) {
-            return goTemplate("stringSlice($fn:T($args:W))", MapUtils.of(
+            return goTemplate("$stringSlice:T($fn:T($args:W))", MapUtils.of(
+                    "stringSlice", SymbolUtils.createValueSymbolBuilder("StringSlice",
+                            SmithyGoDependency.SMITHY_ENDPOINT_RULESFN).build(),
                     "fn", goFn,
                     "args", joinWritables(writableFnArgs, ", ")));
         }
