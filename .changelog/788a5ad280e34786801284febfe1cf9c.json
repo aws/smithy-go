@@ -1,8 +1,0 @@
-{
-    "id": "788a5ad2-80e3-4786-8012-84febfe1cf9c",
-    "type": "feature",
-    "description": "Add StringSlice to endpoint rulesfn.",
-    "modules": [
-        "."
-    ]
-}
