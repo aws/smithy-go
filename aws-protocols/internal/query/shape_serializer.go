@@ -302,7 +302,7 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	if s.top() == ctxKindMapValue {
 		s.stack.Pop()
 	}
-	s.stack.Push(serCtx{prefix: s.currPrefix})
+	s.stack.Push(serCtx{kind: ctxKindNone, prefix: s.currPrefix})
 	s.appendMemberPrefix(schema)
 }
 

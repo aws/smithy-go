@@ -78,8 +78,8 @@ public class UnionSerializer implements Writable {
             case BLOB -> writer.write("s.WriteBlob($L, vv.Value)", schemaName);
             case TIMESTAMP -> writer.write("s.WriteTime($L, vv.Value)", schemaName);
             case INT_ENUM -> writer.write("s.WriteInt32($L, int32(vv.Value))", schemaName);
-            case BIG_INTEGER -> writer.write("s.WriteBigInteger($L, vv.Value)", schemaName);
-            case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, vv.Value)", schemaName);
+            case BIG_INTEGER -> writer.write("s.WriteBigInt($L, vv.Value)", schemaName);
+            case BIG_DECIMAL -> writer.write("s.WriteBigFloat($L, vv.Value)", schemaName);
             case STRUCTURE -> {
                 writer.write("s.WriteStruct($L)", schemaName);
                 writer.write("vv.Value.SerializeMembers(s)");
