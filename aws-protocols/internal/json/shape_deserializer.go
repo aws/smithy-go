@@ -7,7 +7,9 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/aws-protocols/internal/json/internal/stdlib"
@@ -37,8 +39,17 @@ type ShapeDeserializer struct {
 	head serde.Stack[deserCtx]
 	opts Options
 
-	// it's easier to just maintain the "peeked" token here actually
-	peeked []byte
+	peeked        []byte
+	peekedEscaped bool
+}
+
+var deserPool = sync.Pool{
+	New: func() any {
+		return &ShapeDeserializer{
+			p:    parser{stack: serde.NewStack[int8]()},
+			head: serde.NewStack[deserCtx](),
+		}
+	},
 }
 
 // NewShapeDeserializer creates a new ShapeDeserializer.
@@ -47,14 +58,21 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &ShapeDeserializer{
-		p: parser{
-			tok:   scanner{p: p},
-			parse: (*parser).parseValue,
-		},
-		head: serde.NewStack[deserCtx](),
-		opts: o,
-	}
+	d := deserPool.Get().(*ShapeDeserializer)
+	d.p.p = p
+	d.p.i = 0
+	d.p.state = stValue
+	d.p.done = false
+	d.p.stack.Reset()
+	d.head.Reset()
+	d.peeked = nil
+	d.opts = o
+	return d
+}
+
+// Close returns the deserializer to the pool for reuse.
+func (d *ShapeDeserializer) Close() {
+	deserPool.Put(d)
 }
 
 var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
@@ -63,6 +81,7 @@ func (d *ShapeDeserializer) next() ([]byte, error) {
 	if d.peeked != nil {
 		peeked := d.peeked
 		d.peeked = nil
+		d.p.escaped = d.peekedEscaped
 		return peeked, nil
 	}
 	return d.p.Next()
@@ -77,6 +96,7 @@ func (d *ShapeDeserializer) peek() ([]byte, error) {
 		return nil, err
 	}
 	d.peeked = tok
+	d.peekedEscaped = d.p.escaped
 	return tok, nil
 }
 
@@ -131,9 +151,9 @@ func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
 		return 0, fmt.Errorf("expected number, got %s", tok)
 	}
 
-	n, err := strconv.ParseInt(string(tok), 10, 64)
-	if err != nil {
-		return 0, err
+	n, ok := parseInt(tok)
+	if !ok {
+		return 0, fmt.Errorf("invalid int: %s", tok)
 	}
 
 	if n < min || n > max {
@@ -141,6 +161,48 @@ func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
 	}
 
 	return n, nil
+}
+
+// parseInt parses a decimal int directly from bytes, avoiding string alloc.
+func parseInt(b []byte) (int64, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
+	neg := false
+	if b[0] == '-' {
+		neg = true
+		b = b[1:]
+		if len(b) == 0 {
+			return 0, false
+		}
+	}
+
+	const cutoff = math.MaxUint64/10 + 1
+	var n uint64
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		if n >= cutoff {
+			return 0, false
+		}
+		nn := n*10 + uint64(c-'0')
+		if nn < n {
+			return 0, false
+		}
+		n = nn
+		if n > uint64(math.MaxInt64) {
+			if neg && n == uint64(math.MaxInt64)+1 {
+				return math.MinInt64, true
+			}
+			return 0, false
+		}
+	}
+
+	if neg {
+		return -int64(n), true
+	}
+	return int64(n), true
 }
 
 // ReadFloat32 implements [smithy.ShapeDeserializer].
@@ -180,7 +242,11 @@ func (d *ShapeDeserializer) readFloat() (float64, error) {
 		}
 	}
 
-	return strconv.ParseFloat(string(tok), 64)
+	// fast path: if it's a plain integer, parse directly without alloc
+	if n, ok := parseInt(tok); ok {
+		return float64(n), nil
+	}
+	return strconv.ParseFloat(unsafeString(tok), 64)
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
@@ -214,6 +280,11 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 
 	if !isS(tok) {
 		return fmt.Errorf("expected string, got %s", tok)
+	}
+
+	if !d.p.escaped {
+		*v = unsafeString(tok[1 : len(tok)-1])
+		return nil
 	}
 
 	sv, err := unquote(tok)
@@ -347,6 +418,10 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 		return "", false, nil
 	}
 
+	if !d.p.escaped {
+		return unsafeString(tok[1 : len(tok)-1]), true, nil
+	}
+
 	key, err := unquote(tok)
 	if err != nil {
 		return "", false, err
@@ -387,7 +462,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct?")
 	}
 
-	member, err := memberFromToken(top.schema, tok)
+	member, err := memberFromToken(top.schema, tok, d.p.escaped)
 	if err != nil {
 		return nil, err
 	}
@@ -411,9 +486,13 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return d.ReadStructMember()
 	}
 
-	if isNil, err := d.ReadNil(member); err != nil {
+	// inline null check to avoid function call overhead of ReadNil
+	ptok, err := d.peek()
+	if err != nil {
 		return nil, err
-	} else if isNil {
+	}
+	if isN(ptok) {
+		d.peeked = nil
 		return d.ReadStructMember()
 	}
 
@@ -447,16 +526,20 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			return nil, nil
 		}
 
-		// skip null values
-		isNil, err := d.ReadNil(nil)
+		// save escaped before peek overwrites it
+		keyEscaped := d.p.escaped
+
+		// inline null check
+		ptok, err := d.peek()
 		if err != nil {
 			return nil, err
 		}
-		if isNil {
+		if isN(ptok) {
+			d.peeked = nil
 			continue
 		}
 
-		member, err := memberFromToken(s, tok)
+		member, err := memberFromToken(s, tok, keyEscaped)
 		if err != nil {
 			return nil, err
 		}
@@ -498,22 +581,29 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 	return nil
 }
 
+func unsafeString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
 func unquote(tok []byte) (string, error) {
 	if s, ok := stdlib.UnquoteBytes(tok); ok {
-		return string(s), nil
+		return unsafeString(s), nil
 	}
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
 
-func memberFromToken(s *smithy.Schema, tok []byte) (*smithy.Schema, error) {
-	// the fast path should be basically everything since members will usually
-	// not have escaped chars, so we save an allocation by skipping unquote
+func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema, error) {
 	inner := tok[1 : len(tok)-1]
-	if m := s.Member(string(inner)); m != nil {
+	if m := memberByBytes(s, inner); m != nil {
 		return m, nil
 	}
 
-	// otherwise unquote it like everything else
+	// if the string had no escapes, the raw bytes ARE the unquoted form --
+	// no point re-trying the lookup
+	if !escaped {
+		return nil, nil
+	}
+
 	unq, err := unquote(tok)
 	if err != nil {
 		return nil, err
@@ -539,4 +629,226 @@ func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
 // ReadBigFloat is unimplemented and will return an error.
 func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
 	return fmt.Errorf("unimplemented")
+}
+
+// DirectReadStruct is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads struct members directly.
+func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+	// null check
+	tok, err := d.peek()
+	if err != nil {
+		return err
+	}
+	if isN(tok) {
+		d.peeked = nil
+		return nil
+	}
+
+	// consume '{'
+	tok, err = d.next()
+	if err != nil {
+		return err
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		keyEscaped := d.p.escaped
+
+		member, err := memberFromToken(schema, tok, keyEscaped)
+		if err != nil {
+			return err
+		}
+
+		if member == nil && d.opts.UseJSONName {
+			key, qerr := unquote(tok)
+			if qerr != nil {
+				return qerr
+			}
+			for _, m := range schema.Members() {
+				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+					member = m
+					break
+				}
+			}
+		}
+		if member == nil {
+			if err := d.p.Skip(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// inline null check for the value
+		ptok, err := d.peek()
+		if err != nil {
+			return err
+		}
+		if isN(ptok) {
+			d.peeked = nil
+			continue
+		}
+
+		if err := memberFn(member); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadUnion is a concrete-type fast path that avoids interface dispatch.
+// It opens the union object, finds the single non-null member, calls memberFn,
+// then drains to the closing brace.
+func (d *ShapeDeserializer) DirectReadUnion(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+	// open phase: consume '{' (or 'null')
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if isN(tok) {
+		return nil
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	// find the single non-null member
+	var member *smithy.Schema
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		keyEscaped := d.p.escaped
+
+		ptok, err := d.peek()
+		if err != nil {
+			return err
+		}
+		if isN(ptok) {
+			d.peeked = nil
+			continue
+		}
+
+		member, err = memberFromToken(schema, tok, keyEscaped)
+		if err != nil {
+			return err
+		}
+
+		if member == nil && d.opts.UseJSONName {
+			key, err := unquote(tok)
+			if err != nil {
+				return err
+			}
+			for _, m := range schema.Members() {
+				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
+					member = m
+					break
+				}
+			}
+		}
+		if member == nil {
+			if err := d.p.Skip(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		break
+	}
+
+	// call the member function
+	if err := memberFn(member); err != nil {
+		return err
+	}
+
+	// drain remaining members to closing '}'
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		// skip any extra keys (lenient: tolerate services sending extra fields)
+		if err := d.p.Skip(); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadMap is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads map entries directly.
+func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(string) error) error {
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if !isLCB(tok) {
+		return fmt.Errorf("expected '{', got %s", tok)
+	}
+
+	for {
+		tok, err = d.next()
+		if err != nil {
+			return err
+		}
+		if isRCB(tok) {
+			return nil
+		}
+
+		var key string
+		if !d.p.escaped {
+			key = unsafeString(tok[1 : len(tok)-1])
+		} else {
+			key, err = unquote(tok)
+			if err != nil {
+				return err
+			}
+		}
+
+		if err := memberFn(key); err != nil {
+			return err
+		}
+	}
+}
+
+// DirectReadList is a concrete-type fast path that avoids interface dispatch.
+// It skips the head stack and reads list elements directly using peek.
+func (d *ShapeDeserializer) DirectReadList(schema *smithy.Schema, memberFn func() error) error {
+	tok, err := d.next()
+	if err != nil {
+		return err
+	}
+	if !isLSB(tok) {
+		return fmt.Errorf("expected '[', got %s", tok)
+	}
+
+	for {
+		tok, err = d.peek()
+		if err != nil {
+			return err
+		}
+		if isRSB(tok) {
+			d.peeked = nil
+			return nil
+		}
+		if err := memberFn(); err != nil {
+			return err
+		}
+	}
 }

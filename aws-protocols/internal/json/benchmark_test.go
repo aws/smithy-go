@@ -466,6 +466,7 @@ func init() {
 
 func newDeserialize(data []byte) (*GetItemOutput, error) {
 	d := NewShapeDeserializer(data)
+	defer d.Close()
 	var out GetItemOutput
 	if err := newDeserializeGetItemOutput(d, &out); err != nil {
 		return nil, err
@@ -473,8 +474,8 @@ func newDeserialize(data []byte) (*GetItemOutput, error) {
 	return &out, nil
 }
 
-func newDeserializeGetItemOutput(d smithy.ShapeDeserializer, v *GetItemOutput) error {
-	return smithy.ReadStruct(d, schemaGetItemOutput, func(ms *smithy.Schema) error {
+func newDeserializeGetItemOutput(d *ShapeDeserializer, v *GetItemOutput) error {
+	return d.DirectReadStruct(schemaGetItemOutput, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaGetItemOutput_ConsumedCapacity:
 			v.ConsumedCapacity = &ConsumedCapacity{}
@@ -486,8 +487,8 @@ func newDeserializeGetItemOutput(d smithy.ShapeDeserializer, v *GetItemOutput) e
 	})
 }
 
-func newDeserializeConsumedCapacity(d smithy.ShapeDeserializer, v *ConsumedCapacity) error {
-	return smithy.ReadStruct(d, schemaConsumedCapacity, func(ms *smithy.Schema) error {
+func newDeserializeConsumedCapacity(d *ShapeDeserializer, v *ConsumedCapacity) error {
+	return d.DirectReadStruct(schemaConsumedCapacity, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaConsumedCapacity_TableName:
 			v.TableName = new(string)
@@ -499,22 +500,22 @@ func newDeserializeConsumedCapacity(d smithy.ShapeDeserializer, v *ConsumedCapac
 	})
 }
 
-func newDeserializeAttributeMap(d smithy.ShapeDeserializer, v *map[string]AttributeValue) error {
-	return smithy.ReadMap(d, schemaAttributeMap, func(key string) error {
+func newDeserializeAttributeMap(d *ShapeDeserializer, v *map[string]AttributeValue) error {
+	return d.DirectReadMap(schemaAttributeMap, func(key string) error {
 		var av AttributeValue
 		if err := newDeserializeAttributeValue(d, &av); err != nil {
 			return err
 		}
 		if *v == nil {
-			*v = map[string]AttributeValue{}
+			*v = make(map[string]AttributeValue, 8)
 		}
 		(*v)[key] = av
 		return nil
 	})
 }
 
-func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue) error {
-	return smithy.ReadUnion(d, schemaAttributeValue, func(ms *smithy.Schema) error {
+func newDeserializeAttributeValue(d *ShapeDeserializer, v *AttributeValue) error {
+	return d.DirectReadUnion(schemaAttributeValue, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaAttributeValue_S:
 			vv := &AttributeValueMemberS{}
@@ -539,7 +540,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_SS:
 			vv := &AttributeValueMemberSS{}
 			*v = vv
-			return smithy.ReadList(d, schemaStringSetAttributeValue, func() error {
+			return d.DirectReadList(schemaStringSetAttributeValue, func() error {
 				var s string
 				if err := d.ReadString(nil, &s); err != nil {
 					return err
@@ -550,7 +551,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_NS:
 			vv := &AttributeValueMemberNS{}
 			*v = vv
-			return smithy.ReadList(d, schemaNumberSetAttributeValue, func() error {
+			return d.DirectReadList(schemaNumberSetAttributeValue, func() error {
 				var s string
 				if err := d.ReadString(nil, &s); err != nil {
 					return err
@@ -561,7 +562,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_BS:
 			vv := &AttributeValueMemberBS{}
 			*v = vv
-			return smithy.ReadList(d, schemaBinarySetAttributeValue, func() error {
+			return d.DirectReadList(schemaBinarySetAttributeValue, func() error {
 				var b []byte
 				if err := d.ReadBlob(nil, &b); err != nil {
 					return err
@@ -572,7 +573,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_L:
 			vv := &AttributeValueMemberL{}
 			*v = vv
-			return smithy.ReadList(d, schemaListAttributeValue, func() error {
+			return d.DirectReadList(schemaListAttributeValue, func() error {
 				var av AttributeValue
 				if err := newDeserializeAttributeValue(d, &av); err != nil {
 					return err
@@ -583,7 +584,7 @@ func newDeserializeAttributeValue(d smithy.ShapeDeserializer, v *AttributeValue)
 		case schemaAttributeValue_M:
 			vv := &AttributeValueMemberM{}
 			*v = vv
-			return smithy.ReadMap(d, schemaMapAttributeValue, func(key string) error {
+			return d.DirectReadMap(schemaMapAttributeValue, func(key string) error {
 				var av AttributeValue
 				if err := newDeserializeAttributeValue(d, &av); err != nil {
 					return err
@@ -625,6 +626,136 @@ func BenchmarkDeserialize_New(b *testing.B) {
 		}
 		if out.Item == nil {
 			b.Fatal("nil item")
+		}
+	}
+}
+
+// ==========================================================================
+// Serialize benchmarks
+// ==========================================================================
+
+func newSerialize(out *GetItemOutput) ([]byte, error) {
+	s := NewShapeSerializer()
+	newSerializeGetItemOutput(s, out)
+	b := s.Bytes()
+	s.Close()
+	return b, nil
+}
+
+func newSerializeGetItemOutput(s *ShapeSerializer, v *GetItemOutput) {
+	s.WriteStruct(schemaGetItemOutput)
+	if v.ConsumedCapacity != nil {
+		newSerializeConsumedCapacity(s, schemaGetItemOutput_ConsumedCapacity, v.ConsumedCapacity)
+	}
+	if v.Item != nil {
+		newSerializeAttributeMap(s, schemaGetItemOutput_Item, v.Item)
+	}
+	s.CloseStruct()
+}
+
+func newSerializeConsumedCapacity(s *ShapeSerializer, schema *smithy.Schema, v *ConsumedCapacity) {
+	s.WriteStruct(schema)
+	if v.TableName != nil {
+		s.WriteString(schemaConsumedCapacity_TableName, *v.TableName)
+	}
+	s.WriteFloat64(schemaConsumedCapacity_CapacityUnits, v.CapacityUnits)
+	s.CloseStruct()
+}
+
+func newSerializeAttributeMap(s *ShapeSerializer, schema *smithy.Schema, m map[string]AttributeValue) {
+	s.WriteMap(schema)
+	for k, v := range m {
+		s.WriteKey(nil, k)
+		newSerializeAttributeValue(s, v)
+	}
+	s.CloseMap()
+}
+
+func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
+	switch av := v.(type) {
+	case *AttributeValueMemberS:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_S)
+		s.WriteString(schemaAttributeValue_S, av.Value)
+		s.CloseUnion()
+	case *AttributeValueMemberN:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_N)
+		s.WriteString(schemaAttributeValue_N, av.Value)
+		s.CloseUnion()
+	case *AttributeValueMemberB:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_B)
+		s.WriteBlob(schemaAttributeValue_B, av.Value)
+		s.CloseUnion()
+	case *AttributeValueMemberBOOL:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BOOL)
+		s.WriteBool(schemaAttributeValue_BOOL, av.Value)
+		s.CloseUnion()
+	case *AttributeValueMemberNULL:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NULL)
+		s.WriteBool(schemaAttributeValue_NULL, av.Value)
+		s.CloseUnion()
+	case *AttributeValueMemberSS:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_SS)
+		s.WriteList(schemaAttributeValue_SS)
+		for _, item := range av.Value {
+			s.WriteString(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
+	case *AttributeValueMemberNS:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NS)
+		s.WriteList(schemaAttributeValue_NS)
+		for _, item := range av.Value {
+			s.WriteString(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
+	case *AttributeValueMemberBS:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BS)
+		s.WriteList(schemaAttributeValue_BS)
+		for _, item := range av.Value {
+			s.WriteBlob(nil, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
+	case *AttributeValueMemberL:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_L)
+		s.WriteList(schemaAttributeValue_L)
+		for _, item := range av.Value {
+			newSerializeAttributeValue(s, item)
+		}
+		s.CloseList()
+		s.CloseUnion()
+	case *AttributeValueMemberM:
+		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_M)
+		s.WriteMap(schemaAttributeValue_M)
+		for k, item := range av.Value {
+			s.WriteKey(nil, k)
+			newSerializeAttributeValue(s, item)
+		}
+		s.CloseMap()
+		s.CloseUnion()
+	}
+}
+
+var benchOutput *GetItemOutput
+
+func init() {
+	var err error
+	benchOutput, err = newDeserialize(benchPayload)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func BenchmarkSerialize_New(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		out, err := newSerialize(benchOutput)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(out) == 0 {
+			b.Fatal("empty")
 		}
 	}
 }
@@ -685,3 +816,4 @@ func BenchmarkLargePayload_New(b *testing.B) {
 		}
 	}
 }
+
