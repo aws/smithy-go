@@ -674,27 +674,27 @@ func newSerializeAttributeMap(s *ShapeSerializer, schema *smithy.Schema, m map[s
 func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 	switch av := v.(type) {
 	case *AttributeValueMemberS:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_S)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_S)
 		s.WriteString(schemaAttributeValue_S, av.Value)
 		s.CloseUnion()
 	case *AttributeValueMemberN:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_N)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_N)
 		s.WriteString(schemaAttributeValue_N, av.Value)
 		s.CloseUnion()
 	case *AttributeValueMemberB:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_B)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_B)
 		s.WriteBlob(schemaAttributeValue_B, av.Value)
 		s.CloseUnion()
 	case *AttributeValueMemberBOOL:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BOOL)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_BOOL)
 		s.WriteBool(schemaAttributeValue_BOOL, av.Value)
 		s.CloseUnion()
 	case *AttributeValueMemberNULL:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NULL)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_NULL)
 		s.WriteBool(schemaAttributeValue_NULL, av.Value)
 		s.CloseUnion()
 	case *AttributeValueMemberSS:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_SS)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_SS)
 		s.WriteList(schemaAttributeValue_SS)
 		for _, item := range av.Value {
 			s.WriteString(nil, item)
@@ -702,7 +702,7 @@ func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 		s.CloseList()
 		s.CloseUnion()
 	case *AttributeValueMemberNS:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_NS)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_NS)
 		s.WriteList(schemaAttributeValue_NS)
 		for _, item := range av.Value {
 			s.WriteString(nil, item)
@@ -710,7 +710,7 @@ func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 		s.CloseList()
 		s.CloseUnion()
 	case *AttributeValueMemberBS:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_BS)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_BS)
 		s.WriteList(schemaAttributeValue_BS)
 		for _, item := range av.Value {
 			s.WriteBlob(nil, item)
@@ -718,7 +718,7 @@ func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 		s.CloseList()
 		s.CloseUnion()
 	case *AttributeValueMemberL:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_L)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_L)
 		s.WriteList(schemaAttributeValue_L)
 		for _, item := range av.Value {
 			newSerializeAttributeValue(s, item)
@@ -726,7 +726,7 @@ func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
 		s.CloseList()
 		s.CloseUnion()
 	case *AttributeValueMemberM:
-		s.WriteUnionKey(schemaAttributeValue, schemaAttributeValue_M)
+		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_M)
 		s.WriteMap(schemaAttributeValue_M)
 		for k, item := range av.Value {
 			s.WriteKey(nil, k)

@@ -595,13 +595,8 @@ func (s *ShapeSerializer) CloseStruct() {
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
-	s.input.WriteUnion(schema, variant, v)
-}
-
-// WriteUnionKey implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteUnionKey(schema, variant *smithy.Schema) {
-	s.input.WriteUnionKey(schema, variant)
+func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
+	s.input.WriteUnion(schema, variant)
 }
 
 // CloseUnion implements [smithy.ShapeSerializer].
