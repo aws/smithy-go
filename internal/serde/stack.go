@@ -38,6 +38,15 @@ func (s *Stack[T]) Len() int {
 	return len(s.values)
 }
 
+// Reset clears the stack while retaining allocated capacity.
+func (s *Stack[T]) Reset() {
+	var zero T
+	for i := range s.values {
+		s.values[i] = zero
+	}
+	s.values = s.values[:0]
+}
+
 // Values returns the underlying slice for indexed access.
 func (s *Stack[T]) Values() []T {
 	return s.values

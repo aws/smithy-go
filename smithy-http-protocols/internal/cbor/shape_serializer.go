@@ -205,13 +205,15 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema, v smithy.Serializable) {
+func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	s.writeKey(schema)
 	// union is a map with a single key
 	s.writeArg(majorTypeMap, 1)
 	s.writeTextString(variant.MemberName())
-	v.Serialize(s)
 }
+
+// CloseUnion implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) CloseUnion() {}
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {

@@ -3,6 +3,8 @@ package smithy
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
+	"unsafe"
 )
 
 // ShapeType is a type of Smithy shape.
@@ -63,14 +65,16 @@ func stoid(s string) ShapeID {
 type Schema struct {
 	id         ShapeID
 	typ        ShapeType
-	members    map[string]*Schema  // member name -> schema
-	traits     map[ShapeID]Trait   // trait ID -> non-indexed traits only
-	indexed    []Trait             // indexed trait slots, sized to max index present
+	members    map[string]*Schema // member name -> schema
+	traits     map[ShapeID]Trait  // trait ID -> non-indexed traits only
+	indexed    []Trait            // indexed trait slots, sized to max index present
 	directMask uint64             // bitmask: bit i set means indexed[i] was declared directly on this schema
 	targetID   ShapeID            // for member schemas, the target's shape ID
 
 	listMember       *Schema
 	mapKey, mapValue *Schema
+
+	ext [numExtensionSlots]unsafe.Pointer // lazily-computed codec extensions, accessed atomically
 }
 
 // NewSchema creates a new Schema with the given shape ID and traits.
@@ -133,6 +137,12 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	}
 
 	s.members[name] = m
+
+	// Invalidate cached extensions, schema structure changed.
+	for i := range s.ext {
+		atomic.StorePointer(&s.ext[i], nil)
+	}
+
 	switch name {
 	case "member":
 		s.listMember = m

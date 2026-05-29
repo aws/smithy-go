@@ -134,8 +134,8 @@ public class UnionGenerator {
                 case BLOB -> writer.write("s.WriteBlob($L, v.Value)", schemaName);
                 case TIMESTAMP -> writer.write("s.WriteTime($L, v.Value)", schemaName);
                 case INT_ENUM -> writer.write("s.WriteInt32($L, int32(v.Value))", schemaName);
-                case BIG_INTEGER -> writer.write("s.WriteBigInteger($L, v.Value)", schemaName);
-                case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
+                case BIG_INTEGER -> writer.write("s.WriteBigInt($L, v.Value)", schemaName);
+                case BIG_DECIMAL -> writer.write("s.WriteBigFloat($L, v.Value)", schemaName);
                 case STRUCTURE -> writer.write("s.WriteStruct($L)\nv.Value.SerializeMembers(s)\ns.CloseStruct()", schemaName); // struct variants are value types
                 case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
                 case UNION -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);

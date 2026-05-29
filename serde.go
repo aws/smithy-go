@@ -47,7 +47,8 @@ type ShapeSerializer interface {
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
 
-	WriteUnion(schema, variant *Schema, v Serializable)
+	WriteUnion(schema, variant *Schema)
+	CloseUnion()
 	WriteDocument(*Schema, document.Value)
 	WriteNil(*Schema)
 

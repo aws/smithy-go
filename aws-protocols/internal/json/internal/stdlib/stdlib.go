@@ -39,6 +39,7 @@ func Getu4(s []byte) rune {
 	return r
 }
 
+
 // UnquoteBytes is copied from Go stdlib.
 func UnquoteBytes(s []byte) (t []byte, ok bool) {
 	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {

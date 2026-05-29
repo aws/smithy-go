@@ -13,10 +13,10 @@ import (
 	"testing"
 )
 
-func testParse(p []byte) error {
+func testParse(input []byte) error {
 	pr := parser{
-		tok:   scanner{p: p},
-		parse: (*parser).parseValue,
+		p:     input,
+		state: stValue,
 	}
 	for {
 		_, err := pr.Next()
@@ -170,8 +170,8 @@ func TestTokenStream(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.json, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.json)},
-				parse: (*parser).parseValue,
+				p:     []byte(tt.json),
+				state: stValue,
 			}
 			var got []string
 			for {
@@ -274,8 +274,8 @@ func TestValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.in)},
-				parse: (*parser).parseValue,
+				p:     []byte(tt.in),
+				state: stValue,
 			}
 			got, err := p.Value()
 			if err != nil {
@@ -404,7 +404,7 @@ func TestStringEscapes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			tok := scanner{p: []byte(tt.in)}
+			tok := parser{p: []byte(tt.in), state: stValue}
 			raw, err := tok.Next()
 			if err != nil {
 				t.Fatalf("tokenize error: %v", err)
@@ -432,7 +432,7 @@ func TestInvalidStrings(t *testing.T) {
 		"\"hello\r\"", // unescaped carriage return
 	}
 	for _, tt := range tests {
-		tok := scanner{p: []byte(tt)}
+		tok := parser{p: []byte(tt), state: stValue}
 		_, err := tok.Next()
 		if err == nil {
 			t.Errorf("tokenize(%q) = nil, want error", tt)
@@ -455,8 +455,8 @@ func TestFloatSpecialValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			p := parser{
-				tok:   scanner{p: []byte(tt.in)},
-				parse: (*parser).parseValue,
+				p:     []byte(tt.in),
+				state: stValue,
 			}
 			v, err := p.Value()
 			if err != nil {
@@ -490,8 +490,8 @@ func TestSkip(t *testing.T) {
 		t.Run(tt.json, func(t *testing.T) {
 			wrapped := `[` + tt.json + `]`
 			p := parser{
-				tok:   scanner{p: []byte(wrapped)},
-				parse: (*parser).parseValue,
+				p:     []byte(wrapped),
+				state: stValue,
 			}
 			tok, err := p.Next()
 			if err != nil || string(tok) != "[" {
