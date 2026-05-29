@@ -451,8 +451,8 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             // without an archetype.
             if (CodegenUtils.isStubSynthetic(ProtocolUtils.expectOutput(model, operation))
                     && streamInfoOptional.isEmpty()) {
-                writer.addUseImports(SmithyGoDependency.IOUTIL);
-                writer.openBlock("if _, err = io.Copy(ioutil.Discard, response.Body); err != nil {", "}", () -> {
+                writer.addUseImports(SmithyGoDependency.IO);
+                writer.openBlock("if _, err = io.Copy(io.Discard, response.Body); err != nil {", "}", () -> {
                     writer.openBlock("return out, metadata, &smithy.DeserializationError{", "}", () -> {
                         writer.write("Err: fmt.Errorf(\"failed to discard response body, %w\", err),");
                     });

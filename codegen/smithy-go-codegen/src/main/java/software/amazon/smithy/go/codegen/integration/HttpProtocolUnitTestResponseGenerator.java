@@ -169,10 +169,10 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         });
 
         writer.addUseImports(SmithyGoDependency.BYTES);
-        writer.addUseImports(SmithyGoDependency.IOUTIL);
+        writer.addUseImports(SmithyGoDependency.IO);
         writer.openBlock("if len(c.Body) != 0 {", "} else {", () -> {
             writer.write("response.ContentLength = int64(len(c.Body))");
-            writer.write("response.Body = ioutil.NopCloser(bytes.NewReader(c.Body))");
+            writer.write("response.Body = io.NopCloser(bytes.NewReader(c.Body))");
         });
         writer.openBlock("", "}", () -> {
             // We have to set this special sentinel value for no body, or anything that relies on there being
