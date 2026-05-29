@@ -1,0 +1,8 @@
+{
+    "id": "38712a50-696d-4bd6-b4c1-20240cd480ec",
+    "type": "bugfix",
+    "description": "Enforce max nesting depth of 128 on CBOR payloads.",
+    "modules": [
+        "."
+    ]
+}
