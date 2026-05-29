@@ -35,7 +35,7 @@ func TestDecode_Fuzz(t *testing.T) {
 			t.Fatalf("create randbuf: %v", err)
 		}
 
-		decode(p)
+		decode(p, 0)
 	}
 }
 

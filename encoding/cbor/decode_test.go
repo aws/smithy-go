@@ -1,6 +1,7 @@
 package cbor
 
 import (
+	"bytes"
 	"math"
 	"reflect"
 	"strings"
@@ -154,7 +155,7 @@ func TestDecode_InvalidArgument(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := decode(c.In)
+			_, _, err := decode(c.In, 0)
 			if err == nil {
 				t.Errorf("expect err %s", c.Err)
 			}
@@ -212,7 +213,7 @@ func TestDecode_InvalidSlice(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := decode(c.In)
+			_, _, err := decode(c.In, 0)
 			if err == nil {
 				t.Errorf("expect err %s", c.Err)
 			}
@@ -246,7 +247,7 @@ func TestDecode_InvalidList(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := decode(c.In)
+			_, _, err := decode(c.In, 0)
 			if err == nil {
 				t.Errorf("expect err %s", c.Err)
 			}
@@ -296,7 +297,7 @@ func TestDecode_InvalidMap(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := decode(c.In)
+			_, _, err := decode(c.In, 0)
 			if err == nil {
 				t.Errorf("expect err %s", c.Err)
 			}
@@ -322,7 +323,7 @@ func TestDecode_InvalidTag(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := decode(c.In)
+			_, _, err := decode(c.In, 0)
 			if err == nil {
 				t.Errorf("expect err %s", c.Err)
 			}
@@ -460,7 +461,7 @@ func TestDecode_Atomic(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -487,7 +488,7 @@ func TestDecode_DefiniteSlice(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -541,7 +542,7 @@ func TestDecode_IndefiniteSlice(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -568,7 +569,7 @@ func TestDecode_DefiniteString(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -622,7 +623,7 @@ func TestDecode_IndefiniteString(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -881,7 +882,7 @@ func TestDecode_List(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -1140,7 +1141,7 @@ func TestDecode_Map(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -1199,7 +1200,7 @@ func TestDecode_Tag(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			actual, n, err := decode(c.In)
+			actual, n, err := decode(c.In, 0)
 			if err != nil {
 				t.Errorf("expect no err, got %v", err)
 			}
@@ -1331,4 +1332,27 @@ func withIndefiniteMap(p []byte) []byte {
 	head := append([]byte{5<<5 | 31}, mapKeyFoo...)
 	p = append(head, p...)
 	return append(p, 0xff)
+}
+
+func TestDecode_MaxNestingDepth(t *testing.T) {
+	for name, payload := range map[string][]byte{
+		"tags": append(bytes.Repeat([]byte{0xc6}, maxNestingDepth+1), 0x00),
+		"lists": append(bytes.Repeat([]byte{0x81}, maxNestingDepth+1), 0x00),
+		"maps": func() []byte {
+			// each level: map(1) + key "k"
+			level := []byte{0xa1, 0x61, 0x6b}
+			p := bytes.Repeat(level, maxNestingDepth+1)
+			return append(p, 0x00)
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Decode(payload)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), "max nesting depth exceeded") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
 }

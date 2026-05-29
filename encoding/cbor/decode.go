@@ -6,7 +6,10 @@ import (
 	"math"
 )
 
-func decode(p []byte) (Value, int, error) {
+// matches smithy-rs default
+const maxNestingDepth = 128
+
+func decode(p []byte, depth int) (Value, int, error) {
 	if len(p) == 0 {
 		return nil, 0, fmt.Errorf("unexpected end of payload")
 	}
@@ -22,11 +25,11 @@ func decode(p []byte) (Value, int, error) {
 		s, n, err := decodeSlice(p, majorTypeString)
 		return String(s), n, err
 	case majorTypeList:
-		return decodeList(p)
+		return decodeList(p, depth)
 	case majorTypeMap:
-		return decodeMap(p)
+		return decodeMap(p, depth)
 	case majorTypeTag:
-		return decodeTag(p)
+		return decodeTag(p, depth)
 	default: // majorType7
 		return decodeMajor7(p)
 	}
@@ -100,10 +103,14 @@ func decodeSliceIndefinite(p []byte, inner majorType) (Slice, int, error) {
 	return nil, 0, fmt.Errorf("expected break marker")
 }
 
-func decodeList(p []byte) (List, int, error) {
+func decodeList(p []byte, depth int) (List, int, error) {
+	if depth >= maxNestingDepth {
+		return nil, 0, fmt.Errorf("max nesting depth exceeded")
+	}
+
 	minor := peekMinor(p)
 	if minor == minorIndefinite {
-		return decodeListIndefinite(p)
+		return decodeListIndefinite(p, depth)
 	}
 
 	alen, off, err := decodeArgument(p)
@@ -114,7 +121,7 @@ func decodeList(p []byte) (List, int, error) {
 
 	l := List{}
 	for i := 0; i < int(alen); i++ {
-		item, n, err := decode(p)
+		item, n, err := decode(p, depth+1)
 		if err != nil {
 			return nil, 0, fmt.Errorf("decode item: %w", err)
 		}
@@ -127,7 +134,7 @@ func decodeList(p []byte) (List, int, error) {
 	return l, off, nil
 }
 
-func decodeListIndefinite(p []byte) (List, int, error) {
+func decodeListIndefinite(p []byte, depth int) (List, int, error) {
 	p = p[1:]
 
 	l := List{}
@@ -136,7 +143,7 @@ func decodeListIndefinite(p []byte) (List, int, error) {
 			return l, off + 2, nil
 		}
 
-		item, n, err := decode(p)
+		item, n, err := decode(p, depth+1)
 		if err != nil {
 			return nil, 0, fmt.Errorf("decode item: %w", err)
 		}
@@ -148,10 +155,14 @@ func decodeListIndefinite(p []byte) (List, int, error) {
 	return nil, 0, fmt.Errorf("expected break marker")
 }
 
-func decodeMap(p []byte) (Map, int, error) {
+func decodeMap(p []byte, depth int) (Map, int, error) {
+	if depth >= maxNestingDepth {
+		return nil, 0, fmt.Errorf("max nesting depth exceeded")
+	}
+
 	minor := peekMinor(p)
 	if minor == minorIndefinite {
-		return decodeMapIndefinite(p)
+		return decodeMapIndefinite(p, depth)
 	}
 
 	maplen, off, err := decodeArgument(p)
@@ -176,7 +187,7 @@ func decodeMap(p []byte) (Map, int, error) {
 		}
 		p = p[kn:]
 
-		value, vn, err := decode(p)
+		value, vn, err := decode(p, depth+1)
 		if err != nil {
 			return nil, 0, fmt.Errorf("decode value: %w", err)
 		}
@@ -189,7 +200,7 @@ func decodeMap(p []byte) (Map, int, error) {
 	return mp, off, nil
 }
 
-func decodeMapIndefinite(p []byte) (Map, int, error) {
+func decodeMapIndefinite(p []byte, depth int) (Map, int, error) {
 	p = p[1:]
 
 	mp := Map{}
@@ -208,7 +219,7 @@ func decodeMapIndefinite(p []byte) (Map, int, error) {
 		}
 		p = p[kn:]
 
-		value, vn, err := decode(p)
+		value, vn, err := decode(p, depth+1)
 		if err != nil {
 			return nil, 0, fmt.Errorf("decode value: %w", err)
 		}
@@ -220,14 +231,18 @@ func decodeMapIndefinite(p []byte) (Map, int, error) {
 	return nil, 0, fmt.Errorf("expected break marker")
 }
 
-func decodeTag(p []byte) (*Tag, int, error) {
+func decodeTag(p []byte, depth int) (*Tag, int, error) {
+	if depth >= maxNestingDepth {
+		return nil, 0, fmt.Errorf("max nesting depth exceeded")
+	}
+
 	id, off, err := decodeArgument(p)
 	if err != nil {
 		return nil, 0, fmt.Errorf("decode argument: %w", err)
 	}
 	p = p[off:]
 
-	v, n, err := decode(p)
+	v, n, err := decode(p, depth+1)
 	if err != nil {
 		return nil, 0, fmt.Errorf("decode value: %w", err)
 	}
