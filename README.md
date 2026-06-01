@@ -8,22 +8,19 @@ The smithy-go runtime requires a minimum version of Go 1.24.
 
 **WARNING: All interfaces are subject to change.**
 
-## :no_entry_sign: DO NOT use the code generators in this repository
+## :warning: Client codegen is unstable
 
-**The code generators in this repository do not generate working clients at
-this time.**
+The client code generator in this repository powers the aws-sdk-go-v2.
+Arbitrary client generation, while technically possible, is in an early stage
+of development:
 
-In order to generate a usable smithy client you must provide a [protocol definition](https://github.com/aws/smithy-go/blob/main/codegen/smithy-go-codegen/src/main/java/software/amazon/smithy/go/codegen/integration/ProtocolGenerator.java),
-such as [AWS restJson1](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html),
-in order to generate transport mechanisms and serialization/deserialization
-code ("serde") accordingly.
+* Generated clients are missing certain features that were originally
+  implemented SDK-side (e.g. retries)
+* There may be bugs
+* The public APIs of generated clients may be unstable
 
-The code generator does not currently support any protocols out of the box.
-Support for all [AWS protocols](https://smithy.io/2.0/aws/protocols/index.html)
-exists in [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2). We are
-tracking the movement of those out of the SDK into smithy-go in
-[#458](https://github.com/aws/smithy-go/issues/458), but there's currently no
-timeline for doing so.
+If you are interested in using the client code generators, we encourage you to
+experiment and share any feedback with us in an issue.
 
 ## Plugins
 
