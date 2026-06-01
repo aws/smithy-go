@@ -71,6 +71,7 @@ import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Orchestrates Go client generation.
@@ -301,28 +302,29 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 new SchemaGenerator(ctx, service).accept(writer);
                 writer.addUseImports(SmithyGoDependency.SMITHY);
                 writer.write("var $L = smithy.NewServiceSchema($L, $S)",
-                        service.getId().getName(service),
+                        StringUtils.capitalize(service.getId().getName(service)),
                         SchemaGenerator.getSchemaName(service, service),
                         service.getVersion());
                 writer.write("");
 
                 // Generate all shape schemas upfront. For synthetic shapes
-                // (input/output), resolve to the archetype.
+                // (input/output), pass the synthetic itself so that any
+                // members added by preprocessModel (e.g. presign URL members)
+                // are included. SchemaGenerator.modelShapeID() resolves the
+                // archetype for naming.
                 var resolved = new ArrayList<Shape>();
                 var seen = new HashSet<ShapeId>();
                 for (Shape s : shapes) {
                     if (CodegenUtils.isStubSynthetic(s)) {
                         continue;
                     }
-                    Shape target = s;
                     ShapeId id = s.getId();
                     if (id.getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
                         id = s.getTrait(Synthetic.class).get().getArchetype().get();
-                        target = model.expectShape(id);
                     }
                     if (seen.add(id)) {
-                        new SchemaGenerator(ctx, target).accept(writer);
-                        resolved.add(target);
+                        new SchemaGenerator(ctx, s).accept(writer);
+                        resolved.add(s);
                     }
                 }
 

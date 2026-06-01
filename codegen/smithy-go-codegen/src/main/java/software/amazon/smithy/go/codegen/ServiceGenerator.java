@@ -57,6 +57,7 @@ import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Generates a service client, its constructors, and core supporting logic.
@@ -276,7 +277,7 @@ final class ServiceGenerator implements Runnable {
                 .findFirst()
                 .get();
 
-        var serviceSchemaRef = "schemas." + service.getId().getName(service);
+        var serviceSchemaRef = "schemas." + StringUtils.capitalize(service.getId().getName(service));
         if (preferred.equals(AwsJson1_0Trait.ID)) {
             return goTemplate("$T(" + serviceSchemaRef + ")",
                     SmithyGoDependency.SMITHY_PROTOCOL_AWSJSON.func("New10"));
