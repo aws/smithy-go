@@ -77,6 +77,9 @@ func (p *Protocol) SerializeRequest(
 ) error {
 	req.Method = http.MethodPost
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if len(req.URL.Path) == 0 {
+		req.URL.Path = "/"
+	}
 
 	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version)
 	if schema.Input != nil {

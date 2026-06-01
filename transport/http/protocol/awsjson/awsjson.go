@@ -86,6 +86,9 @@ func (p *Protocol) SerializeRequest(
 	req *smithyhttp.Request,
 ) error {
 	req.Method = http.MethodPost
+	if len(req.URL.Path) == 0 {
+		req.URL.Path = "/"
+	}
 	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", p.serviceName, middleware.GetOperationName(ctx)))
 	if schema.IsInputEventStream() {
 		req.Header.Set("Content-Type", "application/vnd.amazon.eventstream")
