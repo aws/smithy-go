@@ -52,9 +52,19 @@ methods and types. The up-to-date list of top-level properties enabled for
 
 ### Supported protocols
 
+The protocol a client uses is configured by the `Protocol` field on a client's
+`Options`. The SDK will configure a default based on the protocol traits
+applied to the modeled service.
+
 | Protocol | Notes |
 |----------|-------|
-| [`smithy.protocols#rpcv2Cbor`](https://smithy.io/2.0/additional-specs/protocols/smithy-rpc-v2.html) | Event streaming not yet implemented. |
+| [`smithy.protocols#rpcv2Cbor`](https://smithy.io/2.0/additional-specs/protocols/smithy-rpc-v2.html) | |
+| [`aws.protocols#restJson1`](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html) | |
+| [`aws.protocols#restXml`](https://smithy.io/2.0/aws/protocols/aws-restxml-protocol.html) | |
+| [`aws.protocols#awsJson1_0`](https://smithy.io/2.0/aws/protocols/aws-json-1_0-protocol.html) | |
+| [`aws.protocols#awsJson1_1`](https://smithy.io/2.0/aws/protocols/aws-json-1_1-protocol.html) | |
+| [`aws.protocols#awsQuery`](https://smithy.io/2.0/aws/protocols/aws-query-protocol.html) | |
+| [`aws.protocols#ec2Query`](https://smithy.io/2.0/aws/protocols/aws-ec2-query-protocol.html) | |
 
 ### Example
 
