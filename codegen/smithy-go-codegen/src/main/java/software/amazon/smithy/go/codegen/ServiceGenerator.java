@@ -278,25 +278,25 @@ final class ServiceGenerator implements Runnable {
 
         if (preferred.equals(AwsJson1_0Trait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New10"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSJSON.func("New10"));
         } else if (preferred.equals(AwsJson1_1Trait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_JSON10.func("New11"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSJSON.func("New11"));
         } else if (preferred.equals(RestJson1Trait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTJSON1.func("New"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_RESTJSON1.func("New"));
         } else if (preferred.equals(Rpcv2CborTrait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_HTTP_PROTOCOLS_RPCV2.func("NewCBOR"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_RPCV2.func("NewCBOR"));
         } else if (preferred.equals(AwsQueryTrait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_AWSQUERY.func("New"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSQUERY.func("New"));
         } else if (preferred.equals(Ec2QueryTrait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_EC2QUERY.func("New"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_EC2QUERY.func("New"));
         } else if (preferred.equals(RestXmlTrait.ID)) {
             return goTemplate("$T(schemas.Service)",
-                    SmithyGoDependency.SMITHY_AWS_PROTOCOLS_RESTXML.func("New"));
+                    SmithyGoDependency.SMITHY_PROTOCOL_RESTXML.func("New"));
         } else {
             return goTemplate("nil");
         }

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	awsjson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	awsjson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	"github.com/aws/smithy-go/document"
 	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
 	"github.com/aws/smithy-go/traits"

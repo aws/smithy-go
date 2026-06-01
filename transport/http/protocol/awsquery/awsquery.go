@@ -1,4 +1,4 @@
-package ec2query
+package awsquery
 
 import (
 	"bytes"
@@ -8,17 +8,18 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	internalquery "github.com/aws/smithy-go/aws-protocols/internal/query"
-	internalxml "github.com/aws/smithy-go/aws-protocols/internal/xml"
+	internalquery "github.com/aws/smithy-go/transport/http/protocol/internal/query"
+	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 	internales "github.com/aws/smithy-go/internal/eventstream"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// ProtocolOptions configures aws.protocols#ec2Query.
+// ProtocolOptions configures aws.protocols#awsQuery.
 type ProtocolOptions struct{}
 
-// Protocol implements aws.protocols#ec2Query.
+// Protocol implements aws.protocols#awsQuery.
 type Protocol struct {
 	eventstream internales.NoEventStream
 
@@ -27,7 +28,7 @@ type Protocol struct {
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
-// New returns an instance of the ec2Query protocol. The service version is
+// New returns an instance of the awsQuery protocol. The service version is
 // pulled from the ServiceVersion trait on the service schema.
 func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 	var o ProtocolOptions
@@ -39,7 +40,7 @@ func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protoco
 
 // ID identifies the protocol.
 func (*Protocol) ID() smithy.ShapeID {
-	return smithy.ShapeID{Namespace: "aws.protocols", Name: "ec2Query"}
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsQuery"}
 }
 
 // HasInitialEventMessage implements [smithyhttp.ClientProtocol].
@@ -67,7 +68,7 @@ func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader
 	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
-// SerializeRequest serializes a request for ec2Query.
+// SerializeRequest serializes a request for awsQuery.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
 	schema *smithy.OperationSchema,
@@ -77,9 +78,7 @@ func (p *Protocol) SerializeRequest(
 	req.Method = http.MethodPost
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version,
-		func(o *internalquery.ShapeSerializerOptions) { o.EC2Mode = true },
-	)
+	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version)
 	if schema.Input != nil {
 		in.Serialize(ss)
 	}
@@ -93,7 +92,7 @@ func (p *Protocol) SerializeRequest(
 	return nil
 }
 
-// DeserializeResponse deserializes a response for ec2Query.
+// DeserializeResponse deserializes a response for awsQuery.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
 	schema *smithy.OperationSchema,
@@ -114,8 +113,11 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Response")
+	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Result")
 	if err != nil {
+		if schema.Output == nil {
+			return nil
+		}
 		return &smithy.DeserializationError{Err: err}
 	}
 
@@ -138,8 +140,8 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, resp *smithyhttp
 		return &smithy.DeserializationError{Err: err}
 	}
 
-	// ec2query does not support @awsQueryError so this is a straight lookup
-	perr, ok := types.DeserializableError(errorCode)
+	// resolveError checks both direct shape name and @awsQueryError trait.
+	perr, ok := resolveError(types, errorCode)
 	if !ok {
 		return &smithy.GenericAPIError{
 			Code:    errorCode,
@@ -155,4 +157,27 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, resp *smithyhttp
 	}
 
 	return perr
+}
+
+func resolveError(types *smithy.TypeRegistry, code string) (smithy.DeserializableError, bool) {
+	if perr, ok := types.DeserializableError(code); ok {
+		return perr, true
+	}
+
+	for _, entry := range types.Entries {
+		if entry.Schema == nil {
+			continue
+		}
+
+		if t, ok := smithy.SchemaTrait[*traits.AWSQueryError](entry.Schema); ok {
+			if t.ErrorCode == code {
+				v := entry.New()
+				if perr, ok := v.(smithy.DeserializableError); ok {
+					return perr, true
+				}
+			}
+		}
+	}
+
+	return nil, false
 }

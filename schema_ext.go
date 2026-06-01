@@ -12,10 +12,10 @@ type ExtensionID int
 const numExtensionSlots = 4
 
 const (
-	ExtJSON  ExtensionID = iota // aws-protocols/internal/json
-	ExtCBOR                     // smithy-http-protocols/internal/cbor
-	ExtXML                      // aws-protocols/internal/xml
-	ExtQuery                    // aws-protocols/internal/query
+	ExtJSON  ExtensionID = iota // transport/http/protocol/internal/json
+	ExtCBOR                     // transport/http/protocol/internal/cbor
+	ExtXML                      // transport/http/protocol/internal/xml
+	ExtQuery                    // transport/http/protocol/internal/query
 )
 
 // SchemaExtension retrieves or lazily computes the extension for the given

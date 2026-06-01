@@ -8,8 +8,8 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
-	internalhttpbinding "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
-	internaljson "github.com/aws/smithy-go/aws-protocols/internal/json"
+	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
+	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	internales "github.com/aws/smithy-go/internal/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	smithyhttp "github.com/aws/smithy-go/transport/http"

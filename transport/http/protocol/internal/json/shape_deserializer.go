@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/aws/smithy-go"
-	"github.com/aws/smithy-go/aws-protocols/internal/json/internal/stdlib"
+	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"

@@ -83,15 +83,12 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_TRACING = smithy("tracing");
     public static final GoDependency SMITHY_METRICS = smithy("metrics");
 
-    public static final GoDependency SMITHY_AWS_PROTOCOLS = smithy("aws-protocols");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_JSON10 = smithy("aws-protocols/awsjson");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTJSON1 = smithy("aws-protocols/restjson1");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_AWSQUERY = smithy("aws-protocols/awsquery");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_EC2QUERY = smithy("aws-protocols/ec2query");
-    public static final GoDependency SMITHY_AWS_PROTOCOLS_RESTXML = smithy( "aws-protocols/restxml");
-
-    public static final GoDependency SMITHY_HTTP_PROTOCOLS = smithy("smithy-http-protocols");
-    public static final GoDependency SMITHY_HTTP_PROTOCOLS_RPCV2 = smithy("smithy-http-protocols/rpcv2");
+    public static final GoDependency SMITHY_PROTOCOL_AWSJSON = smithy("transport/http/protocol/awsjson");
+    public static final GoDependency SMITHY_PROTOCOL_RESTJSON1 = smithy("transport/http/protocol/restjson1");
+    public static final GoDependency SMITHY_PROTOCOL_AWSQUERY = smithy("transport/http/protocol/awsquery");
+    public static final GoDependency SMITHY_PROTOCOL_EC2QUERY = smithy("transport/http/protocol/ec2query");
+    public static final GoDependency SMITHY_PROTOCOL_RESTXML = smithy("transport/http/protocol/restxml");
+    public static final GoDependency SMITHY_PROTOCOL_RPCV2 = smithy("transport/http/protocol/rpcv2");
 
     public static final GoDependency MATH = stdlib("math");
 

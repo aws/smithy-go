@@ -1,27 +1,67 @@
-package rpcv2
+package awsjson
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	internales "github.com/aws/smithy-go/internal/eventstream"
+	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
+	internales "github.com/aws/smithy-go/internal/eventstream"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
-	internalcbor "github.com/aws/smithy-go/smithy-http-protocols/internal/cbor"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// Protocol implements an RPC v2 protocol.
-//
-// RPCv2 protocol family:
-//   - CBOR: https://smithy.io/2.0/additional-specs/protocols/smithy-rpc-v2.html
+// ProtocolOptions configures aws.protocols#awsJson1_0.
+type ProtocolOptions struct{}
+
+// New10 returns an instance of the awsJson 1.0 protocol.
+func New10(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
+	return &Protocol{
+		version:         "1.0",
+		queryCompatible: qc,
+		serviceName:     service.Schema.ID().Name,
+		eventstream: &internales.Codec{
+			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			ContentType:  "application/json",
+		},
+	}
+}
+
+// New11 returns an instance of the awsJson 1.1 protocol.
+func New11(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	var o ProtocolOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
+	return &Protocol{
+		version:         "1.1",
+		queryCompatible: qc,
+		serviceName:     service.Schema.ID().Name,
+		eventstream: &internales.Codec{
+			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			ContentType:  "application/json",
+		},
+	}
+}
+
+// Protocol implements aws.protocols#awsJson1_0 and aws.protocols#awsJson1_1.
 type Protocol struct {
+	version         string
 	queryCompatible bool
 	serviceName     string
 
@@ -30,33 +70,15 @@ type Protocol struct {
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
 
-// ProtocolOptions configures smithy.protocols#rpcv2Cbor.
-type ProtocolOptions struct{}
-
-// NewCBOR returns an instance of the smithy.protocols#rpcv2Cbor protocol.
-func NewCBOR(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
-	var o ProtocolOptions
-	for _, fn := range opts {
-		fn(&o)
-	}
-	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
-	return &Protocol{
-		queryCompatible: qc,
-		serviceName:     service.Schema.ID().Name,
-		eventstream: &internales.Codec{
-			Serializer:   func() smithy.ShapeSerializer { return internalcbor.NewShapeSerializer() },
-			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internalcbor.NewShapeDeserializer(p) },
-			ContentType:  "application/cbor",
-		},
-	}
-}
-
 // ID identifies the protocol.
 func (p *Protocol) ID() smithy.ShapeID {
-	return smithy.ShapeID{Namespace: "smithy.protocols", Name: "rpcv2Cbor"}
+	if p.version == "1.1" {
+		return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsJson1_1"}
+	}
+	return smithy.ShapeID{Namespace: "aws.protocols", Name: "awsJson1_0"}
 }
 
-// SerializeRequest serializes a request for rpcv2Cbor.
+// SerializeRequest serializes a request for AWS Json 1.0.
 func (p *Protocol) SerializeRequest(
 	ctx context.Context,
 	schema *smithy.OperationSchema,
@@ -64,38 +86,30 @@ func (p *Protocol) SerializeRequest(
 	req *smithyhttp.Request,
 ) error {
 	req.Method = http.MethodPost
-	req.URL.Path = fmt.Sprintf("/service/%s/operation/%s",
-		p.serviceName, middleware.GetOperationName(ctx))
-	req.Header.Set("Smithy-Protocol", "rpc-v2-cbor")
-	req.Header.Set("Accept", "application/cbor")
-	if p.queryCompatible {
-		req.Header.Set("X-Amzn-Query-Mode", "true")
-	}
-
+	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", p.serviceName, middleware.GetOperationName(ctx)))
 	if schema.IsInputEventStream() {
 		req.Header.Set("Content-Type", "application/vnd.amazon.eventstream")
 		return nil
 	}
 
+	req.Header.Set("Content-Type", "application/x-amz-json-"+p.version)
+	if p.queryCompatible {
+		req.Header.Set("X-Amzn-Query-Mode", "true")
+	}
+
 	if schema.Input == nil {
+		sreq, err := req.SetStream(bytes.NewReader([]byte("{}")))
+		if err != nil {
+			return fmt.Errorf("set stream: %w", err)
+		}
+		*req = *sreq
 		return nil
 	}
 
-	ss := internalcbor.NewShapeSerializer()
+	ss := internaljson.NewShapeSerializer()
 	in.Serialize(ss)
 
-	payload := ss.Bytes()
-	if len(payload) == 0 {
-		return nil
-	}
-
-	if ss.IsUnitShape() {
-		return nil
-	}
-
-	req.Header.Set("Content-Type", "application/cbor")
-
-	sreq, err := req.SetStream(bytes.NewReader(payload))
+	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
 	if err != nil {
 		return fmt.Errorf("set stream: %w", err)
 	}
@@ -104,7 +118,7 @@ func (p *Protocol) SerializeRequest(
 	return nil
 }
 
-// DeserializeResponse deserializes a response for rpcv2Cbor.
+// DeserializeResponse deserializes a response for AWS Json 1.0.
 func (p *Protocol) DeserializeResponse(
 	ctx context.Context,
 	schema *smithy.OperationSchema,
@@ -120,6 +134,10 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
+	if schema.Output == nil {
+		return nil
+	}
+
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
@@ -129,7 +147,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	sd := internalcbor.NewShapeDeserializer(payload)
+	sd := internaljson.NewShapeDeserializer(payload)
 	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
@@ -162,48 +180,48 @@ func (p *Protocol) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader
 	return p.eventstream.DeserializeInitialResponse(schema, r, out)
 }
 
+// this handles both awsJson 1.0 and 1.1 - the only thing that 1.1 adds is
+// error shape renaming (basically not having the namespace) but both versions
+// of the protocol are supposed to support this anyway so it doesn't matter
 func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithyhttp.Response) error {
 	var errorBuffer bytes.Buffer
 	if _, err := io.Copy(&errorBuffer, response.Body); err != nil {
 		return &smithy.DeserializationError{Err: fmt.Errorf("failed to copy error response body, %w", err)}
 	}
-	errorBody := errorBuffer.Bytes()
+	errorBody := bytes.NewReader(errorBuffer.Bytes())
 
 	errorCode := "UnknownError"
 	errorMessage := errorCode
 
+	var headerCode string
+	headerCode = response.Header.Get("X-Amzn-ErrorType")
+
 	var buff [1024]byte
 	ringBuffer := smithyio.NewRingBuffer(buff[:])
 
-	body := io.TeeReader(bytes.NewReader(errorBody), ringBuffer)
-	bodyBytes, err := io.ReadAll(body)
+	body := io.TeeReader(errorBody, ringBuffer)
+	decoder := json.NewDecoder(body)
+	decoder.UseNumber()
+	bodyInfo, err := internaljson.GetProtocolErrorInfo(decoder)
 	if err != nil {
 		var snapshot bytes.Buffer
 		io.Copy(&snapshot, ringBuffer)
-		return &smithy.DeserializationError{
-			Err:      fmt.Errorf("failed to read response body, %w", err),
-			Snapshot: snapshot.Bytes(),
-		}
-	}
-
-	bodyType, bodyMessage, err := internalcbor.GetProtocolErrorInfo(bodyBytes)
-	if err != nil {
-		var snapshot bytes.Buffer
-		io.Copy(&snapshot, ringBuffer)
-		return &smithy.DeserializationError{
+		err = &smithy.DeserializationError{
 			Err:      fmt.Errorf("failed to decode response body, %w", err),
 			Snapshot: snapshot.Bytes(),
 		}
+		return err
 	}
 
-	if bodyType != "" {
-		errorCode = bodyType
+	errorBody.Seek(0, io.SeekStart)
+	if typ, ok := internaljson.ResolveProtocolErrorType(headerCode, bodyInfo); ok {
+		errorCode = typ
 	}
-	if bodyMessage != "" {
-		errorMessage = bodyMessage
+	if len(bodyInfo.Message) != 0 {
+		errorMessage = bodyInfo.Message
 	}
 
-	errorCode = internalerrors.SanitizeErrorCode(errorCode)
+	errorCode = internaljson.SanitizeErrorCode(errorCode)
 
 	var queryCode string
 	var queryFault smithy.ErrorFault
@@ -225,8 +243,10 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 		}
 	}
 
-	if len(bodyBytes) > 0 {
-		deser := internalcbor.NewShapeDeserializer(bodyBytes)
+	errorBody.Seek(0, io.SeekStart)
+	errorBytes, _ := io.ReadAll(errorBody)
+	if len(errorBytes) > 0 {
+		deser := internaljson.NewShapeDeserializer(errorBytes)
 		if err := perr.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
 		}

@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
-	internalhttpbinding "github.com/aws/smithy-go/aws-protocols/internal/httpbinding"
-	internalxml "github.com/aws/smithy-go/aws-protocols/internal/xml"
+	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
+	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 	internales "github.com/aws/smithy-go/internal/eventstream"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
