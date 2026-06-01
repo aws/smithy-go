@@ -300,7 +300,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 // NewServiceSchema with the service version.
                 new SchemaGenerator(ctx, service).accept(writer);
                 writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.write("var Service = smithy.NewServiceSchema($L, $S)",
+                writer.write("var $L = smithy.NewServiceSchema($L, $S)",
+                        service.getId().getName(service),
                         SchemaGenerator.getSchemaName(service, service),
                         service.getVersion());
                 writer.write("");
