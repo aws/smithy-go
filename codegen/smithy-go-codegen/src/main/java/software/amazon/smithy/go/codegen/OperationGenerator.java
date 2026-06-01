@@ -34,7 +34,6 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
@@ -54,6 +53,8 @@ public final class OperationGenerator implements Runnable {
     private final Symbol operationSymbol;
     private final ProtocolGenerator protocolGenerator;
     private final List<RuntimeClientPlugin> runtimeClientPlugins;
+    private final StructureShape input;
+    private final StructureShape output;
 
     OperationGenerator(
             GoCodegenContext ctx,
@@ -71,6 +72,8 @@ public final class OperationGenerator implements Runnable {
         this.operationSymbol = ctx.symbolProvider().toSymbol(operation);
         this.protocolGenerator = protocolGenerator;
         this.runtimeClientPlugins = runtimeClientPlugins;
+        this.input = ctx.model().expectShape(operation.getInputShape(), StructureShape.class);
+        this.output = ctx.model().expectShape(operation.getOutputShape(), StructureShape.class);
     }
 
     @Override
@@ -133,9 +136,8 @@ public final class OperationGenerator implements Runnable {
 
         // Write out the input and output structures. These are written out here to prevent naming conflicts with other
         // shapes in the model.
-        new StructureGenerator(model, symbolProvider, writer, service, inputShape, inputSymbol, protocolGenerator)
-                .renderStructure(() -> {
-                }, true);
+        new StructureGenerator(ctx, writer, inputShape, protocolGenerator)
+                .renderStructure(() -> {}, true);
 
         var rulesTrait = service.getTrait(EndpointRuleSetTrait.class);
         var bddTrait = service.getTrait(EndpointBddTrait.class);
@@ -149,17 +151,14 @@ public final class OperationGenerator implements Runnable {
                 .build();
 
         StructureShape structOutputShape;
-        Symbol structOutputSymbol;
-        
+
         if (EventStreamGenerator.isV2EventStream(model, operation)) {
             List<MemberShape> onlyEventStreamMembers = outputShape.members().stream().filter(member -> StreamingTrait.isEventStream(model, member)).toList();
-            structOutputShape = buildShape(onlyEventStreamMembers);
-            structOutputSymbol = symbolProvider.toSymbol(outputShape);
+            structOutputShape = withMembers(outputShape, onlyEventStreamMembers);
         } else {
             structOutputShape = outputShape;
-            structOutputSymbol = outputSymbol;
         }
-        new StructureGenerator(model, symbolProvider, writer, service, structOutputShape, structOutputSymbol, protocolGenerator)
+        new StructureGenerator(ctx, writer, structOutputShape, protocolGenerator, symbolProvider.toSymbol(outputShape))
                 .renderStructure(() -> {
                     if (outputShape.getMemberNames().size() != 0) {
                         writer.write("");
@@ -191,7 +190,7 @@ public final class OperationGenerator implements Runnable {
                 var nonStreamingOutput = outputShape.members().stream().filter(member -> !StreamingTrait.isEventStream(model, member)).toList();
                 StructureShape initialReplyStruct = outputShape.toBuilder().clearMembers().members(nonStreamingOutput).build();
 
-                new StructureGenerator(model, symbolProvider, writer, service, initialReplyStruct, initialReply, protocolGenerator)
+                new StructureGenerator(ctx, writer, initialReplyStruct, protocolGenerator, initialReply)
                     .renderStructure(() -> {
                         writer.writeDocs("Metadata pertaining to the operation's result.");
                         writer.write("ResultMetadata $T", metadataSymbol);
@@ -278,17 +277,55 @@ public final class OperationGenerator implements Runnable {
                     return err
                 }""");
 
-        // Add request serializer middleware
-        String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
-                operation.getId(), service, protocolGenerator.getProtocolName());
-        writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
-        writer.write("if err != nil { return err }");
+        if (ctx.settings().useLegacySerde()) {
+            // Add request serializer middleware
+            String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
+                    operation.getId(), service, protocolGenerator.getProtocolName());
+            writer.write("err = stack.Serialize.Add(&$L{}, middleware.After)", serializerMiddlewareName);
+            writer.write("if err != nil { return err }");
 
-        // Adds response deserializer middleware
-        String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
-                operation.getId(), service, protocolGenerator.getProtocolName());
-        writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
-        writer.write("if err != nil { return err }");
+            // Adds response deserializer middleware
+            String deserializerMiddlewareName = ProtocolGenerator.getDeserializeMiddlewareName(
+                    operation.getId(), service, protocolGenerator.getProtocolName());
+            writer.write("err = stack.Deserialize.Add(&$L{}, middleware.After)", deserializerMiddlewareName);
+            writer.write("if err != nil { return err }");
+        } else {
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+            var inputSchemaName = CodegenUtils.isStubSynthetic(input)
+                    ? "nil" : SchemaGenerator.getSchemaRef(input, service);
+            var outputSchemaName = CodegenUtils.isStubSynthetic(output)
+                    ? "nil" : SchemaGenerator.getSchemaRef(output, service);
+            var opSchema = String.format("smithy.NewOperationSchema(%s, %s, %s)",
+                    opSchemaName, inputSchemaName, outputSchemaName);
+            writer.write("""
+                if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: $L}, middleware.After); err != nil {
+                    return err
+                }""", opSchema);
+            writer.write("""
+                if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: $L, output: &$T{}}, middleware.After); err != nil {
+                    return err
+                }""", opSchema, symbolProvider.toSymbol(output));
+
+            if (Stream.concat(input.members().stream(), output.members().stream())
+                    .anyMatch(m -> StreamingTrait.isEventStream(model, m))) {
+
+                var isInput = EventStreamIndex.of(model).getInputInfo(operation).isPresent();
+                if (isInput) {
+                    writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                    writer.write("""
+                    if err := smithyhttp.AddInitializeStreamWriter(stack); err != nil {
+                        return err
+                    }""");
+                }
+
+                var name = String.format("deserializeOpEventStream%s", operation.getId().getName(service));
+                writer.write("""
+                    if err := stack.Deserialize.Insert(&$L{options: &options}, "OperationDeserializer", middleware.Before); err != nil {
+                        return err
+                    }""", name);
+            }
+        }
 
         // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
         writer.write("""
@@ -311,8 +348,9 @@ public final class OperationGenerator implements Runnable {
         return String.format("addOperation%sMiddlewares", operation.getName());
     }
 
-    private StructureShape buildShape(List<MemberShape> members) {
-        var struct = StructureShape.builder().id(ShapeId.from("synthetic#throwaway"));
+    private StructureShape withMembers(StructureShape shape, List<MemberShape> members) {
+        var struct = StructureShape.builder().id(shape.getId())
+            .addTraits(shape.getAllTraits().values());
             members.stream().forEach(member -> struct.addMember(
                 MemberShape.builder()
                 .id(struct.getId().withMember(member.getMemberName()))

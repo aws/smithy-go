@@ -15,6 +15,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoSettings.PROTOCOLS_BY_PRIORITY;
 import static software.amazon.smithy.go.codegen.GoWriter.autoDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
@@ -24,8 +25,17 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
+import software.amazon.smithy.aws.traits.protocols.Ec2QueryTrait;
+import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
+import software.amazon.smithy.aws.traits.protocols.RestXmlTrait;
+import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.auth.AuthSchemeResolverGenerator;
 import software.amazon.smithy.go.codegen.auth.GetIdentityMiddlewareGenerator;
@@ -39,13 +49,15 @@ import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
-import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Generates a service client, its constructors, and core supporting logic.
@@ -196,6 +208,8 @@ final class ServiceGenerator implements Runnable {
 
                     $protocolResolvers:W
 
+                    $experimentalSerdeResolvers:W
+
                     for _, fn := range optFns {
                         fn(&options)
                     }
@@ -243,8 +257,51 @@ final class ServiceGenerator implements Runnable {
                                         .flatMap(it -> it.getClientMemberResolvers().stream())
                                         .map(this::generateClientMemberResolver)
                                         .toList()
-                        ).compose()
+                        ).compose(),
+                    "experimentalSerdeResolvers", !settings.useLegacySerde()? generateExperimentalSerdeResolvers() : emptyGoTemplate()
                 ));
+    }
+
+    private Writable generateExperimentalSerdeResolvers() {
+        ensureSupportedProtocol();
+        return writer -> {
+            writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+            writer.write("options.Protocol = $W", resolveDefaultProtocol());
+        };
+    }
+
+    private Writable resolveDefaultProtocol() {
+        Set<ShapeId> protocols = ServiceIndex.of(model).getProtocols(service).keySet();
+        var preferred = PROTOCOLS_BY_PRIORITY.stream()
+                .filter(protocols::contains)
+                .findFirst()
+                .get();
+
+        var serviceSchemaRef = "schemas." + StringUtils.capitalize(service.getId().getName(service));
+        if (preferred.equals(AwsJson1_0Trait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSJSON.func("New10"));
+        } else if (preferred.equals(AwsJson1_1Trait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSJSON.func("New11"));
+        } else if (preferred.equals(RestJson1Trait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_RESTJSON1.func("New"));
+        } else if (preferred.equals(Rpcv2CborTrait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_RPCV2.func("NewCBOR"));
+        } else if (preferred.equals(AwsQueryTrait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_AWSQUERY.func("New"));
+        } else if (preferred.equals(Ec2QueryTrait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_EC2QUERY.func("New"));
+        } else if (preferred.equals(RestXmlTrait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_RESTXML.func("New"));
+        } else {
+            return goTemplate("nil");
+        }
     }
 
     private Writable generateGetOptions() {

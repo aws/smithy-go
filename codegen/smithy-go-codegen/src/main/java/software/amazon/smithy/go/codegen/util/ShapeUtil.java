@@ -15,15 +15,22 @@
 
 package software.amazon.smithy.go.codegen.util;
 
+import java.util.Set;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.TopDownIndex;
+import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.CollectionShape;
 import software.amazon.smithy.model.shapes.IntegerShape;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StringShape;
+import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.UnitTypeTrait;
 
 public final class ShapeUtil {
     public static final StringShape STRING_SHAPE = StringShape.builder()
@@ -38,7 +45,19 @@ public final class ShapeUtil {
             .id("smithy.api#PrimitiveBoolean")
             .build();
 
+    public static final StructureShape UNIT = StructureShape.builder()
+            .id("smithy.api#Unit")
+            .addTrait(new UnitTypeTrait())
+            .build();
+
     private ShapeUtil() {}
+
+    public static boolean isExported(Shape shape) {
+        return switch (shape.getType()) {
+            case OPERATION, STRUCTURE, UNION, ENUM -> true;
+            default -> false;
+        };
+    }
 
     public static ListShape listOf(Shape member) {
         return ListShape.builder()
@@ -63,5 +82,11 @@ public final class ShapeUtil {
 
     public static Shape expectMember(Model model, MapShape shape) {
         return model.expectShape(shape.getValue().getTarget());
+    }
+
+    // Returns true for both IDL2 enum shapes and IDL1 string + @enum shapes.
+    public static boolean isEnum(Shape shape) {
+        return shape.getType() == ShapeType.ENUM
+                || (shape.getType() == ShapeType.STRING && shape.hasTrait(EnumTrait.class));
     }
 }

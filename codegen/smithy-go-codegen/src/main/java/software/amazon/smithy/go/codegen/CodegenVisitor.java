@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,18 +30,34 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import software.amazon.smithy.build.FileManifest;
 import software.amazon.smithy.build.PluginContext;
-import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolDependency;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoSettings.ArtifactType;
+import software.amazon.smithy.go.codegen.auth.AuthGenerator;
+import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
+import software.amazon.smithy.go.codegen.endpoints.FnProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.serde2.ListDeserializer;
+import software.amazon.smithy.go.codegen.serde2.ListSerializer;
+import software.amazon.smithy.go.codegen.serde2.MapDeserializer;
+import software.amazon.smithy.go.codegen.serde2.MapSerializer;
+import software.amazon.smithy.go.codegen.serde2.Serde2DeserializeResponseMiddleware;
+import software.amazon.smithy.go.codegen.serde2.Serde2EventStreamMiddleware;
+import software.amazon.smithy.go.codegen.serde2.Serde2SerializeRequestMiddleware;
+import software.amazon.smithy.go.codegen.serde2.UnionDeserializer;
+import software.amazon.smithy.go.codegen.serde2.UnionSerializer;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
 import software.amazon.smithy.model.shapes.IntEnumShape;
+import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -50,9 +67,11 @@ import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.transform.ModelTransformer;
 import software.amazon.smithy.utils.OptionalUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
+import software.amazon.smithy.utils.StringUtils;
 
 /**
  * Orchestrates Go client generation.
@@ -219,7 +238,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         TopDownIndex.of(model).getContainedOperations(service)
                 .forEach(eventStreamGenerator::generateOperationEventStreamStructure);
 
-        if (protocolGenerator != null) {
+        // All of these things will completely go away when serde2 is done.
+        //
+        // There is a block further down after the serde2 stuff that also uses the protocol generator, but that all will
+        // have to be pulled out of ProtocolGenerator and just be generic.
+        if (settings.useLegacySerde() && protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
             ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
                     .protocolName(protocolGenerator.getProtocolName())
@@ -251,25 +274,146 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 });
             }
 
-            writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolution(context);
-            });
-
-            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateAuth(context);
-            });
-
-            writers.useFileWriter("endpoints_test.go", settings.getModuleName(), writer -> {
-                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
-                protocolGenerator.generateEndpointResolutionTests(context);
-            });
-
-            LOGGER.info("Generating protocol tests for " + service.getId());
-            ProtocolUtils.generateHttpProtocolTests(ctx);
-
             protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
+        }
+
+        LOGGER.info("Generating protocol tests for " + service.getId());
+        ProtocolUtils.generateHttpProtocolTests(ctx);
+
+        if (!settings.useLegacySerde()) {
+            protocolDocumentGenerator.generateLegacyInternalDocumentTypes(ctx);
+
+            var shapes = new ArrayList<>(ctx.serdeShapes());
+            if (!shapes.contains(ShapeUtil.UNIT)) {
+                shapes.add(ShapeUtil.UNIT); // targeted by enum members, just generate a blank schema for it
+            }
+
+            ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
+
+            ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
+                var operations = TopDownIndex.of(model).getContainedOperations(service);
+                for (OperationShape op : operations) {
+                    new SchemaGenerator(ctx, op).accept(writer);
+                }
+
+                // Generate the service schema: first the underlying *Schema
+                // (which carries traits like xmlNamespace), then wrap it in
+                // NewServiceSchema with the service version.
+                new SchemaGenerator(ctx, service).accept(writer);
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.write("var $L = smithy.NewServiceSchema($L, $S)",
+                        StringUtils.capitalize(service.getId().getName(service)),
+                        SchemaGenerator.getSchemaName(service, service),
+                        service.getVersion());
+                writer.write("");
+
+                // Generate all shape schemas upfront. For synthetic shapes
+                // (input/output), pass the synthetic itself so that any
+                // members added by preprocessModel (e.g. presign URL members)
+                // are included. SchemaGenerator.modelShapeID() resolves the
+                // archetype for naming.
+                var resolved = new ArrayList<Shape>();
+                var seen = new HashSet<ShapeId>();
+                for (Shape s : shapes) {
+                    if (CodegenUtils.isStubSynthetic(s)) {
+                        continue;
+                    }
+                    ShapeId id = s.getId();
+                    if (id.getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
+                        id = s.getTrait(Synthetic.class).get().getArchetype().get();
+                    }
+                    if (seen.add(id)) {
+                        new SchemaGenerator(ctx, s).accept(writer);
+                        resolved.add(s);
+                    }
+                }
+
+                writer.write("");
+                writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
+                writer.openBlock("func init() {", "}", () -> {
+                    var shapeIds = new HashSet<ShapeId>();
+                    for (Shape s : resolved) {
+                        shapeIds.add(s.getId());
+                    }
+
+                    var sorted = new ArrayList<Shape>();
+                    var visited = new HashSet<ShapeId>();
+                    for (Shape s : resolved) {
+                        topoVisit(s, model, shapeIds, visited, sorted);
+                    }
+
+                    for (Shape shape : sorted) {
+                        new SchemaGenerator(ctx, shape).acceptMembersInit(writer);
+                    }
+                });
+            });
+            var lists = ctx.serdeShapes(ListShape.class);
+            var maps = ctx.serdeShapes(MapShape.class);
+            var unionSerdes = ctx.serdeShapes(UnionShape.class).stream()
+                    .filter(it -> !it.hasTrait(StreamingTrait.class))
+                    .toList();
+
+            // unfortunately since we have input/output in the top-level package and nested shapes in types/ we have to
+            // generate these twice since we don't want to export them
+            //
+            // also rn we don't check for what's actually used in either package at all but DCE should take care of that
+
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(unionSerdes, it -> new UnionSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(unionSerdes, it -> new UnionDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(unionSerdes, it -> new UnionDeserializer(ctx, it), true));
+
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(lists, it -> new ListSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(lists, it -> new ListSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(lists, it -> new ListDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(lists, it -> new ListDeserializer(ctx, it), true));
+
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapSerializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("common_serde.go", settings.getModuleName(),
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
+            ctx.writerDelegator().useFileWriter("types/common_serde.go", settings.getModuleName() + "/types",
+                    Writable.map(maps, it -> new MapDeserializer(ctx, it), true));
+
+            if (eventStreamGenerator.hasEventStreamOperations()) {
+                var streamIndex = EventStreamIndex.of(model);
+                eventStreamGenerator.writeEventStreamImplementation(writer -> {
+                    writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+                    TopDownIndex.of(model).getContainedOperations(service).stream()
+                            .filter(op -> streamIndex.getInputInfo(op).isPresent()
+                                    || streamIndex.getOutputInfo(op).isPresent())
+                            .sorted()
+                            .forEach(op -> writer.write(new Serde2EventStreamMiddleware(ctx, op)));
+                });
+            }
+        }
+
+        {
+            FnProvider fnProvider = integrations.stream()
+                    .map(GoIntegration::getEndpointFnProvider)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(new FnGenerator.DefaultFnProvider());
+            var endpointGenerator = new EndpointResolutionGenerator(fnProvider);
+            writers.useFileWriter("endpoints.go", settings.getModuleName(), writer -> {
+                endpointGenerator.generate(ctx, writer);
+            });
+            writers.useFileWriter("endpoints_test.go", settings.getModuleName(), writer -> {
+                endpointGenerator.generateTests(ctx, writer);
+            });
+            writers.useFileWriter("auth.go", settings.getModuleName(), writer -> {
+                new AuthGenerator(ctx, writer).generate();
+            });
         }
 
         LOGGER.fine("Flushing go writers");
@@ -297,9 +441,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         if (shape.getId().getNamespace().equals(CodegenUtils.getSyntheticTypeNamespace())) {
             return null;
         }
-        Symbol symbol = symbolProvider.toSymbol(shape);
-        writers.useShapeWriter(shape, writer -> new StructureGenerator(
-                model, symbolProvider, writer, service, shape, symbol, protocolGenerator).run());
+        writers.useShapeWriter(shape, writer ->
+                new StructureGenerator(ctx, writer, shape, protocolGenerator).run());
+
         return null;
     }
 
@@ -313,9 +457,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     public Void unionShape(UnionShape shape) {
-        UnionGenerator generator = new UnionGenerator(model, symbolProvider, shape);
+        UnionGenerator generator = new UnionGenerator(ctx, model, symbolProvider, shape);
         writers.useShapeWriter(shape, generator::generateUnion);
         writers.useShapeExportedTestWriter(shape, generator::generateUnionExamples);
+
         return null;
     }
 
@@ -366,7 +511,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             }
         });
 
-        var clientOptions = new ClientOptions(context, protocol);
+        if (!ctx.settings().useLegacySerde()) {
+            writers.useShapeWriter(shape, new Serde2SerializeRequestMiddleware());
+            writers.useShapeWriter(shape, new Serde2DeserializeResponseMiddleware());
+        }
+
+        var clientOptions = new ClientOptions(ctx, context, protocol);
         writers.useFileWriter("options.go", settings.getModuleName(), clientOptions);
         return null;
     }
@@ -375,5 +525,25 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
         return null;
+    }
+
+    private static void topoVisit(
+            Shape shape,
+            Model model,
+            Set<ShapeId> inSet,
+            Set<ShapeId> visited,
+            List<Shape> result
+    ) {
+        if (visited.contains(shape.getId())) {
+            return;
+        }
+        visited.add(shape.getId());
+        for (var member : shape.members()) {
+            var targetId = member.getTarget();
+            if (inSet.contains(targetId)) {
+                topoVisit(model.expectShape(targetId), model, inSet, visited, result);
+            }
+        }
+        result.add(shape);
     }
 }

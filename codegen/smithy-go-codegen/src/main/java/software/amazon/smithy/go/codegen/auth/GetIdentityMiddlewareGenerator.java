@@ -23,17 +23,13 @@ import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
 public class GetIdentityMiddlewareGenerator {
     public static final String MIDDLEWARE_NAME = "getIdentityMiddleware";
     public static final String MIDDLEWARE_ID = "GetIdentity";
 
-    private final ProtocolGenerator.GenerationContext context;
-
-    public GetIdentityMiddlewareGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public GetIdentityMiddlewareGenerator() {
     }
 
     public static Writable generateAddToProtocolFinalizers() {

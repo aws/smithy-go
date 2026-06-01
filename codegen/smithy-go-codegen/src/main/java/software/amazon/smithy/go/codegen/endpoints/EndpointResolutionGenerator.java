@@ -19,11 +19,11 @@ package software.amazon.smithy.go.codegen.endpoints;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
+import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.rulesengine.language.EndpointRuleSet;
 import software.amazon.smithy.rulesengine.traits.EndpointBddTrait;
 import software.amazon.smithy.rulesengine.traits.EndpointRuleSetTrait;
@@ -62,14 +62,8 @@ public class EndpointResolutionGenerator {
         this.newResolverFn = SymbolUtils.createValueSymbolBuilder(NEW_RESOLVER_FUNC_NAME).build();
     }
 
-    public void generate(ProtocolGenerator.GenerationContext context) {
-        if (context.getWriter().isEmpty()) {
-            throw new CodegenException("writer is required");
-        }
-
-        var writer = context.getWriter().get();
-
-        var serviceShape = context.getService();
+    public void generate(GoCodegenContext ctx, GoWriter writer) {
+        var serviceShape = ctx.service();
 
         var parametersGenerator = EndpointParametersGenerator.builder()
                 .parametersType(parametersType)
@@ -85,8 +79,8 @@ public class EndpointResolutionGenerator {
                 .fnProvider(this.fnProvider)
                 .build();
 
-        var bindingGenerator = new EndpointParameterBindingsGenerator(context);
-        var middlewareGenerator = new EndpointMiddlewareGenerator(context);
+        var bindingGenerator = new EndpointParameterBindingsGenerator(ctx);
+        var middlewareGenerator = new EndpointMiddlewareGenerator(ctx);
 
         // Ensure rulesfn import for StringSlice used in scope-emitted code.
         writer.write("var _ = $T(nil)", SymbolUtils.createValueSymbolBuilder(
@@ -122,13 +116,8 @@ public class EndpointResolutionGenerator {
                 .write("$W", middlewareGenerator.generate());
     }
 
-    public void generateTests(ProtocolGenerator.GenerationContext context) {
-        if (context.getWriter().isEmpty()) {
-            throw new CodegenException("writer is required");
-        }
-
-        var writer = context.getWriter().get();
-        var serviceShape = context.getService();
+    public void generateTests(GoCodegenContext ctx, GoWriter writer) {
+        var serviceShape = ctx.service();
         Optional<EndpointRuleSet> ruleset = serviceShape.getTrait(EndpointRuleSetTrait.class)
                 .map((trait) -> EndpointRuleSet.fromNode(trait.getRuleSet()));
         if (ruleset.isEmpty()) {

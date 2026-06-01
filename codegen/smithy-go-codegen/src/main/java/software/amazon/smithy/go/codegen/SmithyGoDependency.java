@@ -51,6 +51,7 @@ public final class SmithyGoDependency {
     public static final GoDependency SLICES = stdlib("slices");
 
     public static final GoDependency SMITHY = smithy(null, "smithy");
+    public static final GoDependency SMITHY_TRAITS = smithy("traits", "smithytraits");
     public static final GoDependency SMITHY_TRANSPORT = smithy("transport", "smithytransport");
     public static final GoDependency SMITHY_HTTP_TRANSPORT = smithy("transport/http", "smithyhttp");
     public static final GoDependency SMITHY_MIDDLEWARE = smithy("middleware");
@@ -69,9 +70,11 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
     public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
+    public static final GoDependency SMITHY_PRELUDE = smithy("prelude", "smithyprelude");
     public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
     public static final GoDependency SMITHY_DOCUMENT_CBOR = smithy("document/cbor", "smithydocumentcbor");
     public static final GoDependency SMITHY_SYNC = smithy("sync", "smithysync");
+    public static final GoDependency SMITHY_EVENTSTREAM = smithy("eventstream", "eventstream");
     public static final GoDependency SMITHY_AUTH = smithy("auth", "smithyauth");
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
     public static final GoDependency SMITHY_ENDPOINTS = smithy("endpoints", "smithyendpoints");
@@ -79,6 +82,13 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_ENDPOINT_BDD = smithy("endpoints/private/bdd");
     public static final GoDependency SMITHY_TRACING = smithy("tracing");
     public static final GoDependency SMITHY_METRICS = smithy("metrics");
+
+    public static final GoDependency SMITHY_PROTOCOL_AWSJSON = smithy("transport/http/protocol/awsjson");
+    public static final GoDependency SMITHY_PROTOCOL_RESTJSON1 = smithy("transport/http/protocol/restjson1");
+    public static final GoDependency SMITHY_PROTOCOL_AWSQUERY = smithy("transport/http/protocol/awsquery");
+    public static final GoDependency SMITHY_PROTOCOL_EC2QUERY = smithy("transport/http/protocol/ec2query");
+    public static final GoDependency SMITHY_PROTOCOL_RESTXML = smithy("transport/http/protocol/restxml");
+    public static final GoDependency SMITHY_PROTOCOL_RPCV2 = smithy("transport/http/protocol/rpcv2");
 
     public static final GoDependency MATH = stdlib("math");
 

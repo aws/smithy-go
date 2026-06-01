@@ -29,9 +29,6 @@ import software.amazon.smithy.go.codegen.GoDelegator;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.Synthetic;
-import software.amazon.smithy.go.codegen.auth.AuthGenerator;
-import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
-import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -462,8 +459,6 @@ public interface ProtocolGenerator {
      * @param context the generation context.
      */
     default void generateEndpointResolution(GenerationContext context) {
-        var generator = new EndpointResolutionGenerator(new FnGenerator.DefaultFnProvider());
-        generator.generate(context);
     }
 
     /**
@@ -472,8 +467,6 @@ public interface ProtocolGenerator {
      * @param context the generation context.
      */
     default void generateEndpointResolutionTests(GenerationContext context) {
-        var generator = new EndpointResolutionGenerator(new FnGenerator.DefaultFnProvider());
-        generator.generateTests(context);
     }
 
     /**
@@ -482,7 +475,6 @@ public interface ProtocolGenerator {
      * @param context The generation context.
      */
     default void generateAuth(GenerationContext context) {
-        new AuthGenerator(context).generate();
     }
 
     /**

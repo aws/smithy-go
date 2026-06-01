@@ -16,15 +16,22 @@
 package software.amazon.smithy.go.codegen;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.serde2.StructureDeserializer;
+import software.amazon.smithy.go.codegen.serde2.StructureSerializer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.HttpPayloadTrait;
+import software.amazon.smithy.model.traits.InputTrait;
+import software.amazon.smithy.model.traits.OutputTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -46,26 +53,38 @@ public final class StructureGenerator implements Runnable {
     private final SymbolProvider symbolProvider;
     private final GoWriter writer;
     private final StructureShape shape;
-    private final Symbol symbol;
+    private Symbol symbol;
     private final ServiceShape service;
     private final ProtocolGenerator protocolGenerator;
+    private final boolean useLegacySerde;
+    private final GoCodegenContext ctx;
 
     public StructureGenerator(
-            Model model,
-            SymbolProvider symbolProvider,
+            GoCodegenContext ctx,
             GoWriter writer,
-            ServiceShape service,
             StructureShape shape,
-            Symbol symbol,
             ProtocolGenerator protocolGenerator
     ) {
-        this.model = model;
-        this.symbolProvider = symbolProvider;
+        this.ctx = ctx;
+        this.model = ctx.model();
+        this.symbolProvider = ctx.symbolProvider();
         this.writer = writer;
-        this.service = service;
+        this.service = ctx.service();
         this.shape = shape;
-        this.symbol = symbol;
+        this.symbol = ctx.symbolProvider().toSymbol(shape);
         this.protocolGenerator = protocolGenerator;
+        this.useLegacySerde = ctx.settings().useLegacySerde();
+    }
+
+    public StructureGenerator(
+            GoCodegenContext ctx,
+            GoWriter writer,
+            StructureShape shape,
+            ProtocolGenerator protocolGenerator,
+            Symbol symbolOverride
+    ) {
+        this(ctx, writer, shape, protocolGenerator);
+        this.symbol = symbolOverride;
     }
 
     @Override
@@ -129,6 +148,42 @@ public final class StructureGenerator implements Runnable {
         writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
 
         writer.closeBlock("}").write("");
+
+        // Only generate serde methods when the symbol matches the shape's natural symbol.
+        // When a symbol override is provided (e.g. for synthetic shapes like event stream
+        // initial reply structs), skip serde to avoid duplicate method declarations.
+        if (!useLegacySerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
+            if (shape.hasTrait(InputTrait.class)) {
+                writer.write(new StructureSerializer(ctx, shape));
+            } else if (shape.hasTrait(OutputTrait.class)) {
+                writer.write(new StructureDeserializer(ctx, shape));
+            } else {
+                writer.write(new StructureSerializer(ctx, shape));
+                writer.write(new StructureDeserializer(ctx, shape));
+            }
+
+            getStreamingPayloadMember().ifPresent(member -> {
+                var memberName = symbolProvider.toMemberName(member);
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.addUseImports(SmithyGoDependency.IO);
+                writer.write("""
+                        func (v *$1L) GetPayloadStream() io.Reader { return v.$2L }
+                        var _ smithy.StreamingInput = (*$1L)(nil)
+                        func (v *$1L) SetPayloadStream(r io.ReadCloser) { v.$2L = r }
+                        var _ smithy.StreamingOutput = (*$1L)(nil)
+                        """, symbol.getName(), memberName);
+            });
+        }
+    }
+
+    private Optional<MemberShape> getStreamingPayloadMember() {
+        return shape.getAllMembers().values().stream()
+                .filter(m -> m.hasTrait(HttpPayloadTrait.class))
+                .filter(m -> {
+                    var target = model.expectShape(m.getTarget());
+                    return target.getType() == ShapeType.BLOB && target.hasTrait(StreamingTrait.class);
+                })
+                .findFirst();
     }
 
     /**
@@ -190,5 +245,9 @@ public final class StructureGenerator implements Runnable {
             fault = "smithy.FaultServer";
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
+
+        if (!useLegacySerde) {
+            writer.write(new StructureDeserializer(ctx, shape));
+        }
     }
 }

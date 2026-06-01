@@ -18,9 +18,9 @@ package software.amazon.smithy.go.codegen.auth;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
+import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.Writable;
-import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.utils.MapUtils;
 
 /**
@@ -31,12 +31,12 @@ import software.amazon.smithy.utils.MapUtils;
 public class AuthParametersResolverGenerator {
     public static final String FUNC_NAME = "bindAuthResolverParams";
 
-    private final ProtocolGenerator.GenerationContext context;
+    private final GoCodegenContext ctx;
 
     private final ArrayList<AuthParametersResolver> resolvers = new ArrayList<>();
 
-    public AuthParametersResolverGenerator(ProtocolGenerator.GenerationContext context) {
-        this.context = context;
+    public AuthParametersResolverGenerator(GoCodegenContext ctx) {
+        this.ctx = ctx;
     }
 
     public Writable generate() {
@@ -74,9 +74,9 @@ public class AuthParametersResolverGenerator {
     }
 
     private void loadResolvers() {
-        for (var integration: context.getIntegrations()) {
+        for (var integration: ctx.integrations()) {
             var plugins = integration.getClientPlugins().stream().filter(it ->
-                    it.matchesService(context.getModel(), context.getService())).toList();
+                    it.matchesService(ctx.model(), ctx.service())).toList();
             for (var plugin: plugins) {
                 resolvers.addAll(plugin.getAuthParameterResolvers());
             }
