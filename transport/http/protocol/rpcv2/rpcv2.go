@@ -117,6 +117,11 @@ func (p *Protocol) DeserializeResponse(
 	}
 
 	if schema.IsOutputEventStream() {
+		if schema.IsInputEventStream() {
+			if err := p.eventstream.RequireBidiHTTP2(resp.Proto, resp.ProtoMajor); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 

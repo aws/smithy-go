@@ -140,6 +140,11 @@ func (p *Protocol) DeserializeResponse(
 	}
 
 	if op.IsOutputEventStream() {
+		if op.IsInputEventStream() {
+			if err := p.eventstream.RequireBidiHTTP2(resp.Proto, resp.ProtoMajor); err != nil {
+				return err
+			}
+		}
 		deser := internalhttpbinding.NewShapeDeserializer(resp.Response, deser(nil, op.Output), nil)
 		if err := out.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
