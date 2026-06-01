@@ -4,6 +4,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 import static software.amazon.smithy.go.codegen.SymbolUtils.buildPackageSymbol;
 import static software.amazon.smithy.go.codegen.SymbolUtils.pointerTo;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
@@ -23,11 +24,11 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
 
     @Override
     public Map<String, Symbol> getFields() {
-        return Map.of(
-                "options", pointerTo(buildPackageSymbol("Options")),
-                "operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("OperationSchema"),
-                "output", SmithyGoDependency.SMITHY.interfaceSymbol("Deserializable")
-        );
+        var fields = new LinkedHashMap<String, Symbol>();
+        fields.put("options", pointerTo(buildPackageSymbol("Options")));
+        fields.put("operationSchema", SmithyGoDependency.SMITHY.pointableSymbol("OperationSchema"));
+        fields.put("output", SmithyGoDependency.SMITHY.interfaceSymbol("Deserializable"));
+        return fields;
     }
 
     @Override
