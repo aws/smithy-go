@@ -349,7 +349,8 @@ public final class OperationGenerator implements Runnable {
     }
 
     private StructureShape withMembers(StructureShape shape, List<MemberShape> members) {
-        var struct = StructureShape.builder().id(shape.getId());
+        var struct = StructureShape.builder().id(shape.getId())
+            .addTraits(shape.getAllTraits().values());
             members.stream().forEach(member -> struct.addMember(
                 MemberShape.builder()
                 .id(struct.getId().withMember(member.getMemberName()))
