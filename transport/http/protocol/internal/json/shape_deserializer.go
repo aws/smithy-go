@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
@@ -246,7 +245,7 @@ func (d *ShapeDeserializer) readFloat() (float64, error) {
 	if n, ok := parseInt(tok); ok {
 		return float64(n), nil
 	}
-	return strconv.ParseFloat(unsafeString(tok), 64)
+	return strconv.ParseFloat(string(tok), 64)
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
@@ -283,7 +282,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	}
 
 	if !d.p.escaped {
-		*v = unsafeString(tok[1 : len(tok)-1])
+		*v = string(tok[1 : len(tok)-1])
 		return nil
 	}
 
@@ -419,7 +418,7 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	}
 
 	if !d.p.escaped {
-		return unsafeString(tok[1 : len(tok)-1]), true, nil
+		return string(tok[1 : len(tok)-1]), true, nil
 	}
 
 	key, err := unquote(tok)
@@ -581,13 +580,9 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 	return nil
 }
 
-func unsafeString(b []byte) string {
-	return unsafe.String(unsafe.SliceData(b), len(b))
-}
-
 func unquote(tok []byte) (string, error) {
 	if s, ok := stdlib.UnquoteBytes(tok); ok {
-		return unsafeString(s), nil
+		return string(s), nil
 	}
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
@@ -813,7 +808,7 @@ func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(s
 
 		var key string
 		if !d.p.escaped {
-			key = unsafeString(tok[1 : len(tok)-1])
+			key = string(tok[1 : len(tok)-1])
 		} else {
 			key, err = unquote(tok)
 			if err != nil {
