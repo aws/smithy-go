@@ -131,7 +131,7 @@ func Encode(v Value) []byte {
 
 // Decode returns the Value encoded in the given byte slice.
 func Decode(p []byte) (Value, error) {
-	v, _, err := decode(p)
+	v, _, err := decode(p, 0)
 	if err != nil {
 		return nil, err
 	}
