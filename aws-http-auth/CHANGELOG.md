@@ -1,3 +1,7 @@
+# v1.2.0 (2026-06-02)
+
+* **Feature**: Add event stream signer.
+
 # v1.1.3 (2026-04-02)
 
 * **Bug Fix**: Add additional sigv4 configuration.

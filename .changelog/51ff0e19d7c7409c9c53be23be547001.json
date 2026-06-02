@@ -1,8 +1,0 @@
-{
-    "id": "51ff0e19-d7c7-409c-9c53-be23be547001",
-    "type": "feature",
-    "description": "Add support for all current AWS and Smithy protocols.",
-    "modules": [
-        "."
-    ]
-}
