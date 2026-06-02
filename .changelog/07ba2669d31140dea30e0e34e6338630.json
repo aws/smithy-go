@@ -1,0 +1,8 @@
+{
+    "id": "07ba2669-d311-40de-a30e-0e34e6338630",
+    "type": "feature",
+    "description": "Add APIs for schema-based serialization.",
+    "modules": [
+        "."
+    ]
+}
