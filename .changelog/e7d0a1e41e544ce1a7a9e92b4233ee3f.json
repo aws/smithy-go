@@ -1,0 +1,8 @@
+{
+    "id": "e7d0a1e4-1e54-4ce1-a7a9-e92b4233ee3f",
+    "type": "bugfix",
+    "description": "Fixed a panic when deserializing nested unions in JSON- and CBOR-based protocols.",
+    "modules": [
+        "."
+    ]
+}

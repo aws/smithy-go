@@ -523,7 +523,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
 	top := d.head.Top()
-	if top == nil || top.kind != deserCtxUnion { // first call: open the map
+	if top == nil || top.kind != deserCtxUnion || top.schema != s { // first call: open the map
 		if d.eof() {
 			return nil, errUnexpectedEOF
 		}

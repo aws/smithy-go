@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
+	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 )
 
 type ctxKind int8
@@ -500,7 +500,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	if top := d.head.Top(); top == nil || top.kind != ctxUnion {
+	if top := d.head.Top(); top == nil || top.kind != ctxUnion || top.schema != s {
 		if isNil, err := d.ReadNil(s); isNil || err != nil {
 			return nil, err
 		}
@@ -512,7 +512,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 		if !isLCB(tok) {
 			return nil, fmt.Errorf("expected '{', got %s", tok)
 		}
-		d.head.Push(deserCtx{kind: ctxUnion})
+		d.head.Push(deserCtx{kind: ctxUnion, schema: s})
 	}
 
 	for {
