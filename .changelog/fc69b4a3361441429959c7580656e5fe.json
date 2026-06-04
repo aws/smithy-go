@@ -1,8 +1,0 @@
-{
-    "id": "fc69b4a3-3614-4142-9959-c7580656e5fe",
-    "type": "bugfix",
-    "description": "Fixed a deserialization failure in all protocols when encountering a union with explicit null members.",
-    "modules": [
-        "."
-    ]
-}
