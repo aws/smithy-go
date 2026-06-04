@@ -22,6 +22,7 @@ import static software.amazon.smithy.go.codegen.GoWriter.goDocTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import software.amazon.smithy.go.codegen.integration.ClientMemberResolver;
 import software.amazon.smithy.go.codegen.integration.ConfigFieldResolver;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
 import software.amazon.smithy.go.codegen.integration.OperationMetricsStruct;
+import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
@@ -117,7 +119,8 @@ final class ServiceGenerator implements Runnable {
                 generateEventStreamInvokeOperation(),
                 asyncStreamReaders(),
                 generateInputContextFuncs(),
-                generateAddProtocolFinalizerMiddleware()
+                generateAddProtocolFinalizerMiddleware(),
+                generateAddCommonMiddlewares()
         ).compose();
     }
 
@@ -422,6 +425,10 @@ final class ServiceGenerator implements Runnable {
 
                     $finalizers:W
 
+                    if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
+                        return nil, metadata, err
+                    }
+
                     for _, fn := range stackFns {
                         if err := fn(stack, options); err != nil {
                             return nil, metadata, err
@@ -533,6 +540,10 @@ final class ServiceGenerator implements Runnable {
                     }
 
                     $finalizers:W
+
+                    if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
+                        return nil, metadata, err
+                    }
 
                     for _, fn := range stackFns {
                         if err := fn(stack, options); err != nil {
@@ -742,6 +753,67 @@ final class ServiceGenerator implements Runnable {
                         EndpointMiddlewareGenerator.generateAddToProtocolFinalizers(),
                         SignRequestMiddlewareGenerator.generateAddToProtocolFinalizers()
                 ).compose(false));
+    }
+
+    private Writable generateAddCommonMiddlewares() {
+        return (GoWriter writer) -> {
+            writer.openBlock(
+                    "func (c *$T) addCommonMiddlewares(stack $P, options $L, operation string) error {", "}",
+                    symbolProvider.toSymbol(service),
+                    SmithyGoDependency.SMITHY_MIDDLEWARE.struct("Stack"),
+                    CONFIG_NAME,
+                    () -> {
+                        // Must be first — provides anchors that other middlewares Insert relative to.
+                        writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                        writer.write("""
+                                if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+                                    return err
+                                }""");
+                        writer.write("""
+                                if err := addProtocolFinalizerMiddlewares(stack, options, operation); err != nil {
+                                    return fmt.Errorf("add protocol finalizers: %v", err)
+                                }""");
+                        writer.addUseImports(SmithyGoDependency.FMT);
+
+                        runtimePlugins.forEach(plugin -> {
+                            if (!plugin.isCommon()) {
+                                return;
+                            }
+                            if (!plugin.registerMiddleware().isPresent()) {
+                                return;
+                            }
+
+                            MiddlewareRegistrar registrar = plugin.registerMiddleware().get();
+                            Collection<Symbol> functionArguments = registrar.getFunctionArguments();
+
+                            if (registrar.getInlineRegisterMiddlewareStatement() != null) {
+                                String registerStatement = String.format("if err := stack.%s",
+                                        registrar.getInlineRegisterMiddlewareStatement());
+                                writer.writeInline(registerStatement);
+                                writer.writeInline("$T(", registrar.getResolvedFunction());
+                                if (functionArguments != null) {
+                                    for (Symbol arg : functionArguments) {
+                                        writer.writeInline("$P, ", arg);
+                                    }
+                                }
+                                writer.writeInline(")");
+                                writer.write(", $T); err != nil {\nreturn err\n}",
+                                        registrar.getInlineRegisterMiddlewarePosition());
+                            } else {
+                                writer.writeInline("if err := $T(stack", registrar.getResolvedFunction());
+                                if (functionArguments != null) {
+                                    for (Symbol arg : functionArguments) {
+                                        writer.writeInline(", $P", arg);
+                                    }
+                                }
+                                writer.write("); err != nil {\nreturn err\n}");
+                            }
+                        });
+
+                        writer.write("return nil");
+                    });
+            writer.write("");
+        };
     }
 
     /**

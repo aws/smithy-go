@@ -56,6 +56,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Map<String, Writable> endpointBuiltinBindings;
     private final Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions;
     private final Map<ShapeId, Symbol> shapeDeserializers;
+    private final boolean isCommon;
 
     private RuntimeClientPlugin(Builder builder) {
         operationPredicate = builder.operationPredicate;
@@ -70,6 +71,21 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         endpointBuiltinBindings = builder.endpointBuiltinBindings;
         authSchemeDefinitions = builder.authSchemeDefinitions;
         shapeDeserializers = builder.shapeDeserializers;
+        isCommon = builder.isCommon;
+    }
+
+    /**
+     * Returns whether this plugin's middleware should be registered once
+     * by the shared {@code addCommonMiddlewares} helper on the client,
+     * rather than per-operation in {@code addOperation*Middlewares}.
+     *
+     * <p>Plugins whose middleware registration is identical for every
+     * operation in the service can opt-in via {@link Builder#isCommon(boolean)}.
+     *
+     * @return true if this plugin is registered via {@code addCommonMiddlewares}.
+     */
+    public boolean isCommon() {
+        return isCommon;
     }
 
     @FunctionalInterface
@@ -254,10 +270,29 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private MiddlewareRegistrar registerMiddleware;
         private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
         private Map<ShapeId, Symbol> shapeDeserializers = new HashMap<>();
+        private boolean isCommon = false;
 
         @Override
         public RuntimeClientPlugin build() {
             return new RuntimeClientPlugin(this);
+        }
+
+        /**
+         * Marks the plugin as a "common" middleware whose registration is
+         * identical for every operation in the service. Common plugins are
+         * emitted once into the client's {@code addCommonMiddlewares} helper
+         * (called from {@code invokeOperation}) instead of being repeated in
+         * every {@code addOperation*Middlewares} function.
+         *
+         * <p>Defaults to {@code false} to preserve existing per-operation
+         * behavior for plugins that have not been audited.
+         *
+         * @param isCommon whether the plugin is common across all operations.
+         * @return Returns the builder.
+         */
+        public Builder isCommon(boolean isCommon) {
+            this.isCommon = isCommon;
+            return this;
         }
 
         /**

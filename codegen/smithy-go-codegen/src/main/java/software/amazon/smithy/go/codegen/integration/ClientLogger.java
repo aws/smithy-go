@@ -87,6 +87,7 @@ public class ClientLogger implements GoIntegration {
                                 .resolvedFunction(SymbolUtils.createValueSymbolBuilder(REGISTER_MIDDLEWARE).build())
                                 .useClientOptions()
                                 .build())
+                        .isCommon(true)
                         .build()
         );
     }
