@@ -14,6 +14,7 @@ import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
@@ -64,34 +65,35 @@ public final class StructureSerializer implements Writable {
     private void generateSerializeMember(GoWriter writer, MemberShape member, Shape target, String ident) {
         var schemaName = SchemaGenerator.getMemberSchemaRef(shape, member, ctx.service());
         var isNillable = nilIndex.isNillable(member);
+        var isRequired = member.hasTrait(RequiredTrait.class);
         switch (target.getType()) {
             case BYTE ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteInt8", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteInt8", schemaName);
             case SHORT ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteInt16", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteInt16", schemaName);
             case INTEGER ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteInt32", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteInt32", schemaName);
             case LONG ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteInt64", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteInt64", schemaName);
 
             case FLOAT ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteFloat32", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteFloat32", schemaName);
             case DOUBLE ->
-                    writeScalar(writer, isNillable, ident, "0", "WriteFloat64", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "0", "WriteFloat64", schemaName);
 
             case STRING, ENUM -> {
                 if (ShapeUtil.isEnum(target)) {
                     writer.write("if $1L != \"\" { s.WriteString($2L, string($1L)) }", ident, schemaName);
                 } else {
-                    writeScalar(writer, isNillable, ident, "\"\"", "WriteString", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "\"\"", "WriteString", schemaName);
                 }
             }
             case INT_ENUM ->
                     writer.write("if $1L != 0 { s.WriteInt32($2L, int32($1L)) }", ident, schemaName);
             case BOOLEAN ->
-                    writeScalar(writer, isNillable, ident, "false", "WriteBool", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "false", "WriteBool", schemaName);
             case TIMESTAMP ->
-                    writeScalar(writer, isNillable, ident, "", "WriteTime", schemaName);
+                    writeScalar(writer, isNillable, isRequired, ident, "", "WriteTime", schemaName);
             case BLOB ->
                     writer.write("if $2L != nil { s.WriteBlob($1L, $2L) }", schemaName, ident);
 
@@ -115,10 +117,12 @@ public final class StructureSerializer implements Writable {
     // Generates a nil-guarded (pointer) or zero-guarded (value) scalar write.
     // writeMethod is e.g. "WriteInt32". schemaName is the schema ref. ident is
     // the Go expression for the member value (e.g. "v.Foo").
-    private void writeScalar(GoWriter writer, boolean isNillable, String ident, String zeroValue,
+    private void writeScalar(GoWriter writer, boolean isNillable, boolean isRequired, String ident, String zeroValue,
                              String writeMethod, String schemaName) {
         if (isNillable) {
             writer.write("if $1L != nil { s.$3L($2L, *$1L) }", ident, schemaName, writeMethod);
+        } else if (isRequired) {
+            writer.write("s.$3L($2L, $1L)", ident, schemaName, writeMethod);
         } else {
             if (zeroValue.isEmpty()) {
                 writer.write("if !$1L.IsZero() { s.$3L($2L, $1L) }", ident, schemaName, writeMethod);
