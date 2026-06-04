@@ -138,10 +138,15 @@ func ReadUnion(d ShapeDeserializer, schema *Schema, memberFn func(*Schema) error
 		return err
 	}
 
-	if ms != nil {
-		if err := memberFn(ms); err != nil {
-			return err
-		}
+	// A nil member on the first read means the union value was null, empty,
+	// or contained only null members -- the union has been fully consumed and
+	// reading again would read past it.
+	if ms == nil {
+		return nil
+	}
+
+	if err := memberFn(ms); err != nil {
+		return err
 	}
 
 	for {

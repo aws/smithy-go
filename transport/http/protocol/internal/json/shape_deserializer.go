@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
+	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 )
 
 type ctxKind int8
@@ -500,7 +500,19 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
-	if top := d.head.Top(); top == nil || top.kind != ctxUnion {
+	resuming := false
+	if top := d.head.Top(); top != nil && top.kind == ctxUnion {
+		// The context on top of the stack may belong to a parent union when
+		// this union is itself the value of a union member. Disambiguate by
+		// peeking: at a value position the next token can only be '{' (or
+		// null), while on resume it can only be a member name or '}'.
+		tok, err := d.peek()
+		if err != nil {
+			return nil, err
+		}
+		resuming = !isLCB(tok) && !isN(tok)
+	}
+	if !resuming {
 		if isNil, err := d.ReadNil(s); isNil || err != nil {
 			return nil, err
 		}
@@ -588,6 +600,9 @@ func unquote(tok []byte) (string, error) {
 }
 
 func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema, error) {
+	if len(tok) < 2 || tok[0] != '"' {
+		return nil, fmt.Errorf("expected member name, got %s", tok)
+	}
 	inner := tok[1 : len(tok)-1]
 	if m := memberByBytes(s, inner); m != nil {
 		return m, nil
