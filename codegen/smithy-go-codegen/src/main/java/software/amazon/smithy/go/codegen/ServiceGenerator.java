@@ -765,6 +765,7 @@ final class ServiceGenerator implements Runnable {
                     () -> {
                         // Must be first — provides anchors that other middlewares Insert relative to.
                         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
+                        writer.addUseImports(SmithyGoDependency.FMT);
                         writer.write("""
                                 if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
                                     return err
@@ -773,7 +774,6 @@ final class ServiceGenerator implements Runnable {
                                 if err := addProtocolFinalizerMiddlewares(stack, options, operation); err != nil {
                                     return fmt.Errorf("add protocol finalizers: %v", err)
                                 }""");
-                        writer.addUseImports(SmithyGoDependency.FMT);
 
                         runtimePlugins.forEach(plugin -> {
                             if (!plugin.isCommon()) {
