@@ -210,6 +210,7 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	// union is a map with a single key
 	s.writeArg(majorTypeMap, 1)
 	s.writeTextString(variant.MemberName())
+	s.push(ctxMapValue)
 }
 
 // CloseUnion implements [smithy.ShapeSerializer].
