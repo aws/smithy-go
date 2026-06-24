@@ -230,6 +230,10 @@ public final class OperationGenerator implements Runnable {
                             return;
                         }
 
+                        if (runtimeClientPlugin.isCommon()) {
+                            return;
+                        }
+
                         MiddlewareRegistrar middlewareRegistrar = runtimeClientPlugin.registerMiddleware().get();
                         Collection<Symbol> functionArguments = middlewareRegistrar.getFunctionArguments();
 
@@ -271,11 +275,6 @@ public final class OperationGenerator implements Runnable {
             return;
         }
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
-        // persist operation input to context for internal build/finalize middleware access
-        writer.write("""
-                if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
-                    return err
-                }""");
 
         if (ctx.settings().useLegacySerde()) {
             // Add request serializer middleware
@@ -327,13 +326,6 @@ public final class OperationGenerator implements Runnable {
             }
         }
 
-        // FUTURE: retry middleware should be at the front of finalize, right now it's added by the SDK
-        writer.write("""
-                if err := addProtocolFinalizerMiddlewares(stack, options, $S); err != nil {
-                    return $T("add protocol finalizers: %v", err)
-                }""",
-                operationSymbol.getName(),
-                GoStdlibTypes.Fmt.Errorf);
         writer.write("");
     }
 

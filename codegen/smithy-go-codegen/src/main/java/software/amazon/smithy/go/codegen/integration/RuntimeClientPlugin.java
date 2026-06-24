@@ -56,6 +56,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final Map<String, Writable> endpointBuiltinBindings;
     private final Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions;
     private final Map<ShapeId, Symbol> shapeDeserializers;
+    private final boolean isCommon;
 
     private RuntimeClientPlugin(Builder builder) {
         operationPredicate = builder.operationPredicate;
@@ -70,6 +71,16 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         endpointBuiltinBindings = builder.endpointBuiltinBindings;
         authSchemeDefinitions = builder.authSchemeDefinitions;
         shapeDeserializers = builder.shapeDeserializers;
+        isCommon = builder.isCommon;
+    }
+
+    /**
+     * Gets whether this plugin is registered once via {@code addCommonMiddlewares}
+     * rather than per-operation.
+     * @return true if this plugin is common across all operations.
+     */
+    public boolean isCommon() {
+        return isCommon;
     }
 
     @FunctionalInterface
@@ -254,10 +265,24 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private MiddlewareRegistrar registerMiddleware;
         private Map<ShapeId, AuthSchemeDefinition> authSchemeDefinitions = new HashMap<>();
         private Map<ShapeId, Symbol> shapeDeserializers = new HashMap<>();
+        private boolean isCommon = false;
 
         @Override
         public RuntimeClientPlugin build() {
             return new RuntimeClientPlugin(this);
+        }
+
+        /**
+         * Marks the plugin as common, so its middleware is emitted once into
+         * {@code addCommonMiddlewares} instead of every operation. Defaults to
+         * false.
+         *
+         * @param isCommon whether the plugin is common across all operations.
+         * @return Returns the builder.
+         */
+        public Builder isCommon(boolean isCommon) {
+            this.isCommon = isCommon;
+            return this;
         }
 
         /**
