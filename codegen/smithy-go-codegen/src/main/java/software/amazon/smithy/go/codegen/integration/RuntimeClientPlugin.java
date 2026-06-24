@@ -75,14 +75,9 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     }
 
     /**
-     * Returns whether this plugin's middleware should be registered once
-     * by the shared {@code addCommonMiddlewares} helper on the client,
-     * rather than per-operation in {@code addOperation*Middlewares}.
-     *
-     * <p>Plugins whose middleware registration is identical for every
-     * operation in the service can opt-in via {@link Builder#isCommon(boolean)}.
-     *
-     * @return true if this plugin is registered via {@code addCommonMiddlewares}.
+     * Gets whether this plugin is registered once via {@code addCommonMiddlewares}
+     * rather than per-operation.
+     * @return true if this plugin is common across all operations.
      */
     public boolean isCommon() {
         return isCommon;
@@ -278,14 +273,9 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         }
 
         /**
-         * Marks the plugin as a "common" middleware whose registration is
-         * identical for every operation in the service. Common plugins are
-         * emitted once into the client's {@code addCommonMiddlewares} helper
-         * (called from {@code invokeOperation}) instead of being repeated in
-         * every {@code addOperation*Middlewares} function.
-         *
-         * <p>Defaults to {@code false} to preserve existing per-operation
-         * behavior for plugins that have not been audited.
+         * Marks the plugin as common, so its middleware is emitted once into
+         * {@code addCommonMiddlewares} instead of every operation. Defaults to
+         * false.
          *
          * @param isCommon whether the plugin is common across all operations.
          * @return Returns the builder.
