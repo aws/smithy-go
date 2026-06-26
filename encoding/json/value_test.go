@@ -138,6 +138,26 @@ func TestValue(t *testing.T) {
 			},
 			expected: "9223372036854775807",
 		},
+		"bigFloat negative zero preserves sign": {
+			setter: func(value Value) {
+				v := new(big.Float).SetFloat64(math.Copysign(0, -1))
+				value.BigDecimal(v)
+			},
+			expected: "-0",
+		},
+		"bigFloat negative integer": {
+			setter: func(value Value) {
+				v := new(big.Float).SetFloat64(-7)
+				value.BigDecimal(v)
+			},
+			expected: "-7",
+		},
+		"bigFloat positive zero": {
+			setter: func(value Value) {
+				value.BigDecimal(new(big.Float))
+			},
+			expected: "0",
+		},
 	}
 	scratch := make([]byte, 64)
 

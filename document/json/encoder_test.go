@@ -93,6 +93,44 @@ func TestDeterministicMapOrder(t *testing.T) {
 	}
 }
 
+func TestDocumentNumberEncodesAsNumber(t *testing.T) {
+	encoder := json.NewEncoder()
+
+	cases := map[string]struct {
+		input    interface{}
+		expected string
+	}{
+		"integer": {
+			input:    map[string]interface{}{"x": document.Number("42")},
+			expected: `{"x":42}`,
+		},
+		"float": {
+			input:    map[string]interface{}{"x": document.Number("42.0")},
+			expected: `{"x":42.0}`,
+		},
+		"negative zero": {
+			input:    map[string]interface{}{"x": document.Number("-0.0")},
+			expected: `{"x":-0.0}`,
+		},
+		"scientific notation": {
+			input:    map[string]interface{}{"x": document.Number("1.5e+10")},
+			expected: `{"x":1.5e+10}`,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			b, err := encoder.Encode(tc.input)
+			if err != nil {
+				t.Fatalf("Encode() error: %v", err)
+			}
+			if string(b) != tc.expected {
+				t.Errorf("Encode() = %s, want %s", b, tc.expected)
+			}
+		})
+	}
+}
+
 func testEncode(t *testing.T, tt testCase) {
 	t.Helper()
 
