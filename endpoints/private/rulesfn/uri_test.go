@@ -159,22 +159,36 @@ func TestIsValidHostLabel(t *testing.T) {
 		expect          bool
 	}{
 		"single label no split": {
-			input:  "abc123-",
+			input:  "abc123",
 			expect: true,
 		},
+		"single label no split with invalid suffix hyphen": {
+			input:  "abc123-",
+			expect: false,
+		},
 		"single label with split": {
-			input:           "abc123-",
+			input:           "abc123",
 			allowSubDomains: true,
 			expect:          true,
+		},
+		"single label with split and invalid suffix hyphen": {
+			input:           "abc123-",
+			allowSubDomains: true,
+			expect:          false,
 		},
 		"multiple labels no split": {
 			input:  "abc.123-",
 			expect: false,
 		},
 		"multiple labels with split": {
-			input:           "abc.123-",
+			input:           "abc.123",
 			allowSubDomains: true,
 			expect:          true,
+		},
+		"multiple labels with split and invalid prefix hyphen": {
+			input:           "abc.-123",
+			allowSubDomains: true,
+			expect:          false,
 		},
 		"multiple labels with split invalid label": {
 			input:           "abc.123-...",
@@ -187,6 +201,10 @@ func TestIsValidHostLabel(t *testing.T) {
 		},
 		"too large host label": {
 			input:  "0123456789012345678901234567890123456789012345678901234567891234",
+			expect: false,
+		},
+		"multiple labels with too large segment": {
+			input:  "abc.0123456789012345678901234567890123456789012345678901234567891234",
 			expect: false,
 		},
 		"too small host label": {
