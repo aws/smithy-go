@@ -16,6 +16,7 @@ import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.MapUtils;
 
 public class SerdeSnapshotTests implements GoIntegration {
@@ -30,12 +31,49 @@ public class SerdeSnapshotTests implements GoIntegration {
         goDelegator.useFileWriter("serde_snapshot_test.go", settings.getModuleName(), writer -> {
             writer.addBuildTag("serde_snapshot");
             writer.write(commonSource());
+            writer.write(bodyEqual(isCbor(settings)));
 
             var service = settings.getService(model);
             var generator = new SnapshotInputGenerator(model, symbolProvider);
             writer.write(snapshotTests(model, service, symbolProvider, generator));
             writer.write(snapshotUpdaters(model, service, symbolProvider, generator));
         });
+    }
+
+    private static boolean isCbor(GoSettings settings) {
+        return Rpcv2CborTrait.ID.equals(settings.getProtocol());
+    }
+
+    // Emits serdeBodyEqual, the request-body comparator. Most protocols serialize
+    // deterministically, so a raw byte compare is correct. rpcv2Cbor encodes struct
+    // fields as a CBOR map and the encoder emits map entries in Go map iteration
+    // order, so the same input produces different byte orderings across runs. For
+    // that protocol we compare decoded CBOR values, which is order-independent.
+    private Writable bodyEqual(boolean isCbor) {
+        if (!isCbor) {
+            return goTemplate("""
+                    func serdeBodyEqual(got, expected []byte) bool {
+                        return bytes.Equal(got, expected)
+                    }
+                    """);
+        }
+        return writer -> {
+            writer.addUseImports(SmithyGoDependency.REFLECT);
+            writer.addUseImports(SmithyGoDependency.SMITHY_CBOR);
+            writer.write("""
+                    func serdeBodyEqual(got, expected []byte) bool {
+                        if len(got) == 0 || len(expected) == 0 {
+                            return bytes.Equal(got, expected)
+                        }
+                        gv, gerr := smithycbor.Decode(got)
+                        ev, eerr := smithycbor.Decode(expected)
+                        if gerr != nil || eerr != nil {
+                            return bytes.Equal(got, expected)
+                        }
+                        return reflect.DeepEqual(gv, ev)
+                    }
+                    """);
+        };
     }
 
     private Writable commonSource() {
@@ -51,7 +89,6 @@ public class SerdeSnapshotTests implements GoIntegration {
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
             writer.addUseImports(SmithyGoDependency.STRINGS);
             writer.addUseImports(SmithyGoDependency.SLICES);
-            writer.addUseImports(SmithyGoDependency.JSON);
             writer.write("""
                     const serdeSSPrefix = "serde_snapshot"
 
@@ -146,18 +183,23 @@ public class SerdeSnapshotTests implements GoIntegration {
                         }
                         sb.WriteString("\\n")
                         if len(body) > 0 {
-                            var v interface{}
-                            if err := json.Unmarshal(body, &v); err == nil {
-                                if sorted, err := json.Marshal(v); err == nil {
-                                    sb.Write(sorted)
-                                }
-                            }
+                            sb.Write(body)
                         }
                         return sb.String()
                     }
 
                     func serdeUpdateSnapshot(method, rawPath, rawQuery string, header map[string][]string, body []byte, operation string) error {
                         content := serdeFormatRequest(method, rawPath, rawQuery, header, body)
+                        // Leave the snapshot untouched if it's semantically equal to the new one.
+                        // Some protocols (rpcv2Cbor) serialize map/struct fields in a nondeterministic
+                        // byte order, so a blind rewrite would churn the file on every run.
+                        if existing, err := os.ReadFile(serdeSSPath(operation)); err == nil {
+                            prefix := serdeFormatRequest(method, rawPath, rawQuery, header, nil)
+                            if strings.HasPrefix(string(existing), prefix) &&
+                                serdeBodyEqual(body, []byte(string(existing)[len(prefix):])) {
+                                return serdeSnapshotOK{}
+                            }
+                        }
                         f, err := serdeCreatePath(serdeSSPath(operation))
                         if err != nil {
                             return err
@@ -170,7 +212,6 @@ public class SerdeSnapshotTests implements GoIntegration {
                     }
 
                     func serdeTestSnapshot(method, rawPath, rawQuery string, header map[string][]string, body []byte, operation string) error {
-                        content := serdeFormatRequest(method, rawPath, rawQuery, header, body)
                         f, err := os.Open(serdeSSPath(operation))
                         if errors.Is(err, fs.ErrNotExist) {
                             return serdeSnapshotOK{}
@@ -183,7 +224,10 @@ public class SerdeSnapshotTests implements GoIntegration {
                         if err != nil {
                             return err
                         }
-                        if content != string(expected) {
+                        prefix := serdeFormatRequest(method, rawPath, rawQuery, header, nil)
+                        if !strings.HasPrefix(string(expected), prefix) ||
+                            !serdeBodyEqual(body, []byte(string(expected)[len(prefix):])) {
+                            content := serdeFormatRequest(method, rawPath, rawQuery, header, body)
                             return fmt.Errorf("serde snapshot mismatch for %s:\\nGOT:\\n%s:\\nEXPECTED:\\n%s", operation, content, string(expected))
                         }
                         return serdeSnapshotOK{}
@@ -269,6 +313,7 @@ public class SerdeSnapshotTests implements GoIntegration {
                     _, err := svc.$op:L($contextBackground:T(), input, func(o *Options) {
                         o.APIOptions = append(o.APIOptions, func(stack $middlewareStack:P) error {
                             stack.Initialize.Remove("OperationInputValidation")
+                            stack.Serialize.Remove("RequestCompression")
                             return stack.Finalize.Add(&captureSerdeRequestMiddleware{
                                 body: body, method: &method, rawPath: &rawPath, rawQuery: &rawQuery, header: &header,
                             }, $middlewareBefore:T)
@@ -312,6 +357,7 @@ public class SerdeSnapshotTests implements GoIntegration {
                     _, err := svc.$op:L($contextBackground:T(), input, func(o *Options) {
                         o.APIOptions = append(o.APIOptions, func(stack $middlewareStack:P) error {
                             stack.Initialize.Remove("OperationInputValidation")
+                            stack.Serialize.Remove("RequestCompression")
                             return stack.Finalize.Add(&captureSerdeRequestMiddleware{
                                 body: body, method: &method, rawPath: &rawPath, rawQuery: &rawQuery, header: &header,
                             }, $middlewareBefore:T)

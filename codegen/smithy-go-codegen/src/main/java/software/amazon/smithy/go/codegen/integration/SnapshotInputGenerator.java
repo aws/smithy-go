@@ -42,6 +42,12 @@ import software.amazon.smithy.model.traits.StreamingTrait;
 public final class SnapshotInputGenerator {
     private static final int COLLECTION_SIZE = 2;
 
+    // Maps emit a single entry: Go map iteration order is randomized, so a map with
+    // more than one entry would serialize to a nondeterministic byte order and make
+    // snapshots flaky. One entry exercises the map serialization path deterministically
+    // across every protocol.
+    private static final int MAP_SIZE = 1;
+
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final GoPointableIndex pointableIndex;
@@ -219,7 +225,7 @@ public final class SnapshotInputGenerator {
 
         writer.write("$T{", symbolProvider.toSymbol(shape));
         writer.indent();
-        for (int i = 0; i < COLLECTION_SIZE; i++) {
+        for (int i = 0; i < MAP_SIZE; i++) {
             writer.writeInline("\"key$L\": ", i);
             writeMemberValue(writer, shape.getValue(), valueTarget, visited, choice);
             writer.write(",");
@@ -229,14 +235,31 @@ public final class SnapshotInputGenerator {
     }
 
     private void writeUnion(GoWriter writer, UnionShape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice) {
-        if (!visited.add(shape.getId())) {
-            writer.writeInline("nil");
-            return;
+        var members = shape.getAllMembers().values().stream().toList();
+        boolean recursing = visited.contains(shape.getId());
+
+        MemberShape chosenMember;
+        if (recursing) {
+            // We've recursed back into this union (e.g. a variant that is a
+            // list/map/member of the same union). Emitting nil here produces an
+            // invalid payload -- a nil element still occupies a slot in a list and
+            // serializes to garbage. Instead pick the first variant that terminates
+            // the recursion: one whose subtree doesn't reach back into a shape we're
+            // already building.
+            chosenMember = members.stream()
+                    .filter(m -> !reachesVisited(model.expectShape(m.getTarget()), visited))
+                    .findFirst()
+                    .orElse(null);
+            if (chosenMember == null) {
+                // Every variant recurses; the type has no finite value to generate.
+                writer.writeInline("nil");
+                return;
+            }
+        } else {
+            visited.add(shape.getId());
+            chosenMember = members.get(choice.indexFor(shape) % members.size());
         }
 
-        var members = shape.getAllMembers().values().stream().toList();
-        int memberIndex = choice.indexFor(shape) % members.size();
-        var chosenMember = members.get(memberIndex);
         var chosenTarget = model.expectShape(chosenMember.getTarget());
 
         var memberSymbol = software.amazon.smithy.go.codegen.SymbolUtils.createPointableSymbolBuilder(
@@ -258,7 +281,37 @@ public final class SnapshotInputGenerator {
         writer.dedent();
         writer.writeInline("}");
 
-        visited.remove(shape.getId());
+        if (!recursing) {
+            visited.remove(shape.getId());
+        }
+    }
+
+    /**
+     * Returns true if the given shape can transitively reach any shape currently being built (i.e. present in
+     * {@code visited}), which would form a cycle.
+     */
+    private boolean reachesVisited(Shape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited) {
+        return reachesVisited(shape, visited, new HashSet<>());
+    }
+
+    private boolean reachesVisited(
+            Shape shape,
+            Set<software.amazon.smithy.model.shapes.ShapeId> visited,
+            Set<software.amazon.smithy.model.shapes.ShapeId> seen
+    ) {
+        if (visited.contains(shape.getId())) {
+            return true;
+        }
+        if (!seen.add(shape.getId())) {
+            return false;
+        }
+
+        for (var member : shape.getAllMembers().values()) {
+            if (reachesVisited(model.expectShape(member.getTarget()), visited, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
