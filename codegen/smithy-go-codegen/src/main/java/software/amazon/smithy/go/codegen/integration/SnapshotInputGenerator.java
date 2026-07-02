@@ -30,6 +30,7 @@ import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
@@ -77,7 +78,7 @@ public final class SnapshotInputGenerator {
 
     private static final int MAX_DEPTH = 10;
 
-    private void writeStructure(GoWriter writer, StructureShape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice,
+    private void writeStructure(GoWriter writer, StructureShape shape, Set<ShapeId> visited, UnionChoice choice,
                                boolean pointable) {
         if (!visited.add(shape.getId()) || visited.size() > MAX_DEPTH) {
             if (pointable) {
@@ -109,7 +110,7 @@ public final class SnapshotInputGenerator {
     }
 
     private void writeMemberValue(
-            GoWriter writer, MemberShape member, Shape target, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice
+            GoWriter writer, MemberShape member, Shape target, Set<ShapeId> visited, UnionChoice choice
     ) {
         boolean needsPointer = pointableIndex.isPointable(member);
         switch (target.getType()) {
@@ -207,7 +208,7 @@ public final class SnapshotInputGenerator {
         }
     }
 
-    private void writeList(GoWriter writer, ListShape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice) {
+    private void writeList(GoWriter writer, ListShape shape, Set<ShapeId> visited, UnionChoice choice) {
         var memberTarget = model.expectShape(shape.getMember().getTarget());
 
         writer.write("$T{", symbolProvider.toSymbol(shape));
@@ -220,7 +221,7 @@ public final class SnapshotInputGenerator {
         writer.writeInline("}");
     }
 
-    private void writeMap(GoWriter writer, MapShape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice) {
+    private void writeMap(GoWriter writer, MapShape shape, Set<ShapeId> visited, UnionChoice choice) {
         var valueTarget = model.expectShape(shape.getValue().getTarget());
 
         writer.write("$T{", symbolProvider.toSymbol(shape));
@@ -234,7 +235,7 @@ public final class SnapshotInputGenerator {
         writer.writeInline("}");
     }
 
-    private void writeUnion(GoWriter writer, UnionShape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited, UnionChoice choice) {
+    private void writeUnion(GoWriter writer, UnionShape shape, Set<ShapeId> visited, UnionChoice choice) {
         var members = shape.getAllMembers().values().stream().toList();
         boolean recursing = visited.contains(shape.getId());
 
@@ -290,14 +291,14 @@ public final class SnapshotInputGenerator {
      * Returns true if the given shape can transitively reach any shape currently being built (i.e. present in
      * {@code visited}), which would form a cycle.
      */
-    private boolean reachesVisited(Shape shape, Set<software.amazon.smithy.model.shapes.ShapeId> visited) {
+    private boolean reachesVisited(Shape shape, Set<ShapeId> visited) {
         return reachesVisited(shape, visited, new HashSet<>());
     }
 
     private boolean reachesVisited(
             Shape shape,
-            Set<software.amazon.smithy.model.shapes.ShapeId> visited,
-            Set<software.amazon.smithy.model.shapes.ShapeId> seen
+            Set<ShapeId> visited,
+            Set<ShapeId> seen
     ) {
         if (visited.contains(shape.getId())) {
             return true;
@@ -317,7 +318,7 @@ public final class SnapshotInputGenerator {
     /**
      * Controls which union variant to select.
      */
-    private record UnionChoice(software.amazon.smithy.model.shapes.ShapeId targetUnion, int variantIndex) {
+    private record UnionChoice(ShapeId targetUnion, int variantIndex) {
         static final UnionChoice DEFAULT = new UnionChoice(null, 0);
 
         int indexFor(UnionShape shape) {
