@@ -443,7 +443,7 @@ func (s *ShapeSerializer) appendEscapedString(v string) {
 			start = i
 			continue
 		}
-		if c == ' ' || c == ' ' {
+		if c == '\u2028' || c == '\u2029' {
 			if start < i {
 				s.buf = append(s.buf, v[start:i]...)
 			}
