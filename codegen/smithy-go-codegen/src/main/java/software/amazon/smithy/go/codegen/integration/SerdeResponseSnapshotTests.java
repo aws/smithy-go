@@ -67,6 +67,11 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         if (protoNew == null) {
             return;
         }
+
+        if (sortedOperations(model, service, EventStreamIndex.of(model)).isEmpty()) {
+            return;
+        }
+
         var serviceSchemaRef = "schemas." + StringUtils.capitalize(service.getId().getName(service));
         var generator = new SnapshotOutputGenerator(model, symbolProvider);
 
