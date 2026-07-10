@@ -79,8 +79,8 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         // and compare the output. They have no dependency on output Serialize/schemas, so they compile and run whether
         // the service is on legacy serde or schema-serde, and skip cleanly when no fixture is committed yet (services
         // are migrated to schema-serde in waves).
-        goDelegator.useFileWriter("serde_response_snapshot_test.go", settings.getModuleName(), writer -> {
-            writer.addBuildTag("serde_response_snapshot");
+        goDelegator.useFileWriter("response_snapshot_test.go", settings.getModuleName(), writer -> {
+            writer.addBuildTag("response_snapshot");
             writer.write(checkCommonSource());
             writer.write(checks(model, service, symbolProvider, generator));
         });
@@ -89,8 +89,8 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         // the generated output Serialize method + schemas package. Those only exist under schema-serde, so this file
         // is generated only when schema-serde is enabled -- otherwise the service would not compile.
         if (!settings.useLegacySerde()) {
-            goDelegator.useFileWriter("serde_response_snapshot_update_test.go", settings.getModuleName(), writer -> {
-                writer.addBuildTag("serde_response_snapshot");
+            goDelegator.useFileWriter("response_snapshot_update_test.go", settings.getModuleName(), writer -> {
+                writer.addBuildTag("response_snapshot");
                 writer.addImport(settings.getModuleName() + "/schemas", "schemas");
                 writer.write(updateCommonSource());
                 writer.write(updaters(model, service, symbolProvider, generator, serviceSchemaRef, protoNew,
@@ -180,10 +180,10 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
             writer.addUseImports(SmithyGoDependency.SMITHY_ENDPOINTS);
             writer.write("""
-                    const serdeRespSSPrefix = "serde_response_snapshot"
+                    const serdeRespSSPrefix = "response_snapshot"
 
                     func serdeRespSSPath(op string) string {
-                        return fmt.Sprintf("%s/%s.response.snap", serdeRespSSPrefix, op)
+                        return fmt.Sprintf("%s/%s.snap", serdeRespSSPrefix, op)
                     }
 
                     // serdeRespReadSnapshot parses a frozen wire response fixture: a status-code
@@ -446,9 +446,9 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     ) {
         var opName = symbolProvider.toSymbol(operation).getName();
         return goTemplate("""
-                func TestSerdeCheckResponseSnapshot_$name:L(t $testingT:P) {
+                func TestCheckResponseSnapshot_$name:L(t $testingT:P) {
                     want := $output:W
-                    status, header, body, err := serdeRespReadSnapshot($name:S)
+                    status, header, body, err := serdeRespReadSnapshot($fixture:S)
                     if errors.Is(err, fs.ErrNotExist) {
                         t.Skip("no response snapshot fixture")
                     }
@@ -461,12 +461,13 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         t.Fatal(err)
                     }
                     if err := $compare:T(want, got); err != nil {
-                        t.Errorf("response snapshot mismatch for %s: %v", $name:S, err)
+                        t.Errorf("response snapshot mismatch for %s: %v", $fixture:S, err)
                     }
                 }
                 """,
                 MapUtils.of(
                         "name", opName,
+                        "fixture", opName + ".response",
                         "op", opName,
                         "output", testCase.input(),
                         "input", inputSymbol,
@@ -482,7 +483,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     ) {
         var opName = symbolProvider.toSymbol(operation).getName();
         return goTemplate("""
-                func TestSerdeUpdateResponseSnapshot_$name:L(t $testingT:P) {
+                func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $output:W
                     proto := $protoNew:T($service:L)
                     opSchema := $newOpSchema:T($op:L, $out:L, $out:L)
@@ -499,13 +500,14 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         }
                         body = b
                     }
-                    if err := serdeRespWriteSnapshot($name:S, 200, built.Header, body); err != nil {
+                    if err := serdeRespWriteSnapshot($fixture:S, 200, built.Header, body); err != nil {
                         t.Fatal(err)
                     }
                 }
                 """,
                 MapUtils.of(
                         "name", opName,
+                        "fixture", opName + ".response",
                         "output", testCase.input(),
                         "protoNew", protoNew,
                         "service", serviceSchemaRef,
@@ -528,7 +530,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         var testName = "Error_" + errName;
         var fixtureName = errName + ".error";
         return goTemplate("""
-                func TestSerdeCheckResponseSnapshot_$name:L(t $testingT:P) {
+                func TestCheckResponseSnapshot_$name:L(t $testingT:P) {
                     want := $want:W
                     status, header, body, err := serdeRespReadSnapshot($fixture:S)
                     if errors.Is(err, fs.ErrNotExist) {
@@ -576,7 +578,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         var testName = "Error_" + errName;
         var fixtureName = errName + ".error";
         return goTemplate("""
-                func TestSerdeUpdateResponseSnapshot_$name:L(t $testingT:P) {
+                func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $want:W
                     proto := $protoNew:T($service:L)
                     opSchema := $newOpSchema:T($op:L, $err:L, $err:L)

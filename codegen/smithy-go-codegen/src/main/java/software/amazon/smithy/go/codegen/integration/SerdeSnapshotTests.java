@@ -29,8 +29,8 @@ public class SerdeSnapshotTests implements GoIntegration {
     public void writeAdditionalFiles(
             GoSettings settings, Model model, SymbolProvider symbolProvider, GoDelegator goDelegator
     ) {
-        goDelegator.useFileWriter("serde_snapshot_test.go", settings.getModuleName(), writer -> {
-            writer.addBuildTag("serde_snapshot");
+        goDelegator.useFileWriter("request_snapshot_test.go", settings.getModuleName(), writer -> {
+            writer.addBuildTag("request_snapshot");
             writer.write(commonSource());
             writer.write(bodyEqual(isCbor(settings)));
 
@@ -91,7 +91,7 @@ public class SerdeSnapshotTests implements GoIntegration {
             writer.addUseImports(SmithyGoDependency.STRINGS);
             writer.addUseImports(SmithyGoDependency.SLICES);
             writer.write("""
-                    const serdeSSPrefix = "serde_snapshot"
+                    const serdeSSPrefix = "request_snapshot"
 
                     // errSerdeSnapshotOK is returned by the capture middleware to abort the request
                     // pipeline once the serialized request has been captured, so no network call is
@@ -304,7 +304,7 @@ public class SerdeSnapshotTests implements GoIntegration {
         var name = testName(operation, testCase, symbolProvider);
         var opName = symbolProvider.toSymbol(operation).getName();
         return goTemplate("""
-                func TestSerdeCheckSnapshot_$name:L(t $testingT:P) {
+                func TestCheckRequestSnapshot_$name:L(t $testingT:P) {
                     input := $input:W
                     body := &bytes.Buffer{}
                     method := ""
@@ -346,7 +346,7 @@ public class SerdeSnapshotTests implements GoIntegration {
         var name = testName(operation, testCase, symbolProvider);
         var opName = symbolProvider.toSymbol(operation).getName();
         return goTemplate("""
-                func TestSerdeUpdateSnapshot_$name:L(t $testingT:P) {
+                func TestUpdateRequestSnapshot_$name:L(t $testingT:P) {
                     input := $input:W
                     body := &bytes.Buffer{}
                     method := ""
