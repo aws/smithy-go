@@ -70,8 +70,16 @@ public final class SnapshotInputGenerator {
      */
     public List<TestCase> generateCases(OperationShape operation) {
         var inputShape = model.expectShape(operation.getInputShape(), StructureShape.class);
+        return generateCasesForShape(inputShape);
+    }
+
+    /**
+     * Generates test cases for an arbitrary root structure (e.g. an operation output shape). Produces a single case
+     * with a fully-populated literal for the shape.
+     */
+    public List<TestCase> generateCasesForShape(StructureShape shape) {
         return List.of(new TestCase("", writer -> {
-            writeStructure(writer, inputShape, new HashSet<>(), UnionChoice.DEFAULT, true);
+            writeStructure(writer, shape, new HashSet<>(), UnionChoice.DEFAULT, true);
         }));
     }
 

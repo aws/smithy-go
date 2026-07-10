@@ -27,6 +27,7 @@ public final class SmithyGoDependency {
     public static final GoDependency FMT = stdlib("fmt");
     public static final GoDependency CONTEXT = stdlib("context");
     public static final GoDependency STRCONV = stdlib("strconv");
+    public static final GoDependency BUFIO = stdlib("bufio");
     public static final GoDependency BASE64 = stdlib("encoding/base64");
     public static final GoDependency NET = stdlib("net");
     public static final GoDependency NET_URL = stdlib("net/url");

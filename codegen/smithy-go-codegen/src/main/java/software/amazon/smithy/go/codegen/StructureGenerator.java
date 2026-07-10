@@ -31,7 +31,6 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.HttpPayloadTrait;
 import software.amazon.smithy.model.traits.InputTrait;
-import software.amazon.smithy.model.traits.OutputTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -155,9 +154,10 @@ public final class StructureGenerator implements Runnable {
         if (!useLegacySerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
             if (shape.hasTrait(InputTrait.class)) {
                 writer.write(new StructureSerializer(ctx, shape));
-            } else if (shape.hasTrait(OutputTrait.class)) {
-                writer.write(new StructureDeserializer(ctx, shape));
             } else {
+                // Output shapes also get a serializer (in addition to the
+                // deserializer) so response wire fixtures can be produced from a
+                // typed output value for response snapshot testing.
                 writer.write(new StructureSerializer(ctx, shape));
                 writer.write(new StructureDeserializer(ctx, shape));
             }
@@ -247,6 +247,10 @@ public final class StructureGenerator implements Runnable {
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
 
         if (!useLegacySerde) {
+            // Error shapes also get a serializer (in addition to the
+            // deserializer) so modeled-error response wire fixtures can be
+            // produced from a typed error value for response snapshot testing.
+            writer.write(new StructureSerializer(ctx, shape));
             writer.write(new StructureDeserializer(ctx, shape));
         }
     }
