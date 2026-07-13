@@ -19,7 +19,6 @@ plugins {
     signing
     jacoco
     id("com.github.spotbugs") version "4.7.4"
-    id("io.codearte.nexus-staging") version "0.30.0"
 }
 
 allprojects {
@@ -29,31 +28,6 @@ allprojects {
 
 // The root project doesn't produce a JAR.
 tasks["jar"].enabled = false
-
-// Load the Sonatype user/password for use in publishing tasks.
-val sonatypeUser: String? by project
-val sonatypePassword: String? by project
-
-/*
- * Sonatype Staging Finalization
- * ====================================================
- *
- * When publishing to Maven Central, we need to close the staging
- * repository and release the artifacts after they have been
- * validated. This configuration is for the root project because
- * it operates at the "group" level.
- */
-if (sonatypeUser != null && sonatypePassword != null) {
-    apply(plugin = "io.codearte.nexus-staging")
-
-    nexusStaging {
-        packageGroup = "software.amazon"
-        stagingProfileId = "e789115b6c941"
-
-        username = sonatypeUser
-        password = sonatypePassword
-    }
-}
 
 repositories {
     mavenLocal()
@@ -142,12 +116,10 @@ subprojects {
 
         publishing {
             repositories {
-                mavenCentral {
-                    url = uri("https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/")
-                    credentials {
-                        username = sonatypeUser
-                        password = sonatypePassword
-                    }
+                // Picked up by the internal releaser and signed/uploaded there.
+                maven {
+                    name = "localStaging"
+                    url = uri("${rootProject.buildDir}/m2")
                 }
             }
 
