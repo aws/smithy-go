@@ -78,6 +78,9 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_EVENTSTREAM = smithy("eventstream", "eventstream");
     public static final GoDependency SMITHY_AUTH = smithy("auth", "smithyauth");
     public static final GoDependency SMITHY_AUTH_BEARER = smithy("auth/bearer");
+    public static final GoDependency SMITHY_HTTP_SIGV4 = awsHttpAuthSchemes("sigv4", "sigv4");
+    public static final GoDependency SMITHY_HTTP_SIGV4A = awsHttpAuthSchemes("sigv4a", "sigv4a");
+    public static final GoDependency SMITHY_HTTP_AUTH_IDENTITY = awsHttpAuthSchemes("identity", "identity");
     public static final GoDependency SMITHY_ENDPOINTS = smithy("endpoints", "smithyendpoints");
     public static final GoDependency SMITHY_ENDPOINT_RULESFN = smithy("endpoints/private/rulesfn");
     public static final GoDependency SMITHY_ENDPOINT_BDD = smithy("endpoints/private/bdd");
@@ -94,6 +97,7 @@ public final class SmithyGoDependency {
     public static final GoDependency MATH = stdlib("math");
 
     private static final String SMITHY_SOURCE_PATH = "github.com/aws/smithy-go";
+    private static final String AWS_HTTP_AUTH_SCHEMES_SOURCE_PATH = "github.com/aws/smithy-go/aws-http-auth-schemes";
 
     private SmithyGoDependency() {
     }
@@ -127,6 +131,10 @@ public final class SmithyGoDependency {
         return relativePackage(SMITHY_SOURCE_PATH, relativePath, Versions.SMITHY_GO, alias);
     }
 
+    private static GoDependency awsHttpAuthSchemes(String relativePath, String alias) {
+        return relativePackage(AWS_HTTP_AUTH_SCHEMES_SOURCE_PATH, relativePath, Versions.SMITHY_GO_SIGV4, alias);
+    }
+
     private static GoDependency relativePackage(
             String moduleImportPath,
             String relativePath,
@@ -143,6 +151,7 @@ public final class SmithyGoDependency {
     private static final class Versions {
         private static final String GO_STDLIB = "1.15";
         private static final String SMITHY_GO = "v1.4.0";
+        private static final String SMITHY_GO_SIGV4 = "v1.0.0";
         private static final String GO_JMESPATH = "v0.4.0";
     }
 }

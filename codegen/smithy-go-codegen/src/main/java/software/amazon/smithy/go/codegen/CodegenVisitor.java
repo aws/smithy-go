@@ -38,6 +38,7 @@ import software.amazon.smithy.go.codegen.endpoints.EndpointResolutionGenerator;
 import software.amazon.smithy.go.codegen.endpoints.FnGenerator;
 import software.amazon.smithy.go.codegen.endpoints.FnProvider;
 import software.amazon.smithy.go.codegen.integration.GoIntegration;
+import software.amazon.smithy.go.codegen.integration.GoIntegrationResolver;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.go.codegen.serde2.ListDeserializer;
@@ -108,6 +109,12 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                     }
                 });
         integrations.sort(Comparator.comparingInt(GoIntegration::getOrder));
+
+        var resolved = GoIntegrationResolver.resolveReplacements(integrations);
+        if (resolved != integrations) {
+            integrations.clear();
+            integrations.addAll(resolved);
+        }
 
         settings = GoSettings.from(context.getSettings());
         fileManifest = context.getFileManifest();

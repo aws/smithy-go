@@ -107,7 +107,54 @@ public final class EndpointResolverGenerator {
     }
 
     public Writable generateEmptyRules() {
-        return generateResolverType(generateEmptyResolveMethodBody());
+        return goTemplate("""
+                // $resolverInterfaceType:T provides the interface for resolving service endpoints.
+                type $resolverInterfaceType:T interface {
+                    $resolveEndpointMethodDocs:W
+                    $resolveEndpointMethodName:L(ctx $context:T, $paramArgName:L $parametersType:T) (
+                        $endpointType:T, error,
+                    )
+                }
+
+                $resolverTypeDocs:W
+                //
+                // This service has no modeled endpoint rules. The resolver falls back to the
+                // client's BaseEndpoint; requests fail if neither BaseEndpoint nor a custom
+                // EndpointResolverV2 is configured.
+                type $resolverImplementationType:T struct{
+                    baseEndpoint *string
+                }
+
+                func $newResolverFn:T() $resolverInterfaceType:T {
+                    return &$resolverImplementationType:T{}
+                }
+
+                $resolveEndpointMethodDocs:W
+                func (r *$resolverImplementationType:T) $resolveEndpointMethodName:L(
+                    ctx $context:T, $paramArgName:L $parametersType:T,
+                ) (
+                    endpoint $endpointType:T, err error,
+                ) {
+                    if r.baseEndpoint == nil {
+                        return endpoint, $fmtErrorf:T("no endpoint rules are defined for this service; " +
+                            "set BaseEndpoint or a custom EndpointResolverV2 to make requests")
+                    }
+
+                    uri, err := $urlParse:T(*r.baseEndpoint)
+                    if err != nil {
+                        return endpoint, $fmtErrorf:T("parse BaseEndpoint %q: %w", *r.baseEndpoint, err)
+                    }
+
+                    endpoint.URI = *uri
+                    return endpoint, nil
+                }
+                """,
+                commonCodegenArgs,
+                MapUtils.of(
+                        "context", SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build(),
+                        "urlParse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL).build(),
+                        "resolverTypeDocs", generateResolverTypeDocs(),
+                        "resolveEndpointMethodDocs", generateResolveEndpointMethodDocs()));
     }
 
     private Writable generateResolverType(Writable resolveMethodBody) {
@@ -212,10 +259,6 @@ public final class EndpointResolverGenerator {
                 commonCodegenArgs,
                 MapUtils.of(
                         "withDefaults", EndpointParametersGenerator.DEFAULT_VALUE_FUNC_NAME));
-    }
-
-    private Writable generateEmptyResolveMethodBody() {
-        return goTemplate("return endpoint, $fmtErrorf:T(\"no endpoint rules defined\")", commonCodegenArgs);
     }
 
     private Writable generateResolverTypeDocs() {
