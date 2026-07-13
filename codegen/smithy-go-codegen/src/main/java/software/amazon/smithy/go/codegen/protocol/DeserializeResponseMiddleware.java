@@ -23,9 +23,11 @@ import static software.amazon.smithy.go.codegen.integration.ProtocolGenerator.ge
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -62,8 +64,14 @@ public abstract class DeserializeResponseMiddleware implements Writable {
     public abstract Writable generateDeserialize();
 
     private Writable generateHandleDeserialize() {
+        // Close body on success unless the output is a caller-owned event stream.
+        boolean closeOnSuccess = EventStreamIndex.of(ctx.getModel()).getOutputInfo(operation).isEmpty();
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
+
+                // Close the body on every exit path in place of the standalone close middleware.
+                resp, _ := out.RawResponse.($response:P)
+                defer $drainClose:T(ctx, resp, $closeOnSuccess:L, err)
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
@@ -74,8 +82,7 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                     return out, metadata, err
                 }
 
-                resp, ok := out.RawResponse.($response:P)
-                if !ok {
+                if resp == nil {
                     return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
                 }
 
@@ -87,7 +94,9 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                         "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "response", generator.getApplicationProtocol().getResponseType(),
                         "deserialize", generateDeserialize(),
-                        "errorf", GoStdlibTypes.Fmt.Errorf
+                        "errorf", GoStdlibTypes.Fmt.Errorf,
+                        "drainClose", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("DrainAndCloseResponseBody"),
+                        "closeOnSuccess", closeOnSuccess ? "true" : "false"
                 ));
     }
 }
