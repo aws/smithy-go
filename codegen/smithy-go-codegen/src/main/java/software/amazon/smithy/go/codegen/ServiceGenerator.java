@@ -425,6 +425,8 @@ final class ServiceGenerator implements Runnable {
 
                     $finalizers:W
 
+                    ctx = middleware.SetLogger(ctx, options.Logger)
+
                     if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
                         return nil, metadata, err
                     }
@@ -540,6 +542,8 @@ final class ServiceGenerator implements Runnable {
                     }
 
                     $finalizers:W
+
+                    ctx = middleware.SetLogger(ctx, options.Logger)
 
                     if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
                         return nil, metadata, err
