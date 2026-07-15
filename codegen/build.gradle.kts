@@ -13,6 +13,12 @@
  * permissions and limitations under the License.
  */
 
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.util.Base64
+
 plugins {
     `java-library`
     `maven-publish`
@@ -32,6 +38,111 @@ tasks["jar"].enabled = false
 repositories {
     mavenLocal()
     mavenCentral()
+}
+
+/*
+ * Maven Central publishing (interim, pending internal releaser support)
+ * ====================================================
+ *
+ * The internal releaser isn't wired up to sign/publish this package
+ * yet, so in the meantime `./gradlew publish` also stages signed
+ * artifacts into build/staging-deploy (in addition to the localStaging
+ * repo above), and `./gradlew uploadToCentralPortal` bundles that
+ * directory into a zip and uploads it directly to the Central Portal
+ * Publisher API. This should be removed once the internal releaser
+ * takes over.
+ *
+ * Signing reads an in-memory ASCII-armored PGP key from the environment,
+ * nothing sensitive is stored in this file or in gradle.properties:
+ *
+ *   ORG_GRADLE_PROJECT_signingKey       (ASCII-armored private key)
+ *   ORG_GRADLE_PROJECT_signingPassword
+ *
+ * Central Portal credentials (a user token generated at
+ * central.sonatype.com/account) are read the same way:
+ *
+ *   ORG_GRADLE_PROJECT_mavenCentralUsername
+ *   ORG_GRADLE_PROJECT_mavenCentralPassword
+ *
+ * Usage:
+ *   ./publish-to-central.sh   # validates required env vars, then runs
+ *                             # `./gradlew clean publish uploadToCentralPortal`
+ */
+val mavenCentralUsername: String? by project
+val mavenCentralPassword: String? by project
+
+// Shared by zipStagingDeploy below and the per-subproject "stagingDeploy"
+// publishing repository further down — both need to agree on where signed
+// artifacts land before they're bundled into the upload zip.
+val stagingDeployDirName = "staging-deploy"
+val stagingDeployDir = layout.buildDirectory.dir(stagingDeployDirName)
+
+val zipStagingDeploy by tasks.registering(Zip::class) {
+    dependsOn(":smithy-go-codegen:publishAllPublicationsToStagingDeployRepository")
+    from(stagingDeployDir)
+    archiveFileName.set("smithy-go-codegen.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+}
+
+/**
+ * Builds the multipart/form-data POST request to upload [bundle] to the
+ * Central Portal Publisher API.
+ *
+ * Central Portal API reference: https://central.sonatype.com/api-doc
+ * (see "Upload Bundle" under the Publisher API — a single `bundle` file
+ * field containing a zip of the Maven-layout staging repository, Basic
+ * auth via a base64 `username:password` user token passed as a Bearer
+ * value, and a `publishingType` query param of `USER_MANAGED` or
+ * `AUTOMATIC`).
+ *
+ * The JDK's [HttpClient] has no native multipart support, so the
+ * request body is assembled by hand here: a boundary-delimited part
+ * header/footer wrapped around the raw bundle file bytes.
+ */
+fun buildCentralPortalUploadRequest(bundle: File, username: String, password: String): HttpRequest {
+    val token = Base64.getEncoder()
+        .encodeToString("$username:$password".toByteArray(Charsets.UTF_8))
+
+    val boundary = "----GradleCentralPortalUpload"
+    val bodyPrefix = buildString {
+        append("--$boundary\r\n")
+        append("Content-Disposition: form-data; name=\"bundle\"; filename=\"${bundle.name}\"\r\n")
+        append("Content-Type: application/zip\r\n\r\n")
+    }.toByteArray(Charsets.UTF_8)
+    val bodySuffix = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
+
+    return HttpRequest.newBuilder()
+        .uri(URI.create("https://central.sonatype.com/api/v1/publisher/upload?publishingType=USER_MANAGED"))
+        .header("Authorization", "Bearer $token")
+        .header("Content-Type", "multipart/form-data; boundary=$boundary")
+        .POST(
+            HttpRequest.BodyPublishers.concat(
+                HttpRequest.BodyPublishers.ofByteArray(bodyPrefix),
+                HttpRequest.BodyPublishers.ofFile(bundle.toPath()),
+                HttpRequest.BodyPublishers.ofByteArray(bodySuffix),
+            ),
+        )
+        .build()
+}
+
+tasks.register("uploadToCentralPortal") {
+    dependsOn(zipStagingDeploy)
+    doLast {
+        require(!mavenCentralUsername.isNullOrBlank() && !mavenCentralPassword.isNullOrBlank()) {
+            "mavenCentralUsername/mavenCentralPassword must be set (e.g. via " +
+                "ORG_GRADLE_PROJECT_mavenCentralUsername / ORG_GRADLE_PROJECT_mavenCentralPassword) " +
+                "to upload to Central Portal."
+        }
+
+        val bundle = zipStagingDeploy.get().archiveFile.get().asFile
+        val request = buildCentralPortalUploadRequest(bundle, mavenCentralUsername!!, mavenCentralPassword!!)
+
+        val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+        logger.lifecycle("Central Portal response (${response.statusCode()}): ${response.body()}")
+        require(response.statusCode() in 200..299) {
+            "Upload to Central Portal failed with status ${response.statusCode()}: ${response.body()}"
+        }
+    }
 }
 
 subprojects {
@@ -120,6 +231,14 @@ subprojects {
                 maven {
                     name = "localStaging"
                     url = uri("${rootProject.buildDir}/m2")
+                }
+
+                // Consumed by the root project's uploadToCentralPortal task
+                // (interim path until the internal releaser supports this
+                // package — see the comment near that task's definition).
+                maven {
+                    name = "stagingDeploy"
+                    url = uri(rootProject.layout.buildDirectory.dir(stagingDeployDirName))
                 }
             }
 
