@@ -48,6 +48,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
     private final OperationPredicate operationPredicate;
     private final Set<ConfigField> configFields;
     private final Set<ConfigFieldResolver> configFieldResolvers;
+    private final Set<Symbol> operationContextResolvers;
     private final Set<ClientMember> clientMembers;
     private final Set<ClientMemberResolver> clientMemberResolvers;
     private final Set<AuthParameter> authParameters;
@@ -68,6 +69,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         authParameters = builder.authParameters;
         authParameterResolvers = builder.authParameterResolvers;
         configFieldResolvers = builder.configFieldResolvers;
+        operationContextResolvers = builder.operationContextResolvers;
         endpointBuiltinBindings = builder.endpointBuiltinBindings;
         authSchemeDefinitions = builder.authSchemeDefinitions;
         shapeDeserializers = builder.shapeDeserializers;
@@ -102,6 +104,23 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
      */
     public Set<ConfigFieldResolver> getConfigFieldResolvers() {
         return configFieldResolvers;
+    }
+
+    /**
+     * Gets the operation context resolvers contributed by this plugin.
+     *
+     * <p>Each resolver is a symbol pointing to a function with the signature
+     * {@code func(context.Context, Options, string) context.Context}. It is
+     * called in {@code invokeOperation} as
+     * {@code ctx = resolver(ctx, options, opID)}, after client options are
+     * finalized and before the middleware stack is built. This lets a plugin
+     * set request-scoped context values in one place instead of a per-request
+     * Initialize-step middleware.
+     *
+     * @return the operation context resolvers.
+     */
+    public Set<Symbol> getOperationContextResolvers() {
+        return operationContextResolvers;
     }
 
     /**
@@ -244,6 +263,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         return builder()
                 .clientMemberResolvers(clientMemberResolvers)
                 .configFieldResolvers(configFieldResolvers)
+                .operationContextResolvers(operationContextResolvers)
                 .servicePredicate(servicePredicate)
                 .operationPredicate(operationPredicate)
                 .registerMiddleware(registerMiddleware);
@@ -257,6 +277,7 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
         private OperationPredicate operationPredicate = (model, service, operation) -> false;
         private Set<ConfigField> configFields = new LinkedHashSet<>();
         private Set<ConfigFieldResolver> configFieldResolvers = new LinkedHashSet<>();
+        private Set<Symbol> operationContextResolvers = new LinkedHashSet<>();
         private Set<ClientMember> clientMembers = new LinkedHashSet<>();
         private Set<ClientMemberResolver> clientMemberResolvers = new LinkedHashSet<>();
         private Set<AuthParameter> authParameters = new LinkedHashSet<>();
@@ -421,6 +442,32 @@ public final class RuntimeClientPlugin implements ToSmithyBuilder<RuntimeClientP
          */
         public Builder addConfigFieldResolver(ConfigFieldResolver configFieldResolver) {
             this.configFieldResolvers.add(configFieldResolver);
+            return this;
+        }
+
+        /**
+         * Sets the operation context resolvers contributed by this plugin.
+         *
+         * <p>Each resolver is a symbol pointing to a function with the signature
+         * {@code func(context.Context, Options, string) context.Context}, called
+         * in {@code invokeOperation} as {@code ctx = resolver(ctx, options, opID)}.
+         *
+         * @param operationContextResolvers The operation context resolvers.
+         * @return Returns the builder.
+         */
+        public Builder operationContextResolvers(Collection<Symbol> operationContextResolvers) {
+            this.operationContextResolvers = new LinkedHashSet<>(operationContextResolvers);
+            return this;
+        }
+
+        /**
+         * Adds an operation context resolver contributed by this plugin.
+         *
+         * @param operationContextResolver The operation context resolver.
+         * @return Returns the builder.
+         */
+        public Builder addOperationContextResolver(Symbol operationContextResolver) {
+            this.operationContextResolvers.add(operationContextResolver);
             return this;
         }
 

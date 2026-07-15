@@ -426,6 +426,7 @@ final class ServiceGenerator implements Runnable {
                     $finalizers:W
 
                     ctx = middleware.SetLogger(ctx, options.Logger)
+                    $contextResolvers:W
 
                     if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
                         return nil, metadata, err
@@ -513,6 +514,7 @@ final class ServiceGenerator implements Runnable {
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
+                        "contextResolvers", generateOperationContextResolvers(),
                         "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandlerWithOptions"),
                         "scope", settings.getModuleName()
                 ));
@@ -544,6 +546,7 @@ final class ServiceGenerator implements Runnable {
                     $finalizers:W
 
                     ctx = middleware.SetLogger(ctx, options.Logger)
+                    $contextResolvers:W
 
                     if err := c.addCommonMiddlewares(stack, options, opID); err != nil {
                         return nil, metadata, err
@@ -635,6 +638,7 @@ final class ServiceGenerator implements Runnable {
                                         ConfigFieldResolver.Target.FINALIZATION
                                 ).map(this::generateConfigFieldResolver).toList()
                         ).compose(),
+                        "contextResolvers", generateOperationContextResolvers(),
                         "newClientHandler", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewClientHandlerWithOptions"),
                         "scope", settings.getModuleName()
                 ));
@@ -719,6 +723,20 @@ final class ServiceGenerator implements Runnable {
                 .filter(it -> it.matchesService(model, service))
                 .flatMap(it -> it.getConfigFieldResolvers().stream())
                 .filter(it -> it.getLocation() == location && it.getTarget() == target);
+    }
+
+    // Emits, for each operation context resolver contributed by a matching plugin,
+    // a `ctx = resolver(ctx, options, opID)` statement in invokeOperation. Lets a
+    // plugin set request-scoped context values here instead of via a per-request
+    // Initialize-step middleware.
+    private Writable generateOperationContextResolvers() {
+        return ChainWritable.of(
+                runtimePlugins.stream()
+                        .filter(it -> it.matchesService(model, service))
+                        .flatMap(it -> it.getOperationContextResolvers().stream())
+                        .map(resolver -> goTemplate("ctx = $T(ctx, options, opID)", resolver))
+                        .toList()
+        ).compose();
     }
 
     private Writable generateInputContextFuncs() {
