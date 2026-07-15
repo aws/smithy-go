@@ -22,9 +22,11 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_TRACIN
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -83,6 +85,8 @@ public abstract class SerializeRequestMiddleware implements Writable {
 
                 $serialize:W
 
+                $contentLength:W
+
                 endTimer()
                 span.End()
 
@@ -94,6 +98,27 @@ public abstract class SerializeRequestMiddleware implements Writable {
                         "request", generator.getApplicationProtocol().getRequestType(),
                         "route", generateRouteRequest(),
                         "serialize", generateSerialize(),
+                        "contentLength", generateComputeContentLength(),
+                        "errorf", GoStdlibTypes.Fmt.Errorf
+                ));
+    }
+
+    // Computes the request content length in place of the standalone
+    // ComputeContentLength middleware, now that the body is serialized. Skipped
+    // for event-stream inputs, matching the previous middleware registration
+    // condition.
+    private Writable generateComputeContentLength() {
+        if (EventStreamIndex.of(ctx.getModel()).getInputInfo(operation).isPresent()) {
+            return emptyGoTemplate();
+        }
+        return goTemplate("""
+                if err := $computeContentLength:T(req); err != nil {
+                    return out, metadata, $errorf:T("compute content length: %w", err)
+                }
+                """,
+                MapUtils.of(
+                        "computeContentLength",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ComputeRequestContentLength"),
                         "errorf", GoStdlibTypes.Fmt.Errorf
                 ));
     }

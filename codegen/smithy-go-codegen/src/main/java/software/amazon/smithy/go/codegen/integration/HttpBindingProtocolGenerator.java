@@ -361,6 +361,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("in.Request = request");
             writer.write("");
 
+            // Compute the request content length in place of the standalone
+            // ComputeContentLength middleware, now that the body is serialized.
+            // Skipped for event-stream inputs, matching the previous middleware
+            // registration condition.
+            if (EventStreamIndex.of(model).getInputInfo(operation).isEmpty()) {
+                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                writer.openBlock("if err := $T(request); err != nil {", "}",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ComputeRequestContentLength"), () -> {
+                            writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                        });
+                writer.write("");
+            }
+
             writer.write("endTimer()");
             writer.write("span.End()");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
