@@ -221,6 +221,19 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             // Ensure the request value is updated if modified for a document.
             writer.write("in.Request = request");
 
+            // Compute the request content length in place of the standalone
+            // ComputeContentLength middleware, now that the body is serialized.
+            // Skipped for event-stream inputs, matching the previous middleware
+            // registration condition.
+            if (optionalEventStreamInfo.isEmpty()) {
+                writer.write("");
+                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                writer.openBlock("if err := $T(request); err != nil {", "}",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ComputeRequestContentLength"), () -> {
+                            writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                        });
+            }
+
             writer.write("");
             writer.write("endTimer()");
             writer.write("span.End()");
