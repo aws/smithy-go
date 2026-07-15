@@ -31,7 +31,6 @@ import software.amazon.smithy.utils.ListUtils;
 public class ClientLogger implements GoIntegration {
     private static final String DEFAULT_LOGGER_RESOLVER = "resolveDefaultLogger";
     private static final String LOGGER_CONFIG_NAME = "Logger";
-    private static final String REGISTER_MIDDLEWARE = "addSetLoggerMiddleware";
 
     @Override
     public byte getOrder() {
@@ -55,21 +54,14 @@ public class ClientLogger implements GoIntegration {
                 writer.write("o.$L = $T{}", LOGGER_CONFIG_NAME, nopSymbol);
             });
             writer.write("");
-
-            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
-                    .build();
-            Symbol helperSymbol = SymbolUtils.createValueSymbolBuilder("AddSetLoggerMiddleware",
-                    SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-
-            writer.openBlock("func $L(stack $P, o Options) error {", "}", REGISTER_MIDDLEWARE, stackSymbol, () -> {
-                writer.write("return $T(stack, o.$L)", helperSymbol, LOGGER_CONFIG_NAME);
-            });
-            writer.write("");
         });
     }
 
     @Override
     public List<RuntimeClientPlugin> getClientPlugins() {
+        // The logger is set on the context directly in invokeOperation
+        // (ctx = middleware.SetLogger(ctx, options.Logger)) rather than via a
+        // standalone per-request middleware, so no middleware is registered here.
         return ListUtils.of(
                 RuntimeClientPlugin.builder()
                         .addConfigField(ConfigField.builder()
@@ -82,10 +74,6 @@ public class ClientLogger implements GoIntegration {
                                 .location(ConfigFieldResolver.Location.CLIENT)
                                 .target(ConfigFieldResolver.Target.INITIALIZATION)
                                 .resolver(SymbolUtils.createValueSymbolBuilder(DEFAULT_LOGGER_RESOLVER).build())
-                                .build())
-                        .registerMiddleware(MiddlewareRegistrar.builder()
-                                .resolvedFunction(SymbolUtils.createValueSymbolBuilder(REGISTER_MIDDLEWARE).build())
-                                .useClientOptions()
                                 .build())
                         .isCommon(true)
                         .build()
