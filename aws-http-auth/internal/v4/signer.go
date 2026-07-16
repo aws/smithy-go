@@ -122,7 +122,15 @@ func (s *Signer) resolvePayloadHash() error {
 func (s *Signer) setRequiredHeaders() {
 	headers := s.Request.Header
 
-	s.Request.Header.Set("Host", s.Request.Host)
+	// Host optionally overrides the Host header; when empty, net/http sends URL.Host on the
+	// wire, so that is what must be signed. Signing s.Request.Host directly would sign an
+	// empty host for a request that only has URL.Host set (e.g. one not built via
+	// http.NewRequest), producing a signature mismatch.
+	host := s.Request.Host
+	if host == "" {
+		host = s.Request.URL.Host
+	}
+	s.Request.Header.Set("Host", host)
 
 	// X-Amz-Date and X-Amz-Security-Token are only set as headers when using a header signature type
 	if s.SignatureType == v4.SignatureTypeHeader {

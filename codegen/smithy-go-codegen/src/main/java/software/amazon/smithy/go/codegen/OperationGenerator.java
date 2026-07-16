@@ -271,12 +271,15 @@ public final class OperationGenerator implements Runnable {
      * Generate operation protocol middleware helper.
      */
     private void generateOperationProtocolMiddlewareAdders() {
-        if (protocolGenerator == null) {
-            return;
-        }
         writer.addUseImports(SmithyGoDependency.SMITHY_MIDDLEWARE);
 
         if (ctx.settings().useLegacySerde()) {
+            // Legacy serde generates per-operation serializer/deserializer middleware whose names derive from the
+            // resolved protocol generator; without one there is nothing to add.
+            if (protocolGenerator == null) {
+                return;
+            }
+
             // Add request serializer middleware
             String serializerMiddlewareName = ProtocolGenerator.getSerializeMiddlewareName(
                     operation.getId(), service, protocolGenerator.getProtocolName());
