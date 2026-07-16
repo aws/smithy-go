@@ -1,0 +1,8 @@
+{
+    "id": "5a7caac2-3552-46b4-b86a-8f41f6c9e486",
+    "type": "bugfix",
+    "description": "Use r.URL.Host when r.Host is unset.",
+    "modules": [
+        "aws-http-auth"
+    ]
+}
