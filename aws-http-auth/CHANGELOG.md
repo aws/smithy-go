@@ -1,3 +1,7 @@
+# v1.2.1 (2026-07-16)
+
+* **Bug Fix**: Use r.URL.Host when r.Host is unset.
+
 # v1.2.0 (2026-06-02)
 
 * **Feature**: Add event stream signer.
