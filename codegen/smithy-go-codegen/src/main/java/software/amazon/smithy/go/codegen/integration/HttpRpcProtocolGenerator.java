@@ -334,11 +334,24 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
 
+        // Close body on success unless the output is a caller-owned event stream.
+        boolean closeOnSuccess = EventStreamIndex.of(model).getOutputInfo(operation).isEmpty();
+
         middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
+            writer.write("");
+
+            // Close the body on every exit path in place of the standalone close middleware.
+            writer.write("response, _ := out.RawResponse.($P)", responseType);
+            writer.write("defer $T(ctx, response, $L, err)",
+                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("DrainAndCloseResponseBody"),
+                    closeOnSuccess ? "true" : "false");
+            writer.write("");
+
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
@@ -349,8 +362,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 
-            writer.write("response, ok := out.RawResponse.($P)", responseType);
-            writer.openBlock("if !ok {", "}", () -> {
+            writer.openBlock("if response == nil {", "}", () -> {
                 writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });
