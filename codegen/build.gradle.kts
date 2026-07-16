@@ -30,7 +30,7 @@ plugins {
 
 allprojects {
     group = "software.amazon.smithy.go"
-    version = "0.1.0"
+    version = "0.1.1"
 }
 
 // The root project doesn't produce a JAR.
