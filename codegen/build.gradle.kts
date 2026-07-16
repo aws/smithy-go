@@ -17,6 +17,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.security.MessageDigest
 import java.util.Base64
 
 plugins {
@@ -44,13 +45,18 @@ repositories {
  * Maven Central publishing (interim, pending internal releaser support)
  * ====================================================
  *
- * The internal releaser isn't wired up to sign/publish this package
- * yet, so in the meantime `./gradlew publish` also stages signed
- * artifacts into build/staging-deploy (in addition to the localStaging
- * repo above), and `./gradlew uploadToCentralPortal` bundles that
- * directory into a zip and uploads it directly to the Central Portal
- * Publisher API. This should be removed once the internal releaser
- * takes over.
+ * The internal releaser isn't wired up to sign/publish this package yet.
+ * In the meantime, `./gradlew uploadToCentralPortal -PbundleDir=<dir>`
+ * signs an already-built, unsigned Maven repository directory (the same
+ * layout `./gradlew publish` produces, e.g. build/m2) and uploads it
+ * directly to the Central Portal Publisher API. This should be removed
+ * once the internal releaser takes over.
+ *
+ * <dir> should be a copy of an artifact that was already built and
+ * tested elsewhere, not this project's own local build output — signing
+ * a fresh local build defeats the purpose of this interim path, so
+ * bundleDir is rejected if it's inside this project's own build/
+ * directory.
  *
  * Signing reads an in-memory ASCII-armored PGP key from the environment,
  * nothing sensitive is stored in this file or in gradle.properties:
@@ -65,21 +71,124 @@ repositories {
  *   ORG_GRADLE_PROJECT_mavenCentralPassword
  *
  * Usage:
- *   ./publish-to-central.sh   # validates required env vars, then runs
- *                             # `./gradlew clean publish uploadToCentralPortal`
+ *   ./gradlew uploadToCentralPortal -PbundleDir=/path/to/unsigned/m2
  */
 val mavenCentralUsername: String? by project
 val mavenCentralPassword: String? by project
+val signingKey: String? by project
+val signingPassword: String? by project
 
-// Shared by zipStagingDeploy below and the per-subproject "stagingDeploy"
-// publishing repository further down — both need to agree on where signed
-// artifacts land before they're bundled into the upload zip.
-val stagingDeployDirName = "staging-deploy"
-val stagingDeployDir = layout.buildDirectory.dir(stagingDeployDirName)
+// Directory containing an already-built, unsigned Maven repository
+// directory to sign and upload. Required — see comment block above.
+val bundleDir: String? by project
 
-val zipStagingDeploy by tasks.registering(Zip::class) {
-    dependsOn(":smithy-go-codegen:publishAllPublicationsToStagingDeployRepository")
-    from(stagingDeployDir)
+/**
+ * Signs an already-built Maven repository directory (the unsigned
+ * `localStaging` tree, i.e. `build/m2`, produced elsewhere via a plain
+ * `./gradlew publish`) in place, without rebuilding anything.
+ *
+ * For every artifact file (jar/pom/module — anything that isn't already a
+ * signature or a checksum), this:
+ *   1. Produces a detached ASCII-armored PGP signature (`<file>.asc`), using
+ *      the same `signing` plugin machinery (`useInMemoryPgpKeys`) that
+ *      `./gradlew publish` already uses successfully for the normal
+ *      fresh-build path — this avoids hand-rolling a `gpg` CLI invocation
+ *      (which is sensitive to local gpg-agent/keyring setup).
+ *   2. Produces md5/sha1/sha256/sha512 checksums for that new `.asc` file,
+ *      matching the checksums Gradle already generates for the artifacts
+ *      themselves.
+ *
+ * This lets a human take the exact bytes that were already built and
+ * tested elsewhere and sign only, with no second build involved. See
+ * `signAndZipBundle` for the task that wires this to a specific source
+ * directory.
+ */
+fun signMavenRepoInPlace(repoDir: File, signingKey: String, signingPassword: String) {
+    val digestAlgorithms = mapOf(
+        "md5" to "MD5",
+        "sha1" to "SHA-1",
+        "sha256" to "SHA-256",
+        "sha512" to "SHA-512",
+    )
+
+    fun writeChecksums(file: File) {
+        digestAlgorithms.forEach { (extension, algorithm) ->
+            val digest = MessageDigest.getInstance(algorithm).digest(file.readBytes())
+            val hex = digest.joinToString("") { "%02x".format(it) }
+            File(file.parentFile, "${file.name}.$extension").writeText(hex)
+        }
+    }
+
+    signing.useInMemoryPgpKeys(signingKey, signingPassword)
+
+    repoDir.walkTopDown()
+        .filter { it.isFile }
+        .filterNot { it.name.endsWith(".asc") }
+        .filterNot { it.name.endsWith(".md5") }
+        .filterNot { it.name.endsWith(".sha1") }
+        .filterNot { it.name.endsWith(".sha256") }
+        .filterNot { it.name.endsWith(".sha512") }
+        .forEach { file ->
+            // SignOperation.sign(File) registers the file; execute() runs
+            // the actual signing. getSignatureFiles() then gives us the
+            // "<file>.asc" it wrote next to the input, matching the
+            // convention writeChecksums below expects.
+            val operation = signing.sign(file).execute()
+            val signatureFiles = operation.signatureFiles.files
+            check(signatureFiles.isNotEmpty()) { "gpg signing produced no output for ${file.path}" }
+            signatureFiles.forEach { writeChecksums(it) }
+        }
+}
+
+val signBundle by tasks.registering {
+    val workDir = layout.buildDirectory.dir("signed-bundle").get().asFile
+    outputs.dir(workDir)
+
+    doLast {
+        val signingKey = requireNotNull(signingKey) { "signingKey must be set to sign a bundle." }
+        val signingPassword = requireNotNull(signingPassword) { "signingPassword must be set to sign a bundle." }
+        val bundleDirValue = requireNotNull(bundleDir) {
+            "bundleDir must be set, e.g. -PbundleDir=/path/to/unsigned/m2"
+        }
+
+        val sourceDir = File(bundleDirValue)
+        require(sourceDir.isDirectory) { "bundleDir '$sourceDir' is not a directory." }
+
+        // Refuse anything under this project's own Gradle build output.
+        // The point of this task is to sign+upload an artifact that was
+        // already built and tested elsewhere; signing a fresh local
+        // build defeats that, even accidentally.
+        val sourceDirCanonical = sourceDir.canonicalFile
+        val localBuildDirCanonical = layout.buildDirectory.get().asFile.canonicalFile
+        require(!sourceDirCanonical.startsWith(localBuildDirCanonical)) {
+            "bundleDir '$sourceDir' is inside this project's own local Gradle build output " +
+                "($localBuildDirCanonical). This task only signs/uploads an artifact that was " +
+                "already built and tested elsewhere, not a fresh local build. Point bundleDir " +
+                "at a copy of that artifact's unsigned Maven repository directory instead."
+        }
+
+        // Work on a copy so the source directory itself is left untouched
+        // (in case it needs to be re-signed or inspected).
+        workDir.deleteRecursively()
+        sourceDir.copyRecursively(workDir)
+
+        signMavenRepoInPlace(workDir, signingKey, signingPassword)
+    }
+}
+
+val signAndZipBundle by tasks.registering(Zip::class) {
+    dependsOn(signBundle)
+    from(layout.buildDirectory.dir("signed-bundle")) {
+        // Central Portal's bundle validator expects every directory in the
+        // upload to contain a .pom for the version it represents. The
+        // localStaging repo's own maven-metadata.xml (plus its checksums and,
+        // once signed, its .asc) sits one level up from the versioned
+        // directory that actually has the .pom, so it trips a spurious
+        // "Bundle has content that does NOT have a .pom file" validation
+        // failure. Central generates its own metadata, so exclude ours from
+        // the upload.
+        exclude("**/maven-metadata.xml*")
+    }
     archiveFileName.set("smithy-go-codegen.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 }
@@ -126,7 +235,7 @@ fun buildCentralPortalUploadRequest(bundle: File, username: String, password: St
 }
 
 tasks.register("uploadToCentralPortal") {
-    dependsOn(zipStagingDeploy)
+    dependsOn(signAndZipBundle)
     doLast {
         require(!mavenCentralUsername.isNullOrBlank() && !mavenCentralPassword.isNullOrBlank()) {
             "mavenCentralUsername/mavenCentralPassword must be set (e.g. via " +
@@ -134,7 +243,7 @@ tasks.register("uploadToCentralPortal") {
                 "to upload to Central Portal."
         }
 
-        val bundle = zipStagingDeploy.get().archiveFile.get().asFile
+        val bundle = signAndZipBundle.get().archiveFile.get().asFile
         val request = buildCentralPortalUploadRequest(bundle, mavenCentralUsername!!, mavenCentralPassword!!)
 
         val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
@@ -227,18 +336,13 @@ subprojects {
 
         publishing {
             repositories {
-                // Picked up by the internal releaser and signed/uploaded there.
-                maven {
-                    name = "localStaging"
-                    url = uri("${rootProject.buildDir}/m2")
-                }
-
-                // Consumed by the root project's uploadToCentralPortal task
+                // Picked up by the internal releaser and signed/uploaded there,
+                // and consumed as the bundleDir input to uploadToCentralPortal
                 // (interim path until the internal releaser supports this
                 // package — see the comment near that task's definition).
                 maven {
-                    name = "stagingDeploy"
-                    url = uri(rootProject.layout.buildDirectory.dir(stagingDeployDirName))
+                    name = "localStaging"
+                    url = uri("${rootProject.buildDir}/m2")
                 }
             }
 
