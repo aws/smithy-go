@@ -57,6 +57,14 @@ public class Serde2SerializeRequestMiddleware extends SerializeStepMiddleware {
                     return middleware.SerializeOutput{}, middleware.Metadata{}, err
                 }
 
+                // Compute the request content length now that the body is serialized,
+                // unless the input is a caller-owned event stream.
+                if !m.operationSchema.IsInputEventStream() {
+                    if err := smithyhttp.ComputeRequestContentLength(req); err != nil {
+                        return middleware.SerializeOutput{}, middleware.Metadata{}, fmt.Errorf("compute content length: %w", err)
+                    }
+                }
+
                 return next.HandleSerialize(ctx, in)
                 """, SmithyGoDependency.SMITHY_TRACING);
     }
