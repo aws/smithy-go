@@ -348,8 +348,9 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
 
-        // Close body on success unless the output is a caller-owned event stream.
-        boolean closeOnSuccess = EventStreamIndex.of(model).getOutputInfo(operation).isEmpty();
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(model, operation);
 
         middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -359,11 +360,11 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("");
 
-            // Close the body on every exit path in place of the standalone close middleware.
+            // Close the response body once deserialization is done.
             writer.write("response, _ := out.RawResponse.($P)", responseType);
-            writer.write("defer $T(ctx, response, $L, err)",
-                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("DrainAndCloseResponseBody"),
-                    closeOnSuccess ? "true" : "false");
+            writer.write("defer $T(ctx, response, $L)",
+                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                    isStreaming ? "true" : "false");
             writer.write("");
 
             writer.write("if err != nil { return out, metadata, err }");

@@ -403,9 +403,9 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
                 operation, service, context.getProtocolName());
 
-        // Close body on success unless the response carries a caller-owned stream
-        // (a streaming payload like S3 GetObject, or an event stream output).
-        boolean closeOnSuccess = !hasStreamingResponse(model, operation);
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload like S3 GetObject, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(model, operation);
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
@@ -414,11 +414,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("");
 
-            // Close the body on every exit path in place of the standalone close middleware.
+            // Close the response body once deserialization is done.
             writer.write("response, _ := out.RawResponse.($P)", responseType);
-            writer.write("defer $T(ctx, response, $L, err)",
-                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("DrainAndCloseResponseBody"),
-                    closeOnSuccess ? "true" : "false");
+            writer.write("defer $T(ctx, response, $L)",
+                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                    isStreaming ? "true" : "false");
             writer.write("");
 
             writer.write("if err != nil { return out, metadata, err }");
@@ -510,20 +510,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 this::getOperationErrors);
         deserializingErrorShapes.addAll(errorShapes);
         deserializeDocumentBindingShapes.addAll(errorShapes);
-    }
-
-    // True when the operation's successful response body is a caller-owned stream:
-    // a streaming payload (e.g. S3 GetObject) or an event stream output.
-    private static boolean hasStreamingResponse(Model model, OperationShape operation) {
-        if (!EventStreamIndex.of(model).getOutputInfo(operation).isEmpty()) {
-            return true;
-        }
-        HttpBindingIndex bindingIndex = HttpBindingIndex.of(model);
-        return bindingIndex.getResponseBindings(operation, HttpBinding.Location.PAYLOAD).stream()
-                .findFirst()
-                .map(binding -> model.expectShape(binding.getMember().getTarget())
-                        .hasTrait(StreamingTrait.class))
-                .orElse(false);
     }
 
     /**

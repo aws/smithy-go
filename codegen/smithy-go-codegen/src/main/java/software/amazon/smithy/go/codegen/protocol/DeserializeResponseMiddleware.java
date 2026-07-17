@@ -27,7 +27,6 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
-import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -64,14 +63,15 @@ public abstract class DeserializeResponseMiddleware implements Writable {
     public abstract Writable generateDeserialize();
 
     private Writable generateHandleDeserialize() {
-        // Close body on success unless the output is a caller-owned event stream.
-        boolean closeOnSuccess = EventStreamIndex.of(ctx.getModel()).getOutputInfo(operation).isEmpty();
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(ctx.getModel(), operation);
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
 
-                // Close the body on every exit path in place of the standalone close middleware.
+                // Close the response body once deserialization is done.
                 resp, _ := out.RawResponse.($response:P)
-                defer $drainClose:T(ctx, resp, $closeOnSuccess:L, err)
+                defer $closeBody:T(ctx, resp, $isStreaming:L)
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
@@ -95,8 +95,8 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                         "response", generator.getApplicationProtocol().getResponseType(),
                         "deserialize", generateDeserialize(),
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "drainClose", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("DrainAndCloseResponseBody"),
-                        "closeOnSuccess", closeOnSuccess ? "true" : "false"
+                        "closeBody", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                        "isStreaming", isStreaming ? "true" : "false"
                 ));
     }
 }

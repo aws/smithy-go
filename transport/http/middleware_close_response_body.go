@@ -2,35 +2,18 @@ package http
 
 import (
 	"context"
-	"io"
 
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/middleware"
 )
 
-// DrainAndCloseResponseBody drains and closes the HTTP response body. It always
-// closes on error; on success it closes only when closeOnSuccess is true (pass
-// false when the response is a streaming payload owned by the caller).
-func DrainAndCloseResponseBody(ctx context.Context, resp *Response, closeOnSuccess bool, opErr error) {
-	if resp == nil || resp.Body == nil {
+// CloseResponseBody closes the HTTP response body, unless it is a caller-owned
+// streaming payload (isStreaming).
+func CloseResponseBody(ctx context.Context, resp *Response, isStreaming bool) {
+	if resp == nil || resp.Body == nil || isStreaming {
 		return
 	}
 
-	if opErr != nil {
-		// Consume the full body to prevent TCP connection resets on some platforms.
-		_, _ = io.Copy(io.Discard, resp.Body)
-		// Do not validate that the response closes successfully on the error path.
-		resp.Body.Close()
-		return
-	}
-
-	if !closeOnSuccess {
-		return
-	}
-
-	if _, copyErr := io.Copy(io.Discard, resp.Body); copyErr != nil {
-		middleware.GetLogger(ctx).Logf(logging.Warn, "failed to discard remaining HTTP response body, this may affect connection reuse")
-	}
 	if closeErr := resp.Body.Close(); closeErr != nil {
 		middleware.GetLogger(ctx).Logf(logging.Warn, "failed to close HTTP response body, this may affect connection reuse")
 	}
@@ -41,7 +24,7 @@ func DrainAndCloseResponseBody(ctx context.Context, resp *Response, closeOnSucce
 // failed.
 //
 // Deprecated: generated operation deserializers now close the response body
-// via DrainAndCloseResponseBody, so this middleware is no longer used.
+// via CloseResponseBody, so this middleware is no longer used.
 func AddErrorCloseResponseBodyMiddleware(stack *middleware.Stack) error {
 	return stack.Deserialize.Insert(&errorCloseResponseBodyMiddleware{}, "OperationDeserializer", middleware.Before)
 }
@@ -60,7 +43,7 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 	out, metadata, err := next.HandleDeserialize(ctx, input)
 	if err != nil {
 		if resp, ok := out.RawResponse.(*Response); ok {
-			DrainAndCloseResponseBody(ctx, resp, false, err)
+			CloseResponseBody(ctx, resp, false)
 		}
 	}
 	return out, metadata, err
@@ -71,7 +54,7 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 // deserialized.
 //
 // Deprecated: generated operation deserializers now close the response body
-// via DrainAndCloseResponseBody, so this middleware is no longer used.
+// via CloseResponseBody, so this middleware is no longer used.
 func AddCloseResponseBodyMiddleware(stack *middleware.Stack) error {
 	return stack.Deserialize.Insert(&closeResponseBody{}, "OperationDeserializer", middleware.Before)
 }
@@ -92,7 +75,7 @@ func (m *closeResponseBody) HandleDeserialize(
 		return out, metadata, err
 	}
 	if resp, ok := out.RawResponse.(*Response); ok {
-		DrainAndCloseResponseBody(ctx, resp, true, nil)
+		CloseResponseBody(ctx, resp, false)
 	}
 	return out, metadata, err
 }
