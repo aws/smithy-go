@@ -24,6 +24,8 @@ import software.amazon.smithy.go.codegen.MiddlewareIdentifier;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
+import software.amazon.smithy.model.knowledge.HttpBindingIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
 import software.amazon.smithy.model.neighbor.RelationshipType;
 import software.amazon.smithy.model.neighbor.Walker;
@@ -33,6 +35,8 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.knowledge.HttpBinding;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SetUtils;
 
 /**
@@ -209,5 +213,24 @@ public final class ProtocolUtils {
         }
 
         lambda.accept(acceptVar);
+    }
+
+    /**
+     * Returns true when the operation's response body is a caller-owned stream that must not be
+     * auto-closed after deserialization: an event stream, or a payload member marked {@code @streaming}.
+     */
+    public static boolean isCallerOwnedResponseStream(Model model, OperationShape operation) {
+        EventStreamIndex eventStreamIndex = EventStreamIndex.of(model);
+        if (eventStreamIndex.getInputInfo(operation).isPresent()
+                || eventStreamIndex.getOutputInfo(operation).isPresent()) {
+            return true;
+        }
+
+        HttpBindingIndex bindingIndex = HttpBindingIndex.of(model);
+        return bindingIndex.getResponseBindings(operation, HttpBinding.Location.PAYLOAD).stream()
+                .findFirst()
+                .map(binding -> model.expectShape(binding.getMember().getTarget())
+                        .hasTrait(StreamingTrait.class))
+                .orElse(false);
     }
 }
