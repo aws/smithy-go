@@ -7,10 +7,15 @@ import (
 	"github.com/aws/smithy-go/middleware"
 )
 
-// CloseResponseBody closes the HTTP response body, unless it is a caller-owned
-// streaming payload (isStreaming).
-func CloseResponseBody(ctx context.Context, resp *Response, isStreaming bool) {
-	if resp == nil || resp.Body == nil || isStreaming {
+// CloseResponseBody closes the HTTP response body. It leaves the body open only
+// for a successful response whose payload is a caller-owned stream (isStreaming
+// with a nil opErr); on error, or for a non-streaming response, it closes the
+// body — an error response body is diagnostic, not a caller-owned stream.
+func CloseResponseBody(ctx context.Context, resp *Response, isStreaming bool, opErr error) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+	if isStreaming && opErr == nil {
 		return
 	}
 
@@ -43,7 +48,7 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 	out, metadata, err := next.HandleDeserialize(ctx, input)
 	if err != nil {
 		if resp, ok := out.RawResponse.(*Response); ok {
-			CloseResponseBody(ctx, resp, false)
+			CloseResponseBody(ctx, resp, false, err)
 		}
 	}
 	return out, metadata, err
@@ -75,7 +80,7 @@ func (m *closeResponseBody) HandleDeserialize(
 		return out, metadata, err
 	}
 	if resp, ok := out.RawResponse.(*Response); ok {
-		CloseResponseBody(ctx, resp, false)
+		CloseResponseBody(ctx, resp, false, nil)
 	}
 	return out, metadata, err
 }

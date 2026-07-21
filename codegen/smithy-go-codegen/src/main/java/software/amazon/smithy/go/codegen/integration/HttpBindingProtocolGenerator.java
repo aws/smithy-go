@@ -414,9 +414,11 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("");
 
-            // Close the response body once deserialization is done.
+            // Close the response body once deserialization is done. Deferred in a
+            // closure so it observes the final err (a streaming payload is left open
+            // only on success; an error response body is always closed).
             writer.write("response, _ := out.RawResponse.($P)", responseType);
-            writer.write("defer $T(ctx, response, $L)",
+            writer.write("defer func() { $T(ctx, response, $L, err) }()",
                     SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
                     isStreaming ? "true" : "false");
             writer.write("");
