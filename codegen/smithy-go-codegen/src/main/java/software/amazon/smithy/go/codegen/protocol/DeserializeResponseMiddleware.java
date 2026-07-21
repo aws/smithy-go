@@ -69,9 +69,11 @@ public abstract class DeserializeResponseMiddleware implements Writable {
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
 
-                // Close the response body once deserialization is done.
+                // Close the response body once deserialization is done. Deferred in a
+                // closure so it observes the final err (a streaming payload is left open
+                // only on success; an error response body is always closed).
                 resp, _ := out.RawResponse.($response:P)
-                defer $closeBody:T(ctx, resp, $isStreaming:L)
+                defer func() { $closeBody:T(ctx, resp, $isStreaming:L, err) }()
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
