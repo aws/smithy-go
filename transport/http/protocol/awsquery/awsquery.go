@@ -11,7 +11,6 @@ import (
 	internalquery "github.com/aws/smithy-go/transport/http/protocol/internal/query"
 	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 	internales "github.com/aws/smithy-go/internal/eventstream"
-	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
@@ -81,7 +80,7 @@ func (p *Protocol) SerializeRequest(
 		req.URL.Path = "/"
 	}
 
-	ss := internalquery.NewShapeSerializer(middleware.GetOperationName(ctx), p.version)
+	ss := internalquery.NewShapeSerializer(schema.ID().Name, p.version)
 	if schema.Input != nil {
 		in.Serialize(ss)
 	}
@@ -116,7 +115,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	inner, err := internalxml.ExtractElement(payload, middleware.GetOperationName(ctx)+"Result")
+	inner, err := internalxml.ExtractElement(payload, schema.ID().Name+"Result")
 	if err != nil {
 		if schema.Output == nil {
 			return nil
