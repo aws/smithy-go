@@ -35,6 +35,18 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
     public Writable getFuncBody() {
         return goTemplate("""
                 out, md, err := next.HandleDeserialize(ctx, in)
+
+                if resp, ok := out.RawResponse.(*smithyhttp.Response); ok {
+                    // Close the response body once deserialization is done, unless the
+                    // output carries a caller-owned stream (event stream or @streaming payload).
+                    // Deferred in a closure so it observes the final err — a streaming payload
+                    // is left open only on success; an error response body is always closed.
+                    _, isStreamingPayload := m.output.(smithy.StreamingOutput)
+                    defer func() {
+                        smithyhttp.CloseResponseBody(ctx, resp, m.operationSchema.IsOutputEventStream() || isStreamingPayload, err)
+                    }()
+                }
+
                 if err != nil {
                     return out, md, err
                 }

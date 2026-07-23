@@ -23,6 +23,7 @@ import static software.amazon.smithy.go.codegen.integration.ProtocolGenerator.ge
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
@@ -62,8 +63,17 @@ public abstract class DeserializeResponseMiddleware implements Writable {
     public abstract Writable generateDeserialize();
 
     private Writable generateHandleDeserialize() {
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(ctx.getModel(), operation);
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
+
+                // Close the response body once deserialization is done. Deferred in a
+                // closure so it observes the final err (a streaming payload is left open
+                // only on success; an error response body is always closed).
+                resp, _ := out.RawResponse.($response:P)
+                defer func() { $closeBody:T(ctx, resp, $isStreaming:L, err) }()
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
@@ -74,8 +84,7 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                     return out, metadata, err
                 }
 
-                resp, ok := out.RawResponse.($response:P)
-                if !ok {
+                if resp == nil {
                     return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
                 }
 
@@ -87,7 +96,9 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                         "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "response", generator.getApplicationProtocol().getResponseType(),
                         "deserialize", generateDeserialize(),
-                        "errorf", GoStdlibTypes.Fmt.Errorf
+                        "errorf", GoStdlibTypes.Fmt.Errorf,
+                        "closeBody", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                        "isStreaming", isStreaming ? "true" : "false"
                 ));
     }
 }

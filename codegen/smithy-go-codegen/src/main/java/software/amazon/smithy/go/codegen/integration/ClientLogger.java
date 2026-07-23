@@ -31,7 +31,7 @@ import software.amazon.smithy.utils.ListUtils;
 public class ClientLogger implements GoIntegration {
     private static final String DEFAULT_LOGGER_RESOLVER = "resolveDefaultLogger";
     private static final String LOGGER_CONFIG_NAME = "Logger";
-    private static final String REGISTER_MIDDLEWARE = "addSetLoggerMiddleware";
+    private static final String SET_LOGGER_CONTEXT_RESOLVER = "setLoggerContext";
 
     @Override
     public byte getOrder() {
@@ -56,14 +56,15 @@ public class ClientLogger implements GoIntegration {
             });
             writer.write("");
 
-            Symbol stackSymbol = SymbolUtils.createPointableSymbolBuilder("Stack", SmithyGoDependency.SMITHY_MIDDLEWARE)
+            // Sets the logger on the request context in invokeOperation.
+            Symbol contextSymbol = SymbolUtils.createValueSymbolBuilder("Context", SmithyGoDependency.CONTEXT).build();
+            Symbol setLogger = SymbolUtils.createValueSymbolBuilder("SetLogger", SmithyGoDependency.SMITHY_MIDDLEWARE)
                     .build();
-            Symbol helperSymbol = SymbolUtils.createValueSymbolBuilder("AddSetLoggerMiddleware",
-                    SmithyGoDependency.SMITHY_MIDDLEWARE).build();
-
-            writer.openBlock("func $L(stack $P, o Options) error {", "}", REGISTER_MIDDLEWARE, stackSymbol, () -> {
-                writer.write("return $T(stack, o.$L)", helperSymbol, LOGGER_CONFIG_NAME);
-            });
+            writer.openBlock("func $L(ctx $T, options Options, operation string) $T {", "}",
+                    SET_LOGGER_CONTEXT_RESOLVER, contextSymbol, contextSymbol, () -> {
+                        writer.write("_ = operation");
+                        writer.write("return $T(ctx, options.$L)", setLogger, LOGGER_CONFIG_NAME);
+                    });
             writer.write("");
         });
     }
@@ -83,10 +84,8 @@ public class ClientLogger implements GoIntegration {
                                 .target(ConfigFieldResolver.Target.INITIALIZATION)
                                 .resolver(SymbolUtils.createValueSymbolBuilder(DEFAULT_LOGGER_RESOLVER).build())
                                 .build())
-                        .registerMiddleware(MiddlewareRegistrar.builder()
-                                .resolvedFunction(SymbolUtils.createValueSymbolBuilder(REGISTER_MIDDLEWARE).build())
-                                .useClientOptions()
-                                .build())
+                        .addOperationContextResolver(
+                                SymbolUtils.createValueSymbolBuilder(SET_LOGGER_CONTEXT_RESOLVER).build())
                         .isCommon(true)
                         .build()
         );

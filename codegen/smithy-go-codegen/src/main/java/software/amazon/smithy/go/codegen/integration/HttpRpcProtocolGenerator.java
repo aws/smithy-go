@@ -221,6 +221,19 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             // Ensure the request value is updated if modified for a document.
             writer.write("in.Request = request");
 
+            // Compute the request content length in place of the standalone
+            // ComputeContentLength middleware, now that the body is serialized.
+            // Skipped for event-stream inputs, matching the previous middleware
+            // registration condition.
+            if (optionalEventStreamInfo.isEmpty()) {
+                writer.write("");
+                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                writer.openBlock("if err := $T(request); err != nil {", "}",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ComputeRequestContentLength"), () -> {
+                            writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                        });
+            }
+
             writer.write("");
             writer.write("endTimer()");
             writer.write("span.End()");
@@ -318,6 +331,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 }));
     }
 
+
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
@@ -334,11 +348,27 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_DESERIALIZER_MIDDLEWARE_ID);
 
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(model, operation);
+
         middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
+            writer.write("");
+
+            // Close the response body once deserialization is done. Deferred in a
+            // closure so it observes the final err (a streaming payload is left open
+            // only on success; an error response body is always closed).
+            writer.write("response, _ := out.RawResponse.($P)", responseType);
+            writer.write("defer func() { $T(ctx, response, $L, err) }()",
+                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                    isStreaming ? "true" : "false");
+            writer.write("");
+
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
@@ -349,8 +379,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 
-            writer.write("response, ok := out.RawResponse.($P)", responseType);
-            writer.openBlock("if !ok {", "}", () -> {
+            writer.openBlock("if response == nil {", "}", () -> {
                 writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
             });

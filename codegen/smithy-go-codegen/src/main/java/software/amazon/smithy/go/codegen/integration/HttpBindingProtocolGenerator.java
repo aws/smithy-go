@@ -361,6 +361,19 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             writer.write("in.Request = request");
             writer.write("");
 
+            // Compute the request content length in place of the standalone
+            // ComputeContentLength middleware, now that the body is serialized.
+            // Skipped for event-stream inputs, matching the previous middleware
+            // registration condition.
+            if (EventStreamIndex.of(model).getInputInfo(operation).isEmpty()) {
+                writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+                writer.openBlock("if err := $T(request); err != nil {", "}",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("ComputeRequestContentLength"), () -> {
+                            writer.write("return out, metadata, &smithy.SerializationError{Err: err}");
+                        });
+                writer.write("");
+            }
+
             writer.write("endTimer()");
             writer.write("span.End()");
             writer.write("return next.$L(ctx, in)", generator.getHandleMethodName());
@@ -390,10 +403,26 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
         String errorFunctionName = ProtocolGenerator.getOperationErrorDeserFunctionName(
                 operation, service, context.getProtocolName());
 
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload like S3 GetObject, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(model, operation);
+
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
+            writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
+            writer.write("");
+
+            // Close the response body once deserialization is done. Deferred in a
+            // closure so it observes the final err (a streaming payload is left open
+            // only on success; an error response body is always closed).
+            writer.write("response, _ := out.RawResponse.($P)", responseType);
+            writer.write("defer func() { $T(ctx, response, $L, err) }()",
+                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                    isStreaming ? "true" : "false");
+            writer.write("");
+
             writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
@@ -404,8 +433,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
 
-            writer.write("response, ok := out.RawResponse.($P)", responseType);
-            writer.openBlock("if !ok {", "}", () -> {
+            writer.openBlock("if response == nil {", "}", () -> {
                 writer.addUseImports(SmithyGoDependency.SMITHY);
                 writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
                         "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
