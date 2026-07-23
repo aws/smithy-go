@@ -104,17 +104,6 @@ public class HttpProtocolTestGenerator {
                                 .build()
                                 .generateTestFunction(writer);
                     });
-
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating request protocol benchmark for %s", operation.getId()));
-                        requestTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .testCases(trait.getTestCases())
-                                .build()
-                                .generateBenchmarkFunction(writer);
-                    });
                 } else {
                     hasSerdBenchmarks[0] = true;
                     delegator.useShapeTestWriter(operation, (writer) -> {
@@ -150,19 +139,6 @@ public class HttpProtocolTestGenerator {
                                         .normalizeHttpPrefixHeaderKeys(true).build())
                                 .build()
                                 .generateTestFunction(writer);
-                    });
-
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating response protocol benchmark for %s", operation.getId()));
-                        responseTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .testCases(trait.getTestCases())
-                                .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
-                                        .normalizeHttpPrefixHeaderKeys(true).build())
-                                .build()
-                                .generateBenchmarkFunction(writer);
                     });
                 } else {
                     hasSerdBenchmarks[0] = true;
@@ -204,19 +180,6 @@ public class HttpProtocolTestGenerator {
                                 .testCases(trait.getTestCases())
                                 .build()
                                 .generateTestFunction(writer);
-                    });
-
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating response error protocol benchmark for %s",
-                                operation.getId()));
-                        responseErrorTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .error(error)
-                                .testCases(trait.getTestCases())
-                                .build()
-                                .generateBenchmarkFunction(writer);
                     });
                 });
             }

@@ -62,12 +62,7 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
     }
 
     @Override
-    protected String benchmarkFuncNameFormat() {
-        return "BenchmarkClient_$L_$LDeserialize";
-    }
-
-    @Override
-    protected Object[] benchmarkFuncNameArgs() {
+    protected Object[] serdBenchmarkFuncNameArgs() {
         return new Object[]{opSymbol.getName(), protocolName};
     }
 
@@ -262,17 +257,6 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
                 }
     """,
                 MapUtils.of("outputSymbol", outputSymbol));
-    }
-
-    @Override
-    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("$L.$T(context.Background(), &params)", clientName, opSymbol);
-    }
-
-    @Override
-    protected void generateBenchmarkBodySetup(GoWriter writer) {
-        writer.write("var params $T", inputSymbol);
     }
 
     @Override

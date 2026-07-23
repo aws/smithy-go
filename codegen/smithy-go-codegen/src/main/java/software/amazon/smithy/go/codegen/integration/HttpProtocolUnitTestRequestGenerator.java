@@ -74,12 +74,7 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     @Override
-    protected String benchmarkFuncNameFormat() {
-        return "BenchmarkClient_$L_$LSerialize";
-    }
-
-    @Override
-    protected Object[] benchmarkFuncNameArgs() {
+    protected Object[] serdBenchmarkFuncNameArgs() {
         return new Object[]{opSymbol.getName(), protocolName};
     }
 
@@ -238,11 +233,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     @Override
-    protected void generateBenchmarkBodySetup(GoWriter writer) {
-        // No request capture needed for benchmarks.
-    }
-
-    @Override
     protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
         var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
         var inputSchemaName = SchemaGenerator.getSchemaRef(
@@ -289,26 +279,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
 
     @Override
     protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
-    }
-
-    @Override
-    protected void generateBenchmarkServer(GoWriter writer) {
-        writer.write("serverURL := \"http://localhost:8888/\"");
-        writer.pushState();
-        writer.putContext("parse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL)
-                .build());
-        writer.write("""
-                     if c.Host != nil {
-                         u, err := $parse:T(serverURL)
-                         if err != nil {
-                             panic(err)
-                         }
-                         u.Path = c.Host.Path
-                         u.RawPath = c.Host.RawPath
-                         u.RawQuery = c.Host.RawQuery
-                         serverURL = u.String()
-                     }""");
-        writer.popState();
     }
 
     /**
@@ -367,12 +337,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                     "client", clientName
                     )));
         }
-    }
-
-    @Override
-    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("$L.$T(context.Background(), c.Params)", clientName, opSymbol);
     }
 
     /**

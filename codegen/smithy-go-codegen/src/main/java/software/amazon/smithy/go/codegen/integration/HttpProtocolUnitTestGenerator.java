@@ -115,9 +115,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     abstract Object[] unitTestFuncNameArgs();
 
-    abstract String benchmarkFuncNameFormat();
-
-    abstract Object[] benchmarkFuncNameArgs();
+    abstract Object[] serdBenchmarkFuncNameArgs();
 
     abstract String serdBenchmarkFunctionNameFormat();
 
@@ -210,10 +208,6 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
      */
     abstract void generateTestInvokeClientOperation(GoWriter writer, String clientName);
 
-    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
-        generateTestInvokeClientOperation(writer, clientName);
-    }
-
     /**
      * Hook to generate the assertions for the operation's test cases. Will be in the same scope as the test body.
      *
@@ -279,54 +273,11 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                 });
     }
 
-    protected void generateBenchmarkBodySetup(GoWriter writer) {
-        generateTestBodySetup(writer);
-    }
-
     protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
         generateTestBodySetup(writer);
     }
 
-    protected void generateBenchmarkServer(GoWriter writer) {
-        generateTestServer(writer, "server", this::generateTestServerHandler);
-    }
-
     protected void generateSerdBenchmarkServer(GoWriter writer) {
-        generateBenchmarkServer(writer);
-    }
-
-    public void generateBenchmarkFunction(GoWriter writer) {
-        writer.addUseImports(SmithyGoDependency.TESTING);
-        writer.openBlock("func " + benchmarkFuncNameFormat() + "(b *testing.B) {", "}", benchmarkFuncNameArgs(),
-                () -> {
-                    generateTestSetup(writer);
-
-                    writer.write("cases := map[string]struct {");
-                    generateTestCaseParams(writer);
-                    writer.openBlock("}{", "}", () -> {
-                        for (T testCase : testCases) {
-                            Optional<AppliesTo> appliesTo = testCase.getAppliesTo();
-                            if (appliesTo.isPresent() && !(appliesTo.get().equals(AppliesTo.CLIENT))) {
-                                continue;
-                            }
-
-                            writer.openBlock("$S: {", "},", testCase.getId(), () -> {
-                                generateTestCaseValues(writer, testCase);
-                            });
-                        }
-                    });
-
-                    writer.openBlock("for name, c := range cases {", "}", () -> {
-                        writer.openBlock("b.Run(name, func(b *testing.B) {", "})", () -> {
-                            generateBenchmarkBodySetup(writer);
-                            generateBenchmarkServer(writer);
-                            generateTestClient(writer, "client");
-                            writer.openBlock("for i := 0; i < b.N; i++ {", "}", () -> {
-                                generateBenchmarkInvokeClientOperation(writer, "client");
-                            });
-                        });
-                    });
-                });
     }
 
     public void generateSerdBenchmarkTestCaseValues(GoWriter writer, T testCase) {
@@ -337,7 +288,7 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
 
     public void generateSerdBenchmarkFunction(GoWriter writer) {
         writer.addUseImports(SmithyGoDependency.TESTING);
-        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(t *testing.T) {", "}", benchmarkFuncNameArgs(),
+        writer.openBlock("func " + serdBenchmarkFunctionNameFormat() + "(t *testing.T) {", "}", serdBenchmarkFuncNameArgs(),
                 () -> {
                     generateTestSetup(writer);
 
