@@ -92,35 +92,34 @@ public class HttpProtocolTestGenerator {
             if (requestTestsTrait.isPresent()) {
                 var trait = requestTestsTrait.get();
                 final List<HttpRequestTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
-                if (testCases.isEmpty()) {
-                    return;
-                }
-                List<HttpRequestTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
-                if (serdBenchmarkCases.isEmpty()) {
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating request protocol test case for %s", operation.getId()));
-                        requestTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .testCases(trait.getTestCases())
-                                .build()
-                                .generateTestFunction(writer);
-                    });
-                } else {
-                    hasSerdBenchmarks = true;
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating request protocol serialization benchmark for %s", operation.getId()));
-                        writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
-                        requestTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .protocolName(protocolName)
-                                .testCases(serdBenchmarkCases)
-                                .build()
-                                .generateSerdBenchmarkFunction(writer);
-                    });
+                if (!testCases.isEmpty()) {
+                    List<HttpRequestTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
+                    if (serdBenchmarkCases.isEmpty()) {
+                        delegator.useShapeTestWriter(operation, (writer) -> {
+                            LOGGER.fine(() -> format("Generating request protocol test case for %s", operation.getId()));
+                            requestTestBuilder.model(model)
+                                    .symbolProvider(symbolProvider)
+                                    .service(service)
+                                    .operation(operation)
+                                    .testCases(trait.getTestCases())
+                                    .build()
+                                    .generateTestFunction(writer);
+                        });
+                    } else {
+                        hasSerdBenchmarks = true;
+                        delegator.useShapeTestWriter(operation, (writer) -> {
+                            LOGGER.fine(() -> format("Generating request protocol serialization benchmark for %s", operation.getId()));
+                            writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
+                            requestTestBuilder.model(model)
+                                    .symbolProvider(symbolProvider)
+                                    .service(service)
+                                    .operation(operation)
+                                    .protocolName(protocolName)
+                                    .testCases(serdBenchmarkCases)
+                                    .build()
+                                    .generateSerdBenchmarkFunction(writer);
+                        });
+                    }
                 }
             }
 
@@ -129,38 +128,37 @@ public class HttpProtocolTestGenerator {
             if (responseTestsTrait.isPresent()) {
                 var trait = responseTestsTrait.get();
                 final List<HttpResponseTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
-                if (testCases.isEmpty()) {
-                    return;
-                }
-                List<HttpResponseTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
-                if (serdBenchmarkCases.isEmpty()) {
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating response protocol test case for %s", operation.getId()));
-                        responseTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .testCases(trait.getTestCases())
-                                .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
-                                        .normalizeHttpPrefixHeaderKeys(true).build())
-                                .build()
-                                .generateTestFunction(writer);
-                    });
-                } else {
-                    hasSerdBenchmarks = true;
-                    delegator.useShapeTestWriter(operation, (writer) -> {
-                        LOGGER.fine(() -> format("Generating response protocol deserialization benchmark for %s", operation.getId()));
-                        writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
-                        responseTestBuilder.model(model)
-                                .symbolProvider(symbolProvider)
-                                .service(service)
-                                .operation(operation)
-                                .testCases(serdBenchmarkCases)
-                                .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
-                                        .normalizeHttpPrefixHeaderKeys(true).build())
-                                .build()
-                                .generateSerdBenchmarkFunction(writer);
-                    });
+                if (!testCases.isEmpty()) {
+                    List<HttpResponseTestCase> serdBenchmarkCases = filterSerdBenchmarkTaggedTestCases(testCases);
+                    if (serdBenchmarkCases.isEmpty()) {
+                        delegator.useShapeTestWriter(operation, (writer) -> {
+                            LOGGER.fine(() -> format("Generating response protocol test case for %s", operation.getId()));
+                            responseTestBuilder.model(model)
+                                    .symbolProvider(symbolProvider)
+                                    .service(service)
+                                    .operation(operation)
+                                    .testCases(trait.getTestCases())
+                                    .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
+                                            .normalizeHttpPrefixHeaderKeys(true).build())
+                                    .build()
+                                    .generateTestFunction(writer);
+                        });
+                    } else {
+                        hasSerdBenchmarks = true;
+                        delegator.useShapeTestWriter(operation, (writer) -> {
+                            LOGGER.fine(() -> format("Generating response protocol deserialization benchmark for %s", operation.getId()));
+                            writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
+                            responseTestBuilder.model(model)
+                                    .symbolProvider(symbolProvider)
+                                    .service(service)
+                                    .operation(operation)
+                                    .testCases(serdBenchmarkCases)
+                                    .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
+                                            .normalizeHttpPrefixHeaderKeys(true).build())
+                                    .build()
+                                    .generateSerdBenchmarkFunction(writer);
+                        });
+                    }
                 }
             }
 
