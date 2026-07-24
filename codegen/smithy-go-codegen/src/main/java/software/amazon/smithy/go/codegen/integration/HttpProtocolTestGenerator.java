@@ -80,7 +80,7 @@ public class HttpProtocolTestGenerator {
         OperationIndex operationIndex = model.getKnowledge(OperationIndex.class);
         TopDownIndex topDownIndex = model.getKnowledge(TopDownIndex.class);
 
-        boolean[] hasSerdBenchmarks = {false};
+        boolean hasSerdBenchmarks = false;
 
         for (OperationShape operation : new TreeSet<>(topDownIndex.getContainedOperations(service))) {
             if (operation.hasTag("server-only")) {
@@ -88,7 +88,9 @@ public class HttpProtocolTestGenerator {
             }
 
             // 1. Generate test cases for each request.
-            operation.getTrait(HttpRequestTestsTrait.class).ifPresent(trait -> {
+            var requestTestsTrait = operation.getTrait(HttpRequestTestsTrait.class);
+            if (requestTestsTrait.isPresent()) {
+                var trait = requestTestsTrait.get();
                 final List<HttpRequestTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
                 if (testCases.isEmpty()) {
                     return;
@@ -106,7 +108,7 @@ public class HttpProtocolTestGenerator {
                                 .generateTestFunction(writer);
                     });
                 } else {
-                    hasSerdBenchmarks[0] = true;
+                    hasSerdBenchmarks = true;
                     delegator.useShapeTestWriter(operation, (writer) -> {
                         LOGGER.fine(() -> format("Generating request protocol serialization benchmark for %s", operation.getId()));
                         writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
@@ -120,10 +122,12 @@ public class HttpProtocolTestGenerator {
                                 .generateSerdBenchmarkFunction(writer);
                     });
                 }
-            });
+            }
 
             // 2. Generate test cases for each response.
-            operation.getTrait(HttpResponseTestsTrait.class).ifPresent(trait -> {
+            var responseTestsTrait = operation.getTrait(HttpResponseTestsTrait.class);
+            if (responseTestsTrait.isPresent()) {
+                var trait = responseTestsTrait.get();
                 final List<HttpResponseTestCase> testCases = filterProtocolTestCases(trait.getTestCases());
                 if (testCases.isEmpty()) {
                     return;
@@ -143,7 +147,7 @@ public class HttpProtocolTestGenerator {
                                 .generateTestFunction(writer);
                     });
                 } else {
-                    hasSerdBenchmarks[0] = true;
+                    hasSerdBenchmarks = true;
                     delegator.useShapeTestWriter(operation, (writer) -> {
                         LOGGER.fine(() -> format("Generating response protocol deserialization benchmark for %s", operation.getId()));
                         writer.addBuildTag(SERDE_BENCHMARK_BUILD_TAG);
@@ -158,7 +162,7 @@ public class HttpProtocolTestGenerator {
                                 .generateSerdBenchmarkFunction(writer);
                     });
                 }
-            });
+            }
 
             // 3. Generate test cases for each error on each operation.
             for (StructureShape error : operationIndex.getErrors(operation)) {
@@ -188,7 +192,7 @@ public class HttpProtocolTestGenerator {
             }
         }
 
-        if (hasSerdBenchmarks[0]) {
+        if (hasSerdBenchmarks) {
             generateSerdBenchmarkHelpers();
         }
     }
@@ -289,13 +293,11 @@ public class HttpProtocolTestGenerator {
         List<T> filtered = new ArrayList<>();
         var protocol = settings.getProtocol();
         if (protocol == null) {
-            // schema-serde path: resolve from service traits
-            var protocols = software.amazon.smithy.model.knowledge.ServiceIndex.of(model)
-                    .getProtocols(service).keySet();
-            protocol = protocols.isEmpty() ? null : protocols.iterator().next();
+            // Schema-serde generation can run without a selected protocol, so retain all test cases.
+            return testCases;
         }
         for (T testCase : testCases) {
-            if (protocol == null || testCase.getProtocol().equals(protocol)) {
+            if (testCase.getProtocol().equals(protocol)) {
                 filtered.add(testCase);
             }
         }

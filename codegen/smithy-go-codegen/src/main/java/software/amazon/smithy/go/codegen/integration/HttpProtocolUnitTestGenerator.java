@@ -316,10 +316,19 @@ public abstract class HttpProtocolUnitTestGenerator<T extends HttpMessageTestCas
                             writer.addUseImports(SmithyGoDependency.SLICES);
                             writer.addUseImports(SmithyGoDependency.MATH);
                             writer.writeGoTemplate("""
+                                const (
+                                    // benchmarkIterations collects enough samples for stable percentile metrics.
+                                    benchmarkIterations = 10_000
+                                    // benchmarkWarmupIterations excludes startup effects from measurements.
+                                    benchmarkWarmupIterations = 1_000
+                                    // maxBenchmarkDuration prevents a slow case from delaying the benchmark suite.
+                                    maxBenchmarkDuration = 30 * time.Second
+                                )
+
                                 timings := make([]time.Duration, 0)
                                 benchmarkStart := time.Now()
                             """);
-                            writer.openBlock("for i := 0; i < 10000; i++ {", "}", () -> {
+                            writer.openBlock("for i := 0; i < benchmarkIterations; i++ {", "}", () -> {
                                 generateSerdBenchmarkIteration(writer, "client");
                             });
                             // generate benchmark stat code

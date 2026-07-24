@@ -249,10 +249,10 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
                 }
 
                 deserializeEnd := time.Now()
-                if i >= 1000 {
+                if i >= benchmarkWarmupIterations {
                     timings = append(timings, deserializeEnd.Sub(deserializeStart))
                 }
-                if benchmarkStart.Add(30000000000).Before(deserializeEnd) {
+                if benchmarkStart.Add(maxBenchmarkDuration).Before(deserializeEnd) {
                     break
                 }
     """,

@@ -22,7 +22,6 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_REQUES
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -264,10 +263,10 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                 }
 
                 serializeEnd := time.Now()
-                if i >= 1000 {
+                if i >= benchmarkWarmupIterations {
                     timings = append(timings, serializeEnd.Sub(serializeStart))
                 }
-                if benchmarkStart.Add(30000000000).Before(serializeEnd) {
+                if benchmarkStart.Add(maxBenchmarkDuration).Before(serializeEnd) {
                     break
                 }
                 """);
