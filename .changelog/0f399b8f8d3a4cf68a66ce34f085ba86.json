@@ -1,0 +1,8 @@
+{
+    "id": "0f399b8f-8d3a-4cf6-8a66-ce34f085ba86",
+    "type": "bugfix",
+    "description": "Fix a performance issue in awsQuery with large response payloads.",
+    "modules": [
+        "."
+    ]
+}

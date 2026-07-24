@@ -22,14 +22,17 @@ import static software.amazon.smithy.go.codegen.SmithyGoDependency.SMITHY_REQUES
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.model.traits.RequestCompressionTrait;
+import software.amazon.smithy.protocoltests.traits.AppliesTo;
 import software.amazon.smithy.protocoltests.traits.HttpRequestTestCase;
 import software.amazon.smithy.utils.MapUtils;
 
@@ -71,13 +74,13 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     @Override
-    protected String benchmarkFuncNameFormat() {
-        return "BenchmarkClient_$L_$LSerialize";
+    protected Object[] serdBenchmarkFuncNameArgs() {
+        return new Object[]{opSymbol.getName(), protocolName};
     }
 
     @Override
-    protected Object[] benchmarkFuncNameArgs() {
-        return new Object[]{opSymbol.getName(), protocolName};
+    String serdBenchmarkFunctionNameFormat() {
+        return "TestSerdClient_$L_$L";
     }
 
     /**
@@ -230,28 +233,52 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
     }
 
     @Override
-    protected void generateBenchmarkBodySetup(GoWriter writer) {
-        // No request capture needed for benchmarks.
+    protected void generateSerdBenchmarkBodySetup(GoWriter writer) {
+        var opSchemaName = SchemaGenerator.getSchemaRef(operation, service);
+        var inputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getInputShape()), service);
+        var outputSchemaName = SchemaGenerator.getSchemaRef(
+                model.expectShape(operation.getOutputShape()), service);
+
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+        writer.write("""
+                protocol := New(Options{}).options.Protocol
+                opSchema := smithy.NewOperationSchema($L, $L, $L)
+                """, opSchemaName, inputSchemaName, outputSchemaName);
     }
 
     @Override
-    protected void generateBenchmarkServer(GoWriter writer) {
-        writer.write("serverURL := \"http://localhost:8888/\"");
-        writer.pushState();
-        writer.putContext("parse", SymbolUtils.createValueSymbolBuilder("Parse", SmithyGoDependency.NET_URL)
-                .build());
-        writer.write("""
-                     if c.Host != nil {
-                         u, err := $parse:T(serverURL)
-                         if err != nil {
-                             panic(err)
-                         }
-                         u.Path = c.Host.Path
-                         u.RawPath = c.Host.RawPath
-                         u.RawQuery = c.Host.RawQuery
-                         serverURL = u.String()
-                     }""");
-        writer.popState();
+    public void generateSerdBenchmarkIteration(GoWriter writer, String clientName) {
+        writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
+        writer.addUseImports(SmithyGoDependency.CONTEXT);
+        writer.writeGoTemplate("""
+                req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
+
+                serializeStart := time.Now()
+                err := protocol.SerializeRequest(context.Background(), opSchema, c.Params, req)
+                if err != nil {
+                    t.Fatalf("error when running serd test for %s: %v", name, err)
+                }
+
+                serializeEnd := time.Now()
+                if i >= 1000 {
+                    timings = append(timings, serializeEnd.Sub(serializeStart))
+                }
+                if benchmarkStart.Add(30000000000).Before(serializeEnd) {
+                    break
+                }
+                """);
+    }
+
+    @Override
+    protected void generateSerdBenchmarkServer(GoWriter writer) {
+    }
+
+    @Override
+    protected void generateSerdBenchmarkTestClient(GoWriter writer, String clientName) {
     }
 
     /**
@@ -310,12 +337,6 @@ public class HttpProtocolUnitTestRequestGenerator extends HttpProtocolUnitTestGe
                     "client", clientName
                     )));
         }
-    }
-
-    @Override
-    protected void generateBenchmarkInvokeClientOperation(GoWriter writer, String clientName) {
-        writer.addUseImports(SmithyGoDependency.CONTEXT);
-        writer.write("$L.$T(context.Background(), c.Params)", clientName, opSymbol);
     }
 
     /**
