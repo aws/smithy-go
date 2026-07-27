@@ -844,7 +844,9 @@ public final class GoWriter extends SymbolWriter<GoWriter, ImportDeclarations> {
     }
 
     public GoWriter addBuildTag(String tag) {
-        buildTags.add(tag);
+        if (!buildTags.contains(tag)) {
+            buildTags.add(tag);
+        }
         return this;
     }
 

@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
-	"math/big"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -93,6 +93,34 @@ func NewShapeDeserializer(p []byte) *ShapeDeserializer {
 	return &ShapeDeserializer{
 		dec:   xml.NewDecoder(bytes.NewReader(p)),
 		stack: serde.NewStack[deserCtx](),
+	}
+}
+
+// NewShapeDeserializerAtElement scans payload for the first element named
+// `name` and returns a ShapeDeserializer positioned to read that element as
+// its opening tag. Used for protocols that have an arbitrary nesting of their
+// modeled output shape in the wire response body.
+//
+// It forwards the underlying decoder's error, notably io.EOF, when the named
+// element is not found.
+func NewShapeDeserializerAtElement(payload []byte, name string) (*ShapeDeserializer, error) {
+	dec := xml.NewDecoder(bytes.NewReader(payload))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+
+		start, ok := tok.(xml.StartElement)
+		if !ok || !strings.EqualFold(start.Name.Local, name) {
+			continue
+		}
+
+		return &ShapeDeserializer{
+			dec:       dec,
+			currStart: &start,
+			stack:     serde.NewStack[deserCtx](),
+		}, nil
 	}
 }
 

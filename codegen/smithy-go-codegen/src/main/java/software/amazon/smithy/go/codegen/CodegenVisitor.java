@@ -285,7 +285,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
         }
 
         LOGGER.info("Generating protocol tests for " + service.getId());
-        ProtocolUtils.generateHttpProtocolTests(ctx);
+        ProtocolUtils.generateHttpProtocolTests(ctx, protocolGenerator != null ? protocolGenerator.getProtocolName() : "");
 
         if (!settings.useLegacySerde()) {
             protocolDocumentGenerator.generateLegacyInternalDocumentTypes(ctx);
