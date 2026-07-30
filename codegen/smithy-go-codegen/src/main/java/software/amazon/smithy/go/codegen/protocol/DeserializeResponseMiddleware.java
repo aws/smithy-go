@@ -27,6 +27,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -66,14 +67,27 @@ public abstract class DeserializeResponseMiddleware implements Writable {
         // Close the response body after deserialization, unless it is a caller-owned
         // stream (a streaming payload, or an event stream output).
         boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(ctx.getModel(), operation);
+
+        // Event streams own their body in the event stream deserializer; closing it
+        // here would deadlock a bidirectional stream whose write side is still active.
+        var eventStreamIndex = EventStreamIndex.of(ctx.getModel());
+        boolean isEventStream = eventStreamIndex.getInputInfo(operation).isPresent()
+                || eventStreamIndex.getOutputInfo(operation).isPresent();
+
+        Writable closeBodyDefer = isEventStream
+                ? emptyGoTemplate()
+                : goTemplate("defer func() { $closeBody:T(ctx, resp, $isStreaming:L, err) }()",
+                        MapUtils.of(
+                                "closeBody", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                                "isStreaming", isStreaming ? "true" : "false"
+                        ));
+
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
 
-                // Close the response body once deserialization is done. Deferred in a
-                // closure so it observes the final err (a streaming payload is left open
-                // only on success; an error response body is always closed).
+                // Close the response body once deserialization is done.
                 resp, _ := out.RawResponse.($response:P)
-                defer func() { $closeBody:T(ctx, resp, $isStreaming:L, err) }()
+                $closeBodyDefer:W
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
@@ -97,8 +111,7 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                         "response", generator.getApplicationProtocol().getResponseType(),
                         "deserialize", generateDeserialize(),
                         "errorf", GoStdlibTypes.Fmt.Errorf,
-                        "closeBody", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
-                        "isStreaming", isStreaming ? "true" : "false"
+                        "closeBodyDefer", closeBodyDefer
                 ));
     }
 }

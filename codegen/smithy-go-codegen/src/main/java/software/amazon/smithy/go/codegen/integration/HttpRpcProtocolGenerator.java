@@ -339,6 +339,12 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         // stream (a streaming payload, or an event stream output).
         boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(model, operation);
 
+        // Event streams own their body in the event stream deserializer; closing it
+        // here would deadlock a bidirectional stream whose write side is still active.
+        EventStreamIndex eventStreamIndex = EventStreamIndex.of(model);
+        boolean isEventStream = eventStreamIndex.getInputInfo(operation).isPresent()
+                || eventStreamIndex.getOutputInfo(operation).isPresent();
+
         middleware.writeMiddleware(writer, (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY);
@@ -347,13 +353,14 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
             writer.write("");
 
-            // Close the response body once deserialization is done. Deferred in a
-            // closure so it observes the final err (a streaming payload is left open
-            // only on success; an error response body is always closed).
+            // Close the response body after deserialization (a streaming payload is
+            // kept open on success). Event streams close their own body.
             writer.write("response, _ := out.RawResponse.($P)", responseType);
-            writer.write("defer func() { $T(ctx, response, $L, err) }()",
-                    SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
-                    isStreaming ? "true" : "false");
+            if (!isEventStream) {
+                writer.write("defer func() { $T(ctx, response, $L, err) }()",
+                        SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                        isStreaming ? "true" : "false");
+            }
             writer.write("");
 
             writer.write("if err != nil { return out, metadata, err }");
