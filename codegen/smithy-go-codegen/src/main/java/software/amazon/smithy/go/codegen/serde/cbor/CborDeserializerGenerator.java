@@ -317,10 +317,9 @@ public final class CborDeserializerGenerator {
             return emptyGoTemplate(); // event stream, not an actual field
         }
 
-        var memberSymbol = symbolProvider.toSymbol(member);
         return goTemplate("""
                 if key == $field:S {
-                    $nilable:W
+                    $skipNull:W
                     dv, err := $deserialize:L(sv)
                     if err != nil {
                         return nil, err
@@ -333,11 +332,11 @@ public final class CborDeserializerGenerator {
                         "fieldName", symbolProvider.toMemberName(member),
                         "deserialize", getDeserializerName(normalize(target)),
                         "deref", generateStructFieldDeref(member, "dv"),
-                        "nilable", isNilable(memberSymbol) ? handleSparseField() : emptyGoTemplate()
+                        "skipNull", handleNullField()
                 ));
     }
 
-    private Writable handleSparseField() {
+    private Writable handleNullField() {
         return goTemplate("""
                 if _, ok := sv.($P); ok {
                     continue
