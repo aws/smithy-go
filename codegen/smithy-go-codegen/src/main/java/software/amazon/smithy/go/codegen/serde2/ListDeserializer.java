@@ -69,7 +69,6 @@ public class ListDeserializer implements Writable {
     private void renderSparse(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
-                    var vv $memberSymbol:T
                     return smithy.ReadList(d, s, func() error {
                         if isNil, err := d.ReadNil(s.ListMember()); err != nil {
                             return err
@@ -78,6 +77,9 @@ public class ListDeserializer implements Writable {
                             return nil
                         }
 
+                        // vv must be declared per-element for sparse since we
+                        // are taking its pointer
+                        var vv $memberSymbol:T
                         $zeroValue:W
                         if err := $deserializeMember:W; err != nil {
                             return err
