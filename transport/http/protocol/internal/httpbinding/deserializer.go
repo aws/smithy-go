@@ -30,9 +30,9 @@ type ShapeDeserializer struct {
 	// unlike an RPC-style protocol, members of the top-level output could be
 	// HTTP-bound, so we track that when ReadStruct is first called and "yield"
 	// them back to the caller through ReadStructMember
-	inBindings   bool
-	bindings     []*smithy.Schema
-	bindingIndex int
+	currentBinding *smithy.Schema
+	bindings       []*smithy.Schema
+	bindingIndex   int
 
 	inBody     bool
 	hasPayload bool
@@ -97,10 +97,10 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	if d.bindingIndex < len(d.bindings) {
 		member := d.bindings[d.bindingIndex]
 		d.bindingIndex++
-		d.inBindings = true
+		d.currentBinding = member
 		return member, nil
 	}
-	d.inBindings = false
+	d.currentBinding = nil
 
 	if d.hasPayload { // i.e. no unbound members
 		d.depth--
@@ -128,7 +128,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 		d.headerListIdx++
 		return nil
 	}
-	if d.inBindings {
+	if d.isCurrentBinding(s) {
 		if _, ok := isHTTPHeader(s); ok {
 			hv, err := d.readHeaderString(s)
 			if err != nil {
@@ -152,7 +152,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 
 // ReadBool implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadBool(s, v)
 	}
 
@@ -176,7 +176,7 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 
 // ReadInt8 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadInt8(s, v)
 	}
 	return readHeaderInt[int8](d, s, v)
@@ -184,7 +184,7 @@ func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 
 // ReadInt16 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadInt16(s, v)
 	}
 	return readHeaderInt[int16](d, s, v)
@@ -192,7 +192,7 @@ func (d *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
 
 // ReadInt32 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadInt32(s, v)
 	}
 
@@ -210,7 +210,7 @@ func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
 
 // ReadInt64 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadInt64(s, v)
 	}
 	return readHeaderInt[int64](d, s, v)
@@ -218,7 +218,7 @@ func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 
 // ReadFloat32 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadFloat32(s, v)
 	}
 	return readHeaderFloat[float32](d, s, v)
@@ -226,7 +226,7 @@ func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 
 // ReadFloat64 implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
-	if !d.inBindings {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
 		return d.body.ReadFloat64(s, v)
 	}
 	return readHeaderFloat[float64](d, s, v)
@@ -237,7 +237,7 @@ func (d *ShapeDeserializer) ReadTime(s *smithy.Schema, v *time.Time) error {
 	if d.inHeaderList {
 		return d.readHeaderListTime(func(t time.Time) { *v = t })
 	}
-	if d.inBindings {
+	if d.isCurrentBinding(s) {
 		t, err := d.readHeaderTime(s)
 		if err != nil {
 			return err
@@ -271,7 +271,7 @@ func (d *ShapeDeserializer) readHeaderListTime(assign func(time.Time)) error {
 
 // ReadBlob implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
-	if !d.inBindings {
+	if !d.isCurrentBinding(s) {
 		return d.body.ReadBlob(s, v)
 	}
 
@@ -296,7 +296,7 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 
 // ReadList implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
-	if !d.inBindings {
+	if !d.isCurrentBinding(s) {
 		return d.body.ReadList(s)
 	}
 
@@ -340,7 +340,7 @@ func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 
 // ReadMap implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
-	if !d.inBindings {
+	if !d.isCurrentBinding(s) {
 		return d.body.ReadMap(s)
 	}
 
@@ -391,6 +391,12 @@ func (d *ShapeDeserializer) ReadDocument(s *smithy.Schema, v *document.Value) er
 // ReadUnion implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
 	return d.body.ReadUnion(s)
+}
+
+// whether the schema we're operating right now is the current HTTP binding
+// that we gave back to the caller
+func (d *ShapeDeserializer) isCurrentBinding(schema *smithy.Schema) bool {
+	return schema != nil && schema == d.currentBinding
 }
 
 func (d *ShapeDeserializer) isBindingSet(schema *smithy.Schema) bool {

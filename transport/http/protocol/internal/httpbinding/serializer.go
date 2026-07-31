@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	awsjson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	"github.com/aws/smithy-go/document"
 	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	awsjson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // ShapeSerializer routes top-level input struct members to their HTTP binding
@@ -52,6 +52,8 @@ type ShapeSerializer struct {
 
 	noBody           bool
 	hasStructPayload bool
+
+	depth int
 }
 
 // ShapeSerializerOptions configures a ShapeSerializer.
@@ -554,7 +556,9 @@ func (s *ShapeSerializer) CloseMap() {
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
-	if schema.MemberName() != "" { // the root
+	s.depth++
+
+	if s.depth > 1 { // not the root, HTTP bindings don't apply
 		if isHTTPPayload(schema) {
 			s.hasStructPayload = true
 		}
@@ -582,16 +586,20 @@ func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
 		return
 	}
 
+	// IMPLICIT payload, ie. no @httpPayload but there is at least one member
+	// that isn't http-bound
 	s.input.WriteStruct(schema)
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
-	if s.noBody {
-		s.noBody = false
-		return
+	s.depth--
+
+	// we skip the close if there was no payload to begin with, implicit or
+	// otherwise
+	if s.depth > 0 || !s.noBody {
+		s.input.CloseStruct()
 	}
-	s.input.CloseStruct()
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].
