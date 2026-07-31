@@ -71,7 +71,6 @@ public class MapDeserializer implements Writable {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T)
-                    var vv $valueSymbol:T
                     return smithy.ReadMap(d, s, func(k string) error {
                         if isNil, err := d.ReadNil(s.MapValue()); err != nil {
                             return err
@@ -80,6 +79,9 @@ public class MapDeserializer implements Writable {
                             return nil
                         }
 
+                        // vv must be declared per-element for sparse since we
+                        // are taking its pointer
+                        var vv $valueSymbol:T
                         $zeroValue:W
                         if err := $deserializeValue:W; err != nil {
                             return err
