@@ -1,8 +1,0 @@
-{
-    "id": "ecc8ba8a-6e07-4a8b-b4af-3d2832810465",
-    "type": "bugfix",
-    "description": "Fix failure to serialize any `@httpPayload` struct with a nested struct.",
-    "modules": [
-        "."
-    ]
-}

@@ -1,8 +1,0 @@
-{
-    "id": "6078e4b1-fc90-4fbd-9f08-d5439639fcb5",
-    "type": "bugfix",
-    "description": "Fix failure to deserialize any `@httpPayload` struct with a non-string member.",
-    "modules": [
-        "."
-    ]
-}
