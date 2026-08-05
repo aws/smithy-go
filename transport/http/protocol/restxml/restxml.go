@@ -7,11 +7,13 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
-	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
-	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalserde "github.com/aws/smithy-go/internal/serde"
+	internalsync "github.com/aws/smithy-go/internal/sync"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
+	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 )
 
 // Protocol implements aws.protocols#restXml.
@@ -19,6 +21,8 @@ type Protocol struct {
 	eventstream *internales.Codec
 
 	seropts func(*internalxml.ShapeSerializerOptions)
+
+	bufs *internalsync.BufferPool
 }
 
 // ProtocolOptions configures aws.protocols#restXml.
@@ -54,6 +58,7 @@ func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protoco
 			ContentType:  "application/xml",
 		},
 		seropts: xmlOpts,
+		bufs:    internalsync.NewBufferPool(),
 	}
 }
 
@@ -152,13 +157,24 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	payload, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &smithy.DeserializationError{Err: err}
+	// a blob @httpPayload is handed to the caller by reference, so its buffer
+	// can't be reused
+	var buf *bytes.Buffer
+	var err error
+	if internalhttpbinding.HasBlobPayload(op.Output) {
+		if buf, err = internalserde.ReadPayloadBlob(resp.Body, resp.ContentLength); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+	} else {
+		if buf, err = p.bufs.Get(resp.Body); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+		defer p.bufs.Put(buf)
 	}
 
-	deser := internalhttpbinding.NewShapeDeserializer(resp.Response, deser(payload, op.Output), payload)
-	if err := out.Deserialize(deser); err != nil {
+	payload := buf.Bytes()
+	sd := internalhttpbinding.NewShapeDeserializer(resp.Response, deser(payload, op.Output), payload)
+	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
 

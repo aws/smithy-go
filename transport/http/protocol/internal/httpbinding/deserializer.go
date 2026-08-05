@@ -500,3 +500,16 @@ func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
 func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
 	return fmt.Errorf("unimplemented")
 }
+
+// HasBlobPayload reports whether the given output shape binds a blob member as
+// @httpPayload. Such a payload is handed to the caller by reference, so the
+// buffer holding it cannot be reused.
+//
+// The answer is cached per schema: this is called on every response, and walking
+// members with a trait lookup each is not free at that rate.
+func HasBlobPayload(output *smithy.Schema) bool {
+	if output == nil {
+		return false
+	}
+	return getExt(output).hasBlobPayload
+}
