@@ -35,17 +35,6 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
     public Writable getFuncBody() {
         return goTemplate("""
                 out, md, err := next.HandleDeserialize(ctx, in)
-
-                if resp, ok := out.RawResponse.(*smithyhttp.Response); ok && !m.operationSchema.IsInputEventStream() && !m.operationSchema.IsOutputEventStream() {
-                    // Close the response body after deserialization (a @streaming payload
-                    // is kept open on success). Event streams close their own body, and
-                    // closing here would deadlock an active bidirectional stream.
-                    _, isStreamingPayload := m.output.(smithy.StreamingOutput)
-                    defer func() {
-                        smithyhttp.CloseResponseBody(ctx, resp, isStreamingPayload, err)
-                    }()
-                }
-
                 if err != nil {
                     return out, md, err
                 }
@@ -53,6 +42,14 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
                 resp, ok := out.RawResponse.(*smithyhttp.Response)
                 if !ok {
                     return out, md, &smithy.DeserializationError{Err: fmt.Errorf("unknown transport type %T", out.RawResponse)}
+                }
+
+                // Event streams close their own body in the event stream deserializer.
+                if !m.operationSchema.IsInputEventStream() && !m.operationSchema.IsOutputEventStream() {
+                    _, isStreamingPayload := m.output.(smithy.StreamingOutput)
+                    defer func() {
+                        smithyhttp.CloseResponseBody(ctx, resp, isStreamingPayload, err)
+                    }()
                 }
 
                 _, span := tracing.StartSpan(ctx, "OperationDeserializer")

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"io"
 
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/middleware"
@@ -47,10 +48,14 @@ func (m *errorCloseResponseBodyMiddleware) HandleDeserialize(
 ) {
 	out, metadata, err := next.HandleDeserialize(ctx, input)
 	if err != nil {
-		if resp, ok := out.RawResponse.(*Response); ok {
-			CloseResponseBody(ctx, resp, false, err)
+		if resp, ok := out.RawResponse.(*Response); ok && resp != nil && resp.Body != nil {
+			// Consume the full body to prevent TCP connection resets on some platforms
+			_, _ = io.Copy(io.Discard, resp.Body)
+			// Do not validate that the response closes successfully.
+			resp.Body.Close()
 		}
 	}
+
 	return out, metadata, err
 }
 
@@ -79,8 +84,19 @@ func (m *closeResponseBody) HandleDeserialize(
 	if err != nil {
 		return out, metadata, err
 	}
+
 	if resp, ok := out.RawResponse.(*Response); ok {
-		CloseResponseBody(ctx, resp, false, nil)
+		// Consume the full body to prevent TCP connection resets on some platforms
+		_, copyErr := io.Copy(io.Discard, resp.Body)
+		if copyErr != nil {
+			middleware.GetLogger(ctx).Logf(logging.Warn, "failed to discard remaining HTTP response body, this may affect connection reuse")
+		}
+
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			middleware.GetLogger(ctx).Logf(logging.Warn, "failed to close HTTP response body, this may affect connection reuse")
+		}
 	}
+
 	return out, metadata, err
 }

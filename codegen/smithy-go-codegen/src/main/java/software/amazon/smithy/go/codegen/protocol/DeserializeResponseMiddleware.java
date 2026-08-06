@@ -84,23 +84,22 @@ public abstract class DeserializeResponseMiddleware implements Writable {
 
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
+                if err != nil {
+                    return out, metadata, err
+                }
 
-                // Close the response body once deserialization is done.
-                resp, _ := out.RawResponse.($response:P)
+                resp, ok := out.RawResponse.($response:P)
+                if !ok {
+                    return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
+                }
+
+                // Event streams close their own body in the event stream deserializer.
                 $closeBodyDefer:W
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
                 defer endTimer()
                 defer span.End()
-
-                if err != nil {
-                    return out, metadata, err
-                }
-
-                if resp == nil {
-                    return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
-                }
 
                 $deserialize:W
 

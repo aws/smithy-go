@@ -402,23 +402,27 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         middleware.writeMiddleware(goWriter, (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
+            writer.addUseImports(SmithyGoDependency.SMITHY);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_TRANSPORT);
 
             writer.write("out, metadata, err = next.$L(ctx, in)", generator.getHandleMethodName());
+            writer.write("if err != nil { return out, metadata, err }");
             writer.write("");
 
-            // Close the response body after deserialization (a streaming payload is
-            // kept open on success). Event streams close their own body.
-            writer.write("response, _ := out.RawResponse.($P)", responseType);
+            writer.write("response, ok := out.RawResponse.($P)", responseType);
+            writer.openBlock("if !ok {", "}", () -> {
+                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
+                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
+            });
+            writer.write("");
+
+            // Event streams close their own body in the event stream deserializer.
             if (!isEventStream) {
                 writer.write("defer func() { $T(ctx, response, $L, err) }()",
                         SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
                         isStreaming ? "true" : "false");
+                writer.write("");
             }
-            writer.write("");
-
-            writer.write("if err != nil { return out, metadata, err }");
-            writer.write("");
 
             writer.write(goTemplate("""
                     _, span := $T(ctx, "OperationDeserializer")
@@ -426,12 +430,6 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                     defer endTimer()
                     defer span.End()
                     """, SMITHY_TRACING.func("StartSpan")));
-
-            writer.openBlock("if response == nil {", "}", () -> {
-                writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.write(String.format("return out, metadata, &smithy.DeserializationError{Err: %s}",
-                        "fmt.Errorf(\"unknown transport type %T\", out.RawResponse)"));
-            });
             writer.write("");
 
             writer.openBlock("if response.StatusCode < 200 || response.StatusCode >= 300 {", "}", () -> {
