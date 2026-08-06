@@ -52,6 +52,22 @@ func deepEqual(expect, actual reflect.Value, path string) error {
 	}
 
 	switch expect.Kind() {
+	case reflect.Interface:
+		// union, document
+		expect = deref(expect)
+		actual = deref(actual)
+		ek, ak := expect.Kind(), actual.Kind()
+		if ek == reflect.Invalid || ak == reflect.Invalid {
+			// one side was a nil interface, so they both must be nil
+			if ek == ak {
+				return nil
+			}
+			return fmt.Errorf("%s: %s != %s", path, fmtNil(ek), fmtNil(ak))
+		}
+		if expect.Type() != actual.Type() {
+			return fmt.Errorf("%s: type mismatch: %s != %s", path, expect.Type(), actual.Type())
+		}
+		return deepEqual(expect, actual, path)
 	case reflect.Pointer:
 		if expect.Type() != actual.Type() {
 			return fmt.Errorf("%s: type mismatch", path)

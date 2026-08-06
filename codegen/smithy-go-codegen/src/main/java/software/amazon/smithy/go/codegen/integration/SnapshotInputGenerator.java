@@ -15,12 +15,17 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
+import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoSettings;
+import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
@@ -31,9 +36,15 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.ErrorTrait;
+import software.amazon.smithy.model.traits.HostLabelTrait;
+import software.amazon.smithy.model.traits.HttpHeaderTrait;
+import software.amazon.smithy.model.traits.HttpResponseCodeTrait;
+import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 
 /**
@@ -52,11 +63,22 @@ public final class SnapshotInputGenerator {
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final GoPointableIndex pointableIndex;
+    private final GoSettings settings;
+    private final boolean responseMode;
 
-    public SnapshotInputGenerator(Model model, SymbolProvider symbolProvider) {
+    /**
+     * @param responseMode When true, values are generated for a shape deserialized from a RESPONSE:
+     *                     {@code @httpResponseCode} takes the fixture's status, and a member occupying the protocol's
+     *                     error-code slot takes the error's shape name.
+     */
+    public SnapshotInputGenerator(
+            Model model, SymbolProvider symbolProvider, GoSettings settings, boolean responseMode
+    ) {
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.pointableIndex = GoPointableIndex.of(model);
+        this.settings = settings;
+        this.responseMode = responseMode;
     }
 
     /**
@@ -86,6 +108,67 @@ public final class SnapshotInputGenerator {
 
     private static final int MAX_DEPTH = 10;
 
+    private static final String ERROR_TYPE_HEADER = "x-amzn-errortype";
+    private static final String ERROR_CODE_MEMBER = "code";
+
+    // legacy json resolves errortype header -> code -> __type
+    // schema-serde resolves errortype header -> __type -> code
+    //
+    // the latter is objectively more correct because some services e.g. chime actually have a separate modeled code
+    // field which would _not_ have the error, meaning if errortype header was not set there we'd actually resolve the
+    // wrong thing
+    //
+    // to make the old deserializer figure out the "correct" code, we just set any modeled code member to the error
+    // shape name as well
+    private String errorCodeValue(MemberShape member) {
+        if (!responseMode || !isJsonProtocol()) {
+            return null;
+        }
+        var container = model.expectShape(member.getContainer());
+        if (!container.hasTrait(ErrorTrait.class)) {
+            return null;
+        }
+        if (member.hasTrait(HttpHeaderTrait.class)
+                && member.expectTrait(HttpHeaderTrait.class).getValue().equalsIgnoreCase(ERROR_TYPE_HEADER)) {
+            return container.getId().getName();
+        }
+        if (wireName(member).equalsIgnoreCase(ERROR_CODE_MEMBER)) {
+            return container.getId().getName();
+        }
+        return null;
+    }
+
+    private String wireName(MemberShape member) {
+        return member.hasTrait(JsonNameTrait.class)
+                ? member.expectTrait(JsonNameTrait.class).getValue()
+                : member.getMemberName();
+    }
+
+    private boolean isJsonProtocol() {
+        var protocol = settings.getProtocol();
+        return AwsJson1_0Trait.ID.equals(protocol)
+                || AwsJson1_1Trait.ID.equals(protocol)
+                || RestJson1Trait.ID.equals(protocol);
+    }
+
+    // Success fixtures are written with HTTP 200, so an @httpResponseCode member deserializes to exactly that.
+    private boolean isSuccessResponseCode(MemberShape member) {
+        return responseMode && member.hasTrait(HttpResponseCodeTrait.class);
+    }
+
+    // A streaming UNION is an event stream, whose framing the plain serializer doesn't produce. Those operations are
+    // skipped wholesale by the snapshot integrations; this is belt-and-braces for a shape reached some other way.
+    private boolean isEventStream(Shape target) {
+        return target.hasTrait(StreamingTrait.class) && target.getType() != ShapeType.BLOB;
+    }
+
+    // A streaming blob gets a deterministic reader: the request serializer routes it into the body, the response
+    // deserializer hands the body back as the stream, and CompareValues short-circuits on io.Reader and compares
+    // contents. So it's an assertion about the body rather than a skipped member.
+    private boolean isStreamingBlob(Shape target) {
+        return target.getType() == ShapeType.BLOB && target.hasTrait(StreamingTrait.class);
+    }
+
     private void writeStructure(GoWriter writer, StructureShape shape, Set<ShapeId> visited, UnionChoice choice,
                                boolean pointable) {
         if (!visited.add(shape.getId()) || visited.size() > MAX_DEPTH) {
@@ -103,7 +186,7 @@ public final class SnapshotInputGenerator {
         writer.indent();
         for (var member : shape.getAllMembers().values()) {
             var target = model.expectShape(member.getTarget());
-            if (target.hasTrait(StreamingTrait.class)) {
+            if (isEventStream(target)) {
                 continue;
             }
             var memberName = symbolProvider.toMemberName(member);
@@ -121,6 +204,18 @@ public final class SnapshotInputGenerator {
             GoWriter writer, MemberShape member, Shape target, Set<ShapeId> visited, UnionChoice choice
     ) {
         boolean needsPointer = pointableIndex.isPointable(member);
+        if (isSuccessResponseCode(member)) {
+            writeScalar(writer, needsPointer, "200", SmithyGoDependency.SMITHY_PTR, "Int32");
+            return;
+        }
+        if (isStreamingBlob(target)) {
+            var memberName = symbolProvider.toMemberName(member);
+            writer.writeInline("$T($T([]byte($S)))",
+                    SmithyGoDependency.IO.valueSymbol("NopCloser"),
+                    GoStdlibTypes.Bytes.NewReader,
+                    "__" + memberName + "__");
+            return;
+        }
         switch (target.getType()) {
             case BOOLEAN -> writeScalar(writer, needsPointer, "true", SmithyGoDependency.SMITHY_PTR, "Bool");
             case BYTE -> writeScalar(writer, needsPointer, "1", SmithyGoDependency.SMITHY_PTR, "Int8");
@@ -144,7 +239,10 @@ public final class SnapshotInputGenerator {
                     writer.writeInline("$T", memberSymbol);
                 } else {
                     var memberName = symbolProvider.toMemberName(member);
-                    if (member.hasTrait(software.amazon.smithy.model.traits.HostLabelTrait.class)) {
+                    var errorCode = errorCodeValue(member);
+                    if (errorCode != null) {
+                        writeStringValue(writer, needsPointer, errorCode);
+                    } else if (member.hasTrait(HostLabelTrait.class)) {
                         writeStringValue(writer, needsPointer, memberName + "-value");
                     } else {
                         writeStringValue(writer, needsPointer, "__" + memberName + "__");
@@ -154,7 +252,11 @@ public final class SnapshotInputGenerator {
             case ENUM -> {
                 var enumSymbol = symbolProvider.toSymbol(target);
                 var members = target.getAllMembers().values();
-                if (members.isEmpty()) {
+                var errorCode = errorCodeValue(member);
+                if (errorCode != null) {
+                    // The slot holds the code, which is a shape name rather than one of the enum's own values.
+                    writer.writeInline("$T($S)", enumSymbol, errorCode);
+                } else if (members.isEmpty()) {
                     writer.writeInline("$T(\"\")", enumSymbol);
                 } else {
                     var firstMember = members.iterator().next();
@@ -192,7 +294,11 @@ public final class SnapshotInputGenerator {
             case STRUCTURE -> writeStructure(writer, target.asStructureShape().get(), visited, choice,
                     needsPointer);
             case UNION -> writeUnion(writer, target.asUnionShape().get(), visited, choice);
-            case DOCUMENT -> writer.writeInline("nil");
+            case DOCUMENT -> {
+                var newLazyDocument = ProtocolDocumentGenerator.Utilities.getDocumentSymbolBuilder(
+                        settings, ProtocolDocumentGenerator.NEW_LAZY_DOCUMENT).build();
+                writer.writeInline("$T($S)", newLazyDocument, "__Document__");
+            }
             default -> writer.writeInline("nil");
         }
     }

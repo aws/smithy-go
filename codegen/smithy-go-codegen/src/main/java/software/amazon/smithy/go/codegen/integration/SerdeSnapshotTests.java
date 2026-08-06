@@ -4,6 +4,9 @@ import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.ArrayList;
 import java.util.Set;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
+import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
+import software.amazon.smithy.aws.traits.protocols.RestJson1Trait;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ChainWritable;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -32,32 +35,37 @@ public class SerdeSnapshotTests implements GoIntegration {
         goDelegator.useFileWriter("request_snapshot_test.go", settings.getModuleName(), writer -> {
             writer.addBuildTag("request_snapshot");
             writer.write(commonSource());
-            writer.write(bodyEqual(isCbor(settings)));
+            writer.write(bodyEqual(settings));
 
             var service = settings.getService(model);
-            var generator = new SnapshotInputGenerator(model, symbolProvider);
+            var generator = new SnapshotInputGenerator(model, symbolProvider, settings, false);
             writer.write(snapshotTests(model, service, symbolProvider, generator));
             writer.write(snapshotUpdaters(model, service, symbolProvider, generator));
         });
     }
 
-    private static boolean isCbor(GoSettings settings) {
-        return Rpcv2CborTrait.ID.equals(settings.getProtocol());
+    // Emits serdeBodyEqual, the request-body comparator, per protocol. Every variant falls back to a byte compare
+    // when either side won't decode, so a malformed golden fails loudly rather than silently passing.
+    private Writable bodyEqual(GoSettings settings) {
+        var protocol = settings.getProtocol();
+        if (Rpcv2CborTrait.ID.equals(protocol)) {
+            return cborBodyEqual();
+        } else if (AwsJson1_0Trait.ID.equals(protocol) || AwsJson1_1Trait.ID.equals(protocol)
+                || RestJson1Trait.ID.equals(protocol)) {
+            return jsonBodyEqual();
+        }
+        // restXml has the same member-ordering divergence in XML element form, and awsQuery/ec2Query bodies are
+        // form-urlencoded. Those are out of scope for now (JSON snapshots only), so they stay on a byte compare.
+        return goTemplate("""
+                func serdeBodyEqual(got, expected []byte) bool {
+                    return bytes.Equal(got, expected)
+                }
+                """);
     }
 
-    // Emits serdeBodyEqual, the request-body comparator. Most protocols serialize
-    // deterministically, so a raw byte compare is correct. rpcv2Cbor encodes struct
-    // fields as a CBOR map and the encoder emits map entries in Go map iteration
-    // order, so the same input produces different byte orderings across runs. For
-    // that protocol we compare decoded CBOR values, which is order-independent.
-    private Writable bodyEqual(boolean isCbor) {
-        if (!isCbor) {
-            return goTemplate("""
-                    func serdeBodyEqual(got, expected []byte) bool {
-                        return bytes.Equal(got, expected)
-                    }
-                    """);
-        }
+    // rpcv2Cbor encodes struct fields as a CBOR map and the encoder emits map entries in Go map iteration order, so
+    // the same input produces different byte orderings across runs. Comparing decoded values is order-independent.
+    private Writable cborBodyEqual() {
         return writer -> {
             writer.addUseImports(SmithyGoDependency.REFLECT);
             writer.addUseImports(SmithyGoDependency.SMITHY_CBOR);
@@ -72,6 +80,43 @@ public class SerdeSnapshotTests implements GoIntegration {
                             return bytes.Equal(got, expected)
                         }
                         return reflect.DeepEqual(gv, ev)
+                    }
+                    """);
+        };
+    }
+
+    // JSON object member order isn't semantically meaningful, and legacy serde orders members by ShapeId
+    // (case-insensitive, via TreeSet) while schema-serde orders them by member name (byte order). A byte compare
+    // therefore reports thousands of semantically identical bodies as mismatches for the whole legacy ->
+    // schema-serde transition.
+    private Writable jsonBodyEqual() {
+        return writer -> {
+            writer.addUseImports(SmithyGoDependency.REFLECT);
+            writer.addUseImports(SmithyGoDependency.JSON);
+            writer.write("""
+                    func serdeBodyEqual(got, expected []byte) bool {
+                        if len(got) == 0 || len(expected) == 0 {
+                            return bytes.Equal(got, expected)
+                        }
+                        gv, gok := serdeDecodeJSON(got)
+                        ev, eok := serdeDecodeJSON(expected)
+                        if !gok || !eok {
+                            return bytes.Equal(got, expected)
+                        }
+                        return reflect.DeepEqual(gv, ev)
+                    }
+
+                    // serdeDecodeJSON decodes a body for structural comparison. Numbers are kept as
+                    // json.Number rather than float64 so a large int64 doesn't lose precision (which would
+                    // mask a real difference) and so numeric formatting differences still show up.
+                    func serdeDecodeJSON(b []byte) (any, bool) {
+                        d := json.NewDecoder(bytes.NewReader(b))
+                        d.UseNumber()
+                        var v any
+                        if err := d.Decode(&v); err != nil {
+                            return nil, false
+                        }
+                        return v, true
                     }
                     """);
         };
