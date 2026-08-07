@@ -8,11 +8,12 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	internalquery "github.com/aws/smithy-go/transport/http/protocol/internal/query"
-	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalsync "github.com/aws/smithy-go/internal/sync"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	internalquery "github.com/aws/smithy-go/transport/http/protocol/internal/query"
+	internalxml "github.com/aws/smithy-go/transport/http/protocol/internal/xml"
 )
 
 // ProtocolOptions configures aws.protocols#awsQuery.
@@ -23,6 +24,8 @@ type Protocol struct {
 	eventstream internales.NoEventStream
 
 	version string
+
+	bufs *internalsync.BufferPool
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
@@ -34,7 +37,7 @@ func New(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protoco
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &Protocol{version: service.Version}
+	return &Protocol{version: service.Version, bufs: internalsync.NewBufferPool()}
 }
 
 // ID identifies the protocol.
@@ -106,10 +109,15 @@ func (p *Protocol) DeserializeResponse(
 		return p.deserializeError(types, resp)
 	}
 
-	payload, err := io.ReadAll(resp.Body)
+	// NOTE: payload aliases the pooled buffer, which is reused for the next
+	// response, so nothing may retain a reference into it past this call.
+	buf, err := p.bufs.Get(resp.Body)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
+	defer p.bufs.Put(buf)
+
+	payload := buf.Bytes()
 
 	if len(payload) == 0 {
 		return nil

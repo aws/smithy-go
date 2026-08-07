@@ -235,9 +235,10 @@ public class HttpProtocolUnitTestResponseGenerator extends HttpProtocolUnitTestG
         writer.writeGoTemplate("""
                 resp := &smithyhttp.Response{
                     Response: &http.Response{
-                        StatusCode: c.StatusCode,
-                        Header:     c.Header.Clone(),
-                        Body:       io.NopCloser(bytes.NewReader(c.Body)),
+                        StatusCode:    c.StatusCode,
+                        Header:        c.Header.Clone(),
+                        ContentLength: int64(len(c.Body)),
+                        Body:          io.NopCloser(bytes.NewReader(c.Body)),
                     },
                 }
                 output := &$outputSymbol:T{}

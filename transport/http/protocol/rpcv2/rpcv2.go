@@ -8,13 +8,14 @@ import (
 	"net/http"
 
 	"github.com/aws/smithy-go"
-	internales "github.com/aws/smithy-go/internal/eventstream"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
+	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalsync "github.com/aws/smithy-go/internal/sync"
 	smithyio "github.com/aws/smithy-go/io"
 	"github.com/aws/smithy-go/middleware"
-	internalcbor "github.com/aws/smithy-go/transport/http/protocol/internal/cbor"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	internalcbor "github.com/aws/smithy-go/transport/http/protocol/internal/cbor"
 )
 
 // Protocol implements an RPC v2 protocol.
@@ -26,6 +27,7 @@ type Protocol struct {
 	serviceName     string
 
 	eventstream *internales.Codec
+	bufs        *internalsync.BufferPool
 }
 
 var _ smithyhttp.ClientProtocol = (*Protocol)(nil)
@@ -48,6 +50,7 @@ func NewCBOR(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Pro
 			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internalcbor.NewShapeDeserializer(p) },
 			ContentType:  "application/cbor",
 		},
+		bufs: internalsync.NewBufferPool(),
 	}
 }
 
@@ -125,10 +128,16 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	payload, err := io.ReadAll(resp.Body)
+	// NOTE: payload aliases the pooled buffer, so the deserializer must not
+	// retain references into it -- everything it yields to the caller is
+	// copied out today.
+	buf, err := p.bufs.Get(resp.Body)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
+	defer p.bufs.Put(buf)
+
+	payload := buf.Bytes()
 
 	if len(payload) == 0 {
 		return nil

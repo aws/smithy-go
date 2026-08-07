@@ -40,6 +40,8 @@ type ShapeDeserializer struct {
 
 	peeked        []byte
 	peekedEscaped bool
+
+	arena serde.StringArena
 }
 
 var deserPool = sync.Pool{
@@ -66,6 +68,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	d.head.Reset()
 	d.peeked = nil
 	d.opts = o
+	d.arena.Reset(len(p) / serde.ArenaPayloadFactor)
 	return d
 }
 
@@ -282,11 +285,11 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	}
 
 	if !d.p.escaped {
-		*v = string(tok[1 : len(tok)-1])
+		*v = d.arena.String(tok[1 : len(tok)-1])
 		return nil
 	}
 
-	sv, err := unquote(tok)
+	sv, err := d.unquoteArena(tok)
 	if err != nil {
 		return err
 	}
@@ -418,10 +421,10 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	}
 
 	if !d.p.escaped {
-		return string(tok[1 : len(tok)-1]), true, nil
+		return d.arena.String(tok[1 : len(tok)-1]), true, nil
 	}
 
-	key, err := unquote(tok)
+	key, err := d.unquoteArena(tok)
 	if err != nil {
 		return "", false, err
 	}
@@ -583,6 +586,13 @@ func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Valu
 func unquote(tok []byte) (string, error) {
 	if s, ok := stdlib.UnquoteBytes(tok); ok {
 		return string(s), nil
+	}
+	return "", fmt.Errorf("cannot unquote %s", tok)
+}
+
+func (d *ShapeDeserializer) unquoteArena(tok []byte) (string, error) {
+	if s, ok := stdlib.UnquoteBytes(tok); ok {
+		return d.arena.String(s), nil
 	}
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
@@ -808,9 +818,9 @@ func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(s
 
 		var key string
 		if !d.p.escaped {
-			key = string(tok[1 : len(tok)-1])
+			key = d.arena.String(tok[1 : len(tok)-1])
 		} else {
-			key, err = unquote(tok)
+			key, err = d.unquoteArena(tok)
 			if err != nil {
 				return err
 			}

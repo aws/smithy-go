@@ -22,6 +22,8 @@ type ShapeDeserializer struct {
 	off  int
 	head serde.Stack[deserCtx]
 	opts ShapeDeserializerOptions
+
+	arena serde.StringArena
 }
 
 type deserCtxKind byte
@@ -50,7 +52,10 @@ func NewShapeDeserializer(p []byte, opts ...func(*ShapeDeserializerOptions)) *Sh
 	for _, fn := range opts {
 		fn(&o)
 	}
-	return &ShapeDeserializer{p: p, head: serde.NewStack[deserCtx](), opts: o}
+
+	d := &ShapeDeserializer{p: p, head: serde.NewStack[deserCtx](), opts: o}
+	d.arena.Reset(len(p) / serde.ArenaPayloadFactor)
+	return d
 }
 
 func (d *ShapeDeserializer) eof() bool {
@@ -254,12 +259,25 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 
 // ReadString implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
+	b, err := d.readStringBytes()
+	if err != nil {
+		return err
+	}
+
+	*v = d.arena.String(b)
+	return nil
+}
+
+// readStringBytes reads a string token and returns its contents without
+// materializing a string. For the definite-length form the result aliases the
+// payload, so callers that retain it must copy.
+func (d *ShapeDeserializer) readStringBytes() ([]byte, error) {
 	if d.eof() {
-		return errUnexpectedEOF
+		return nil, errUnexpectedEOF
 	}
 
 	if d.peekMajor() != majorTypeString {
-		return fmt.Errorf("expected string, got major type %d", d.peekMajor())
+		return nil, fmt.Errorf("expected string, got major type %d", d.peekMajor())
 	}
 
 	if d.peekMinor() == minorIndefinite {
@@ -267,33 +285,33 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 		var result []byte
 		for d.off < len(d.p) && d.p[d.off] != 0xff {
 			if d.peekMajor() != majorTypeString {
-				return fmt.Errorf("expected string chunk, got major type %d", d.peekMajor())
+				return nil, fmt.Errorf("expected string chunk, got major type %d", d.peekMajor())
 			}
 			slen, err := d.readArg()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if d.off+int(slen) > len(d.p) {
-				return fmt.Errorf("string chunk length %d exceeds remaining data", slen)
+				return nil, fmt.Errorf("string chunk length %d exceeds remaining data", slen)
 			}
 			result = append(result, d.p[d.off:d.off+int(slen)]...)
 			d.off += int(slen)
 		}
 		d.off++ // skip terminator
-		*v = string(result)
-		return nil
+		return result, nil
 	}
 
 	slen, err := d.readArg()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if d.off+int(slen) > len(d.p) {
-		return fmt.Errorf("string length %d exceeds remaining data", slen)
+		return nil, fmt.Errorf("string length %d exceeds remaining data", slen)
 	}
-	*v = string(d.p[d.off : d.off+int(slen)])
+
+	b := d.p[d.off : d.off+int(slen)]
 	d.off += int(slen)
-	return nil
+	return b, nil
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -498,12 +516,12 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		sc.remaining--
 	}
 
-	var key string
-	if err := d.ReadString(nil, &key); err != nil {
+	key, err := d.readStringBytes()
+	if err != nil {
 		return nil, err
 	}
 
-	member := sc.schema.Member(key)
+	member := sc.schema.Members()[string(key)]
 	if member == nil {
 		if err := d.skip(); err != nil {
 			return nil, err
@@ -557,8 +575,8 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			uc.remaining--
 		}
 
-		var key string
-		if err := d.ReadString(nil, &key); err != nil {
+		key, err := d.readStringBytes()
+		if err != nil {
 			return nil, err
 		}
 
@@ -570,7 +588,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			}
 		}
 
-		member := s.Member(key)
+		member := s.Members()[string(key)]
 		if member == nil {
 			if err := d.skip(); err != nil {
 				return nil, err

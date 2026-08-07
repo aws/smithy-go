@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/aws/smithy-go"
-	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
 	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalsync "github.com/aws/smithy-go/internal/sync"
 	smithyio "github.com/aws/smithy-go/io"
-	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // ProtocolOptions configures aws.protocols#awsJson1_0.
@@ -23,34 +24,26 @@ type ProtocolOptions struct{}
 
 // New10 returns an instance of the awsJson 1.0 protocol.
 func New10(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
-	var o ProtocolOptions
-	for _, fn := range opts {
-		fn(&o)
-	}
-	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
-	return &Protocol{
-		version:         "1.0",
-		queryCompatible: qc,
-		serviceName:     service.Schema.ID().Name,
-		eventstream: &internales.Codec{
-			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
-			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
-			ContentType:  "application/json",
-		},
-	}
+	return new("1.0", service, opts...)
 }
 
 // New11 returns an instance of the awsJson 1.1 protocol.
 func New11(service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
+	return new("1.1", service, opts...)
+}
+
+func new(version string, service *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 	var o ProtocolOptions
 	for _, fn := range opts {
 		fn(&o)
 	}
+
 	_, qc := smithy.SchemaTrait[*traits.AWSQueryCompatible](service.Schema)
 	return &Protocol{
-		version:         "1.1",
+		version:         version,
 		queryCompatible: qc,
 		serviceName:     service.Schema.ID().Name,
+		bufs:            internalsync.NewBufferPool(),
 		eventstream: &internales.Codec{
 			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
 			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
@@ -65,6 +58,7 @@ type Protocol struct {
 	queryCompatible bool
 	serviceName     string
 
+	bufs        *internalsync.BufferPool
 	eventstream *internales.Codec
 }
 
@@ -89,7 +83,7 @@ func (p *Protocol) SerializeRequest(
 	if len(req.URL.Path) == 0 {
 		req.URL.Path = "/"
 	}
-	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", p.serviceName, middleware.GetOperationName(ctx)))
+	req.Header.Set("X-Amz-Target", fmt.Sprintf("%s.%s", p.serviceName, schema.ID().Name))
 	if schema.IsInputEventStream() {
 		req.Header.Set("Content-Type", "application/vnd.amazon.eventstream")
 		return nil
@@ -101,7 +95,7 @@ func (p *Protocol) SerializeRequest(
 	}
 
 	if schema.Input == nil {
-		sreq, err := req.SetStream(bytes.NewReader([]byte("{}")))
+		sreq, err := req.SetStream(strings.NewReader("{}"))
 		if err != nil {
 			return fmt.Errorf("set stream: %w", err)
 		}
@@ -146,11 +140,13 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	payload, err := io.ReadAll(resp.Body)
+	buf, err := p.bufs.Get(resp.Body)
 	if err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
+	defer p.bufs.Put(buf)
 
+	payload := buf.Bytes()
 	if len(payload) == 0 {
 		return nil
 	}

@@ -8,11 +8,13 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
-	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
-	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 	internales "github.com/aws/smithy-go/internal/eventstream"
+	internalserde "github.com/aws/smithy-go/internal/serde"
+	internalsync "github.com/aws/smithy-go/internal/sync"
 	smithyio "github.com/aws/smithy-go/io"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
+	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // ProtocolOptions configures aws.protocols#restJson1.
@@ -25,16 +27,18 @@ func New(_ *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 		fn(&o)
 	}
 	return &Protocol{
+		bufs: internalsync.NewBufferPool(),
 		eventstream: &internales.Codec{
-			Serializer:  func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
+			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
 			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
-			ContentType: "application/json",
+			ContentType:  "application/json",
 		},
 	}
 }
 
 // Protocol implements aws.protocols#restJson1.
 type Protocol struct {
+	bufs        *internalsync.BufferPool
 	eventstream *internales.Codec
 }
 
@@ -112,11 +116,22 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	payload, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &smithy.DeserializationError{Err: err}
+	// a blob @httpPayload is handed to the caller by reference, so its buffer
+	// can't be reused
+	var buf *bytes.Buffer
+	var err error
+	if internalhttpbinding.HasBlobPayload(op.Output) {
+		if buf, err = internalserde.ReadPayloadBlob(resp.Body, resp.ContentLength); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+	} else {
+		if buf, err = p.bufs.Get(resp.Body); err != nil {
+			return &smithy.DeserializationError{Err: err}
+		}
+		defer p.bufs.Put(buf)
 	}
 
+	payload := buf.Bytes()
 	deser := internalhttpbinding.NewShapeDeserializer(resp.Response, bd(payload), payload)
 	if err := out.Deserialize(deser); err != nil {
 		return &smithy.DeserializationError{Err: err}
