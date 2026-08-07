@@ -1,0 +1,8 @@
+{
+    "id": "2e107c2c-aba9-4fc7-a7ea-87a9e259466d",
+    "type": "bugfix",
+    "description": "Don't serialize unset JSON documents as `nil` in structure members.",
+    "modules": [
+        "."
+    ]
+}

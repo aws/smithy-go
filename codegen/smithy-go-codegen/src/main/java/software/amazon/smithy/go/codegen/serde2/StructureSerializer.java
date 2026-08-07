@@ -103,7 +103,8 @@ public final class StructureSerializer implements Writable {
                     writer.write("if $2L != nil { s.WriteStruct($1L)\n$2L.SerializeMembers(s)\ns.CloseStruct() }", schemaName, ident);
             case DOCUMENT -> {
                 writer.addUseImports(SmithyGoDependency.SMITHY_DOCUMENT);
-                writer.write("s.WriteDocument($L, &smithydocument.Opaque{Value: $L})", schemaName, ident);
+                writer.write("if $2L != nil { s.WriteDocument($1L, &smithydocument.Opaque{Value: $2L}) }",
+                        schemaName, ident);
             }
 
             // FUTURE(602)

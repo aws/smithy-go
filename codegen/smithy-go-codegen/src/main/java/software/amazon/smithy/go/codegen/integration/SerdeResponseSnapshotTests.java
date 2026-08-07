@@ -15,14 +15,11 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
-import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
@@ -47,15 +44,25 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.HttpErrorTrait;
+import software.amazon.smithy.model.traits.HttpHeaderTrait;
+import software.amazon.smithy.model.traits.HttpLabelTrait;
+import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
+import software.amazon.smithy.model.traits.HttpQueryParamsTrait;
+import software.amazon.smithy.model.traits.HttpQueryTrait;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
-import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.StringUtils;
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 public class SerdeResponseSnapshotTests implements GoIntegration {
-    private static final Set<String> SKIP_OPERATIONS = Set.of(
-            // Predict has a customization where an input member goes into the URL. The check path still builds a
-            // request to drive the deserialize, so that customization complicates things here too -- just skip it.
-            "com.amazonaws.machinelearning#Predict"
+    // SDK customizations that aren't visible in the model, so they can't be
+    // detected by inspecting traits
+    //
+    // shape id -> reason
+    private static final Map<String, String> SKIP_OPERATIONS = Map.of(
+            "com.amazonaws.machinelearning#Predict", "endpoint customization",
+            "com.amazonaws.sqs#ReceiveMessage", "md5 customization",
+            "com.amazonaws.sqs#SendMessage", "md5 customization",
+            "com.amazonaws.sqs#SendMessageBatch", "md5 customization"
     );
 
     @Override
@@ -73,7 +80,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         }
 
         var serviceSchemaRef = "schemas." + StringUtils.capitalize(service.getId().getName(service));
-        var generator = new SnapshotOutputGenerator(model, symbolProvider);
+        var generator = new SnapshotOutputGenerator(model, symbolProvider, settings);
 
         // The Check tests are ALWAYS generated: they only read a fixture, inject it, run the real deserialize path,
         // and compare the output. They have no dependency on output Serialize/schemas, so they compile and run whether
@@ -82,7 +89,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         goDelegator.useFileWriter("response_snapshot_test.go", settings.getModuleName(), writer -> {
             writer.addBuildTag("response_snapshot");
             writer.write(checkCommonSource());
-            writer.write(checks(model, service, symbolProvider, generator));
+            writer.write(checks(settings, model, service, symbolProvider, generator));
         });
 
         // The Update tests (fixture generation) serialize the output value via a throwaway protocol, which requires
@@ -92,17 +99,13 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             goDelegator.useFileWriter("response_snapshot_update_test.go", settings.getModuleName(), writer -> {
                 writer.addBuildTag("response_snapshot");
                 writer.addImport(settings.getModuleName() + "/schemas", "schemas");
-                writer.write(updateCommonSource());
+                writer.write(updateCommonSource(settings.getProtocol()));
                 writer.write(updaters(model, service, symbolProvider, generator, serviceSchemaRef, protoNew,
-                        errorFraming(settings.getProtocol())));
+                        settings.getProtocol()));
             });
         }
     }
 
-    // Resolves the throwaway protocol constructor used to serialize output values into wire responses. Returns null
-    // only for protocols we don't recognize (the file is then not emitted). Every schema-serde protocol is wired up;
-    // the response-snapshot files are still only emitted for a service once it migrates to schema-serde (the Update
-    // half is gated on !useLegacySerde), so this generalizes without any manual per-protocol flip.
     private Symbol resolveProtocolCtor(ShapeId protocol) {
         if (Rpcv2CborTrait.ID.equals(protocol)) {
             return SmithyGoDependency.SMITHY_PROTOCOL_RPCV2.func("NewCBOR");
@@ -120,32 +123,6 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             return SmithyGoDependency.SMITHY_PROTOCOL_EC2QUERY.func("New");
         }
         return null;
-    }
-
-    // How the modeled-error discriminator + status are framed onto the captured wire response, per protocol. The
-    // success path is protocol-agnostic (serialize output, capture headers+body, status 200); only errors need
-    // protocol-specific framing because the throwaway SerializeRequest emits just the error members, not the
-    // protocol's error envelope/discriminator that the deserializer keys on.
-    private enum ErrorFraming {
-        // rpcv2Cbor: discriminator is "__type" inside the CBOR body map (no header form).
-        CBOR_BODY,
-        // awsJson1_0/1_1 + restJson1: deserializers resolve the code from the X-Amzn-ErrorType header first, so we
-        // set that and leave the serialized JSON members as the body (which the error deserializer then reads).
-        JSON_HEADER,
-        // restXml/awsQuery/ec2Query: deserializers parse an <ErrorResponse><Error><Code>..</Code>..</Error>..
-        // envelope. awsQuery/ec2Query serialize requests as form-urlencoded rather than XML, so for those two the
-        // captured body is not XML members.
-        XML_ENVELOPE
-    }
-
-    private ErrorFraming errorFraming(ShapeId protocol) {
-        if (Rpcv2CborTrait.ID.equals(protocol)) {
-            return ErrorFraming.CBOR_BODY;
-        } else if (RestXmlTrait.ID.equals(protocol) || AwsQueryTrait.ID.equals(protocol)
-                || Ec2QueryTrait.ID.equals(protocol)) {
-            return ErrorFraming.XML_ENVELOPE;
-        }
-        return ErrorFraming.JSON_HEADER;
     }
 
     // HTTP status for an error fixture: explicit @httpError code, else Smithy's default (400 client / 500 server).
@@ -266,8 +243,12 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
 
     // updateCommonSource emits helpers used only by the (schema-serde-gated) Update tests: fixture directory creation
     // and the fixture writer. serdeRespSSPath / serdeRespSSPrefix live in the always-generated Check file.
-    private Writable updateCommonSource() {
+    private Writable updateCommonSource(ShapeId protocol) {
         return writer -> {
+            writer.addUseImports(SmithyGoDependency.TESTING);
+            writer.addUseImports(SmithyGoDependency.SMITHY_CBOR);
+            writer.addUseImports(SmithyGoDependency.JSON);
+            writer.addUseImports(SmithyGoDependency.BYTES);
             writer.addUseImports(SmithyGoDependency.OS);
             writer.addUseImports(SmithyGoDependency.FS);
             writer.addUseImports(SmithyGoDependency.IO);
@@ -286,6 +267,11 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                     }
 
                     func serdeRespWriteSnapshot(op string, status int, header http.Header, body []byte) error {
+                        if es, eh, eb, err := serdeRespReadSnapshot(op); err == nil &&
+                            es == status && serdeRespHeaderEqual(eh, header) && bytes.Equal(body, eb) {
+                            return nil
+                        }
+
                         f, err := serdeRespCreatePath(serdeRespSSPath(op))
                         if err != nil {
                             return err
@@ -314,11 +300,64 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         return err
                     }
 
-                    // serdeRespXMLErrorEnvelope wraps serialized error members in the XML
-                    // error envelope the restXml/query deserializers parse:
-                    // <ErrorResponse><Error><Code>CODE</Code>MEMBERS</Error></ErrorResponse>.
-                    // It strips the serialized body's outer root element and re-parents the
-                    // members under <Error>.
+                    func serdeRespHeaderEqual(a, b http.Header) bool {
+                        if len(a) != len(b) {
+                            return false
+                        }
+                        for k, av := range a {
+                            bv, ok := b[k]
+                            if !ok || !slices.Equal(av, bv) {
+                                return false
+                            }
+                        }
+                        return true
+                    }
+
+                    // inject __type into cbor since our error "serializers" don't like a real response would have
+                    func serdeRespSpliceCBORType(t *testing.T, body []byte, code string) []byte {
+                        pair := append(
+                            smithycbor.Encode(smithycbor.String("__type")),
+                            smithycbor.Encode(smithycbor.String(code))...,
+                        )
+                        if len(body) == 0 {
+                            return append(append([]byte{0xbf}, pair...), 0xff)
+                        }
+
+                        if body[0] != 0xbf {
+                            t.Fatalf("expected cbor indefinite map header, got %#x", body[0])
+                        }
+
+                        out := make([]byte, 0, len(body)+len(pair))
+                        out = append(out, 0xbf)
+                        out = append(out, pair...)
+                        return append(out, body[1:]...)
+                    }
+
+                    // inject __type into json since our error "serializers" don't like a real response would have
+                    func serdeRespSpliceJSONType(t *testing.T, body []byte, code string) []byte {
+                        quoted, err := json.Marshal(code)
+                        if err != nil {
+                            t.Fatal(err)
+                        }
+
+                        entry := append([]byte(`"__type":`), quoted...)
+                        trimmed := bytes.TrimLeft(body, " \\t\\r\\n")
+                        if len(trimmed) == 0 {
+                            return append(append([]byte{'{'}, entry...), '}')
+                        }
+                        if trimmed[0] != '{' {
+                            t.Fatalf("expected json object body, got %q", trimmed[0])
+                        }
+
+                        rest := bytes.TrimLeft(trimmed[1:], " \\t\\r\\n")
+                        out := append([]byte{'{'}, entry...)
+                        if len(rest) > 0 && rest[0] != '}' {
+                            out = append(out, ',')
+                        }
+                        return append(out, rest...)
+                    }
+
+                    // inject the xml envelope since our error "serializers" don't like a real response woul have
                     func serdeRespXMLErrorEnvelope(body []byte, code string) []byte {
                         inner := ""
                         s := strings.TrimSpace(string(body))
@@ -339,15 +378,23 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     }
 
     private Writable checks(
-            Model model, ServiceShape service, SymbolProvider symbolProvider, SnapshotOutputGenerator generator
+            GoSettings settings, Model model, ServiceShape service, SymbolProvider symbolProvider,
+            SnapshotOutputGenerator generator
     ) {
         var eventStreamIndex = EventStreamIndex.of(model);
+        var inputs = new SnapshotInputGenerator(model, symbolProvider, settings, false);
         var writables = new ArrayList<Writable>();
         var operations = sortedOperations(model, service, eventStreamIndex);
-        for (var operation : operations) {
-            var inputSymbol = symbolProvider.toSymbol(model.expectShape(operation.getInputShape()));
+        for (var operation : allOperations(model, service)) {
+            var reason = skipReason(model, operation, eventStreamIndex);
+            if (reason != null) {
+                writables.add(writeSkip(
+                        "TestCheckResponseSnapshot_" + symbolProvider.toSymbol(operation).getName(), reason));
+                continue;
+            }
+            var inputValue = inputs.generateCases(operation).get(0).input();
             for (var testCase : generator.generateCases(operation)) {
-                writables.add(writeCheck(operation, testCase, symbolProvider, inputSymbol));
+                writables.add(writeCheck(operation, testCase, symbolProvider, inputValue));
             }
         }
         // Modeled errors run the same ReadStruct/ReadUnion deserialize machinery as success outputs (the
@@ -358,13 +405,39 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         for (var entry : errorRepOps(model, operations).entrySet()) {
             var errorShape = entry.getKey();
             var repOp = entry.getValue();
-            var inputSymbol = symbolProvider.toSymbol(model.expectShape(repOp.getInputShape()));
+            var inputValue = inputs.generateCases(repOp).get(0).input();
             var errorSymbol = symbolProvider.toSymbol(errorShape);
+            if (isAsymmetric(errorShape)) {
+                writables.add(writeSkip(
+                        "TestCheckResponseSnapshot_Error_" + errorSymbol.getName(), "asymmetric"));
+                continue;
+            }
             for (var errorCase : generator.generateCasesForError(errorShape)) {
-                writables.add(writeErrorCheck(repOp, errorCase, symbolProvider, inputSymbol, errorSymbol));
+                writables.add(writeErrorCheck(repOp, errorCase, symbolProvider, inputValue, errorSymbol));
             }
         }
         return ChainWritable.of(writables).compose();
+    }
+
+    // Every operation the service contains, sorted by shape id, skipped or not.
+    private List<OperationShape> allOperations(Model model, ServiceShape service) {
+        var operations = new ArrayList<>(TopDownIndex.of(model).getContainedOperations(service));
+        operations.sort(Comparator.comparing(o -> o.getId().toString()));
+        return operations;
+    }
+
+    // A test that exists only to record, in the generated SDK, that an operation or error has no snapshot coverage.
+    private Writable writeSkip(String testName, String reason) {
+        return goTemplate("""
+                func $name:L(t *$testingT:T) {
+                    t.Skip($reason:S)
+                }
+                """,
+                Map.of(
+                        "name", testName,
+                        "reason", reason,
+                        "testingT", GoStdlibTypes.Testing.T
+                ));
     }
 
     // Returns the service's non-skipped operations sorted by shape id, so the representative-operation choice for
@@ -372,7 +445,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     private List<OperationShape> sortedOperations(Model model, ServiceShape service, EventStreamIndex esi) {
         var operations = new ArrayList<OperationShape>();
         for (var operation : TopDownIndex.of(model).getContainedOperations(service)) {
-            if (!skip(operation, esi)) {
+            if (!skip(model, operation, esi)) {
                 operations.add(operation);
             }
         }
@@ -405,7 +478,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
 
     private Writable updaters(
             Model model, ServiceShape service, SymbolProvider symbolProvider, SnapshotOutputGenerator generator,
-            String serviceSchemaRef, Symbol protoNew, ErrorFraming framing
+            String serviceSchemaRef, Symbol protoNew, ShapeId protocol
     ) {
         var eventStreamIndex = EventStreamIndex.of(model);
         var writables = new ArrayList<Writable>();
@@ -415,8 +488,8 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             var opSchemaRef = SchemaGenerator.getSchemaRef(operation, service);
             var outSchemaRef = SchemaGenerator.getSchemaRef(outputShape, service);
             for (var testCase : generator.generateCases(operation)) {
-                writables.add(writeUpdate(
-                        operation, testCase, symbolProvider, serviceSchemaRef, protoNew, opSchemaRef, outSchemaRef));
+                writables.add(writeUpdate(operation, testCase, symbolProvider, serviceSchemaRef, protoNew,
+                        opSchemaRef, outSchemaRef));
             }
         }
         for (var entry : errorRepOps(model, operations).entrySet()) {
@@ -428,21 +501,66 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             for (var errorCase : generator.generateCasesForError(errorShape)) {
                 writables.add(writeErrorUpdate(
                         repOp, errorCase, symbolProvider, serviceSchemaRef, protoNew, opSchemaRef,
-                        errSchemaRef, errorSymbol, framing, errorStatus(errorShape)));
+                        errSchemaRef, errorSymbol, errorShape, protocol, errorStatus(errorShape)));
             }
         }
         return ChainWritable.of(writables).compose();
     }
 
-    private boolean skip(OperationShape operation, EventStreamIndex eventStreamIndex) {
-        return SKIP_OPERATIONS.contains(operation.getId().toString())
-                || eventStreamIndex.getInputInfo(operation).isPresent()
-                || eventStreamIndex.getOutputInfo(operation).isPresent();
+    private boolean skip(Model model, OperationShape operation, EventStreamIndex eventStreamIndex) {
+        return skipReason(model, operation, eventStreamIndex) != null;
+    }
+
+    private String skipReason(Model model, OperationShape operation, EventStreamIndex eventStreamIndex) {
+        var staticReason = SKIP_OPERATIONS.get(operation.getId().toString());
+        if (staticReason != null) {
+            return staticReason;
+        }
+
+        if (eventStreamIndex.getInputInfo(operation).isPresent() || eventStreamIndex.getOutputInfo(operation).isPresent()) {
+            return "event stream operation";
+        }
+
+        var output = model.expectShape(operation.getOutputShape(), StructureShape.class);
+        if (isAsymmetric(output)) {
+            return "asymmetric";
+        }
+
+        return null;
+    }
+
+    // since we are basically just flipping our serializer around to make responses, there are a number of things that
+    // don't translate symmetrically and result in broken snapshots, so we have to just not cover those for now
+    private boolean isAsymmetric(StructureShape shape) {
+        for (var member : shape.getAllMembers().values()) {
+            // an actual response serializer would ignore these
+            if (member.hasTrait(HttpQueryTrait.class) || member.hasTrait(HttpQueryParamsTrait.class) || member.hasTrait(HttpLabelTrait.class)) {
+                return true;
+            }
+
+            // doesn't translate because there's special handling w/ the ContentLength field
+            if (member.hasTrait(HttpHeaderTrait.class)) {
+                var header = member.expectTrait(HttpHeaderTrait.class);
+                if (header.getValue().equalsIgnoreCase("Content-Length")) {
+                    return true;
+                }
+            }
+
+            // steals any headers from the protocol serializer because no prefix means everything
+            if (member.hasTrait(HttpPrefixHeadersTrait.class)) {
+                var headers = member.expectTrait(HttpPrefixHeadersTrait.class);
+                if (headers.getValue().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private Writable writeCheck(
             OperationShape operation, SnapshotInputGenerator.TestCase testCase, SymbolProvider symbolProvider,
-            Symbol inputSymbol
+            Writable inputValue
     ) {
         var opName = symbolProvider.toSymbol(operation).getName();
         return goTemplate("""
@@ -456,7 +574,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         t.Fatal(err)
                     }
                     svc := serdeRespClient(status, header, body)
-                    got, err := svc.$op:L($ctx:T(), &$input:T{})
+                    got, err := svc.$op:L($ctx:T(), $input:W)
                     if err != nil {
                         t.Fatal(err)
                     }
@@ -465,12 +583,12 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                     }
                 }
                 """,
-                MapUtils.of(
+                Map.of(
                         "name", opName,
                         "fixture", opName + ".response",
                         "op", opName,
                         "output", testCase.input(),
-                        "input", inputSymbol,
+                        "input", inputValue,
                         "testingT", GoStdlibTypes.Testing.T,
                         "ctx", GoStdlibTypes.Context.Background,
                         "compare", SmithyGoDependency.SMITHY_TESTING.func("CompareValues")
@@ -505,17 +623,17 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                     }
                 }
                 """,
-                MapUtils.of(
-                        "name", opName,
-                        "fixture", opName + ".response",
-                        "output", testCase.input(),
-                        "protoNew", protoNew,
-                        "service", serviceSchemaRef,
-                        "op", opSchemaRef,
-                        "out", outSchemaRef,
-                        "newOpSchema", SmithyGoDependency.SMITHY.func("NewOperationSchema"),
-                        "testingT", GoStdlibTypes.Testing.T,
-                        "ctx", GoStdlibTypes.Context.Background
+                Map.ofEntries(
+                        Map.entry("name", opName),
+                        Map.entry("fixture", opName + ".response"),
+                        Map.entry("output", testCase.input()),
+                        Map.entry("protoNew", protoNew),
+                        Map.entry("service", serviceSchemaRef),
+                        Map.entry("op", opSchemaRef),
+                        Map.entry("out", outSchemaRef),
+                        Map.entry("newOpSchema", SmithyGoDependency.SMITHY.func("NewOperationSchema")),
+                        Map.entry("testingT", GoStdlibTypes.Testing.T),
+                        Map.entry("ctx", GoStdlibTypes.Context.Background)
                 ));
     }
 
@@ -523,7 +641,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     // errors.As into the modeled error type, and compares against the deterministic expected value.
     private Writable writeErrorCheck(
             OperationShape operation, SnapshotInputGenerator.TestCase testCase, SymbolProvider symbolProvider,
-            Symbol inputSymbol, Symbol errorSymbol
+            Writable inputValue, Symbol errorSymbol
     ) {
         var opName = symbolProvider.toSymbol(operation).getName();
         var errName = errorSymbol.getName();
@@ -540,7 +658,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         t.Fatal(err)
                     }
                     svc := serdeRespClient(status, header, body)
-                    _, opErr := svc.$op:L($ctx:T(), &$input:T{})
+                    _, opErr := svc.$op:L($ctx:T(), $input:W)
                     if opErr == nil {
                         t.Fatal("expected error, got nil")
                     }
@@ -553,12 +671,12 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                     }
                 }
                 """,
-                MapUtils.of(
+                Map.of(
                         "name", testName,
                         "op", opName,
                         "fixture", fixtureName,
                         "want", testCase.input(),
-                        "input", inputSymbol,
+                        "input", inputValue,
                         "err", errorSymbol,
                         "testingT", GoStdlibTypes.Testing.T,
                         "ctx", GoStdlibTypes.Context.Background,
@@ -572,7 +690,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
     private Writable writeErrorUpdate(
             OperationShape operation, SnapshotInputGenerator.TestCase testCase, SymbolProvider symbolProvider,
             String serviceSchemaRef, Symbol protoNew, String opSchemaRef, String errSchemaRef, Symbol errorSymbol,
-            ErrorFraming framing, int status
+            StructureShape errorShape, ShapeId protocol, int status
     ) {
         var errName = errorSymbol.getName();
         var testName = "Error_" + errName;
@@ -610,54 +728,24 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         Map.entry("op", opSchemaRef),
                         Map.entry("err", errSchemaRef),
                         Map.entry("status", status),
-                        Map.entry("frame", errorFrameWritable(framing)),
+                        Map.entry("frame", errorFrameWritable(protocol)),
                         Map.entry("newOpSchema", SmithyGoDependency.SMITHY.func("NewOperationSchema")),
                         Map.entry("testingT", GoStdlibTypes.Testing.T),
                         Map.entry("ctx", GoStdlibTypes.Context.Background)
                 ));
     }
 
-    // Protocol-specific fragment that stamps the error discriminator onto the captured wire response. Runs with
-    // `built` (the built request), `body` (its captured body), and `want` (the modeled error value) in scope;
-    // mutates `body` and/or `built.Header`. `want.ErrorCode()` is exactly the key the client's type registry uses.
-    private Writable errorFrameWritable(ErrorFraming framing) {
-        switch (framing) {
-            case CBOR_BODY:
-                return goTemplate("""
-                        // Inject the CBOR error discriminator into the body map so the deserializer routes to the
-                        // modeled error type.
-                        var m $cborMap:T
-                        if len(body) > 0 {
-                            v, err := $cborDecode:T(body)
-                            if err != nil {
-                                t.Fatal(err)
-                            }
-                            mm, ok := v.($cborMap:T)
-                            if !ok {
-                                t.Fatalf("expected cbor map body, got %T", v)
-                            }
-                            m = mm
-                        } else {
-                            m = $cborMap:T{}
-                        }
-                        m["__type"] = $cborString:T(want.ErrorCode())
-                        body = $cborEncode:T(m)""",
-                        Map.of(
-                                "cborMap", SmithyGoDependency.SMITHY_CBOR.valueSymbol("Map"),
-                                "cborString", SmithyGoDependency.SMITHY_CBOR.valueSymbol("String"),
-                                "cborDecode", SmithyGoDependency.SMITHY_CBOR.func("Decode"),
-                                "cborEncode", SmithyGoDependency.SMITHY_CBOR.func("Encode")
-                        ));
-            case XML_ENVELOPE:
-                return goTemplate("""
-                        // Wrap the serialized members in the XML error envelope the deserializer parses.
-                        body = serdeRespXMLErrorEnvelope(body, want.ErrorCode())""");
-            case JSON_HEADER:
-            default:
-                return goTemplate("""
-                        // Route to the modeled error via the standard error-type header; the serialized JSON members
-                        // remain the body for the error deserializer.
-                        built.Header.Set("X-Amzn-ErrorType", want.ErrorCode())""");
+    private Writable errorFrameWritable(ShapeId protocol) {
+        if (Rpcv2CborTrait.ID.equals(protocol)) {
+            return goTemplate("""
+                    body = serdeRespSpliceCBORType(t, body, want.ErrorCode())""");
         }
+        if (RestXmlTrait.ID.equals(protocol) || AwsQueryTrait.ID.equals(protocol) || Ec2QueryTrait.ID.equals(protocol)) {
+            return goTemplate("""
+                    body = serdeRespXMLErrorEnvelope(body, want.ErrorCode())""");
+        }
+        // json
+        return goTemplate("""
+                body = serdeRespSpliceJSONType(t, body, want.ErrorCode())""");
     }
 }

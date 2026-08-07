@@ -17,6 +17,7 @@ package software.amazon.smithy.go.codegen.integration;
 
 import java.util.List;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -30,9 +31,9 @@ public final class SnapshotOutputGenerator {
     private final Model model;
     private final SnapshotInputGenerator values;
 
-    public SnapshotOutputGenerator(Model model, SymbolProvider symbolProvider) {
+    public SnapshotOutputGenerator(Model model, SymbolProvider symbolProvider, GoSettings settings) {
         this.model = model;
-        this.values = new SnapshotInputGenerator(model, symbolProvider);
+        this.values = new SnapshotInputGenerator(model, symbolProvider, settings, true);
     }
 
     /**
