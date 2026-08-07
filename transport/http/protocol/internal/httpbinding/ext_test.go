@@ -48,7 +48,7 @@ func TestBindingExtIsCached(t *testing.T) {
 	out := outputWith("body", blob, &traits.HTTPPayload{})
 
 	if !HasBlobPayload(out) {
-		t.Fatal("expected true")
+		t.Fatal("expected schema to have blob payload")
 	}
 
 	first := getExt(out)
