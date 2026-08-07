@@ -23,9 +23,11 @@ import static software.amazon.smithy.go.codegen.integration.ProtocolGenerator.ge
 
 import software.amazon.smithy.go.codegen.GoStdlibTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
+import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolUtils;
+import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.utils.MapUtils;
@@ -62,14 +64,26 @@ public abstract class DeserializeResponseMiddleware implements Writable {
     public abstract Writable generateDeserialize();
 
     private Writable generateHandleDeserialize() {
+        // Close the response body after deserialization, unless it is a caller-owned
+        // stream (a streaming payload, or an event stream output).
+        boolean isStreaming = ProtocolUtils.isCallerOwnedResponseStream(ctx.getModel(), operation);
+
+        // Event streams own their body in the event stream deserializer; closing it
+        // here would deadlock a bidirectional stream whose write side is still active.
+        var eventStreamIndex = EventStreamIndex.of(ctx.getModel());
+        boolean isEventStream = eventStreamIndex.getInputInfo(operation).isPresent()
+                || eventStreamIndex.getOutputInfo(operation).isPresent();
+
+        Writable closeBodyDefer = isEventStream
+                ? emptyGoTemplate()
+                : goTemplate("defer func() { $closeBody:T(ctx, resp, $isStreaming:L, err) }()",
+                        MapUtils.of(
+                                "closeBody", SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("CloseResponseBody"),
+                                "isStreaming", isStreaming ? "true" : "false"
+                        ));
+
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
-
-                _, span := $startSpan:T(ctx, "OperationDeserializer")
-                endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
-                defer endTimer()
-                defer span.End()
-
                 if err != nil {
                     return out, metadata, err
                 }
@@ -79,6 +93,14 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                     return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
                 }
 
+                // Event streams close their own body in the event stream deserializer.
+                $closeBodyDefer:W
+
+                _, span := $startSpan:T(ctx, "OperationDeserializer")
+                endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
+                defer endTimer()
+                defer span.End()
+
                 $deserialize:W
 
                 return out, metadata, nil
@@ -87,7 +109,8 @@ public abstract class DeserializeResponseMiddleware implements Writable {
                         "startSpan", SMITHY_TRACING.func("StartSpan"),
                         "response", generator.getApplicationProtocol().getResponseType(),
                         "deserialize", generateDeserialize(),
-                        "errorf", GoStdlibTypes.Fmt.Errorf
+                        "errorf", GoStdlibTypes.Fmt.Errorf,
+                        "closeBodyDefer", closeBodyDefer
                 ));
     }
 }

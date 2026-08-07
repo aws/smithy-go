@@ -44,6 +44,14 @@ public class Serde2DeserializeResponseMiddleware extends DeserializeStepMiddlewa
                     return out, md, &smithy.DeserializationError{Err: fmt.Errorf("unknown transport type %T", out.RawResponse)}
                 }
 
+                // Event streams close their own body in the event stream deserializer.
+                if !m.operationSchema.IsInputEventStream() && !m.operationSchema.IsOutputEventStream() {
+                    _, isStreamingPayload := m.output.(smithy.StreamingOutput)
+                    defer func() {
+                        smithyhttp.CloseResponseBody(ctx, resp, isStreamingPayload, err)
+                    }()
+                }
+
                 _, span := tracing.StartSpan(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
 
