@@ -68,7 +68,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	d.head.Reset()
 	d.peeked = nil
 	d.opts = o
-	d.arena.Reset(len(p) / 4)
+	d.arena.Reset(len(p) / serde.ArenaPayloadFactor)
 	return d
 }
 

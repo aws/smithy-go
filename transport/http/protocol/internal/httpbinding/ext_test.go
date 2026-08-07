@@ -63,23 +63,6 @@ func TestBindingExtIsCached(t *testing.T) {
 	}
 }
 
-func BenchmarkHasBlobPayload(b *testing.B) {
-	blob := smithy.NewSchema(smithy.ShapeID{Namespace: "test", Name: "Blob"}, smithy.ShapeTypeBlob, 0)
-	out := outputWith("body", blob, &traits.HTTPPayload{})
-
-	b.Run("cached", func(b *testing.B) {
-		HasBlobPayload(out)
-		for b.Loop() {
-			HasBlobPayload(out)
-		}
-	})
-	b.Run("uncached-walk", func(b *testing.B) {
-		for b.Loop() {
-			hasBlobPayload(out)
-		}
-	})
-}
-
 // Adding a member invalidates cached extensions. If that ever stops holding, a
 // schema built up incrementally would answer from a stale walk.
 func TestHasBlobPayloadRecomputedAfterAddMember(t *testing.T) {

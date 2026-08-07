@@ -54,7 +54,7 @@ func NewShapeDeserializer(p []byte, opts ...func(*ShapeDeserializerOptions)) *Sh
 	}
 
 	d := &ShapeDeserializer{p: p, head: serde.NewStack[deserCtx](), opts: o}
-	d.arena.Reset(len(p) / 4)
+	d.arena.Reset(len(p) / serde.ArenaPayloadFactor)
 	return d
 }
 

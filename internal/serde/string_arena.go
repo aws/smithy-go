@@ -2,6 +2,14 @@ package serde
 
 import "unsafe"
 
+// ArenaPayloadFactor is the ratio at which we size string arenas to the payload
+// (clamped by StringArenaMin/Max)
+//
+// We limit arenas to 4k but smaller payloads likely don't need it, so we size
+// down (somewhat arbitrarily) until we hit the 512-byte floor at which we just
+// don't arena.
+const ArenaPayloadFactor = 4
+
 // The size of a string arena is bounded, but not strictly by [min, max]:
 //   - Attempting to set a capacity below MinArenaSize will have no effect as
 //     beneath this limit it is not worth it. Calls to String with a capacity below
