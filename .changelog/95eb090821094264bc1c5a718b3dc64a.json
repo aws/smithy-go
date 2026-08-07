@@ -1,8 +1,0 @@
-{
-    "id": "95eb0908-2109-4264-bc1c-5a718b3dc64a",
-    "type": "bugfix",
-    "description": "Fix a deserialization panic around collection members in recursive shape configs.",
-    "modules": [
-        "."
-    ]
-}
