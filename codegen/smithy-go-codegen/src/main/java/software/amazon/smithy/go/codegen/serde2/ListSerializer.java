@@ -100,8 +100,10 @@ public class ListSerializer implements Writable {
             case DOCUMENT ->
                     wrapNilCheck(goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})"));
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            case BIG_INTEGER ->
+                    wrapNilCheck(goTemplate("s.WriteBigInt(schema.ListMember(), vv)"));
+            case BIG_DECIMAL ->
+                    wrapNilCheck(goTemplate("s.WriteBigDecimal(schema.ListMember(), *vv)"));
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + member.getType());
         };
@@ -139,8 +141,10 @@ public class ListSerializer implements Writable {
             case DOCUMENT ->
                     goTemplate("s.WriteDocument(schema.ListMember(), &smithydocument.Opaque{Value: vv})");
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            case BIG_INTEGER ->
+                    goTemplate("s.WriteBigInt(schema.ListMember(), vv)");
+            case BIG_DECIMAL ->
+                    goTemplate("s.WriteBigDecimal(schema.ListMember(), vv)");
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + member.getType());
         };

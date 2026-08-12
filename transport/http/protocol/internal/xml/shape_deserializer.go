@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/bignum"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
@@ -748,12 +749,30 @@ func stripPrefix(name string) string {
 	return name
 }
 
-// ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigInt implements [smithy.ShapeDeserializer].
+func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, v **big.Int) error {
+	text, err := d.chardata()
+	if err != nil {
+		return err
+	}
+	n, err := bignum.ParseInteger([]byte(strings.TrimSpace(text)))
+	if err != nil {
+		return fmt.Errorf("deserialize bigInteger: %w", err)
+	}
+	*v = n
+	return nil
 }
 
-// ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigDecimal implements [smithy.ShapeDeserializer].
+func (d *ShapeDeserializer) ReadBigDecimal(_ *smithy.Schema, v *smithy.BigDecimal) error {
+	text, err := d.chardata()
+	if err != nil {
+		return err
+	}
+	dec, err := bignum.ParseDecimal([]byte(strings.TrimSpace(text)))
+	if err != nil {
+		return fmt.Errorf("deserialize bigDecimal: %w", err)
+	}
+	*v = dec
+	return nil
 }

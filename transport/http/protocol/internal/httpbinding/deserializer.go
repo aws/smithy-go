@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/bignum"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
@@ -491,14 +492,46 @@ func readHeaderFloat[T floatn](d *ShapeDeserializer, s *smithy.Schema, v *T) err
 	return nil
 }
 
-// ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigInt implements [smithy.ShapeDeserializer].
+//
+// A header-bound bigInteger is decimal text; anything else is delegated to the
+// body deserializer.
+func (d *ShapeDeserializer) ReadBigInt(s *smithy.Schema, v **big.Int) error {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
+		return d.body.ReadBigInt(s, v)
+	}
+	n, err := bignum.ParseInteger([]byte(strings.TrimSpace(d.headerText(s))))
+	if err != nil {
+		return fmt.Errorf("deserialize bigInteger: %w", err)
+	}
+	*v = n
+	return nil
 }
 
-// ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigDecimal implements [smithy.ShapeDeserializer].
+//
+// A header-bound bigDecimal is decimal text; anything else is delegated to the
+// body deserializer.
+func (d *ShapeDeserializer) ReadBigDecimal(s *smithy.Schema, v *smithy.BigDecimal) error {
+	if !d.inHeaderList && !d.isCurrentBinding(s) {
+		return d.body.ReadBigDecimal(s, v)
+	}
+	dec, err := bignum.ParseDecimal([]byte(strings.TrimSpace(d.headerText(s))))
+	if err != nil {
+		return fmt.Errorf("deserialize bigDecimal: %w", err)
+	}
+	*v = dec
+	return nil
+}
+
+// headerText returns the raw header text bound to the given schema, taking the
+// next value when reading through a header list.
+func (d *ShapeDeserializer) headerText(s *smithy.Schema) string {
+	if d.inHeaderList {
+		return d.nextHeaderValue()
+	}
+	name, _ := isHTTPHeader(s)
+	return d.response.Header.Get(name)
 }
 
 // HasBlobPayload reports whether the given output shape binds a blob member as

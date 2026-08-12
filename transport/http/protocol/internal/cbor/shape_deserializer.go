@@ -736,12 +736,136 @@ func GetProtocolErrorInfo(p []byte) (typ, message string, err error) {
 	return typ, message, nil
 }
 
-// ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigInt implements [smithy.ShapeDeserializer].
+//
+// A bigInteger arrives as an RFC 8949 bignum (tag 2 or tag 3). A plain CBOR
+// integer is also accepted, since every such value is a valid bigInteger and a
+// peer is free to encode small values compactly.
+func (d *ShapeDeserializer) ReadBigInt(s *smithy.Schema, v **big.Int) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+	n, err := d.readBigInt()
+	if err != nil {
+		return err
+	}
+	*v = n
+	return nil
 }
 
-// ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
-	return fmt.Errorf("unimplemented")
+func (d *ShapeDeserializer) readBigInt() (*big.Int, error) {
+	if d.eof() {
+		return nil, errUnexpectedEOF
+	}
+
+	major := d.peekMajor()
+	if major == majorTypeUint || major == majorTypeNegInt {
+		n, err := d.readInt64()
+		if err != nil {
+			return nil, err
+		}
+		return big.NewInt(n), nil
+	}
+
+	if major != majorTypeTag {
+		return nil, fmt.Errorf("expected bignum or integer, got major type %d", major)
+	}
+
+	tag, err := d.readArg()
+	if err != nil {
+		return nil, err
+	}
+	if tag != tagUnsignedBignum && tag != tagNegBignum {
+		return nil, fmt.Errorf("expected bignum tag 2 or 3, got tag %d", tag)
+	}
+
+	if d.eof() {
+		return nil, errUnexpectedEOF
+	}
+	if d.peekMajor() != majorTypeSlice {
+		return nil, fmt.Errorf("expected byte string in bignum, got major type %d", d.peekMajor())
+	}
+	slen, err := d.readArg()
+	if err != nil {
+		return nil, err
+	}
+	if d.off+int(slen) > len(d.p) {
+		return nil, fmt.Errorf("bignum length %d exceeds remaining data", slen)
+	}
+	n := new(big.Int).SetBytes(d.p[d.off : d.off+int(slen)])
+	d.off += int(slen)
+
+	if tag == tagNegBignum {
+		// tag 3 encodes -1 - n
+		n.Neg(n)
+		n.Sub(n, bigOne)
+	}
+	return n, nil
+}
+
+// ReadBigDecimal implements [smithy.ShapeDeserializer].
+//
+// A bigDecimal arrives as an RFC 8949 tag 4 decimal fraction. A bignum or plain
+// integer is also accepted, since those denote decimals with a zero exponent.
+//
+// [smithy.BigDecimal] already holds a mantissa and exponent, so this is a
+// direct decode with no text conversion.
+func (d *ShapeDeserializer) ReadBigDecimal(s *smithy.Schema, v *smithy.BigDecimal) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+	if d.eof() {
+		return errUnexpectedEOF
+	}
+
+	// Anything that isn't a tag 4 is an integral value; read it as one.
+	if !d.atDecimalFraction() {
+		n, err := d.readBigInt()
+		if err != nil {
+			return err
+		}
+		*v = smithy.BigDecimal{Mantissa: n, Exp: 0}
+		return nil
+	}
+
+	if _, err := d.readArg(); err != nil { // consume tag 4
+		return err
+	}
+
+	if d.eof() {
+		return errUnexpectedEOF
+	}
+	if d.peekMajor() != majorTypeList {
+		return fmt.Errorf("expected array in decimal fraction, got major type %d", d.peekMajor())
+	}
+	n, err := d.readArg()
+	if err != nil {
+		return err
+	}
+	if n != 2 {
+		return fmt.Errorf("decimal fraction must have 2 elements, got %d", n)
+	}
+
+	exponent, err := d.readInt64()
+	if err != nil {
+		return fmt.Errorf("decimal fraction exponent: %w", err)
+	}
+
+	mantissa, err := d.readBigInt()
+	if err != nil {
+		return fmt.Errorf("decimal fraction mantissa: %w", err)
+	}
+
+	*v = smithy.BigDecimal{Mantissa: mantissa, Exp: exponent}
+	return nil
+}
+
+// atDecimalFraction reports whether the next value is a tag 4, without
+// consuming anything.
+func (d *ShapeDeserializer) atDecimalFraction() bool {
+	if d.eof() || d.peekMajor() != majorTypeTag {
+		return false
+	}
+	// Tag 4 fits in the minor value, so no argument bytes follow.
+	return d.peekMinor() == tagDecimalFraction
 }
