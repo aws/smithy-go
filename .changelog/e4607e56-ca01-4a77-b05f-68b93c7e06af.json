@@ -1,0 +1,9 @@
+{
+    "id": "e4607e56-ca01-4a77-b05f-68b93c7e06af",
+    "type": "bugfix",
+    "description": "JoinPath keeps a trailing slash when the added path is a slash.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}

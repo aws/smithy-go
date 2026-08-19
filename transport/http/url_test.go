@@ -50,6 +50,22 @@ func TestJoinPath(t *testing.T) {
 			A: "foo//", B: "//bar",
 			Expect: "/foo///bar",
 		},
+		10: {
+			A: "/foo", B: "/",
+			Expect: "/foo/",
+		},
+		11: {
+			A: "foo", B: "/",
+			Expect: "/foo/",
+		},
+		12: {
+			A: "/foo/", B: "/",
+			Expect: "/foo/",
+		},
+		13: {
+			A: "/", B: "/",
+			Expect: "/",
+		},
 	}
 
 	for i, c := range cases {
