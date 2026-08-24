@@ -1,0 +1,9 @@
+{
+    "id": "688ceb95-2b3c-4d73-8101-6787a46a66c6",
+    "type": "bugfix",
+    "collapse": false,
+    "description": "Fix a data race on the underlying writer when an event stream is closed while an event write is in flight.",
+    "modules": [
+        "."
+    ]
+}
