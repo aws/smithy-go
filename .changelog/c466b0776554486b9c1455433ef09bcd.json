@@ -1,0 +1,8 @@
+{
+    "id": "c466b077-6554-486b-9c14-55433ef09bcd",
+    "type": "bugfix",
+    "description": "Fix broken AddLogger middleware since its insert point was removed.",
+    "modules": [
+        "."
+    ]
+}
