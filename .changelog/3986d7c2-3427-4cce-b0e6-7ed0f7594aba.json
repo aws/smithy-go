@@ -1,0 +1,9 @@
+{
+    "id": "3986d7c2-3427-4cce-b0e6-7ed0f7594aba",
+    "type": "bugfix",
+    "description": "Avoid allocating a slice in ValidateEndpointHost by indexing into the hostname instead of using strings.Split.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
