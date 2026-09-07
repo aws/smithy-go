@@ -3,6 +3,7 @@ package xml
 import (
 	"encoding/base64"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 
@@ -135,14 +136,16 @@ func (xv Value) Long(v int64) {
 	xv.Close()
 }
 
-// Float encodes v as a XML number.
+// Float encodes v as a XML number. NaN and the infinities are encoded as
+// the text NaN, Infinity and -Infinity.
 // It will auto close the parent xml element tag.
 func (xv Value) Float(v float32) {
 	xv.float(float64(v), 32)
 	xv.Close()
 }
 
-// Double encodes v as a XML number.
+// Double encodes v as a XML number. NaN and the infinities are encoded as
+// the text NaN, Infinity and -Infinity.
 // It will auto close the parent xml element tag.
 func (xv Value) Double(v float64) {
 	xv.float(v, 64)
@@ -150,6 +153,18 @@ func (xv Value) Double(v float64) {
 }
 
 func (xv Value) float(v float64, bits int) {
+	switch {
+	case math.IsNaN(v):
+		xv.w.WriteString("NaN")
+		return
+	case math.IsInf(v, 1):
+		xv.w.WriteString("Infinity")
+		return
+	case math.IsInf(v, -1):
+		xv.w.WriteString("-Infinity")
+		return
+	}
+
 	*xv.scratch = encoding.EncodeFloat((*xv.scratch)[:0], v, bits)
 	xv.w.Write(*xv.scratch)
 }

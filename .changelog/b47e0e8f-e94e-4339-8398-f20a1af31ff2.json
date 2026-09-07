@@ -1,0 +1,9 @@
+{
+    "id": "b47e0e8f-e94e-4339-8398-f20a1af31ff2",
+    "type": "bugfix",
+    "description": "encoding/json and encoding/xml Value encode NaN and the infinities as the strings NaN, Infinity and -Infinity instead of panicking.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
