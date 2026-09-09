@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aws/smithy-go"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	internalerrors "github.com/aws/smithy-go/internal/errors"
 	internales "github.com/aws/smithy-go/internal/eventstream"
 	internalsync "github.com/aws/smithy-go/internal/sync"
@@ -18,6 +19,10 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
+
+// codec is the JSON payload codec for awsJson1_0/1_1. The SEP's
+// codec-settings table specifies the zero value for these protocols.
+var codec = smithyjson.Codec{}
 
 // ProtocolOptions configures aws.protocols#awsJson1_0.
 type ProtocolOptions struct{}
@@ -45,8 +50,8 @@ func new(version string, service *smithy.ServiceSchema, opts ...func(*ProtocolOp
 		serviceName:     service.Schema.ID().Name,
 		bufs:            internalsync.NewBufferPool(),
 		eventstream: &internales.Codec{
-			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
-			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			Serializer:   func() smithy.ShapeSerializer { return codec.Serializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return codec.Deserializer(p) },
 			ContentType:  "application/json",
 			ErrorInfo:    internaljson.EventStreamErrorInfo,
 		},
@@ -104,7 +109,7 @@ func (p *Protocol) SerializeRequest(
 		return nil
 	}
 
-	ss := internaljson.NewShapeSerializer()
+	ss := codec.Serializer()
 	in.Serialize(ss)
 
 	sreq, err := req.SetStream(bytes.NewReader(ss.Bytes()))
@@ -152,7 +157,7 @@ func (p *Protocol) DeserializeResponse(
 		return nil
 	}
 
-	sd := internaljson.NewShapeDeserializer(payload)
+	sd := codec.Deserializer(payload)
 	if err := out.Deserialize(sd); err != nil {
 		return &smithy.DeserializationError{Err: err}
 	}
@@ -251,7 +256,7 @@ func (p *Protocol) deserializeError(types *smithy.TypeRegistry, response *smithy
 	errorBody.Seek(0, io.SeekStart)
 	errorBytes, _ := io.ReadAll(errorBody)
 	if len(errorBytes) > 0 {
-		deser := internaljson.NewShapeDeserializer(errorBytes)
+		deser := codec.Deserializer(errorBytes)
 		if err := perr.Deserialize(deser); err != nil {
 			return &smithy.DeserializationError{Err: err}
 		}

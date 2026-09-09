@@ -40,6 +40,8 @@ public final class GoStdlibTypes {
         public static final class Json {
             public static final Symbol NewDecoder = SmithyGoDependency.JSON.valueSymbol("NewDecoder");
             public static final Symbol Number = SmithyGoDependency.JSON.valueSymbol("Number");
+            public static final Symbol Marshaler = SmithyGoDependency.JSON.valueSymbol("Marshaler");
+            public static final Symbol Unmarshaler = SmithyGoDependency.JSON.valueSymbol("Unmarshaler");
         }
 
         public static final class Base64 {

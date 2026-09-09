@@ -141,7 +141,7 @@ var fuzzSeeds = [][]byte{
 }
 
 // FuzzSerializer builds a random value DOM from fuzz bytes, serializes it with
-// ShapeSerializer, and verifies the output is valid JSON that round-trips to
+// shapeSerializer, and verifies the output is valid JSON that round-trips to
 // the same value through encoding/json.
 func FuzzSerializer(f *testing.F) {
 	f.Add([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
@@ -152,7 +152,7 @@ func FuzzSerializer(f *testing.F) {
 		c := &fuzzConsumer{data: data}
 		dom := buildFuzzValue(c, 0)
 
-		s := NewShapeSerializer()
+		s := newShapeSerializer(CodecOptions{})
 		writeFuzzValue(s, dom)
 		out := s.Bytes()
 		s.Close()
@@ -239,7 +239,7 @@ func buildFuzzValue(c *fuzzConsumer, depth int) any {
 	return nil
 }
 
-func writeFuzzValue(s *ShapeSerializer, v any) {
+func writeFuzzValue(s *shapeSerializer, v any) {
 	switch vv := v.(type) {
 	case nil:
 		s.WriteNil(nil)

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_0Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsJson1_1Trait;
 import software.amazon.smithy.aws.traits.protocols.AwsQueryTrait;
@@ -29,10 +30,12 @@ import software.amazon.smithy.aws.traits.protocols.RestXmlTrait;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
+import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
+import software.amazon.smithy.utils.SetUtils;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
@@ -57,6 +60,8 @@ public final class GoSettings {
     private static final String GENERATE_GO_MOD = "generateGoMod";
     private static final String USE_LEGACY_SERDE = "useLegacySerde";
     private static final String GO_DIRECTIVE = "goDirective";
+    private static final String STDLIB_MARSHALERS = "stdlibMarshalers";
+    private static final Set<String> SUPPORTED_STDLIB_MARSHALER_FORMATS = SetUtils.of("json");
 
     private ShapeId service;
     private String moduleName;
@@ -67,6 +72,7 @@ public final class GoSettings {
     private String goDirective = GoModuleInfo.DEFAULT_GO_DIRECTIVE;
     private ShapeId protocol;
     private ArtifactType artifactType;
+    private Set<String> stdlibMarshalers = SetUtils.of();
 
     @SmithyInternalApi
     public enum ArtifactType {
@@ -88,7 +94,8 @@ public final class GoSettings {
     public static GoSettings from(ObjectNode config, ArtifactType artifactType) {
         GoSettings settings = new GoSettings();
         config.warnIfAdditionalProperties(
-            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, USE_LEGACY_SERDE, GO_DIRECTIVE));
+            Arrays.asList(SERVICE, MODULE_NAME, MODULE_DESCRIPTION, MODULE_VERSION, GENERATE_GO_MOD, USE_LEGACY_SERDE,
+                GO_DIRECTIVE, STDLIB_MARSHALERS));
         settings.setArtifactType(artifactType);
         settings.setService(config.expectStringMember(SERVICE).expectShapeId());
         settings.setModuleName(config.expectStringMember(MODULE_NAME).getValue());
@@ -98,7 +105,27 @@ public final class GoSettings {
         settings.setGenerateGoMod(config.getBooleanMemberOrDefault(GENERATE_GO_MOD, false));
         settings.setUseLegacySerde(config.getBooleanMemberOrDefault(USE_LEGACY_SERDE, false));
         settings.setGoDirective(config.getStringMemberOrDefault(GO_DIRECTIVE, GoModuleInfo.DEFAULT_GO_DIRECTIVE));
+        settings.setStdlibMarshalers(parseStdlibMarshalers(config));
         return settings;
+    }
+
+    private static Set<String> parseStdlibMarshalers(ObjectNode config) {
+        Optional<ArrayNode> member = config.getArrayMember(STDLIB_MARSHALERS);
+        if (member.isEmpty()) {
+            return SetUtils.of();
+        }
+
+        Set<String> formats = member.get().getElementsAs(node -> node.expectStringNode().getValue())
+                .stream()
+                .collect(Collectors.toSet());
+        for (String format : formats) {
+            if (!SUPPORTED_STDLIB_MARSHALER_FORMATS.contains(format)) {
+                throw new CodegenException(
+                        STDLIB_MARSHALERS + " does not support format \"" + format + "\", only "
+                                + SUPPORTED_STDLIB_MARSHALER_FORMATS + " are accepted");
+            }
+        }
+        return formats;
     }
 
     /**
@@ -226,6 +253,36 @@ public final class GoSettings {
 
     public void setUseLegacySerde(Boolean value) {
         this.useLegacySerde = Objects.requireNonNull(value);
+    }
+
+    /**
+     * Gets the set of formats for which stdlib marshaler methods (MarshalJSON /
+     * UnmarshalJSON, etc.) are generated on modeled shapes. Empty means the
+     * feature is off.
+     *
+     * @return Returns the configured stdlib marshaler formats.
+     */
+    public Set<String> getStdlibMarshalers() {
+        return stdlibMarshalers;
+    }
+
+    /**
+     * Sets the formats for which stdlib marshaler methods are generated.
+     *
+     * @param stdlibMarshalers The formats to generate stdlib marshalers for.
+     */
+    public void setStdlibMarshalers(Set<String> stdlibMarshalers) {
+        this.stdlibMarshalers = Objects.requireNonNull(stdlibMarshalers);
+    }
+
+    /**
+     * Returns whether stdlib JSON marshaler methods (MarshalJSON /
+     * UnmarshalJSON) should be generated on modeled shapes.
+     *
+     * @return Returns true if the "json" format is enabled in stdlibMarshalers.
+     */
+    public boolean generatesStdlibJSONMarshalers() {
+        return stdlibMarshalers.contains("json");
     }
 
     /**

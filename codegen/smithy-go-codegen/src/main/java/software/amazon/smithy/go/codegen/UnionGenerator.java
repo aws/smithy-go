@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
+import software.amazon.smithy.go.codegen.serde2.StdlibMarshalerGenerator;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -107,6 +108,11 @@ public class UnionGenerator {
             if (!ctx.settings().useLegacySerde()) {
                 generateMemberSerializer(writer, member, exportedMemberName, target);
                 generateMemberDeserializer(writer, member, exportedMemberName, target);
+
+                if (ctx.settings().generatesStdlibJSONMarshalers()) {
+                    var memberTypeSymbol = Symbol.builder().name(exportedMemberName).build();
+                    writer.write(new StdlibMarshalerGenerator(ctx, memberTypeSymbol, shape, member));
+                }
             }
         }
     }
