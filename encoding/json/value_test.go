@@ -18,6 +18,24 @@ func TestValue(t *testing.T) {
 		setter   func(Value)
 		expected string
 	}{
+		"float NaN": {
+			setter: func(value Value) {
+				value.Double(math.NaN())
+			},
+			expected: `"NaN"`,
+		},
+		"float positive infinity": {
+			setter: func(value Value) {
+				value.Double(math.Inf(1))
+			},
+			expected: `"Infinity"`,
+		},
+		"float negative infinity": {
+			setter: func(value Value) {
+				value.Float(float32(math.Inf(-1)))
+			},
+			expected: `"-Infinity"`,
+		},
 		"string value": {
 			setter: func(value Value) {
 				value.String("foo")
