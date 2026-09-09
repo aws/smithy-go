@@ -39,25 +39,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
     @Override
     public Map<String, Symbol> getFields() {
-        var fields = new java.util.HashMap<String, Symbol>();
-        fields.put("options", pointerTo(buildPackageSymbol("Options")));
-
-        if (isV2EventStream()) {
-            var model = ctx.model();
-            var symbolProvider = ctx.symbolProvider();
-            var outputShape = model.expectShape(operation.getOutputShape());
-            var outputSymbol = symbolProvider.toSymbol(outputShape);
-
-            fields.put("existingResult", pointerTo(outputSymbol));
-            fields.put("asyncResult", software.amazon.smithy.go.codegen.SymbolUtils
-                    .createValueSymbolBuilder("chan deserializeResult").build());
-        }
-
-        return fields;
-    }
-
-    private boolean isV2EventStream() {
-        return EventStreamGenerator.isV2EventStream(ctx.model(), operation);
+        return Map.of(
+                "options", pointerTo(buildPackageSymbol("Options"))
+        );
     }
 
     @Override
@@ -147,10 +131,6 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
     }
 
     private Writable writerSetup(UnionShape inputEventStream) {
-        return writerSetup(inputEventStream, false);
-    }
-
-    private Writable writerSetup(UnionShape inputEventStream, boolean guardFirstAttempt) {
         var service = ctx.service();
         var schemaName = SchemaGenerator.getSchemaRef(inputEventStream, service);
         var adapterName = EventStreamGenerator.getEventStreamWriterAdapterName(service, inputEventStream);
@@ -174,7 +154,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                     writer: $newWriter:T(m.options.Protocol, $schema:L, inputStreamWriter),
                 }
                 defer func() {
-                    $closeGuard:W
+                    if err != nil {
+                        _ = eventWriter.Close()
+                    }
                 }()
                 """,
                 MapUtils.of(
@@ -190,16 +172,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                             SmithyGoDependency.SMITHY_HTTP_TRANSPORT.pointableSymbol("Request"),
                         "newSigningWriter",
                             SmithyGoDependency.SMITHY_EVENTSTREAM.func("NewSigningWriter"),
-                        "schema", schemaName,
-                        "closeGuard", guardFirstAttempt
-                                ? (Writable) w -> w.write("""
-                                        if err != nil && !isFirstAttempt {
-                                            _ = eventWriter.Close()
-                                        }""")
-                                : (Writable) w -> w.write("""
-                                        if err != nil {
-                                            _ = eventWriter.Close()
-                                        }""")
+                        "schema", schemaName
                 ));
     }
 
@@ -279,43 +252,24 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         // 4. THEN call next.HandleDeserialize (sends the HTTP request)
         // 5. Pipe the response body into the async reader
         // 6. Add output to metadata for the Build-step middleware
-        //
-        // Retries re-enter this middleware, so steps 1-3 only happen on the first
-        // attempt; m.existingResult/m.asyncResult persist the single output/channel
-        // pair that the caller (and the Build-step middleware, on every attempt) must
-        // keep referring to. Without this, a retried attempt would hand the Build-step
-        // middleware a second output no one is listening on, and the caller's copy
-        // would never be signaled.
         return goTemplate("""
                 var out $deserializeOutput:T
                 var md $metadata:T
                 var err error
 
-                output := m.existingResult
-                isFirstAttempt := output == nil
-                $asyncResultDecl:W
+                output := &$output:T{}
+                output.initialReply = make(chan $initialReply:T, 1)
+
                 $writerSetup:W
-                if isFirstAttempt {
-                    output = &$output:T{}
-                    output.initialReply = make(chan $initialReply:T, 1)
+                $readerSetup:W
 
-                    $readerSetup:W
+                output.eventStream = $esConstructor:T(func(stream $esStruct:P) {
+                    $wireWriter:W
+                    $wireReader:W
+                })
 
-                    output.eventStream = $esConstructor:T(func(stream $esStruct:P) {
-                        $wireWriter:W
-                        $wireReader:W
-                    })
+                go output.eventStream.waitStreamClose()
 
-                    go output.eventStream.waitStreamClose()
-
-                    m.existingResult = output
-                    $asyncResultStore:W
-                }
-
-                // Drain and re-send on every attempt (not just the first), mirroring
-                // the legacy hand-written middleware: the caller only ever consumes
-                // one value, but always sending keeps this symmetric with m.existingResult
-                // rather than depending on isFirstAttempt to decide who notifies.
                 prc, _ := ctx.Value(partialResultChan{}).(chan PartialResult)
                 if prc != nil {
                     select {
@@ -362,7 +316,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                         Map.entry("addToMetadata",
                             SmithyGoDependency.SMITHY_MIDDLEWARE.func("AddEventStreamOutputToMetadata")),
                         Map.entry("writerSetup", inputInfo.isPresent()
-                                ? writerSetup(inputInfo.get().getEventStreamTarget().asUnionShape().get(), true)
+                                ? writerSetup(inputInfo.get().getEventStreamTarget().asUnionShape().get())
                                 : (Writable) w -> {}),
                         Map.entry("wireWriter", inputInfo.isPresent()
                                 ? (Writable) w -> w.write("stream.Writer = eventWriter")
@@ -380,12 +334,6 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                                 : (Writable) w -> {}),
                         Map.entry("asyncPipe", outputInfo.isPresent()
                                 ? (Writable) w -> w.write("asyncResult <- deserializeResult{reader: resp.Body}")
-                                : (Writable) w -> {}),
-                        Map.entry("asyncResultDecl", outputInfo.isPresent()
-                                ? (Writable) w -> w.write("asyncResult := m.asyncResult")
-                                : (Writable) w -> {}),
-                        Map.entry("asyncResultStore", outputInfo.isPresent()
-                                ? (Writable) w -> w.write("m.asyncResult = asyncResult")
                                 : (Writable) w -> {})
                 ));
     }
@@ -397,7 +345,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                 .getEventStreamReaderAdapterConstructor(service, outputEventStream);
 
         return goTemplate("""
-                asyncResult = make(chan deserializeResult, 1)
+                asyncResult := make(chan deserializeResult, 1)
                 asyncReader := newAsyncEventStreamReader(asyncResult)
                 eventReader := $newAdapter:L(
                     $newReader:T(m.options.Protocol, $schema:L, TypeRegistry, asyncReader.pipeReader),
