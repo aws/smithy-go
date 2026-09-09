@@ -12,10 +12,10 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/encoding/json/internal/stdlib"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
-	"github.com/aws/smithy-go/transport/http/protocol/internal/json/internal/stdlib"
 )
 
 type ctxKind int8
@@ -32,11 +32,11 @@ type deserCtx struct {
 	schema *smithy.Schema // for ctxStruct
 }
 
-// ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
-type ShapeDeserializer struct {
+// shapeDeserializer implements unmarshaling of JSON into Smithy shapes.
+type shapeDeserializer struct {
 	p    parser
 	head serde.Stack[deserCtx]
-	opts Options
+	opts CodecOptions
 
 	peeked        []byte
 	peekedEscaped bool
@@ -46,20 +46,16 @@ type ShapeDeserializer struct {
 
 var deserPool = sync.Pool{
 	New: func() any {
-		return &ShapeDeserializer{
+		return &shapeDeserializer{
 			p:    parser{stack: serde.NewStack[int8]()},
 			head: serde.NewStack[deserCtx](),
 		}
 	},
 }
 
-// NewShapeDeserializer creates a new ShapeDeserializer.
-func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
-	o := Options{}
-	for _, fn := range opts {
-		fn(&o)
-	}
-	d := deserPool.Get().(*ShapeDeserializer)
+// newShapeDeserializer creates a new shapeDeserializer.
+func newShapeDeserializer(p []byte, opts CodecOptions) *shapeDeserializer {
+	d := deserPool.Get().(*shapeDeserializer)
 	d.p.p = p
 	d.p.i = 0
 	d.p.state = stValue
@@ -67,19 +63,19 @@ func NewShapeDeserializer(p []byte, opts ...func(*Options)) *ShapeDeserializer {
 	d.p.stack.Reset()
 	d.head.Reset()
 	d.peeked = nil
-	d.opts = o
+	d.opts = opts
 	d.arena.Reset(len(p) / serde.ArenaPayloadFactor)
 	return d
 }
 
 // Close returns the deserializer to the pool for reuse.
-func (d *ShapeDeserializer) Close() {
+func (d *shapeDeserializer) Close() {
 	deserPool.Put(d)
 }
 
-var _ smithy.ShapeDeserializer = (*ShapeDeserializer)(nil)
+var _ smithy.ShapeDeserializer = (*shapeDeserializer)(nil)
 
-func (d *ShapeDeserializer) next() ([]byte, error) {
+func (d *shapeDeserializer) next() ([]byte, error) {
 	if d.peeked != nil {
 		peeked := d.peeked
 		d.peeked = nil
@@ -89,7 +85,7 @@ func (d *ShapeDeserializer) next() ([]byte, error) {
 	return d.p.Next()
 }
 
-func (d *ShapeDeserializer) peek() ([]byte, error) {
+func (d *shapeDeserializer) peek() ([]byte, error) {
 	if d.peeked != nil {
 		return d.peeked, nil
 	}
@@ -103,7 +99,7 @@ func (d *ShapeDeserializer) peek() ([]byte, error) {
 }
 
 // ReadNil implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadNil(s *smithy.Schema) (bool, error) {
+func (d *shapeDeserializer) ReadNil(s *smithy.Schema) (bool, error) {
 	tok, err := d.peek()
 	if err != nil {
 		return false, err
@@ -116,34 +112,34 @@ func (d *ShapeDeserializer) ReadNil(s *smithy.Schema) (bool, error) {
 }
 
 // ReadInt8 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
+func (d *shapeDeserializer) ReadInt8(s *smithy.Schema, v *int8) error {
 	n, err := d.readInt(math.MinInt8, math.MaxInt8)
 	*v = int8(n)
 	return err
 }
 
 // ReadInt16 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
+func (d *shapeDeserializer) ReadInt16(s *smithy.Schema, v *int16) error {
 	n, err := d.readInt(math.MinInt16, math.MaxInt16)
 	*v = int16(n)
 	return err
 }
 
 // ReadInt32 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
+func (d *shapeDeserializer) ReadInt32(s *smithy.Schema, v *int32) error {
 	n, err := d.readInt(math.MinInt32, math.MaxInt32)
 	*v = int32(n)
 	return err
 }
 
 // ReadInt64 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
+func (d *shapeDeserializer) ReadInt64(s *smithy.Schema, v *int64) error {
 	n, err := d.readInt(math.MinInt64, math.MaxInt64)
 	*v = n
 	return err
 }
 
-func (d *ShapeDeserializer) readInt(min, max int64) (int64, error) {
+func (d *shapeDeserializer) readInt(min, max int64) (int64, error) {
 	tok, err := d.next()
 	if err != nil {
 		return 0, err
@@ -208,20 +204,20 @@ func parseInt(b []byte) (int64, bool) {
 }
 
 // ReadFloat32 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
+func (d *shapeDeserializer) ReadFloat32(s *smithy.Schema, v *float32) error {
 	n, err := d.readFloat()
 	*v = float32(n)
 	return err
 }
 
 // ReadFloat64 implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
+func (d *shapeDeserializer) ReadFloat64(s *smithy.Schema, v *float64) error {
 	n, err := d.readFloat()
 	*v = n
 	return err
 }
 
-func (d *ShapeDeserializer) readFloat() (float64, error) {
+func (d *shapeDeserializer) readFloat() (float64, error) {
 	tok, err := d.next()
 	if err != nil {
 		return 0, err
@@ -252,7 +248,7 @@ func (d *ShapeDeserializer) readFloat() (float64, error) {
 }
 
 // ReadBool implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
+func (d *shapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -271,7 +267,7 @@ func (d *ShapeDeserializer) ReadBool(s *smithy.Schema, v *bool) error {
 }
 
 // ReadString implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
+func (d *shapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -299,7 +295,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error {
+func (d *shapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error {
 	format := "epoch-seconds"
 	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
 		format = t.Format
@@ -341,7 +337,7 @@ func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error 
 }
 
 // ReadBlob implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
+func (d *shapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 	if isNil, err := d.ReadNil(s); isNil || err != nil {
 		return err
 	}
@@ -370,7 +366,7 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 }
 
 // ReadList implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
+func (d *shapeDeserializer) ReadList(s *smithy.Schema) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -383,7 +379,7 @@ func (d *ShapeDeserializer) ReadList(s *smithy.Schema) error {
 }
 
 // ReadListItem implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
+func (d *shapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 	tok, err := d.peek()
 	if err != nil {
 		return false, err
@@ -397,7 +393,7 @@ func (d *ShapeDeserializer) ReadListItem(s *smithy.Schema) (bool, error) {
 }
 
 // ReadMap implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
+func (d *shapeDeserializer) ReadMap(s *smithy.Schema) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -410,7 +406,7 @@ func (d *ShapeDeserializer) ReadMap(s *smithy.Schema) error {
 }
 
 // ReadMapKey implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
+func (d *shapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 	tok, err := d.next()
 	if err != nil {
 		return "", false, err
@@ -432,7 +428,7 @@ func (d *ShapeDeserializer) ReadMapKey(s *smithy.Schema) (string, bool, error) {
 }
 
 // ReadStruct implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
+func (d *shapeDeserializer) ReadStruct(s *smithy.Schema) error {
 	if isNil, err := d.ReadNil(s); isNil || err != nil {
 		return err
 	}
@@ -449,7 +445,7 @@ func (d *ShapeDeserializer) ReadStruct(s *smithy.Schema) error {
 }
 
 // ReadStructMember implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
+func (d *shapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 	tok, err := d.next()
 	if err != nil {
 		return nil, err
@@ -502,7 +498,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 }
 
 // ReadUnion implements [smithy.ShapeDeserializer].
-func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
+func (d *shapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) {
 	if top := d.head.Top(); top == nil || top.kind != ctxUnion || top.schema != s {
 		if isNil, err := d.ReadNil(s); isNil || err != nil {
 			return nil, err
@@ -570,7 +566,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 }
 
 // ReadDocument reads a JSON value into a document Value.
-func (d *ShapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Value) error {
+func (d *shapeDeserializer) ReadDocument(schema *smithy.Schema, v *document.Value) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -590,7 +586,7 @@ func unquote(tok []byte) (string, error) {
 	return "", fmt.Errorf("cannot unquote %s", tok)
 }
 
-func (d *ShapeDeserializer) unquoteArena(tok []byte) (string, error) {
+func (d *shapeDeserializer) unquoteArena(tok []byte) (string, error) {
 	if s, ok := stdlib.UnquoteBytes(tok); ok {
 		return d.arena.String(s), nil
 	}
@@ -627,18 +623,18 @@ func isLSB(tok []byte) bool { return tok[0] == '[' }
 func isRSB(tok []byte) bool { return tok[0] == ']' }
 
 // ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
+func (d *shapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
 	return fmt.Errorf("unimplemented")
 }
 
 // ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
+func (d *shapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
 	return fmt.Errorf("unimplemented")
 }
 
 // DirectReadStruct is a concrete-type fast path that avoids interface dispatch.
 // It skips the head stack and reads struct members directly.
-func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+func (d *shapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
 	// null check
 	tok, err := d.peek()
 	if err != nil {
@@ -712,7 +708,7 @@ func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn fun
 // DirectReadUnion is a concrete-type fast path that avoids interface dispatch.
 // It opens the union object, finds the single non-null member, calls memberFn,
 // then drains to the closing brace.
-func (d *ShapeDeserializer) DirectReadUnion(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
+func (d *shapeDeserializer) DirectReadUnion(schema *smithy.Schema, memberFn func(*smithy.Schema) error) error {
 	// open phase: consume '{' (or 'null')
 	tok, err := d.next()
 	if err != nil {
@@ -798,7 +794,7 @@ func (d *ShapeDeserializer) DirectReadUnion(schema *smithy.Schema, memberFn func
 
 // DirectReadMap is a concrete-type fast path that avoids interface dispatch.
 // It skips the head stack and reads map entries directly.
-func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(string) error) error {
+func (d *shapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(string) error) error {
 	tok, err := d.next()
 	if err != nil {
 		return err
@@ -834,7 +830,7 @@ func (d *ShapeDeserializer) DirectReadMap(schema *smithy.Schema, memberFn func(s
 
 // DirectReadList is a concrete-type fast path that avoids interface dispatch.
 // It skips the head stack and reads list elements directly using peek.
-func (d *ShapeDeserializer) DirectReadList(schema *smithy.Schema, memberFn func() error) error {
+func (d *shapeDeserializer) DirectReadList(schema *smithy.Schema, memberFn func() error) error {
 	tok, err := d.next()
 	if err != nil {
 		return err

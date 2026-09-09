@@ -12,7 +12,7 @@ type ExtensionID int
 const numExtensionSlots = 5
 
 const (
-	ExtJSON        ExtensionID = iota // transport/http/protocol/internal/json
+	ExtJSON        ExtensionID = iota // encoding/json
 	ExtCBOR                           // transport/http/protocol/internal/cbor
 	ExtXML                            // transport/http/protocol/internal/xml
 	ExtQuery                          // transport/http/protocol/internal/query

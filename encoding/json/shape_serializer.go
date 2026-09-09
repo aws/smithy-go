@@ -18,10 +18,10 @@ import (
 	"github.com/aws/smithy-go/traits"
 )
 
-// Options configures JSON shape serialization and deserialization.
-type Options struct {
-	// Controls whether the @jsonName trait is used to determine JSON object
-	// keys. If false (the default), the member name is used as-is.
+// CodecOptions configures JSON shape serialization and deserialization.
+type CodecOptions struct {
+	// UseJSONName controls whether the @jsonName trait determines JSON
+	// object keys. If false, the member name is used as-is.
 	UseJSONName bool
 }
 
@@ -30,11 +30,11 @@ type serCtx struct {
 	inObject bool
 }
 
-// ShapeSerializer implements marshaling of Smithy shapes to JSON.
+// shapeSerializer implements marshaling of Smithy shapes to JSON.
 // It writes directly to a []byte buffer without intermediate allocations.
-type ShapeSerializer struct {
+type shapeSerializer struct {
 	buf       []byte
-	opts      Options
+	opts      CodecOptions
 	stack     []serCtx
 	depth     int
 	noKey     bool
@@ -48,7 +48,7 @@ const (
 
 var serPool = sync.Pool{
 	New: func() any {
-		s := &ShapeSerializer{
+		s := &shapeSerializer{
 			buf: make([]byte, 0, defaultBufSize),
 		}
 		s.stack = s.initStack[:1]
@@ -56,17 +56,13 @@ var serPool = sync.Pool{
 	},
 }
 
-var _ smithy.ShapeSerializer = (*ShapeSerializer)(nil)
+var _ smithy.ShapeSerializer = (*shapeSerializer)(nil)
 
-// NewShapeSerializer creates a new ShapeSerializer.
-func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
-	o := Options{}
-	for _, fn := range opts {
-		fn(&o)
-	}
-	s := serPool.Get().(*ShapeSerializer)
+// newShapeSerializer creates a new shapeSerializer.
+func newShapeSerializer(opts CodecOptions) *shapeSerializer {
+	s := serPool.Get().(*shapeSerializer)
 	s.buf = s.buf[:0]
-	s.opts = o
+	s.opts = opts
 	s.depth = 0
 	s.noKey = false
 	s.stack = s.initStack[:1]
@@ -75,7 +71,7 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 }
 
 // Close returns the serializer to the pool for reuse.
-func (s *ShapeSerializer) Close() {
+func (s *shapeSerializer) Close() {
 	if cap(s.buf) > maxCacheableBuf {
 		s.buf = make([]byte, 0, defaultBufSize)
 	}
@@ -83,11 +79,11 @@ func (s *ShapeSerializer) Close() {
 }
 
 // Bytes returns a copy of the serialized JSON bytes, safe to retain after Close().
-func (s *ShapeSerializer) Bytes() []byte {
+func (s *shapeSerializer) Bytes() []byte {
 	return append([]byte(nil), s.buf...)
 }
 
-func (s *ShapeSerializer) writeComma() {
+func (s *shapeSerializer) writeComma() {
 	if s.depth > 0 && s.stack[s.depth].comma {
 		s.buf = append(s.buf, ',')
 	}
@@ -95,7 +91,7 @@ func (s *ShapeSerializer) writeComma() {
 }
 
 // writePrefix handles the key-or-comma logic before a value, respecting noKey.
-func (s *ShapeSerializer) writePrefix(schema *smithy.Schema) {
+func (s *shapeSerializer) writePrefix(schema *smithy.Schema) {
 	if s.noKey {
 		s.noKey = false
 		return
@@ -107,7 +103,7 @@ func (s *ShapeSerializer) writePrefix(schema *smithy.Schema) {
 	}
 }
 
-func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
+func (s *shapeSerializer) writeKey(schema *smithy.Schema) {
 	ext := getExt(schema)
 	if s.opts.UseJSONName {
 		if jk := ext.jsonNameKey; jk != nil {
@@ -134,7 +130,7 @@ func (s *ShapeSerializer) writeKey(schema *smithy.Schema) {
 }
 
 // WriteBool implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
+func (s *shapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
 	s.writePrefix(schema)
 	if v {
 		s.buf = append(s.buf, "true"...)
@@ -144,28 +140,28 @@ func (s *ShapeSerializer) WriteBool(schema *smithy.Schema, v bool) {
 }
 
 // WriteInt8 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
+func (s *shapeSerializer) WriteInt8(schema *smithy.Schema, v int8) {
 	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt16 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
+func (s *shapeSerializer) WriteInt16(schema *smithy.Schema, v int16) {
 	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt32 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
+func (s *shapeSerializer) WriteInt32(schema *smithy.Schema, v int32) {
 	s.WriteInt64(schema, int64(v))
 }
 
 // WriteInt64 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
+func (s *shapeSerializer) WriteInt64(schema *smithy.Schema, v int64) {
 	s.writePrefix(schema)
 	s.buf = strconv.AppendInt(s.buf, v, 10)
 }
 
 // WriteFloat32 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
+func (s *shapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 	s.writePrefix(schema)
 	if math.IsInf(float64(v), 1) {
 		s.buf = append(s.buf, `"Infinity"`...)
@@ -179,7 +175,7 @@ func (s *ShapeSerializer) WriteFloat32(schema *smithy.Schema, v float32) {
 }
 
 // WriteFloat64 implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
+func (s *shapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 	s.writePrefix(schema)
 	if math.IsInf(v, 1) {
 		s.buf = append(s.buf, `"Infinity"`...)
@@ -193,13 +189,13 @@ func (s *ShapeSerializer) WriteFloat64(schema *smithy.Schema, v float64) {
 }
 
 // WriteString implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteString(schema *smithy.Schema, v string) {
+func (s *shapeSerializer) WriteString(schema *smithy.Schema, v string) {
 	s.writePrefix(schema)
 	s.appendEscapedString(v)
 }
 
 // WriteBlob implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
+func (s *shapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
 	s.writePrefix(schema)
 	if v == nil {
 		s.buf = append(s.buf, "null"...)
@@ -214,27 +210,27 @@ func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
 }
 
 // WriteList implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
+func (s *shapeSerializer) WriteList(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '[')
 	s.depth++; s.stack = append(s.stack, serCtx{})
 }
 
 // CloseList implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) CloseList() {
+func (s *shapeSerializer) CloseList() {
 	s.buf = append(s.buf, ']')
 	s.stack = s.stack[:s.depth]; s.depth--
 }
 
 // WriteMap implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
+func (s *shapeSerializer) WriteMap(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
 }
 
 // WriteKey implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
+func (s *shapeSerializer) WriteKey(_ *smithy.Schema, key string) {
 	s.writeComma()
 	s.appendEscapedString(key)
 	s.buf = append(s.buf, ':')
@@ -242,13 +238,13 @@ func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
 }
 
 // CloseMap implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) CloseMap() {
+func (s *shapeSerializer) CloseMap() {
 	s.buf = append(s.buf, '}')
 	s.stack = s.stack[:s.depth]; s.depth--
 }
 
 // WriteTime implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
+func (s *shapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	format := "epoch-seconds"
 	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
 		format = t.Format
@@ -265,7 +261,7 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 }
 
 // WriteUnion implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
+func (s *shapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
@@ -274,43 +270,43 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 }
 
 // CloseUnion implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) CloseUnion() {
+func (s *shapeSerializer) CloseUnion() {
 	s.noKey = false
 	s.buf = append(s.buf, '}')
 	s.stack = s.stack[:s.depth]; s.depth--
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+func (s *shapeSerializer) WriteStruct(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
 	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) CloseStruct() {
+func (s *shapeSerializer) CloseStruct() {
 	s.buf = append(s.buf, '}')
 	s.stack = s.stack[:s.depth]; s.depth--
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
+func (s *shapeSerializer) WriteNil(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, "null"...)
 }
 
 // WriteBigInt is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigInt(_ *smithy.Schema, _ *big.Int) {
+func (s *shapeSerializer) WriteBigInt(_ *smithy.Schema, _ *big.Int) {
 	panic("unimplemented")
 }
 
 // WriteBigFloat is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigFloat(_ *smithy.Schema, _ *big.Float) {
+func (s *shapeSerializer) WriteBigFloat(_ *smithy.Schema, _ *big.Float) {
 	panic("unimplemented")
 }
 
 // WriteDocument writes a document value to JSON.
-func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value) {
+func (s *shapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value) {
 	switch vv := v.(type) {
 	case document.Null:
 		s.WriteNil(schema)
@@ -351,7 +347,7 @@ func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value)
 	}
 }
 
-func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
+func (s *shapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
 	if m, ok := v.(document.Marshaler); ok {
 		p, _ := m.MarshalSmithyDocument()
 		s.writeRaw(schema, p)
@@ -362,13 +358,13 @@ func (s *ShapeSerializer) writeOpaqueDocument(schema *smithy.Schema, v any) {
 	s.writeRaw(schema, p)
 }
 
-func (s *ShapeSerializer) writeRaw(schema *smithy.Schema, p []byte) {
+func (s *shapeSerializer) writeRaw(schema *smithy.Schema, p []byte) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, p...)
 }
 
 // jsonMemberName returns the JSON key for a schema member.
-func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
+func (s *shapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 	if s.opts.UseJSONName {
 		if jn, ok := smithy.SchemaTrait[*traits.JSONName](schema); ok {
 			return jn.Name
@@ -378,7 +374,7 @@ func (s *ShapeSerializer) jsonMemberName(schema *smithy.Schema) string {
 }
 
 // appendEscapedString writes a JSON-escaped string to the buffer.
-func (s *ShapeSerializer) appendEscapedString(v string) {
+func (s *shapeSerializer) appendEscapedString(v string) {
 	s.buf = append(s.buf, '"')
 
 	// fast path: SWAR check if entire string is safe ASCII

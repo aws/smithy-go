@@ -9,7 +9,7 @@ import (
 
 	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/document/internal/serde"
-	smithyjson "github.com/aws/smithy-go/encoding/json"
+	smithyjson "github.com/aws/smithy-go/internal/encoding/json"
 )
 
 // EncoderOptions is the set of options that can be configured for an Encoder.

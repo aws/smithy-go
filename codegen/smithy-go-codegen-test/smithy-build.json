@@ -15,5 +15,19 @@
             "generateGoMod": true,
             "goDirective": "1.24"
         }
+    },
+    "projections": {
+        "stdlib-marshalers": {
+            "plugins": {
+                "go-codegen": {
+                    "service": "example.weather#Weather",
+                    "module": "github.com/aws/smithy-go/internal/tests/service/weather",
+                    "moduleVersion": "0.0.1",
+                    "generateGoMod": true,
+                    "goDirective": "1.24",
+                    "stdlibMarshalers": ["json"]
+                }
+            }
+        }
     }
 }

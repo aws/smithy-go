@@ -31,7 +31,7 @@ var skipTests = map[string]bool{
 	"n_structure_trailing_#.json":                          true,
 
 	// These numbers have valid JSON grammar but overflow float64, stdlib
-	// rejects them at tokenize, we reject in the ShapeDeserializer.
+	// rejects them at tokenize, we reject in the shapeDeserializer.
 	"i_number_huge_exp.json":            true,
 	"i_number_neg_int_huge_exp.json":    true,
 	"i_number_pos_double_huge_exp.json": true,

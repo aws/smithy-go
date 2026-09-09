@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/aws/smithy-go"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	"github.com/aws/smithy-go/prelude"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // payloadInput models an operation input whose only members are an
@@ -63,7 +63,7 @@ func TestSerializeNestedStructInPayload(t *testing.T) {
 	out, _, _ := payloadSchemas()
 
 	req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
-	s, err := NewShapeSerializer(out, req, internaljson.NewShapeSerializer())
+	s, err := NewShapeSerializer(out, req, smithyjson.Codec{}.Serializer())
 	if err != nil {
 		t.Fatal(err)
 	}

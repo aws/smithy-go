@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/aws/smithy-go"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	internales "github.com/aws/smithy-go/internal/eventstream"
 	internalserde "github.com/aws/smithy-go/internal/serde"
 	internalsync "github.com/aws/smithy-go/internal/sync"
@@ -16,6 +17,10 @@ import (
 	internalhttpbinding "github.com/aws/smithy-go/transport/http/protocol/internal/httpbinding"
 	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
+
+// codec is the JSON payload codec for restJson1. The SEP's codec-settings
+// table specifies UseJSONName for this protocol.
+var codec = smithyjson.Codec{Options: smithyjson.CodecOptions{UseJSONName: true}}
 
 // ProtocolOptions configures aws.protocols#restJson1.
 type ProtocolOptions struct{}
@@ -29,8 +34,8 @@ func New(_ *smithy.ServiceSchema, opts ...func(*ProtocolOptions)) *Protocol {
 	return &Protocol{
 		bufs: internalsync.NewBufferPool(),
 		eventstream: &internales.Codec{
-			Serializer:   func() smithy.ShapeSerializer { return internaljson.NewShapeSerializer() },
-			Deserializer: func(p []byte) smithy.ShapeDeserializer { return internaljson.NewShapeDeserializer(p) },
+			Serializer:   func() smithy.ShapeSerializer { return codec.Serializer() },
+			Deserializer: func(p []byte) smithy.ShapeDeserializer { return bd(p) },
 			ContentType:  "application/json",
 			ErrorInfo:    internaljson.EventStreamErrorInfo,
 		},
@@ -57,7 +62,7 @@ func (p *Protocol) SerializeRequest(
 	in smithy.Serializable,
 	req *smithyhttp.Request,
 ) error {
-	serializer, err := internalhttpbinding.NewShapeSerializer(op.Schema, req, internaljson.NewShapeSerializer(useJSONName))
+	serializer, err := internalhttpbinding.NewShapeSerializer(op.Schema, req, codec.Serializer())
 	if err != nil {
 		return err
 	}
@@ -227,9 +232,5 @@ func bd(payload []byte) smithy.ShapeDeserializer {
 	if len(payload) == 0 {
 		payload = []byte("{}")
 	}
-	return internaljson.NewShapeDeserializer(payload, useJSONName)
-}
-
-func useJSONName(o *internaljson.Options) {
-	o.UseJSONName = true
+	return codec.Deserializer(payload)
 }
