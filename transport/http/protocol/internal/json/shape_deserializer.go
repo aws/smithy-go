@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/bignum"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
@@ -301,7 +302,7 @@ func (d *ShapeDeserializer) ReadString(s *smithy.Schema, v *string) error {
 // ReadTime implements [smithy.ShapeDeserializer].
 func (d *ShapeDeserializer) ReadTime(schema *smithy.Schema, v *time.Time) error {
 	format := "epoch-seconds"
-	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
+	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok && !d.opts.IgnoreTimestampFormat {
 		format = t.Format
 	}
 
@@ -626,14 +627,78 @@ func isRCB(tok []byte) bool { return tok[0] == '}' }
 func isLSB(tok []byte) bool { return tok[0] == '[' }
 func isRSB(tok []byte) bool { return tok[0] == ']' }
 
-// ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigInt implements [smithy.ShapeDeserializer].
+//
+// Both the JSON number and JSON string encodings are accepted regardless of
+// [Options.UseStringForArbitraryPrecision], since that setting governs what
+// this codec writes, not what a peer may send.
+func (d *ShapeDeserializer) ReadBigInt(s *smithy.Schema, v **big.Int) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+	text, err := d.readNumericText("bigInteger")
+	if err != nil {
+		return err
+	}
+	n, err := bignum.ParseInteger(text)
+	if err != nil {
+		return fmt.Errorf("deserialize bigInteger: %w", err)
+	}
+	*v = n
+	return nil
 }
 
-// ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigDecimal implements [smithy.ShapeDeserializer].
+//
+// Both the JSON number and JSON string encodings are accepted regardless of
+// [Options.UseStringForArbitraryPrecision]. Both precision and scale survive,
+// since the mantissa/exponent decomposition is exact.
+func (d *ShapeDeserializer) ReadBigDecimal(s *smithy.Schema, v *smithy.BigDecimal) error {
+	if isNil, err := d.ReadNil(s); isNil || err != nil {
+		return err
+	}
+	text, err := d.readNumericText("bigDecimal")
+	if err != nil {
+		return err
+	}
+	dec, err := bignum.ParseDecimal(text)
+	if err != nil {
+		return fmt.Errorf("deserialize bigDecimal: %w", err)
+	}
+	*v = dec
+	return nil
+}
+
+// readNumericText returns the next token's decimal text, accepting either a bare
+// JSON number or a JSON string holding one.
+//
+// The returned bytes are copied out of the parse buffer, which is pooled and
+// reused once the deserializer is closed.
+func (d *ShapeDeserializer) readNumericText(what string) ([]byte, error) {
+	tok, err := d.next()
+	if err != nil {
+		return nil, err
+	}
+	if len(tok) == 0 {
+		return nil, fmt.Errorf("expected %s, got empty token", what)
+	}
+
+	if isS(tok) {
+		if d.p.escaped {
+			s, err := unquote(tok)
+			if err != nil {
+				return nil, err
+			}
+			return []byte(s), nil
+		}
+		return append([]byte(nil), tok[1:len(tok)-1]...), nil
+	}
+
+	if isLCB(tok) || isLSB(tok) || isT(tok) || isF(tok) {
+		return nil, fmt.Errorf("expected %s, got %s", what, tok)
+	}
+
+	return append([]byte(nil), tok...), nil
 }
 
 // DirectReadStruct is a concrete-type fast path that avoids interface dispatch.

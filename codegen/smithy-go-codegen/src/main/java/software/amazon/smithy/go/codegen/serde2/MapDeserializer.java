@@ -127,13 +127,13 @@ public class MapDeserializer implements Writable {
                     }()""", ctx.symbolProvider().toSymbol(value))
                     : goTemplate("&vv");
 
-            // don't need the address-of
-            case BLOB, LIST, SET, MAP, UNION ->
+            // don't need the address-of: these are all nil-able value types
+            case BLOB, LIST, SET, MAP, UNION, BIG_INTEGER ->
                     goTemplate("vv");
 
             case DOCUMENT -> renderDocumentCast();
 
-            case STRUCTURE -> goTemplate("func() *$T { cp := vv; return &cp }()",
+            case STRUCTURE, BIG_DECIMAL -> goTemplate("func() *$T { cp := vv; return &cp }()",
                     ctx.symbolProvider().toSymbol(value));
 
             default -> goTemplate("&vv");
@@ -194,8 +194,10 @@ public class MapDeserializer implements Writable {
             case DOCUMENT ->
                     goTemplate("d.ReadDocument(s.MapValue(), &vv)");
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            case BIG_INTEGER ->
+                    goTemplate("d.ReadBigInt(s.MapValue(), &vv)");
+            case BIG_DECIMAL ->
+                    goTemplate("d.ReadBigDecimal(s.MapValue(), &vv)");
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + value.getType());
         };

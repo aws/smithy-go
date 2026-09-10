@@ -6,7 +6,6 @@ import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.SchemaGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
-import software.amazon.smithy.go.codegen.UnsupportedShapeException;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
@@ -97,6 +96,11 @@ public final class StructureSerializer implements Writable {
             case BLOB ->
                     writer.write("if $2L != nil { s.WriteBlob($1L, $2L) }", schemaName, ident);
 
+            case BIG_INTEGER ->
+                    writer.write("if $2L != nil { s.WriteBigInt($1L, $2L) }", schemaName, ident);
+            case BIG_DECIMAL ->
+                    writeBigDecimal(writer, isNillable, isRequired, ident, schemaName);
+
             case LIST, SET, MAP, UNION ->
                     writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
             case STRUCTURE ->
@@ -106,9 +110,6 @@ public final class StructureSerializer implements Writable {
                 writer.write("if $2L != nil { s.WriteDocument($1L, &smithydocument.Opaque{Value: $2L}) }",
                         schemaName, ident);
             }
-
-            // FUTURE(602)
-            case BIG_INTEGER, BIG_DECIMAL -> throw new UnsupportedShapeException(target.getType());
 
             // invalid in this context
             case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new CodegenException("invalid shape " + target.getType());
@@ -130,6 +131,23 @@ public final class StructureSerializer implements Writable {
             } else {
                 writer.write("if $1L != " + zeroValue + " { s.$3L($2L, $1L) }", ident, schemaName, writeMethod);
             }
+        }
+    }
+
+    // smithy.BigDecimal is a plain struct, so unlike BIG_INTEGER (*big.Int,
+    // always nil-comparable) its zero-checking depends on whether THIS
+    // member is pointable: a required/dense-collection member is a bare
+    // smithy.BigDecimal value (not nil-comparable, checked via Mantissa ==
+    // nil), while an optional member is *smithy.BigDecimal (nil-comparable
+    // directly, dereferenced before the write).
+    private void writeBigDecimal(GoWriter writer, boolean isNillable, boolean isRequired, String ident,
+                                  String schemaName) {
+        if (isNillable) {
+            writer.write("if $1L != nil { s.WriteBigDecimal($2L, *$1L) }", ident, schemaName);
+        } else if (isRequired) {
+            writer.write("s.WriteBigDecimal($2L, $1L)", ident, schemaName);
+        } else {
+            writer.write("if $1L.Mantissa != nil { s.WriteBigDecimal($2L, $1L) }", ident, schemaName);
         }
     }
 }

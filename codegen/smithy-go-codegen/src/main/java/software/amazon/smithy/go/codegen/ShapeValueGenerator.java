@@ -333,7 +333,20 @@ public final class ShapeValueGenerator {
                 break;
 
             case BIG_INTEGER:
+                // *big.Int is already a nil-able reference type like blob,
+                // so there is no ptr.* wrapper to apply.
+                writeScalarValueInline(writer, member, params);
+                return;
+
             case BIG_DECIMAL:
+                // smithy.BigDecimal is a plain struct, so when the member is
+                // pointable it needs an address-of on the composite literal
+                // rather than a ptr.* helper (which exists for values that
+                // aren't otherwise addressable, e.g. a bare int32 literal).
+                if (pointableIndex.isPointable(member)) {
+                    writer.writeInline("&");
+                }
+                writeScalarValueInline(writer, member, params);
                 return;
 
             default:
@@ -430,6 +443,18 @@ public final class ShapeValueGenerator {
         }
     }
 
+    // Returns a mantissa width in bits wide enough to hold every significant
+    // digit of the given decimal literal. big.Float's zero value carries a
+    // precision of 0, which SetString treats as 64 bits, so generated code must
+    // always state a precision sized to the value it is parsing.
+    private static long bigFloatPrecisionFor(String literal) {
+        long digits = literal.chars().filter(Character::isDigit).count();
+        // log2(10) ~ 3.3219, plus a guard so the round trip back to decimal text
+        // is not perturbed by the binary representation.
+        long bits = (long) Math.ceil(digits * 3.3219280948873626) + 8;
+        return Math.max(bits, 64);
+    }
+
     private static final class DocumentValueNodeVisitor implements NodeVisitor<Void> {
         private final GoWriter writer;
 
@@ -486,11 +511,14 @@ public final class ShapeValueGenerator {
                     writer.writeInline("float64($L)", value.doubleValue(), value);
                 } else {
                     writer.addUseImports(SmithyGoDependency.BIG);
+                    // Precision must be stated explicitly; big.Float's zero
+                    // value has precision 0, which SetString treats as 64 bits
+                    // and silently rounds a high-precision decimal.
                     writer.writeInline("func () *big.Float {\n"
-                            + "\tf, ok := (&big.Float{}).SetString($S)\n"
-                            + "\tif !ok { panic(\"failed to parse string to float: \" + $S) }\n"
+                            + "\tf, _, err := big.ParseFloat($S, 10, $L, big.ToNearestEven)\n"
+                            + "\tif err != nil { panic(\"failed to parse string to float: \" + $S) }\n"
                             + "\treturn f\n"
-                            + "}()", value, value);
+                            + "}()", value, bigFloatPrecisionFor(value.toString()), value);
                 }
             }
             return null;
@@ -761,24 +789,89 @@ public final class ShapeValueGenerator {
             return null;
         }
 
-        private void writeInlineBigDecimalInit(GoWriter writer, Object value) {
-            writer.addUseImports(SmithyGoDependency.BIG);
-            writer.writeInline("func() *big.Float {\n"
-                            + "    i, ok := big.ParseFloat($S, 10, 200, big.ToNearestAway)\n"
-                            + "    if !ok { panic(\"invalid generated param value, \" + $S) }\n"
-                            + "    return i"
-                            + "}()",
-                    value, value);
-        }
-
+        // bigInteger maps directly to *big.Int, so a literal parses the
+        // decimal text at generated-code runtime through the standard
+        // library. The model guarantees this is well-formed decimal integer
+        // text, so a parse failure here can only mean a codegen bug.
         private void writeInlineBigIntegerInit(GoWriter writer, Object value) {
             writer.addUseImports(SmithyGoDependency.BIG);
-            writer.writeInline("func() *big.Int {\n"
-                            + "    i, ok := new(big.Int).SetString($S, 10)\n"
-                            + "    if !ok { panic(\"invalid generated param value, \" + $S) }\n"
-                            + "    return i"
-                            + "}()",
-                    value, value);
+            writer.writeInline("func () *big.Int {\n"
+                    + "\ti, ok := new(big.Int).SetString($S, 10)\n"
+                    + "\tif !ok { panic(\"failed to parse bigInteger literal: \" + $S) }\n"
+                    + "\treturn i\n"
+                    + "}()", value.toString(), value.toString());
+        }
+
+        // smithy.BigDecimal holds a mantissa and base-10 exponent rather than
+        // decimal text, so the literal's mantissa/exponent decomposition is
+        // done here at codegen time -- the value is fixed by the model, so
+        // there's no reason to defer that work to generated-code runtime.
+        private void writeInlineBigDecimalInit(GoWriter writer, Object value) {
+            writer.addUseImports(SmithyGoDependency.SMITHY);
+            writer.addUseImports(SmithyGoDependency.BIG);
+
+            DecimalLiteral lit = DecimalLiteral.parse(value.toString());
+            writer.writeInline("$T{Mantissa: func () *big.Int {\n"
+                    + "\ti, ok := new(big.Int).SetString($S, 10)\n"
+                    + "\tif !ok { panic(\"failed to parse bigDecimal literal: \" + $S) }\n"
+                    + "\treturn i\n"
+                    + "}(), Exp: $L}",
+                    SmithyGoDependency.SMITHY.valueSymbol("BigDecimal"),
+                    lit.mantissa, lit.mantissa, lit.exp);
+        }
+
+        // A codegen-time decomposition of decimal literal text into a mantissa
+        // and base-10 exponent, mirroring internal/bignum.ParseDecimal at
+        // runtime. Duplicated here (rather than calling into that package)
+        // because internal/ packages cannot be imported from generated SDK
+        // code outside the smithy-go module.
+        private static final class DecimalLiteral {
+            final String mantissa;
+            final long exp;
+
+            private DecimalLiteral(String mantissa, long exp) {
+                this.mantissa = mantissa;
+                this.exp = exp;
+            }
+
+            static DecimalLiteral parse(String text) {
+                String s = text;
+                boolean neg = false;
+                if (s.startsWith("+") || s.startsWith("-")) {
+                    neg = s.startsWith("-");
+                    s = s.substring(1);
+                }
+
+                long exp = 0;
+                int eIdx = -1;
+                for (int i = 0; i < s.length(); i++) {
+                    char c = s.charAt(i);
+                    if (c == 'e' || c == 'E') {
+                        eIdx = i;
+                        break;
+                    }
+                }
+                String mantissaPart = eIdx == -1 ? s : s.substring(0, eIdx);
+                if (eIdx != -1) {
+                    exp = Long.parseLong(s.substring(eIdx + 1));
+                }
+
+                int dotIdx = mantissaPart.indexOf('.');
+                String digits;
+                if (dotIdx == -1) {
+                    digits = mantissaPart;
+                } else {
+                    String intPart = mantissaPart.substring(0, dotIdx);
+                    String fracPart = mantissaPart.substring(dotIdx + 1);
+                    digits = intPart + fracPart;
+                    exp -= fracPart.length();
+                }
+                if (digits.isEmpty()) {
+                    digits = "0";
+                }
+
+                return new DecimalLiteral((neg ? "-" : "") + digits, exp);
+            }
         }
 
         private void writeInlineNonNumericFloat(GoWriter writer, String value) {
