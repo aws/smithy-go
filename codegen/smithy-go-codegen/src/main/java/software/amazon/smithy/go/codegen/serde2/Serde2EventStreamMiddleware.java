@@ -105,8 +105,8 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
                 $writerSetup:W
                 $initialRequest:W
-                $readerSetup:W
                 $initialResponse:W
+                $readerSetup:W
 
                 output.eventStream = $esConstructor:T(func(stream $esStruct:P) {
                     $wireWriter:W
