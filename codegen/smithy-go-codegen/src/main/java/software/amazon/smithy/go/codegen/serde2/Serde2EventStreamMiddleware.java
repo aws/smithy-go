@@ -255,6 +255,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         return goTemplate("""
                 if m.options.Protocol.HasInitialEventMessage() {
                     if err = m.options.Protocol.DeserializeInitialResponse($outputSchema:L, resp.Body, output); err != nil {
+                        _ = resp.Body.Close()
                         return out, md, $fmtErrorf:T("deserialize initial response: %w", err)
                     }
                 }
