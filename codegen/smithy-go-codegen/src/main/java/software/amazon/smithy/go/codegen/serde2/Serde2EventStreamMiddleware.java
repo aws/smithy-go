@@ -105,8 +105,8 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
 
                 $writerSetup:W
                 $initialRequest:W
-                $readerSetup:W
                 $initialResponse:W
+                $readerSetup:W
 
                 output.eventStream = $esConstructor:T(func(stream $esStruct:P) {
                     $wireWriter:W
@@ -255,6 +255,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         return goTemplate("""
                 if m.options.Protocol.HasInitialEventMessage() {
                     if err = m.options.Protocol.DeserializeInitialResponse($outputSchema:L, resp.Body, output); err != nil {
+                        _ = resp.Body.Close()
                         return out, md, $fmtErrorf:T("deserialize initial response: %w", err)
                     }
                 }
