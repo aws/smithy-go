@@ -62,6 +62,18 @@ func (d *ShapeDeserializer) eof() bool {
 	return d.off >= len(d.p)
 }
 
+func (d *ShapeDeserializer) take(n uint64) ([]byte, error) {
+	remaining := len(d.p) - d.off
+	if remaining < 0 || n > uint64(remaining) {
+		return nil, fmt.Errorf("length %d exceeds remaining data", n)
+	}
+
+	end := d.off + int(n)
+	b := d.p[d.off:end]
+	d.off = end
+	return b, nil
+}
+
 func (d *ShapeDeserializer) peekMajor() majorType {
 	return majorType(d.p[d.off] & 0xe0 >> 5)
 }
@@ -291,11 +303,11 @@ func (d *ShapeDeserializer) readStringBytes() ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			if d.off+int(slen) > len(d.p) {
-				return nil, fmt.Errorf("string chunk length %d exceeds remaining data", slen)
+			chunk, err := d.take(slen)
+			if err != nil {
+				return nil, err
 			}
-			result = append(result, d.p[d.off:d.off+int(slen)]...)
-			d.off += int(slen)
+			result = append(result, chunk...)
 		}
 		d.off++ // skip terminator
 		return result, nil
@@ -305,13 +317,8 @@ func (d *ShapeDeserializer) readStringBytes() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if d.off+int(slen) > len(d.p) {
-		return nil, fmt.Errorf("string length %d exceeds remaining data", slen)
-	}
 
-	b := d.p[d.off : d.off+int(slen)]
-	d.off += int(slen)
-	return b, nil
+	return d.take(slen)
 }
 
 // ReadTime implements [smithy.ShapeDeserializer].
@@ -369,12 +376,12 @@ func (d *ShapeDeserializer) ReadBlob(s *smithy.Schema, v *[]byte) error {
 	if err != nil {
 		return err
 	}
-	if d.off+int(slen) > len(d.p) {
-		return fmt.Errorf("blob length %d exceeds remaining data", slen)
+	b, err := d.take(slen)
+	if err != nil {
+		return err
 	}
-	*v = make([]byte, slen)
-	copy(*v, d.p[d.off:d.off+int(slen)])
-	d.off += int(slen)
+	*v = make([]byte, len(b))
+	copy(*v, b)
 	return nil
 }
 
@@ -622,8 +629,8 @@ func (d *ShapeDeserializer) skip() error {
 		if err != nil {
 			return err
 		}
-		d.off += int(slen)
-		return nil
+		_, err = d.take(slen)
+		return err
 	case majorTypeList, majorTypeMap:
 		itemsPerEntry := 1
 		if major == majorTypeMap {
