@@ -8,9 +8,9 @@ import (
 	"github.com/aws/smithy-go"
 )
 
-func oversizedLengthToken(major byte) []byte {
+func oversizedLengthToken(major majorType) []byte {
 	p := make([]byte, 9)
-	p[0] = major | 0x1b
+	p[0] = byte(major)<<5 | minorArg8
 	binary.BigEndian.PutUint64(p[1:], uint64(math.MaxInt64)+1)
 	return p
 }
@@ -25,7 +25,7 @@ func TestOversizeLength(t *testing.T) {
 	}{
 		{
 			name:    "string",
-			payload: oversizedLengthToken(0x60),
+			payload: oversizedLengthToken(majorTypeString),
 			read: func(d *ShapeDeserializer) error {
 				var value string
 				return d.ReadString(nil, &value)
@@ -33,7 +33,7 @@ func TestOversizeLength(t *testing.T) {
 		},
 		{
 			name:    "indefinite string chunk",
-			payload: append(append([]byte{0x7f}, oversizedLengthToken(0x60)...), 0xff),
+			payload: append(append([]byte{0x7f}, oversizedLengthToken(majorTypeString)...), 0xff),
 			read: func(d *ShapeDeserializer) error {
 				var value string
 				return d.ReadString(nil, &value)
@@ -41,7 +41,7 @@ func TestOversizeLength(t *testing.T) {
 		},
 		{
 			name:    "blob",
-			payload: oversizedLengthToken(0x40),
+			payload: oversizedLengthToken(majorTypeSlice),
 			read: func(d *ShapeDeserializer) error {
 				var value []byte
 				return d.ReadBlob(blobSchema, &value)
@@ -49,7 +49,7 @@ func TestOversizeLength(t *testing.T) {
 		},
 		{
 			name:    "skip",
-			payload: oversizedLengthToken(0x60),
+			payload: oversizedLengthToken(majorTypeString),
 			read:    func(d *ShapeDeserializer) error { return d.skip() },
 		},
 	}
