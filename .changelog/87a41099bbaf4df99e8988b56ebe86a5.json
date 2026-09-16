@@ -1,0 +1,8 @@
+{
+    "id": "87a41099-bbaf-4df9-9e89-88b56ebe86a5",
+    "type": "bugfix",
+    "description": "Fix schema-serde CBOR decode panic on malformed string/blob length.",
+    "modules": [
+        "."
+    ]
+}
