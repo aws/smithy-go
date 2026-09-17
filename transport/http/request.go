@@ -176,7 +176,13 @@ func (r *Request) Build(ctx context.Context) *http.Request {
 	switch stream := r.stream.(type) {
 	case *io.PipeReader:
 		req.Body = io.NopCloser(stream)
-		req.ContentLength = -1
+		// A pipe cannot report its own length, so fall back to chunked
+		// encoding. A length the caller supplied is still authoritative:
+		// discarding it strands SigV4, which has already signed
+		// content-length by this point.
+		if req.ContentLength <= 0 {
+			req.ContentLength = -1
+		}
 	default:
 		// HTTP Client Request must only have a non-nil body if the
 		// ContentLength is explicitly unknown (-1) or non-zero. The HTTP
