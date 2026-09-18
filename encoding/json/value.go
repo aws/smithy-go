@@ -3,6 +3,7 @@ package json
 import (
 	"bytes"
 	"encoding/base64"
+	"math"
 	"math/big"
 	"strconv"
 
@@ -53,17 +54,31 @@ func (jv Value) ULong(v uint64) {
 	jv.w.Write(*jv.scratch)
 }
 
-// Float encodes v as a JSON number
+// Float encodes v as a JSON number. NaN and the infinities are encoded as
+// the strings "NaN", "Infinity" and "-Infinity".
 func (jv Value) Float(v float32) {
 	jv.float(float64(v), 32)
 }
 
-// Double encodes v as a JSON number
+// Double encodes v as a JSON number. NaN and the infinities are encoded as
+// the strings "NaN", "Infinity" and "-Infinity".
 func (jv Value) Double(v float64) {
 	jv.float(v, 64)
 }
 
 func (jv Value) float(v float64, bits int) {
+	switch {
+	case math.IsNaN(v):
+		jv.String("NaN")
+		return
+	case math.IsInf(v, 1):
+		jv.String("Infinity")
+		return
+	case math.IsInf(v, -1):
+		jv.String("-Infinity")
+		return
+	}
+
 	*jv.scratch = encoding.EncodeFloat((*jv.scratch)[:0], v, bits)
 	jv.w.Write(*jv.scratch)
 }
