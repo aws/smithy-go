@@ -1,8 +1,0 @@
-{
-    "id": "b2077b4b-41d8-4f81-bbbb-90e6348bf7b6",
-    "type": "bugfix",
-    "description": "Fix event stream decode panic on unknown header value type.",
-    "modules": [
-        "."
-    ]
-}
