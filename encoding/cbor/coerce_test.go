@@ -318,7 +318,7 @@ func TestAsFloat32(t *testing.T) {
 }
 
 func TestAsFloat64(t *testing.T) {
-	const maxv = 1 << 54
+	const maxv = 1 << 53
 	for name, c := range map[string]struct {
 		In     Value
 		Expect float64
@@ -333,8 +333,8 @@ func TestAsFloat64(t *testing.T) {
 			Err: fmt.Sprintf("cbor uint %d exceeds", Uint(maxv+1)),
 		},
 		"negint oob": {
-			In:  NegInt(maxv + 2),
-			Err: fmt.Sprintf("cbor negint %s exceeds", fmtNegint(NegInt(maxv+2))),
+			In:  NegInt(maxv + 1),
+			Err: fmt.Sprintf("cbor negint %s exceeds", fmtNegint(NegInt(maxv+1))),
 		},
 		"negint wrap oob": {
 			In:  NegInt(0),
@@ -343,6 +343,18 @@ func TestAsFloat64(t *testing.T) {
 		"uint ok min": {
 			In:     Uint(0),
 			Expect: 0,
+		},
+		"uint one": {
+			In:     Uint(1),
+			Expect: 1,
+		},
+		"uint 2^20": {
+			In:     Uint(1 << 20),
+			Expect: 1 << 20,
+		},
+		"uint 2^53-1": {
+			In:     Uint(maxv - 1),
+			Expect: maxv - 1,
 		},
 		"uint ok max": {
 			In:     Uint(maxv),
