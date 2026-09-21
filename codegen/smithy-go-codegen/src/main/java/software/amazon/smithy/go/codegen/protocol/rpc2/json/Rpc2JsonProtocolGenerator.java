@@ -1,18 +1,3 @@
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-
 package software.amazon.smithy.go.codegen.protocol.rpc2.json;
 
 import static software.amazon.smithy.go.codegen.ApplicationProtocol.createDefaultHttpApplicationProtocol;
@@ -24,19 +9,11 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.protocol.traits.Rpcv2JsonTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
-/**
- * Declares support for smithy.protocols#rpcv2Json.
- *
- * <p>Serialization for this protocol is entirely schema-driven at runtime -- the
- * wire behavior lives in the {@code transport/http/protocol/rpcv2} runtime
- * package, selected by {@code ServiceGenerator}. Nothing protocol-specific needs
- * to be generated, so this type exists only so that protocol resolution can
- * settle on rpcv2Json, which in turn is what lets its protocol tests be
- * generated.
- *
- * <p>The legacy hand-written serde codegen path is not supported for this
- * protocol.
- */
+// this is a stub, we only need it because right now the client codegen plugin
+// has to see a ProtocolGenerator in order for it to continue, even if it's
+// doing schema-serde
+//
+// when we finish the schema-serde rollout in sdkv2 we can nuke all this
 @SmithyInternalApi
 public final class Rpc2JsonProtocolGenerator implements ProtocolGenerator {
     @Override
