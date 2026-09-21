@@ -14,6 +14,7 @@ import (
 	"github.com/aws/smithy-go/document"
 	smithydocumentjson "github.com/aws/smithy-go/document/json"
 	"github.com/aws/smithy-go/encoding"
+	"github.com/aws/smithy-go/internal/bignum"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
 )
@@ -23,6 +24,24 @@ type Options struct {
 	// Controls whether the @jsonName trait is used to determine JSON object
 	// keys. If false (the default), the member name is used as-is.
 	UseJSONName bool
+
+	// Controls how arbitrary-precision numbers (bigInteger and bigDecimal)
+	// are encoded.
+	//
+	// When false (the default) they are encoded as JSON numbers, which is
+	// lossy for consumers that coerce JSON numbers to double-precision
+	// floats. When true they are encoded as JSON strings holding the value at
+	// its full precision.
+	//
+	// Deserialization accepts both forms regardless of this setting.
+	UseStringForArbitraryPrecision bool
+
+	// Controls whether the @timestampFormat trait is honored.
+	//
+	// When false (the default) the trait selects the timestamp encoding. When
+	// true the trait is ignored and timestamps are always epoch-seconds JSON
+	// numbers, which is what rpcv2Json requires.
+	IgnoreTimestampFormat bool
 }
 
 type serCtx struct {
@@ -39,6 +58,10 @@ type ShapeSerializer struct {
 	depth     int
 	noKey     bool
 	initStack [64]serCtx
+
+	// rootSchema is the schema passed to the first WriteStruct call, used by
+	// protocols that must distinguish "no input" from "empty input".
+	rootSchema *smithy.Schema
 }
 
 const (
@@ -69,9 +92,20 @@ func NewShapeSerializer(opts ...func(*Options)) *ShapeSerializer {
 	s.opts = o
 	s.depth = 0
 	s.noKey = false
+	s.rootSchema = nil
 	s.stack = s.initStack[:1]
 	s.stack[0] = serCtx{}
 	return s
+}
+
+// IsUnitShape reports whether the serialized content represents a Unit shape,
+// i.e. an operation with no modeled input.
+func (s *ShapeSerializer) IsUnitShape() bool {
+	if s.rootSchema == nil {
+		return false
+	}
+	_, ok := smithy.SchemaTrait[*traits.UnitShape](s.rootSchema)
+	return ok
 }
 
 // Close returns the serializer to the pool for reuse.
@@ -217,20 +251,23 @@ func (s *ShapeSerializer) WriteBlob(schema *smithy.Schema, v []byte) {
 func (s *ShapeSerializer) WriteList(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '[')
-	s.depth++; s.stack = append(s.stack, serCtx{})
+	s.depth++
+	s.stack = append(s.stack, serCtx{})
 }
 
 // CloseList implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseList() {
 	s.buf = append(s.buf, ']')
-	s.stack = s.stack[:s.depth]; s.depth--
+	s.stack = s.stack[:s.depth]
+	s.depth--
 }
 
 // WriteMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteMap(schema *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
-	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
+	s.depth++
+	s.stack = append(s.stack, serCtx{inObject: true})
 }
 
 // WriteKey implements [smithy.ShapeSerializer].
@@ -244,13 +281,14 @@ func (s *ShapeSerializer) WriteKey(_ *smithy.Schema, key string) {
 // CloseMap implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseMap() {
 	s.buf = append(s.buf, '}')
-	s.stack = s.stack[:s.depth]; s.depth--
+	s.stack = s.stack[:s.depth]
+	s.depth--
 }
 
 // WriteTime implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 	format := "epoch-seconds"
-	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok {
+	if t, ok := smithy.SchemaTrait[*traits.TimestampFormat](schema); ok && !s.opts.IgnoreTimestampFormat {
 		format = t.Format
 	}
 
@@ -268,7 +306,8 @@ func (s *ShapeSerializer) WriteTime(schema *smithy.Schema, v time.Time) {
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
-	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
+	s.depth++
+	s.stack = append(s.stack, serCtx{inObject: true})
 	s.writeKey(variant)
 	s.noKey = true
 }
@@ -277,20 +316,26 @@ func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 func (s *ShapeSerializer) CloseUnion() {
 	s.noKey = false
 	s.buf = append(s.buf, '}')
-	s.stack = s.stack[:s.depth]; s.depth--
+	s.stack = s.stack[:s.depth]
+	s.depth--
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) WriteStruct(schema *smithy.Schema) {
+	if s.rootSchema == nil && s.depth == 0 {
+		s.rootSchema = schema
+	}
 	s.writePrefix(schema)
 	s.buf = append(s.buf, '{')
-	s.depth++; s.stack = append(s.stack, serCtx{inObject: true})
+	s.depth++
+	s.stack = append(s.stack, serCtx{inObject: true})
 }
 
 // CloseStruct implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseStruct() {
 	s.buf = append(s.buf, '}')
-	s.stack = s.stack[:s.depth]; s.depth--
+	s.stack = s.stack[:s.depth]
+	s.depth--
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
@@ -299,14 +344,57 @@ func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
 	s.buf = append(s.buf, "null"...)
 }
 
-// WriteBigInt is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigInt(_ *smithy.Schema, _ *big.Int) {
-	panic("unimplemented")
+// WriteBigInt implements [smithy.ShapeSerializer].
+//
+// The value is written as a JSON string when
+// [Options.UseStringForArbitraryPrecision] is set, else as a JSON number. In
+// both cases the value's full decimal text is emitted, so no precision is
+// lost by this codec.
+func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
+	if v == nil {
+		s.WriteNil(schema)
+		return
+	}
+	s.writeBignumText(schema, v.Append(nil, 10))
 }
 
-// WriteBigFloat is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigFloat(_ *smithy.Schema, _ *big.Float) {
-	panic("unimplemented")
+// WriteBigDecimal implements [smithy.ShapeSerializer].
+//
+// The value is written as a JSON string when
+// [Options.UseStringForArbitraryPrecision] is set, else as a JSON number. In
+// both cases the value's full decimal text is emitted, so no precision or
+// scale is lost by this codec.
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v smithy.BigDecimal) {
+	if v.Mantissa == nil {
+		s.WriteNil(schema)
+		return
+	}
+	text, err := bignum.FormatDecimal(v)
+	if err != nil {
+		// Exp is out of the range FormatDecimal will shift; there is no
+		// sensible text to emit.
+		s.WriteNil(schema)
+		return
+	}
+	s.writeBignumText(schema, text)
+}
+
+// writeBignumText emits arbitrary-precision decimal text, as a JSON string or a
+// bare JSON number depending on the codec options.
+func (s *ShapeSerializer) writeBignumText(schema *smithy.Schema, text []byte) {
+	if text == nil {
+		s.WriteNil(schema)
+		return
+	}
+
+	s.writePrefix(schema)
+	if s.opts.UseStringForArbitraryPrecision {
+		s.buf = append(s.buf, '"')
+		s.buf = append(s.buf, text...)
+		s.buf = append(s.buf, '"')
+		return
+	}
+	s.buf = append(s.buf, text...)
 }
 
 // WriteDocument writes a document value to JSON.
@@ -461,102 +549,102 @@ func (s *ShapeSerializer) appendEscapedString(v string) {
 }
 
 var safeSet = [utf8.RuneSelf]bool{
-	' ':      true,
-	'!':      true,
-	'"':      false,
-	'#':      true,
-	'$':      true,
-	'%':      true,
-	'&':      true,
-	'\'':     true,
-	'(':      true,
-	')':      true,
-	'*':      true,
-	'+':      true,
-	',':      true,
-	'-':      true,
-	'.':      true,
-	'/':      true,
-	'0':      true,
-	'1':      true,
-	'2':      true,
-	'3':      true,
-	'4':      true,
-	'5':      true,
-	'6':      true,
-	'7':      true,
-	'8':      true,
-	'9':      true,
-	':':      true,
-	';':      true,
-	'<':      true,
-	'=':      true,
-	'>':      true,
-	'?':      true,
-	'@':      true,
-	'A':      true,
-	'B':      true,
-	'C':      true,
-	'D':      true,
-	'E':      true,
-	'F':      true,
-	'G':      true,
-	'H':      true,
-	'I':      true,
-	'J':      true,
-	'K':      true,
-	'L':      true,
-	'M':      true,
-	'N':      true,
-	'O':      true,
-	'P':      true,
-	'Q':      true,
-	'R':      true,
-	'S':      true,
-	'T':      true,
-	'U':      true,
-	'V':      true,
-	'W':      true,
-	'X':      true,
-	'Y':      true,
-	'Z':      true,
-	'[':      true,
-	'\\':     false,
-	']':      true,
-	'^':      true,
-	'_':      true,
-	'`':      true,
-	'a':      true,
-	'b':      true,
-	'c':      true,
-	'd':      true,
-	'e':      true,
-	'f':      true,
-	'g':      true,
-	'h':      true,
-	'i':      true,
-	'j':      true,
-	'k':      true,
-	'l':      true,
-	'm':      true,
-	'n':      true,
-	'o':      true,
-	'p':      true,
-	'q':      true,
-	'r':      true,
-	's':      true,
-	't':      true,
-	'u':      true,
-	'v':      true,
-	'w':      true,
-	'x':      true,
-	'y':      true,
-	'z':      true,
-	'{':      true,
-	'|':      true,
-	'}':      true,
-	'~':      true,
-	'': false,
+	' ':  true,
+	'!':  true,
+	'"':  false,
+	'#':  true,
+	'$':  true,
+	'%':  true,
+	'&':  true,
+	'\'': true,
+	'(':  true,
+	')':  true,
+	'*':  true,
+	'+':  true,
+	',':  true,
+	'-':  true,
+	'.':  true,
+	'/':  true,
+	'0':  true,
+	'1':  true,
+	'2':  true,
+	'3':  true,
+	'4':  true,
+	'5':  true,
+	'6':  true,
+	'7':  true,
+	'8':  true,
+	'9':  true,
+	':':  true,
+	';':  true,
+	'<':  true,
+	'=':  true,
+	'>':  true,
+	'?':  true,
+	'@':  true,
+	'A':  true,
+	'B':  true,
+	'C':  true,
+	'D':  true,
+	'E':  true,
+	'F':  true,
+	'G':  true,
+	'H':  true,
+	'I':  true,
+	'J':  true,
+	'K':  true,
+	'L':  true,
+	'M':  true,
+	'N':  true,
+	'O':  true,
+	'P':  true,
+	'Q':  true,
+	'R':  true,
+	'S':  true,
+	'T':  true,
+	'U':  true,
+	'V':  true,
+	'W':  true,
+	'X':  true,
+	'Y':  true,
+	'Z':  true,
+	'[':  true,
+	'\\': false,
+	']':  true,
+	'^':  true,
+	'_':  true,
+	'`':  true,
+	'a':  true,
+	'b':  true,
+	'c':  true,
+	'd':  true,
+	'e':  true,
+	'f':  true,
+	'g':  true,
+	'h':  true,
+	'i':  true,
+	'j':  true,
+	'k':  true,
+	'l':  true,
+	'm':  true,
+	'n':  true,
+	'o':  true,
+	'p':  true,
+	'q':  true,
+	'r':  true,
+	's':  true,
+	't':  true,
+	'u':  true,
+	'v':  true,
+	'w':  true,
+	'x':  true,
+	'y':  true,
+	'z':  true,
+	'{':  true,
+	'|':  true,
+	'}':  true,
+	'~':  true,
+	'':  false,
 }
 
 var hex = "0123456789abcdef"

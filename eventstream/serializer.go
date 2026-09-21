@@ -138,9 +138,9 @@ func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
 	s.inner.WriteBigInt(schema, v)
 }
 
-// WriteBigFloat implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
-	s.inner.WriteBigFloat(schema, v)
+// WriteBigDecimal implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v smithy.BigDecimal) {
+	s.inner.WriteBigDecimal(schema, v)
 }
 
 // WriteStruct implements [smithy.ShapeSerializer].

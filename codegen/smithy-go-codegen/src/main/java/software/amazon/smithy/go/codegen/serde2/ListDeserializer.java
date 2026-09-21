@@ -127,8 +127,8 @@ public class ListDeserializer implements Writable {
                     }()""", ctx.symbolProvider().toSymbol(member))
                     : goTemplate("&vv");
 
-            // don't need the address-of
-            case BLOB, LIST, SET, MAP, UNION ->
+            // don't need the address-of: these are all nil-able value types
+            case BLOB, LIST, SET, MAP, UNION, BIG_INTEGER ->
                     goTemplate("vv");
 
             case DOCUMENT -> renderDocumentCast();
@@ -191,8 +191,10 @@ public class ListDeserializer implements Writable {
             case DOCUMENT ->
                     goTemplate("d.ReadDocument(s.ListMember(), &vv)");
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            case BIG_INTEGER ->
+                    goTemplate("d.ReadBigInt(s.ListMember(), &vv)");
+            case BIG_DECIMAL ->
+                    goTemplate("d.ReadBigDecimal(s.ListMember(), &vv)");
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + shape.getType());
         };

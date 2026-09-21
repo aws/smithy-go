@@ -101,6 +101,18 @@ public class StructureDeserializer implements Writable {
             case BLOB ->
                     writer.write("return d.ReadBlob($L, &$L)", schemaName, ident);
 
+            case BIG_INTEGER ->
+                    writer.write("return d.ReadBigInt($L, &$L)", schemaName, ident);
+            case BIG_DECIMAL -> {
+                if (nilIndex.isNillable(member)) {
+                    writer.write("""
+                            $1L = &$2T{}
+                            return d.ReadBigDecimal($3L, $1L)""", ident, ctx.symbolProvider().toSymbol(target), schemaName);
+                } else {
+                    writer.write("return d.ReadBigDecimal($L, &$L)", schemaName, ident);
+                }
+            }
+
             case LIST, SET, MAP, UNION ->
                     writer.write("return deserialize$L(d, $L, &$L)", target.getId().getName(), schemaName, ident);
             case STRUCTURE -> {
@@ -126,9 +138,6 @@ public class StructureDeserializer implements Writable {
                         }
                         return nil""", schemaName, ident, unmarshaler);
             }
-
-            // FUTURE(602)
-            case BIG_INTEGER, BIG_DECIMAL -> throw new UnsupportedShapeException(target.getType());
 
             // invalid in this context
             case MEMBER, SERVICE, RESOURCE, OPERATION -> throw new UnsupportedShapeException(target.getType());

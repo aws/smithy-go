@@ -101,8 +101,10 @@ public class MapSerializer implements Writable {
             case DOCUMENT ->
                     wrapNilCheck(goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})"));
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            case BIG_INTEGER ->
+                    wrapNilCheck(goTemplate("s.WriteBigInt(schema.MapValue(), vv)"));
+            case BIG_DECIMAL ->
+                    wrapNilCheck(goTemplate("s.WriteBigDecimal(schema.MapValue(), *vv)"));
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + value.getType());
         };
@@ -140,8 +142,11 @@ public class MapSerializer implements Writable {
             case DOCUMENT ->
                     goTemplate("s.WriteDocument(schema.MapValue(), &smithydocument.Opaque{Value: vv})");
 
-            case BIG_INTEGER, BIG_DECIMAL ->
-                    throw new CodegenException("big integer / big decimal unsupported");
+            // dense values are values, not pointers
+            case BIG_INTEGER ->
+                    goTemplate("s.WriteBigInt(schema.MapValue(), vv)");
+            case BIG_DECIMAL ->
+                    goTemplate("s.WriteBigDecimal(schema.MapValue(), vv)");
             case MEMBER, OPERATION, RESOURCE, SERVICE ->
                     throw new CodegenException("invalid shape type " + value.getType());
         };
