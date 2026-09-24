@@ -30,10 +30,12 @@ The primary downstream consumer is
 ├── encoding/                   # Wire format encoders/decoders
 │   ├── cbor/                   # CBOR (used by rpcv2Cbor)
 │   ├── httpbinding/            # HTTP binding serde helpers
-│   ├── json/                   # JSON encoder/decoder
+│   ├── json/                   # JSON shape codec (Codec); deprecated legacy value-tree API
+│   │   └── internal/stdlib/    # vendored stdlib JSON scan/unquote helpers
 │   └── xml/                    # XML encoder/decoder
 ├── endpoints/                  # Endpoint resolution types
 ├── internal/                   # Internal utilities (singleflight, etc.)
+│   └── encoding/json/          # Legacy JSON value-tree writer (moved out of encoding/json)
 ├── io/                         # I/O helpers
 ├── logging/                    # Logging interfaces
 ├── metrics/                    # Metrics interfaces

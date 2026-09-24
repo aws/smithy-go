@@ -91,6 +91,24 @@ list of top-level properties enabled for `go-codegen` can be found in
 | `module`        | string  | yes      | Name of the module in `generated.json` (and `go.mod` if `generateGoMod` is enabled) and `doc.go`.                             |
 | `generateGoMod` | boolean |          | Whether to generate a default `go.mod` file. The default value is `false`.                                                    |
 | `goDirective`   | string  |          | [Go directive](https://go.dev/ref/mod#go-mod-file-go) of the module. The default value is the minimum supported Go version.  |
+| `stdlibMarshalers` | array of string |  | Formats for which to generate stdlib `MarshalJSON`/`UnmarshalJSON` methods on modeled shapes, delegating to the corresponding `smithy.Codec`. Only `"json"` is currently accepted. Empty or absent (the default) generates no marshaler methods. |
+
+##### `stdlibMarshalers` semantics
+
+The generated methods produce a **document representation of the shape, not a
+protocol message**. Specifically:
+
+* Every modeled member is written to the document, including members bound to
+  the HTTP request or response by `@httpHeader`, `@httpQuery`, `@httpLabel`, or
+  `@httpPayload`. The marshaled form of an operation input is therefore not the
+  same as that operation's request body on the wire.
+* `@jsonName` determines object keys, and `@timestampFormat` timestamp
+  encoding, defaulting to epoch-seconds when the trait is absent.
+* Streaming (`@streaming`) blob payloads are not representable in a document
+  and are omitted.
+* Union member types marshal to the single-key variant envelope
+  (`{"variantName": value}`). Unmarshaling into a member type fails if the
+  payload holds a different variant.
 
 #### Supported protocols
 
@@ -99,12 +117,11 @@ the client's `Options`. The SDK configures a default based on the protocol
 traits applied to the modeled service.
 
 Each protocol is implemented as its own package under
-[`transport/http/protocol`](transport/http/protocol). Serialization for these
-protocols is handled by internal codecs under `protocol/internal` (e.g.
-`protocol/internal/json`, `protocol/internal/cbor`,
-`protocol/internal/xml`); these largely supersede the top-level
-[`encoding/`](encoding) packages of the same name; see
-[Encoding](#encoding) below.
+[`transport/http/protocol`](transport/http/protocol). JSON payload
+serialization is handled by [`encoding/json.Codec`](encoding/json); CBOR and
+XML serialization are handled by internal codecs under `protocol/internal`
+(`protocol/internal/cbor`, `protocol/internal/xml`), which have not yet been
+promoted to their `encoding/` counterparts; see [Encoding](#encoding) below.
 
 | Protocol | Package | Notes |
 |----------|---------|-------|
@@ -155,17 +172,22 @@ runtime. It also includes a few standalone submodules published separately.
 
 Wire format encoders/decoders under [`encoding/`](encoding).
 
-> [!NOTE]
-> Most of these packages are effectively legacy. The protocol
-> implementations under [`transport/http/protocol`](transport/http/protocol)
-> (used by current client codegen) have their own internal codecs under
-> `protocol/internal/*` and generally do not build on these packages.
-> The `encoding/json`, `encoding/xml`, and `encoding/cbor` packages otherwise
-> remain in use by [`document/json`](document/json)/[`document/cbor`](document/cbor)
-> and [`eventstream`](eventstream), and by existing generated SDK code that
-> predates the newer protocol implementations.
+[`encoding/json`](encoding/json) hosts the JSON implementation of
+[`smithy.Codec`](codec.go), the public entry point to schema-driven JSON
+serde; the restJson1 and awsJson1_0/1_1 protocol implementations under
+[`transport/http/protocol`](transport/http/protocol) construct an
+`encoding/json.Codec` for their payloads. `encoding/xml` and `encoding/cbor`
+have not yet made the same move: their shape codecs still live under
+`protocol/internal/xml` and `protocol/internal/cbor` respectively.
 
-- [`encoding/json`](encoding/json): JSON encoding/decoding.
+> [!NOTE]
+> The legacy `Value`/`Object`/`Array`/`Encoder` types in `encoding/json` are
+> deprecated in favor of `Codec`. They remain for
+> [`document/json`](document/json) and existing generated SDK code that
+> predates the schema-driven codec.
+
+- [`encoding/json`](encoding/json): JSON shape (de)serialization via
+  [`Codec`](encoding/json/codec.go); deprecated legacy value-tree encoding.
 - [`encoding/xml`](encoding/xml): XML encoding/decoding.
 - [`encoding/cbor`](encoding/cbor): CBOR encoding/decoding (used by
   `rpcv2Cbor`).

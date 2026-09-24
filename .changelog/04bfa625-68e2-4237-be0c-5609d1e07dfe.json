@@ -1,0 +1,9 @@
+{
+    "id": "04bfa625-68e2-4237-be0c-5609d1e07dfe",
+    "type": "feature",
+    "description": "Add public smithy.Codec interface and promote the JSON shape codec to encoding/json.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}

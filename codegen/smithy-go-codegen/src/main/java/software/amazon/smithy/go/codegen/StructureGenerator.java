@@ -21,6 +21,7 @@ import java.util.Set;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
+import software.amazon.smithy.go.codegen.serde2.StdlibMarshalerGenerator;
 import software.amazon.smithy.go.codegen.serde2.StructureDeserializer;
 import software.amazon.smithy.go.codegen.serde2.StructureSerializer;
 import software.amazon.smithy.model.Model;
@@ -154,12 +155,19 @@ public final class StructureGenerator implements Runnable {
         if (!useLegacySerde && symbol.getName().equals(ctx.symbolProvider().toSymbol(shape).getName())) {
             if (shape.hasTrait(InputTrait.class)) {
                 writer.write(new StructureSerializer(ctx, shape));
+                if (ctx.settings().generatesStdlibJSONMarshalers()) {
+                    writer.write(new StructureDeserializer(ctx, shape));
+                }
             } else {
                 // Output shapes also get a serializer (in addition to the
                 // deserializer) so response wire fixtures can be produced from a
                 // typed output value for response snapshot testing.
                 writer.write(new StructureSerializer(ctx, shape));
                 writer.write(new StructureDeserializer(ctx, shape));
+            }
+
+            if (ctx.settings().generatesStdlibJSONMarshalers()) {
+                writer.write(new StdlibMarshalerGenerator(ctx, symbol));
             }
 
             getStreamingPayloadMember().ifPresent(member -> {
@@ -252,6 +260,10 @@ public final class StructureGenerator implements Runnable {
             // produced from a typed error value for response snapshot testing.
             writer.write(new StructureSerializer(ctx, shape));
             writer.write(new StructureDeserializer(ctx, shape));
+
+            if (ctx.settings().generatesStdlibJSONMarshalers()) {
+                writer.write(new StdlibMarshalerGenerator(ctx, structureSymbol));
+            }
         }
     }
 }

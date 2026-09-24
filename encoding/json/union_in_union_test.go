@@ -36,7 +36,7 @@ func init() {
 // readNestedUnion mimics the calling pattern of SDK-generated code
 // (smithy.ReadUnion in serde.go): repeatedly call ReadUnion until it returns
 // no member, deserializing each member value in between.
-func readNestedUnion(d *ShapeDeserializer) (member string, value string, err error) {
+func readNestedUnion(d *shapeDeserializer) (member string, value string, err error) {
 	err = smithy.ReadUnion(d, testSchemaOuterUnion, func(ms *smithy.Schema) error {
 		member = ms.MemberName()
 		return smithy.ReadUnion(d, testSchemaInnerUnion, func(inner *smithy.Schema) error {
@@ -51,7 +51,7 @@ func TestReadUnion_NestedUnionValue(t *testing.T) {
 	// A union whose member value is itself a union. Before the fix,
 	// ReadUnion mistook the parent's union context for its own, skipped the
 	// inner '{' and panicked in memberFromToken (slice bounds [1:0]).
-	d := NewShapeDeserializer([]byte(`{"mcp":{"lambda":"arn:aws:lambda:fn"}}`))
+	d := newShapeDeserializer([]byte(`{"mcp":{"lambda":"arn:aws:lambda:fn"}}`), CodecOptions{})
 	member, value, err := readNestedUnion(d)
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
@@ -67,7 +67,7 @@ func TestReadUnion_NestedUnionValue(t *testing.T) {
 func TestReadUnion_NestedUnionNullValue(t *testing.T) {
 	// A union member with a null value is skipped entirely; the member
 	// callback must not fire.
-	d := NewShapeDeserializer([]byte(`{"mcp":null}`))
+	d := newShapeDeserializer([]byte(`{"mcp":null}`), CodecOptions{})
 	member, _, err := readNestedUnion(d)
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
@@ -79,7 +79,7 @@ func TestReadUnion_NestedUnionNullValue(t *testing.T) {
 
 func TestReadUnion_FlatUnionStillWorks(t *testing.T) {
 	// Regression guard: a plain (non-nested) union read.
-	d := NewShapeDeserializer([]byte(`{"lambda":"v"}`))
+	d := newShapeDeserializer([]byte(`{"lambda":"v"}`), CodecOptions{})
 	var member, value string
 	err := smithy.ReadUnion(d, testSchemaInnerUnion, func(ms *smithy.Schema) error {
 		member = ms.MemberName()
@@ -107,7 +107,7 @@ func TestReadUnion_NestedUnionWithStruct(t *testing.T) {
 
 	payload := []byte(`{"inner": {"leaf": {"value": "hello"}}}`)
 
-	d := NewShapeDeserializer(payload)
+	d := newShapeDeserializer(payload, CodecOptions{})
 	defer d.Close()
 
 	var result string

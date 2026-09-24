@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	"github.com/aws/smithy-go/prelude"
 	"github.com/aws/smithy-go/traits"
-	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // A union targeted by @httpPayload is reached without going through
@@ -28,7 +28,7 @@ func TestDeserializeUnionPayload(t *testing.T) {
 		StatusCode: 200,
 		Header:     http.Header{"Etag": []string{"__ETag__"}},
 	}
-	d := NewShapeDeserializer(resp, internaljson.NewShapeDeserializer(payload), payload)
+	d := NewShapeDeserializer(resp, smithyjson.Codec{}.Deserializer(payload), payload)
 
 	var at time.Time
 	var etag string

@@ -13,7 +13,7 @@ import (
 )
 
 // Benchmark comparing old (stdlib json.Decoder + tree walk) vs new (fastjson
-// ShapeDeserializer) for DynamoDB AttributeValue deserialization.
+// shapeDeserializer) for DynamoDB AttributeValue deserialization.
 //
 // The payload is a GetItem response with a realistic mix of attribute types.
 
@@ -372,7 +372,7 @@ func oldDeserializeMap(v *AttributeValue, value interface{}) error {
 }
 
 // ==========================================================================
-// NEW PATH: fastjson ShapeDeserializer + schemas
+// NEW PATH: fastjson shapeDeserializer + schemas
 // ==========================================================================
 
 // --- schemas ---
@@ -465,7 +465,7 @@ func init() {
 // --- new deserializers ---
 
 func newDeserialize(data []byte) (*GetItemOutput, error) {
-	d := NewShapeDeserializer(data)
+	d := newShapeDeserializer(data, CodecOptions{})
 	defer d.Close()
 	var out GetItemOutput
 	if err := newDeserializeGetItemOutput(d, &out); err != nil {
@@ -474,7 +474,7 @@ func newDeserialize(data []byte) (*GetItemOutput, error) {
 	return &out, nil
 }
 
-func newDeserializeGetItemOutput(d *ShapeDeserializer, v *GetItemOutput) error {
+func newDeserializeGetItemOutput(d *shapeDeserializer, v *GetItemOutput) error {
 	return d.DirectReadStruct(schemaGetItemOutput, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaGetItemOutput_ConsumedCapacity:
@@ -487,7 +487,7 @@ func newDeserializeGetItemOutput(d *ShapeDeserializer, v *GetItemOutput) error {
 	})
 }
 
-func newDeserializeConsumedCapacity(d *ShapeDeserializer, v *ConsumedCapacity) error {
+func newDeserializeConsumedCapacity(d *shapeDeserializer, v *ConsumedCapacity) error {
 	return d.DirectReadStruct(schemaConsumedCapacity, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaConsumedCapacity_TableName:
@@ -500,7 +500,7 @@ func newDeserializeConsumedCapacity(d *ShapeDeserializer, v *ConsumedCapacity) e
 	})
 }
 
-func newDeserializeAttributeMap(d *ShapeDeserializer, v *map[string]AttributeValue) error {
+func newDeserializeAttributeMap(d *shapeDeserializer, v *map[string]AttributeValue) error {
 	return d.DirectReadMap(schemaAttributeMap, func(key string) error {
 		var av AttributeValue
 		if err := newDeserializeAttributeValue(d, &av); err != nil {
@@ -514,7 +514,7 @@ func newDeserializeAttributeMap(d *ShapeDeserializer, v *map[string]AttributeVal
 	})
 }
 
-func newDeserializeAttributeValue(d *ShapeDeserializer, v *AttributeValue) error {
+func newDeserializeAttributeValue(d *shapeDeserializer, v *AttributeValue) error {
 	return d.DirectReadUnion(schemaAttributeValue, func(ms *smithy.Schema) error {
 		switch ms {
 		case schemaAttributeValue_S:
@@ -635,14 +635,14 @@ func BenchmarkDeserialize_New(b *testing.B) {
 // ==========================================================================
 
 func newSerialize(out *GetItemOutput) ([]byte, error) {
-	s := NewShapeSerializer()
+	s := newShapeSerializer(CodecOptions{})
 	newSerializeGetItemOutput(s, out)
 	b := s.Bytes()
 	s.Close()
 	return b, nil
 }
 
-func newSerializeGetItemOutput(s *ShapeSerializer, v *GetItemOutput) {
+func newSerializeGetItemOutput(s *shapeSerializer, v *GetItemOutput) {
 	s.WriteStruct(schemaGetItemOutput)
 	if v.ConsumedCapacity != nil {
 		newSerializeConsumedCapacity(s, schemaGetItemOutput_ConsumedCapacity, v.ConsumedCapacity)
@@ -653,7 +653,7 @@ func newSerializeGetItemOutput(s *ShapeSerializer, v *GetItemOutput) {
 	s.CloseStruct()
 }
 
-func newSerializeConsumedCapacity(s *ShapeSerializer, schema *smithy.Schema, v *ConsumedCapacity) {
+func newSerializeConsumedCapacity(s *shapeSerializer, schema *smithy.Schema, v *ConsumedCapacity) {
 	s.WriteStruct(schema)
 	if v.TableName != nil {
 		s.WriteString(schemaConsumedCapacity_TableName, *v.TableName)
@@ -662,7 +662,7 @@ func newSerializeConsumedCapacity(s *ShapeSerializer, schema *smithy.Schema, v *
 	s.CloseStruct()
 }
 
-func newSerializeAttributeMap(s *ShapeSerializer, schema *smithy.Schema, m map[string]AttributeValue) {
+func newSerializeAttributeMap(s *shapeSerializer, schema *smithy.Schema, m map[string]AttributeValue) {
 	s.WriteMap(schema)
 	for k, v := range m {
 		s.WriteKey(nil, k)
@@ -671,7 +671,7 @@ func newSerializeAttributeMap(s *ShapeSerializer, schema *smithy.Schema, m map[s
 	s.CloseMap()
 }
 
-func newSerializeAttributeValue(s *ShapeSerializer, v AttributeValue) {
+func newSerializeAttributeValue(s *shapeSerializer, v AttributeValue) {
 	switch av := v.(type) {
 	case *AttributeValueMemberS:
 		s.WriteUnion(schemaAttributeValue, schemaAttributeValue_S)

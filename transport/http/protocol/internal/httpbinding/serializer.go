@@ -14,9 +14,9 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
 	httpbinding "github.com/aws/smithy-go/encoding/httpbinding"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	"github.com/aws/smithy-go/traits"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	awsjson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // ShapeSerializer routes top-level input struct members to their HTTP binding
@@ -631,7 +631,7 @@ func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
 func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value) {
 	if isHTTPPayload(schema) {
 		// httpPayload document: serialize to raw bytes for the body.
-		doc := awsjson.NewShapeSerializer()
+		doc := smithyjson.Codec{}.Serializer()
 		doc.WriteDocument(schema, v)
 		s.httpPayload = doc.Bytes()
 		s.httpPayloadContentType = "application/json"

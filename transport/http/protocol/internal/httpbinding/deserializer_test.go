@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
+	smithyjson "github.com/aws/smithy-go/encoding/json"
 	"github.com/aws/smithy-go/prelude"
 	"github.com/aws/smithy-go/traits"
-	internaljson "github.com/aws/smithy-go/transport/http/protocol/internal/json"
 )
 
 // nested holds the deserialized values of the payload-targeted structure.
@@ -117,7 +117,7 @@ func TestDeserializeNestedPayloadStruct(t *testing.T) {
 	}
 
 	out, _ := nestedSchemas()
-	d := NewShapeDeserializer(resp, internaljson.NewShapeDeserializer(payload), payload)
+	d := NewShapeDeserializer(resp, smithyjson.Codec{}.Deserializer(payload), payload)
 
 	var v nested
 	if err := deserializeNested(d, out, &v); err != nil {
