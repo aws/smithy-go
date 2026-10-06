@@ -84,17 +84,26 @@ public abstract class DeserializeResponseMiddleware implements Writable {
 
         return goTemplate("""
                 out, metadata, err = next.HandleDeserialize(ctx, in)
-                if err != nil {
-                    return out, metadata, err
-                }
 
                 resp, ok := out.RawResponse.($response:P)
                 if !ok {
+                    if err != nil {
+                        // Transport-level failure with no HTTP response to close.
+                        return out, metadata, err
+                    }
                     return out, metadata, $errorf:T("unexpected transport type %T", out.RawResponse)
                 }
 
-                // Event streams close their own body in the event stream deserializer.
+                // Close the response body on return, including when an interceptor
+                // that runs after OperationDeserializer surfaces an error (after
+                // transmit or before deserialization). Registering this before the
+                // error check below is what covers those interceptor aborts. Event
+                // streams close their own body in the event stream deserializer.
                 $closeBodyDefer:W
+
+                if err != nil {
+                    return out, metadata, err
+                }
 
                 _, span := $startSpan:T(ctx, "OperationDeserializer")
                 endTimer := startMetricTimer(ctx, "client.call.deserialization_duration")
