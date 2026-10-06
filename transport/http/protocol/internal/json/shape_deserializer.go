@@ -603,6 +603,12 @@ func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema
 		return m, nil
 	}
 
+	// AWS JSON error responses often use "Message" while the modeled member is
+	// "message". Pre-schema codegen accepted both spellings; keep that behavior.
+	if m := memberMessageAlias(s, inner); m != nil {
+		return m, nil
+	}
+
 	// if the string had no escapes, the raw bytes ARE the unquoted form --
 	// no point re-trying the lookup
 	if !escaped {
@@ -614,7 +620,18 @@ func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema
 		return nil, err
 	}
 
-	return s.Member(unq), nil
+	if m := s.Member(unq); m != nil {
+		return m, nil
+	}
+	return memberMessageAlias(s, []byte(unq)), nil
+}
+
+// memberMessageAlias maps wire key "Message" to shape member "message".
+func memberMessageAlias(s *smithy.Schema, name []byte) *smithy.Schema {
+	if len(name) == 7 && name[0] == 'M' && string(name) == "Message" {
+		return s.Member("message")
+	}
+	return nil
 }
 
 func isN(tok []byte) bool   { return tok[0] == 'n' }

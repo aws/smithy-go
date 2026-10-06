@@ -1,0 +1,9 @@
+{
+    "id": "0b6f1978-7d6f-4442-9e19-466d3580167e",
+    "type": "bugfix",
+    "description": "Accept AWS JSON error field \\"Message\\" (capital M) as the modeled \\"message\\" member during schema deserialization",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
