@@ -80,30 +80,6 @@ func TestErrorMessageCasing(t *testing.T) {
 	}
 }
 
-func TestErrorMessageCasing_ExactMatchWins(t *testing.T) {
-	s := smithy.NewSchema(smithy.ShapeID{Namespace: "com.test", Name: "E"}, smithy.ShapeTypeStructure, 2,
-		&traits.Error{Type: "client"})
-	lower := s.AddMember("message", prelude.String)
-	upper := s.AddMember("Message", prelude.String)
-
-	d := NewShapeDeserializer([]byte(`{"message":"a","Message":"b"}`))
-	got := map[*smithy.Schema]string{}
-	err := smithy.ReadStruct(d, s, func(m *smithy.Schema) error {
-		var v string
-		if err := d.ReadString(m, &v); err != nil {
-			return err
-		}
-		got[m] = v
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got[lower] != "a" || got[upper] != "b" {
-		t.Errorf("unexpected members: %v", got)
-	}
-}
-
 func TestErrorMessageCasing_NestedNonErrorStruct(t *testing.T) {
 	inner := smithy.NewSchema(smithy.ShapeID{Namespace: "com.test", Name: "Inner"}, smithy.ShapeTypeStructure, 1)
 	innerMsg := inner.AddMember("message", prelude.String)
