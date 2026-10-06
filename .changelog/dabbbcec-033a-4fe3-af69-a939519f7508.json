@@ -1,0 +1,9 @@
+{
+    "id": "dabbbcec-033a-4fe3-af69-a939519f7508",
+    "type": "bugfix",
+    "description": "Revert #698 that fixed JoinPath with trailing slash. This has a side effect on certain S3 API paths in the downstream SDK that need more consideration.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
