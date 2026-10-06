@@ -9,6 +9,7 @@ import software.amazon.smithy.aws.traits.protocols.AwsQueryErrorTrait;
 import software.amazon.smithy.aws.traits.protocols.Ec2QueryNameTrait;
 import software.amazon.smithy.go.codegen.trait.BackfilledInputOutputTrait;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.EventHeaderTrait;
 import software.amazon.smithy.model.traits.EventPayloadTrait;
 import software.amazon.smithy.model.traits.HostLabelTrait;
@@ -74,6 +75,8 @@ public class DefaultTraitGenerators {
                 "Name", HttpQueryTrait::getValue));
         GENERATORS.put(HttpQueryParamsTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPQueryParams")));
         GENERATORS.put(HttpResponseCodeTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPResponseCode")));
+        GENERATORS.put(ErrorTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("Error"),
+                "Type", ErrorTrait::getValue));
         GENERATORS.put(HttpErrorTrait.ID, new SimpleTraitGenerator<>(SMITHY_TRAITS.struct("HTTPError"),
                 "Code", HttpErrorTrait::getCode));
 
