@@ -1,0 +1,9 @@
+{
+    "id": "8c8ec63e-91c7-41f7-b669-4b9f370cc631",
+    "type": "bugfix",
+    "description": "Accept either casing of `message`/`Message` on modeled JSON error structures in schema-based deserialization, and emit the `smithy.api#error` trait in generated schemas",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
