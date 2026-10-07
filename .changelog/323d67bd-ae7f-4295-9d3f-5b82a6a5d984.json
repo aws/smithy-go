@@ -1,0 +1,9 @@
+{
+  "description": "Fix concurrent event stream operations racing on shared codec state.",
+  "id": "323d67bd-ae7f-4295-9d3f-5b82a6a5d984",
+  "collapse": false,
+  "type": "bugfix",
+  "modules": [
+    "."
+  ]
+}
