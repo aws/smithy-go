@@ -1,3 +1,12 @@
+# Release (2026-10-07)
+
+## General Highlights
+* **Dependency Update**: Updated to the latest SDK module versions
+
+## Module Highlights
+* `github.com/aws/smithy-go`: v1.28.4
+  * **Bug Fix**: Revert #698 that fixed JoinPath with trailing slash. This has a side effect on certain S3 API paths in the downstream SDK that need more consideration.
+
 # Release (2026-10-06)
 
 ## General Highlights
