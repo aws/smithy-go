@@ -461,7 +461,7 @@ public class Waiters2 implements GoIntegration {
                         writer.write("remainingTime -= time.Since(start)");
 
                         // check if next iteration is possible
-                        writer.openBlock("if remainingTime < options.MinDelay || remainingTime <= 0 {", "}", () -> {
+                        writer.openBlock("if remainingTime <= options.MinDelay || remainingTime <= 0 {", "}", () -> {
                             writer.write("break");
                         });
                         writer.write("");
