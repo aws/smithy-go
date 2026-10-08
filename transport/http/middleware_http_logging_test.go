@@ -3,11 +3,14 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/middleware"
@@ -157,5 +160,36 @@ func TestRequestResponseLogger(t *testing.T) {
 				t.Errorf("%v != %v", tt.ExpectedLog, actual)
 			}
 		})
+	}
+}
+
+func TestRequestResponseLoggerLogsDumpError(t *testing.T) {
+	readErr := errors.New("synthetic-read-failure")
+
+	logger := mockLogger{}
+	ctx := middleware.SetLogger(context.Background(), &logger)
+
+	m := smithyhttp.RequestResponseLogger{LogResponseWithBody: true}
+	_, _, err := m.HandleDeserialize(ctx, middleware.DeserializeInput{}, middleware.DeserializeHandlerFunc(func(ctx context.Context, input middleware.DeserializeInput) (
+		middleware.DeserializeOutput, middleware.Metadata, error,
+	) {
+		return middleware.DeserializeOutput{RawResponse: &smithyhttp.Response{
+			Response: &http.Response{
+				StatusCode:    200,
+				ContentLength: 16,
+				Body:          io.NopCloser(iotest.ErrReader(readErr)),
+			},
+		}}, middleware.Metadata{}, nil
+	}))
+	if err == nil {
+		t.Fatal("expect error, got nil")
+	}
+	if !errors.Is(err, readErr) {
+		t.Errorf("expect %v in returned error, got %v", readErr, err)
+	}
+
+	actual := logger.String()
+	if !strings.Contains(actual, readErr.Error()) {
+		t.Errorf("expect %q in log, got %q", readErr.Error(), actual)
 	}
 }
