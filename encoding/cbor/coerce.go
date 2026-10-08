@@ -121,7 +121,7 @@ func AsFloat32(v Value) (float32, error) {
 //   - cbor uint (if within lossless range)
 //   - cbor -int (if within lossless range)
 func AsFloat64(v Value) (float64, error) {
-	const maxLosslessFloat64 = 1 << 54
+	const maxLosslessFloat64 = 1 << 53
 
 	switch vv := v.(type) {
 	case Float64:
