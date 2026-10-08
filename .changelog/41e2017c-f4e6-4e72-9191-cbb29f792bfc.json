@@ -1,0 +1,9 @@
+{
+    "id": "41e2017c-f4e6-4e72-9191-cbb29f792bfc",
+    "type": "bugfix",
+    "description": "Log the underlying error when dumping an HTTP request or response for logging fails",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
