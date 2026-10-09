@@ -149,3 +149,56 @@ func TestDeserializeNestedPayloadStruct(t *testing.T) {
 		t.Errorf("etag: expect %q, got %q", "__ETag__", v.ETag)
 	}
 }
+
+// ReadNil within a prefix-headers map must not touch the body, which may be
+// empty or not JSON at all (e.g. a blob payload).
+func TestDeserializePrefixHeadersReadNil(t *testing.T) {
+	strMap := smithy.NewSchema(smithy.ShapeID{Namespace: "test", Name: "StrMap"}, smithy.ShapeTypeMap, 2)
+	strMap.AddMember("key", prelude.String)
+	strMap.AddMember("value", prelude.String)
+
+	out := smithy.NewSchema(smithy.ShapeID{Namespace: "test", Name: "Output"}, smithy.ShapeTypeStructure, 1)
+	out.AddMember("meta", strMap, &traits.HTTPPrefixHeaders{Prefix: "X-Meta-"})
+	out.AddMember("payload", prelude.Blob, &traits.HTTPPayload{})
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header: http.Header{
+			"X-Meta-Foo": []string{"bar"},
+		},
+	}
+
+	payload := []byte("not json")
+	d := NewShapeDeserializer(resp, internaljson.NewShapeDeserializer(payload), payload)
+
+	var meta map[string]string
+	err := smithy.ReadStruct(d, out, func(ms *smithy.Schema) error {
+		if ms.MemberName() != "meta" {
+			return nil
+		}
+
+		meta = map[string]string{}
+		return smithy.ReadMap(d, ms, func(k string) error {
+			if isNil, err := d.ReadNil(ms.MapValue()); err != nil {
+				return err
+			} else if isNil {
+				meta[k] = ""
+				return nil
+			}
+
+			var s string
+			if err := d.ReadString(ms.MapValue(), &s); err != nil {
+				return err
+			}
+			meta[k] = s
+			return nil
+		})
+	})
+	if err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	if len(meta) != 1 || meta["foo"] != "bar" {
+		t.Errorf("meta: expect map[foo:bar], got %v", meta)
+	}
+}
