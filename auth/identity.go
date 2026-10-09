@@ -25,6 +25,12 @@ type IdentityResolverOptions interface {
 	GetIdentityResolver(schemeID string) IdentityResolver
 }
 
+// IdentityInvalidator is an optional interface an IdentityResolver may implement to learn that a request
+// signed with identity failed with err, so it can stop handing out that identity.
+type IdentityInvalidator interface {
+	InvalidateIdentity(ctx context.Context, identity Identity, err error)
+}
+
 // AnonymousIdentity is a sentinel to indicate no identity.
 type AnonymousIdentity struct{}
 
