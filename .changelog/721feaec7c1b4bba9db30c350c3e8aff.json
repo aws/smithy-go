@@ -1,8 +1,0 @@
-{
-    "id": "721feaec-7c1b-4bba-9db3-0c350c3e8aff",
-    "type": "bugfix",
-    "description": "Retain the key with the zero value when encountering a null-value key in a dense map. This matches how legacy code-generated JSON deserializers behaved.",
-    "modules": [
-        "."
-    ]
-}
