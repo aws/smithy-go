@@ -9,6 +9,7 @@ import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -36,12 +37,22 @@ public class MapDeserializer implements Writable {
         }
     }
 
+    // Explicit null in a dense map is not spec-compliant, but the legacy JSON
+    // deserializers tolerated it by storing the zero value. Preserve that.
     private void renderDense(GoWriter writer) {
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T)
                     var vv $valueSymbol:T
                     return smithy.ReadMap(d, s, func(k string) error {
+                        if isNil, err := d.ReadNil(s.MapValue()); err != nil {
+                            return err
+                        } else if isNil {
+                            var zero $elemSymbol:P
+                            (*v)[k] = zero
+                            return nil
+                        }
+
                         $zeroValue:W
                         if err := $deserializeValue:W; err != nil {
                             return err
@@ -61,6 +72,7 @@ public class MapDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(value);
                 },
+                "elemSymbol", SymbolUtils.getReference(ctx.symbolProvider().toSymbol(shape)),
                 "zeroValue", renderZeroValue(),
                 "deserializeValue", renderDeserializeValue(),
                 "cast", renderDenseCast()
