@@ -237,7 +237,8 @@ public final class CborDeserializerGenerator {
                         "ident", ident,
                         "deserialize", getDeserializerName(target),
                         "deref", resolveDeref(getReference(symbol), targetSymbol),
-                        "sparse", isNilable(getReference(symbol)) ? handleSparseList() : emptyGoTemplate()
+                        "sparse", isNilable(getReference(symbol))
+                                ? handleSparseList() : handleDenseListNull(getReference(symbol))
                 ));
     }
 
@@ -248,6 +249,22 @@ public final class CborDeserializerGenerator {
                     continue
                 }
                 """, SmithyGoDependency.SMITHY_CBOR.struct("Nil"));
+    }
+
+    // tolerate explicit null in dense lists for parity with the JSON protocols,
+    // which store the zero value
+    private Writable handleDenseListNull(Symbol memberSymbol) {
+        return goTemplate("""
+                if _, ok := si.($nil:P); ok {
+                    var zero $member:P
+                    dl = append(dl, zero)
+                    continue
+                }
+                """,
+                MapUtils.of(
+                        "nil", SmithyGoDependency.SMITHY_CBOR.struct("Nil"),
+                        "member", memberSymbol
+                ));
     }
 
     private Writable deserializeMap(MapShape shape, String ident) {
