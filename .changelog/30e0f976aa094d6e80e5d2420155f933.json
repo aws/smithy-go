@@ -1,0 +1,8 @@
+{
+    "id": "30e0f976-aa09-4d6e-80e5-d2420155f933",
+    "type": "bugfix",
+    "description": "Retain the value in a list with the zero value when encountering a null entry on a dense list. This matches how legacy code-generated JSON deserializers behaved.",
+    "modules": [
+        "."
+    ]
+}

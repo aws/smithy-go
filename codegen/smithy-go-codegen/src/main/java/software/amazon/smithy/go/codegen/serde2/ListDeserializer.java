@@ -9,6 +9,7 @@ import software.amazon.smithy.go.codegen.GoUniverseTypes;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
 import software.amazon.smithy.go.codegen.SmithyGoDependency;
+import software.amazon.smithy.go.codegen.SymbolUtils;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.shapes.ListShape;
@@ -37,11 +38,22 @@ public class ListDeserializer implements Writable {
     }
 
     private void renderDense(GoWriter writer) {
+        // https://github.com/aws/aws-sdk-go-v2/issues/3589
+        // translate a list null value to its zero-value to stop services that have sparse data  
+        // but don't mark it as such from breaking
         writer.writeGoTemplate("""
                 func deserialize$shapeName:L(d smithy.ShapeDeserializer, s *smithy.Schema, v *$symbol:T) error {
                     *v = make($symbol:T, 0)
                     var vv $memberSymbol:T
                     return smithy.ReadList(d, s, func() error {
+                        if isNil, err := d.ReadNil(s.ListMember()); err != nil {
+                            return err
+                        } else if isNil {
+                            var zero $elemSymbol:P
+                            *v = append(*v, zero)
+                            return nil
+                        }
+
                         $zeroValue:W
                         if err := $deserializeMember:W; err != nil {
                             return err
@@ -61,6 +73,7 @@ public class ListDeserializer implements Writable {
                     case DOCUMENT -> SmithyGoDependency.SMITHY_DOCUMENT.valueSymbol("Value");
                     default -> ctx.symbolProvider().toSymbol(member);
                 },
+                "elemSymbol", SymbolUtils.getReference(ctx.symbolProvider().toSymbol(shape)),
                 "zeroValue", renderZeroValue(),
                 "deserializeMember", renderDeserializeMember(),
                 "cast", renderDenseCast()
