@@ -244,15 +244,71 @@ func (s *ShapeSerializer) WriteNil(schema *smithy.Schema) {
 	s.buf = append(s.buf, compose(majorType7, major7Nil))
 }
 
-// WriteBigInt is unimplemented and will panic.
+// WriteBigInt implements [smithy.ShapeSerializer].
+//
+// Per the rpcv2Cbor shape serialization rules a bigInteger is encoded as an
+// RFC 8949 bignum: tag 2 (unsigned) or tag 3 (negative) wrapping a byte string
+// holding the big-endian magnitude.
 func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
-	panic("unimplemented")
+	if v == nil {
+		s.WriteNil(schema)
+		return
+	}
+
+	s.writeKey(schema)
+	if s.top() == ctxMapValue {
+		s.pop()
+	}
+	s.writeBignum(v)
 }
 
-// WriteBigFloat is unimplemented and will panic.
-func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
-	panic("unimplemented")
+// writeBignum writes a tag 2 / tag 3 bignum, with no key handling.
+func (s *ShapeSerializer) writeBignum(v *big.Int) {
+	if v.Sign() < 0 {
+		// tag 3 encodes -1 - n, so the payload is the magnitude of (v+1).
+		n := new(big.Int).Add(v, bigOne)
+		n.Neg(n)
+		s.writeArg(majorTypeTag, tagNegBignum)
+		s.writeByteString(n.Bytes())
+		return
+	}
+	s.writeArg(majorTypeTag, tagUnsignedBignum)
+	s.writeByteString(v.Bytes())
 }
+
+// WriteBigDecimal implements [smithy.ShapeSerializer].
+//
+// Per the rpcv2Cbor shape serialization rules a bigDecimal is encoded as an
+// RFC 8949 tag 4 decimal fraction: a two-element array of [exponent, mantissa]
+// denoting mantissa * 10**exponent. [smithy.BigDecimal] already holds exactly
+// those two parts, so this is a direct encode with no conversion.
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v smithy.BigDecimal) {
+	if v.Mantissa == nil {
+		s.WriteNil(schema)
+		return
+	}
+
+	s.writeKey(schema)
+	if s.top() == ctxMapValue {
+		s.pop()
+	}
+
+	s.writeArg(majorTypeTag, tagDecimalFraction)
+	s.writeArg(majorTypeList, 2)
+	s.writeInt(v.Exp)
+	if v.Mantissa.IsInt64() {
+		s.writeInt(v.Mantissa.Int64())
+	} else {
+		s.writeBignum(v.Mantissa)
+	}
+}
+
+func (s *ShapeSerializer) writeByteString(v []byte) {
+	s.writeArg(majorTypeSlice, uint64(len(v)))
+	s.buf = append(s.buf, v...)
+}
+
+var bigOne = big.NewInt(1)
 
 // WriteDocument is unimplemented and will panic.
 func (s *ShapeSerializer) WriteDocument(schema *smithy.Schema, v document.Value) {
@@ -317,6 +373,13 @@ const (
 	majorType7      majorType = 7
 )
 
+// RFC 8949 tags used for the arbitrary-precision numeric types.
+const (
+	tagUnsignedBignum  = 2
+	tagNegBignum       = 3
+	tagDecimalFraction = 4
+)
+
 const (
 	minorArg1       = 24
 	minorArg2       = 25
@@ -326,13 +389,13 @@ const (
 )
 
 const (
-	major7False   = 20
-	major7True    = 21
+	major7False     = 20
+	major7True      = 21
 	major7Nil       = 22
 	major7Undefined = 23
 	major7Float16   = minorArg2
-	major7Float32 = minorArg4
-	major7Float64 = minorArg8
+	major7Float32   = minorArg4
+	major7Float64   = minorArg8
 )
 
 // maps minor argument indicators (minorArg1..minorArg8) to the number of bytes

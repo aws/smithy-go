@@ -622,9 +622,9 @@ func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
 	s.input.WriteBigInt(schema, v)
 }
 
-// WriteBigFloat implements [smithy.ShapeSerializer].
-func (s *ShapeSerializer) WriteBigFloat(schema *smithy.Schema, v *big.Float) {
-	s.input.WriteBigFloat(schema, v)
+// WriteBigDecimal implements [smithy.ShapeSerializer].
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v smithy.BigDecimal) {
+	s.input.WriteBigDecimal(schema, v)
 }
 
 // WriteDocument implements [smithy.ShapeSerializer].

@@ -816,4 +816,3 @@ func BenchmarkLargePayload_New(b *testing.B) {
 		}
 	}
 }
-

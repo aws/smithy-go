@@ -135,7 +135,7 @@ public class UnionGenerator {
                 case TIMESTAMP -> writer.write("s.WriteTime($L, v.Value)", schemaName);
                 case INT_ENUM -> writer.write("s.WriteInt32($L, int32(v.Value))", schemaName);
                 case BIG_INTEGER -> writer.write("s.WriteBigInt($L, v.Value)", schemaName);
-                case BIG_DECIMAL -> writer.write("s.WriteBigFloat($L, v.Value)", schemaName);
+                case BIG_DECIMAL -> writer.write("s.WriteBigDecimal($L, v.Value)", schemaName);
                 case STRUCTURE -> writer.write("s.WriteStruct($L)\nv.Value.SerializeMembers(s)\ns.CloseStruct()", schemaName); // struct variants are value types
                 case LIST, SET, MAP -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
                 case UNION -> writer.write("serialize$L(s, $L, v.Value)", target.getId().getName(), schemaName);
@@ -179,6 +179,8 @@ public class UnionGenerator {
                     writer.write("v.Value = $T(i)", symbolProvider.toSymbol(target));
                     writer.write("return nil");
                 }
+                case BIG_INTEGER -> writer.write("return d.ReadBigInt($L, &v.Value)", schemaName);
+                case BIG_DECIMAL -> writer.write("return d.ReadBigDecimal($L, &v.Value)", schemaName);
                 case STRUCTURE -> writer.write("return v.Value.Deserialize(d)");
                 case LIST, MAP, UNION -> writer.write("return deserialize$L(d, $L, &v.Value)", target.getId().getName(), schemaName);
                 case DOCUMENT -> {

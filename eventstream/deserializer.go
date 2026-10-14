@@ -283,12 +283,20 @@ func isEventBound(schema *smithy.Schema) bool {
 	return h || p
 }
 
-// ReadBigInt is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigInt(_ *smithy.Schema, _ *big.Int) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigInt implements [smithy.ShapeDeserializer].
+//
+// The event stream header type set has no arbitrary-precision numeric type, so
+// a bigInteger can only appear in the message body and is read by the inner
+// codec. This mirrors [ShapeSerializer.WriteBigInt].
+func (d *ShapeDeserializer) ReadBigInt(s *smithy.Schema, v **big.Int) error {
+	return d.inner.ReadBigInt(s, v)
 }
 
-// ReadBigFloat is unimplemented and will return an error.
-func (d *ShapeDeserializer) ReadBigFloat(_ *smithy.Schema, _ *big.Float) error {
-	return fmt.Errorf("unimplemented")
+// ReadBigDecimal implements [smithy.ShapeDeserializer].
+//
+// The event stream header type set has no arbitrary-precision numeric type, so
+// a bigDecimal can only appear in the message body and is read by the inner
+// codec. This mirrors [ShapeSerializer.WriteBigDecimal].
+func (d *ShapeDeserializer) ReadBigDecimal(s *smithy.Schema, v *smithy.BigDecimal) error {
+	return d.inner.ReadBigDecimal(s, v)
 }
