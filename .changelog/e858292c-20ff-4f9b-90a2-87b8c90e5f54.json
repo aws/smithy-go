@@ -1,0 +1,9 @@
+{
+    "id": "e858292c-20ff-4f9b-90a2-87b8c90e5f54",
+    "type": "bugfix",
+    "description": "Reduce JSON blob deserialization CPU time and allocations by decoding unescaped base64 directly from the input.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
