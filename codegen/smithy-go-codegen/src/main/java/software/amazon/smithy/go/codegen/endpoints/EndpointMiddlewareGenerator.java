@@ -156,13 +156,12 @@ public final class EndpointMiddlewareGenerator {
 
                 span.SetProperty("client.call.resolved_endpoint", endpt.URI.String())
 
-                if endpt.URI.RawPath == "" && req.URL.RawPath != "" {
-                    endpt.URI.RawPath = endpt.URI.Path
+                if endpt.URI.RawPath != "" || req.URL.RawPath != "" {
+                    req.URL.RawPath = $1T(endpt.URI.EscapedPath(), req.URL.EscapedPath())
                 }
                 req.URL.Scheme = endpt.URI.Scheme
                 req.URL.Host = endpt.URI.Host
                 req.URL.Path = $1T(endpt.URI.Path, req.URL.Path)
-                req.URL.RawPath = $1T(endpt.URI.RawPath, req.URL.RawPath)
                 for k := range endpt.Headers {
                     req.Header.Set(k, endpt.Headers.Get(k))
                 }
