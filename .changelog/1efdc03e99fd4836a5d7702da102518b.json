@@ -1,8 +1,0 @@
-{
-    "id": "1efdc03e-99fd-4836-a5d7-702da102518b",
-    "type": "bugfix",
-    "description": "Enforce event stream header key value length limit instead of truncating",
-    "modules": [
-        "."
-    ]
-}
