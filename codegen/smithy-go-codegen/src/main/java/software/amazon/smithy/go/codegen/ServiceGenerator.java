@@ -53,6 +53,7 @@ import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
+import software.amazon.smithy.protocol.traits.Rpcv2JsonTrait;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -293,6 +294,9 @@ final class ServiceGenerator implements Runnable {
         } else if (preferred.equals(Rpcv2CborTrait.ID)) {
             return goTemplate("$T(" + serviceSchemaRef + ")",
                     SmithyGoDependency.SMITHY_PROTOCOL_RPCV2.func("NewCBOR"));
+        } else if (preferred.equals(Rpcv2JsonTrait.ID)) {
+            return goTemplate("$T(" + serviceSchemaRef + ")",
+                    SmithyGoDependency.SMITHY_PROTOCOL_RPCV2.func("NewJSON"));
         } else if (preferred.equals(AwsQueryTrait.ID)) {
             return goTemplate("$T(" + serviceSchemaRef + ")",
                     SmithyGoDependency.SMITHY_PROTOCOL_AWSQUERY.func("New"));

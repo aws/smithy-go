@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"reflect"
 
 	"github.com/aws/smithy-go/document"
@@ -49,6 +50,18 @@ func deepEqual(expect, actual reflect.Value, path string) error {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 		return nil
+	}
+	if e, a, ok := asBigInts(ei, ai); ok {
+		switch {
+		case e == nil && a == nil:
+			return nil
+		case e == nil || a == nil:
+			return fmt.Errorf("%s: %s != %s", path, fmtNilPtr(e == nil), fmtNilPtr(a == nil))
+		case e.Cmp(a) != 0:
+			return fmt.Errorf("%s: big.Int(%s) != big.Int(%s)", path, e, a)
+		default:
+			return nil
+		}
 	}
 
 	switch expect.Kind() {
@@ -160,6 +173,17 @@ func asReaders(i, j interface{}) (ii, jj io.Reader, ok bool) {
 	return ii, jj, iok || jok
 }
 
+// asBigInts recognizes *big.Int specifically because it holds its magnitude in
+// unexported fields (neg, abs). Falling through to the generic struct-field
+// comparison would silently skip both, since CanInterface() is false for
+// unexported fields obtained this way -- meaning any two non-nil *big.Int
+// values would compare as equal regardless of their actual numeric value.
+func asBigInts(i, j interface{}) (ii, jj *big.Int, ok bool) {
+	ii, iok := i.(*big.Int)
+	jj, jok := j.(*big.Int)
+	return ii, jj, iok || jok
+}
+
 func deref(v reflect.Value) reflect.Value {
 	switch v.Kind() {
 	case reflect.Interface, reflect.Ptr:
@@ -224,6 +248,13 @@ func CompareReaders(expect, actual io.Reader) error {
 
 func fmtNil(k reflect.Kind) string {
 	if k == reflect.Invalid {
+		return "nil"
+	}
+	return "non-nil"
+}
+
+func fmtNilPtr(isNil bool) string {
+	if isNil {
 		return "nil"
 	}
 	return "non-nil"

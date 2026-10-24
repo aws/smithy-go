@@ -33,6 +33,7 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
+import software.amazon.smithy.protocol.traits.Rpcv2JsonTrait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 
 /**
@@ -42,6 +43,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 public final class GoSettings {
     public static final List<ShapeId> PROTOCOLS_BY_PRIORITY = List.of(
             Rpcv2CborTrait.ID,
+            Rpcv2JsonTrait.ID,
             AwsJson1_0Trait.ID,
             AwsJson1_1Trait.ID,
             RestJson1Trait.ID,
