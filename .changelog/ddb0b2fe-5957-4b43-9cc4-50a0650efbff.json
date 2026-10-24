@@ -1,0 +1,9 @@
+{
+    "id": "ddb0b2fe-5957-4b43-9cc4-50a0650efbff",
+    "type": "bugfix",
+    "description": "Fix epoch-second timestamp conversion outside the nanosecond range.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}

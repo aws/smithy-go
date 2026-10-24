@@ -199,9 +199,54 @@ func TestEpochSeconds(t *testing.T) {
 			expectedTime: time.Date(2262, 04, 11, 23, 47, 16, 8.54e8, time.UTC),
 		},
 		{
+			reference:    time.Unix(0, math.MinInt64).UTC(),
+			expectedUnix: -9223372036.854,
+			expectedTime: time.Unix(-9223372037, 146000000).UTC(),
+		},
+		{
 			reference:    time.Date(2018, 1, 9, 20, 51, 21, 123567891, time.FixedZone("-0700", -7*60*60)),
 			expectedUnix: 1515556281.123,
 			expectedTime: time.Date(2018, 1, 10, 03, 51, 21, 1.23e8, time.UTC),
+		},
+		{
+			reference:    time.Unix(0, -500000).UTC(),
+			expectedUnix: 0,
+			expectedTime: time.Unix(0, 0).UTC(),
+		},
+		{
+			reference:    time.Unix(0, -1500000).UTC(),
+			expectedUnix: -0.001,
+			expectedTime: time.Unix(0, -1000000).UTC(),
+		},
+		{
+			reference:    time.Unix(-2, 123567891).UTC(),
+			expectedUnix: -1.876,
+			expectedTime: time.Unix(-2, 124000000).UTC(),
+		},
+		{
+			reference:    time.Unix(0, -1000000).UTC(),
+			expectedUnix: -0.001,
+			expectedTime: time.Unix(0, -1000000).UTC(),
+		},
+		{
+			reference:    time.Unix(0, 500000).UTC(),
+			expectedUnix: 0,
+			expectedTime: time.Unix(0, 0).UTC(),
+		},
+		{
+			reference:    time.Unix(0, 1000000).UTC(),
+			expectedUnix: 0.001,
+			expectedTime: time.Unix(0, 1000000).UTC(),
+		},
+		{
+			reference:    time.Unix(0, 1500000).UTC(),
+			expectedUnix: 0.001,
+			expectedTime: time.Unix(0, 1000000).UTC(),
+		},
+		{
+			reference:    time.Unix(0, 0).UTC(),
+			expectedUnix: 0,
+			expectedTime: time.Unix(0, 0).UTC(),
 		},
 	}
 
@@ -223,5 +268,53 @@ func TestEpochSeconds(t *testing.T) {
 	// Check an additional edge that higher precision values are truncated to milliseconds
 	if e, a := time.Date(2018, 1, 9, 20, 51, 21, 1.23e8, time.UTC), ParseEpochSeconds(1515531081.12356); !e.Equal(a) {
 		t.Errorf("expected %v, got %v", e, a)
+	}
+}
+
+func TestEpochSecondsOutsideNanosecondRange(t *testing.T) {
+	cases := map[string]struct {
+		reference    time.Time
+		expectedUnix float64
+	}{
+		"zero time": {
+			reference:    time.Time{},
+			expectedUnix: -62135596800,
+		},
+		"before nanosecond range": {
+			reference:    time.Date(1600, 1, 1, 0, 0, 0, 125000000, time.UTC),
+			expectedUnix: -11676095999.875,
+		},
+		"after nanosecond range": {
+			reference:    time.Date(2500, 1, 1, 0, 0, 0, 125000000, time.UTC),
+			expectedUnix: 16725225600.125,
+		},
+		"below minimum nanoseconds": {
+			reference:    time.Unix(-9223372037, 145000000).UTC(),
+			expectedUnix: -9223372036.855,
+		},
+		"above maximum nanoseconds": {
+			reference:    time.Unix(9223372036, 855000000).UTC(),
+			expectedUnix: 9223372036.855,
+		},
+		"last four digit year": {
+			reference:    time.Date(9999, 12, 31, 23, 59, 59, 500000000, time.UTC),
+			expectedUnix: 253402300799.5,
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			if e, a := tt.expectedUnix, FormatEpochSeconds(tt.reference); e != a {
+				t.Errorf("expected epoch seconds %v, got %v", e, a)
+			}
+
+			parsedTime := ParseEpochSeconds(tt.expectedUnix)
+			if e, a := tt.reference, parsedTime; !e.Equal(a) {
+				t.Errorf("expected time %v, got %v", e, a)
+			}
+			if e, a := time.UTC, parsedTime.Location(); e != a {
+				t.Errorf("expected location %v, got %v", e, a)
+			}
+		})
 	}
 }

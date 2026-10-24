@@ -67,7 +67,10 @@ func ParseHTTPDate(value string) (time.Time, error) {
 //
 // Example: 1515531081.123
 func FormatEpochSeconds(value time.Time) float64 {
-	ms := value.UnixNano() / int64(time.Millisecond)
+	ms := value.UnixMilli()
+	if ms < 0 && value.Nanosecond()%int(time.Millisecond) != 0 {
+		ms++
+	}
 	return float64(ms) / 1e3
 }
 
@@ -78,9 +81,9 @@ func ParseEpochSeconds(value float64) time.Time {
 	f := big.NewFloat(value)
 	f = f.Mul(f, millisecondFloat)
 	i, _ := f.Int64()
-	// Offset to `UTC` because time.Unix returns the time value based on system
+	// Offset to `UTC` because time.UnixMilli returns the time value based on system
 	// local setting.
-	return time.Unix(0, i*1e6).UTC()
+	return time.UnixMilli(i).UTC()
 }
 
 func tryParse(v string, formats ...string) (time.Time, error) {
