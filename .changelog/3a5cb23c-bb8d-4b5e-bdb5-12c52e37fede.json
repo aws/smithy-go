@@ -1,0 +1,9 @@
+{
+    "id": "3a5cb23c-bb8d-4b5e-bdb5-12c52e37fede",
+    "type": "bugfix",
+    "description": "Keep a caller-supplied ContentLength when the request stream is an *io.PipeReader.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
