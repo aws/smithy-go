@@ -1,0 +1,8 @@
+{
+    "id": "73a2c5e0-d3b2-4e6f-b844-7dba40d9a47a",
+    "type": "bugfix",
+    "description": "Fix a panic or `EOF` error when deserializing a JSON union that contains a member not modeled by the client and whose value is not `null`.",
+    "modules": [
+        "."
+    ]
+}
