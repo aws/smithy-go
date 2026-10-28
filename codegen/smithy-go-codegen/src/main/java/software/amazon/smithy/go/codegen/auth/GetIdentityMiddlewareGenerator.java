@@ -88,12 +88,17 @@ public class GetIdentityMiddlewareGenerator {
                 ctx = setIdentity(ctx, identity)
 
                 span.End()
-                return next.HandleFinalize(ctx, in)
+                out, metadata, err = next.HandleFinalize(ctx, in)
+                if v, ok := resolver.($identityInvalidator:T); ok && err != nil {
+                    v.InvalidateIdentity(ctx, identity, err)
+                }
+                return out, metadata, err
                 """,
                 MapUtils.of(
                         "startSpan", SmithyGoDependency.SMITHY_TRACING.func("StartSpan"),
                         "identity", SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("Identity"),
-                        "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions")
+                        "recordMetricOptions", SmithyGoDependency.SMITHY_METRICS.struct("RecordMetricOptions"),
+                        "identityInvalidator", SmithyGoDependency.SMITHY_AUTH.interfaceSymbol("IdentityInvalidator")
                 ));
     }
 
