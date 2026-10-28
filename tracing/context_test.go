@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
@@ -61,4 +62,48 @@ func TestSpanContextAPIs(t *testing.T) {
 	if _, ok := span.(nopSpan); !ok {
 		t.Errorf("should have been nop span on last pop but was %T", span)
 	}
+}
+
+func TestWithSpanSiblings(t *testing.T) {
+	// three spans deep, the lineage's backing array has room for a fourth
+	ctx := context.Background()
+	for i := 1; i <= 3; i++ {
+		ctx = WithSpan(ctx, mockSpan{id: i})
+	}
+
+	// two children of the same parent must not overwrite each other
+	first := WithSpan(ctx, mockSpan{id: 4})
+	second := WithSpan(ctx, mockSpan{id: 5})
+
+	for _, c := range []struct {
+		ctx  context.Context
+		want int
+	}{{first, 4}, {second, 5}, {ctx, 3}} {
+		span, _ := GetSpan(c.ctx)
+		if actual, ok := span.(mockSpan); !ok || actual.id != c.want {
+			t.Errorf("span %d != %d", actual.id, c.want)
+		}
+	}
+}
+
+func TestWithSpanSiblingsConcurrent(t *testing.T) {
+	ctx := context.Background()
+	for i := 1; i <= 3; i++ {
+		ctx = WithSpan(ctx, mockSpan{id: i})
+	}
+
+	// under -race, children started concurrently from one parent must not
+	// write to memory the others read
+	var wg sync.WaitGroup
+	for i := 4; i < 12; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			span, _ := GetSpan(WithSpan(ctx, mockSpan{id: id}))
+			if actual, ok := span.(mockSpan); !ok || actual.id != id {
+				t.Errorf("span %d != %d", actual.id, id)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
