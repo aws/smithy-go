@@ -30,6 +30,7 @@ const (
 type deserCtx struct {
 	kind   ctxKind
 	schema *smithy.Schema // for ctxStruct
+	next   int            // for ctxStruct, index of the member expected next
 }
 
 // ShapeDeserializer implements unmarshaling of JSON into Smithy shapes.
@@ -464,7 +465,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, fmt.Errorf("ReadStructMember called without ReadStruct?")
 	}
 
-	member, err := memberFromToken(top.schema, tok, d.p.escaped)
+	member, err := structMemberFromToken(top.schema, tok, d.p.escaped, &top.next)
 	if err != nil {
 		return nil, err
 	}
@@ -474,9 +475,10 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, m := range top.schema.Members() {
+		for i, m := range top.schema.Members() {
 			if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 				member = m
+				top.next = i + 1
 				break
 			}
 		}
@@ -595,10 +597,33 @@ func (d *ShapeDeserializer) unquoteArena(tok []byte) (string, error) {
 }
 
 func memberFromToken(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema, error) {
-	inner := tok[1 : len(tok)-1]
-	if m := memberByBytes(s, inner); m != nil {
+	if m := s.MemberByBytes(tok[1 : len(tok)-1]); m != nil {
 		return m, nil
 	}
+	return memberFromTokenSlow(s, tok, escaped)
+}
+
+// structMemberFromToken is memberFromToken for structures. Services tend to
+// emit members in the order they are modeled, so it first checks whether tok
+// names the member at *next, which avoids the lookup by name. *next is set to
+// the index following whichever member is found.
+func structMemberFromToken(s *smithy.Schema, tok []byte, escaped bool, next *int) (*smithy.Schema, error) {
+	members := s.Members()
+	inner := tok[1 : len(tok)-1]
+	if i := *next; i < len(members) && string(inner) == members[i].MemberName() {
+		*next = i + 1
+		return members[i], nil
+	}
+
+	if i := s.MemberIndexByBytes(inner); i >= 0 {
+		*next = i + 1
+		return members[i], nil
+	}
+	return memberFromTokenSlow(s, tok, escaped)
+}
+
+func memberFromTokenSlow(s *smithy.Schema, tok []byte, escaped bool) (*smithy.Schema, error) {
+	inner := tok[1 : len(tok)-1]
 
 	// if the string had no escapes, the raw bytes ARE the unquoted form --
 	// no point re-trying the lookup
@@ -633,7 +658,7 @@ func errorMessageMember(s *smithy.Schema, name []byte) *smithy.Schema {
 	if _, ok := smithy.SchemaTrait[*traits.Error](s); !ok {
 		return nil
 	}
-	return s.Members()[alt]
+	return s.Member(alt)
 }
 
 func isN(tok []byte) bool   { return tok[0] == 'n' }
@@ -677,6 +702,7 @@ func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn fun
 		return fmt.Errorf("expected '{', got %s", tok)
 	}
 
+	next := 0
 	for {
 		tok, err = d.next()
 		if err != nil {
@@ -688,7 +714,7 @@ func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn fun
 
 		keyEscaped := d.p.escaped
 
-		member, err := memberFromToken(schema, tok, keyEscaped)
+		member, err := structMemberFromToken(schema, tok, keyEscaped, &next)
 		if err != nil {
 			return err
 		}
@@ -698,9 +724,10 @@ func (d *ShapeDeserializer) DirectReadStruct(schema *smithy.Schema, memberFn fun
 			if qerr != nil {
 				return qerr
 			}
-			for _, m := range schema.Members() {
+			for i, m := range schema.Members() {
 				if jn, ok := smithy.SchemaTrait[*traits.JSONName](m); ok && jn.Name == key {
 					member = m
+					next = i + 1
 					break
 				}
 			}

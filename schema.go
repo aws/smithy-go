@@ -58,6 +58,14 @@ func stoid(s string) ShapeID {
 	return ShapeID{ns, n, m}
 }
 
+// memberSet holds a shape's members in definition order, with an index by
+// name. Member schemas share their target's memberSet by pointer, since the
+// target's members may be added after the member schema is created.
+type memberSet struct {
+	list   []*Schema
+	byName map[string]int // member name -> index in list
+}
+
 // Schema encodes information about a shape from a Smithy model.
 //
 // Generated clients use schemas at runtime to dynamically (de)serialize
@@ -65,11 +73,11 @@ func stoid(s string) ShapeID {
 type Schema struct {
 	id         ShapeID
 	typ        ShapeType
-	members    map[string]*Schema // member name -> schema
-	traits     map[ShapeID]Trait  // trait ID -> non-indexed traits only
-	indexed    []Trait            // indexed trait slots, sized to max index present
-	directMask uint64             // bitmask: bit i set means indexed[i] was declared directly on this schema
-	targetID   ShapeID            // for member schemas, the target's shape ID
+	members    *memberSet        // shared with member schemas that target this shape
+	traits     map[ShapeID]Trait // trait ID -> non-indexed traits only
+	indexed    []Trait           // indexed trait slots, sized to max index present
+	directMask uint64            // bitmask: bit i set means indexed[i] was declared directly on this schema
+	targetID   ShapeID           // for member schemas, the target's shape ID
 
 	// resolved on the fly and cached
 	listMember       atomic.Pointer[Schema]
@@ -83,7 +91,11 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
 	s := &Schema{
 		id:      id,
 		typ:     typ,
-		members: make(map[string]*Schema, numMembers),
+		members: &memberSet{},
+	}
+	if numMembers > 0 {
+		s.members.list = make([]*Schema, 0, numMembers)
+		s.members.byName = make(map[string]int, numMembers)
 	}
 	for _, t := range ts {
 		s.addTrait(t, true)
@@ -134,7 +146,16 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 		m.addTrait(t, true)
 	}
 
-	s.members[name] = m
+	ms := s.members
+	if i, ok := ms.byName[name]; ok {
+		ms.list[i] = m
+	} else {
+		if ms.byName == nil {
+			ms.byName = map[string]int{}
+		}
+		ms.byName[name] = len(ms.list)
+		ms.list = append(ms.list, m)
+	}
 
 	// Invalidate cached extensions, schema structure changed.
 	for i := range s.ext {
@@ -184,8 +205,8 @@ func (s *Schema) lookup(cached *atomic.Pointer[Schema], name string) *Schema {
 		return v
 	}
 
-	m, ok := s.members[name]
-	if !ok {
+	m := s.Member(name)
+	if m == nil {
 		return nil
 	}
 
@@ -215,12 +236,38 @@ func (s *Schema) Type() ShapeType {
 
 // Member returns the member schema for the given name, or nil.
 func (s *Schema) Member(name string) *Schema {
-	return s.members[name]
+	i, ok := s.members.byName[name]
+	if !ok {
+		return nil
+	}
+	return s.members.list[i]
 }
 
-// Members returns the schema's members as a map of name to schema.
-func (s *Schema) Members() map[string]*Schema {
-	return s.members
+// MemberByBytes is like [Schema.Member] but does not allocate a string for
+// the name.
+func (s *Schema) MemberByBytes(name []byte) *Schema {
+	i, ok := s.members.byName[string(name)]
+	if !ok {
+		return nil
+	}
+	return s.members.list[i]
+}
+
+// MemberIndexByBytes returns the position of the named member in
+// [Schema.Members], or -1 if there is no such member. It does not allocate a
+// string for the name.
+func (s *Schema) MemberIndexByBytes(name []byte) int {
+	i, ok := s.members.byName[string(name)]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// Members returns the schema's members in definition order. The returned
+// slice must not be modified.
+func (s *Schema) Members() []*Schema {
+	return s.members.list
 }
 
 // OperationSchema describes an operation, which is essentially its own schema
@@ -320,7 +367,7 @@ func isEventStream(s *Schema) bool {
 	if s == nil {
 		return false
 	}
-	for _, m := range s.members {
+	for _, m := range s.members.list {
 		if m.typ != ShapeTypeUnion {
 			continue
 		}

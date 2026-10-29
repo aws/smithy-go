@@ -27,12 +27,6 @@ func buildJSONExt(s *smithy.Schema) *jsonExt {
 	return ext
 }
 
-// memberByBytes looks a member up without allocating a string for its name: the
-// conversion in a map index expression is optimized away.
-func memberByBytes(s *smithy.Schema, name []byte) *smithy.Schema {
-	return s.Members()[string(name)]
-}
-
 func encodeJSONKey(name string) []byte {
 	buf := make([]byte, 0, len(name)+4)
 	buf = append(buf, ',', '"')

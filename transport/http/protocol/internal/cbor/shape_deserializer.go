@@ -528,7 +528,7 @@ func (d *ShapeDeserializer) ReadStructMember() (*smithy.Schema, error) {
 		return nil, err
 	}
 
-	member := sc.schema.Members()[string(key)]
+	member := sc.schema.MemberByBytes(key)
 	if member == nil {
 		if err := d.skip(); err != nil {
 			return nil, err
@@ -595,7 +595,7 @@ func (d *ShapeDeserializer) ReadUnion(s *smithy.Schema) (*smithy.Schema, error) 
 			}
 		}
 
-		member := s.Members()[string(key)]
+		member := s.MemberByBytes(key)
 		if member == nil {
 			if err := d.skip(); err != nil {
 				return nil, err
