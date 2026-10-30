@@ -98,7 +98,7 @@ public final class StructureSerializer implements Writable {
                     writer.write("if $2L != nil { s.WriteBlob($1L, $2L) }", schemaName, ident);
 
             case LIST, SET, MAP, UNION ->
-                    writer.write("serialize$L(s, $L, $L)", target.getId().getName(), schemaName, ident);
+                    writer.write("if $3L != nil { serialize$1L(s, $2L, $3L) }", target.getId().getName(), schemaName, ident);
             case STRUCTURE ->
                     writer.write("if $2L != nil { s.WriteStruct($1L)\n$2L.SerializeMembers(s)\ns.CloseStruct() }", schemaName, ident);
             case DOCUMENT -> {
