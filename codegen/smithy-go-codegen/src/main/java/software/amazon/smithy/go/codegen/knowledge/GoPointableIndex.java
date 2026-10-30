@@ -33,6 +33,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.ToShapeId;
 import software.amazon.smithy.model.traits.EnumTrait;
+import software.amazon.smithy.model.traits.SparseTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.SetUtils;
 
@@ -170,11 +171,24 @@ public class GoPointableIndex implements KnowledgeIndex {
             return false;
         }
 
-        if (INHERENTLY_VALUE.contains(targetShape.getType()) || isShapeEnum(targetShape)) {
+        if (INHERENTLY_VALUE.contains(targetShape.getType())) {
             return false;
         }
 
+        if (isShapeEnum(targetShape)) {
+            return isSparseCollectionValue(member);
+        }
+
         return nullableIndex.isMemberNullable(member, checkMode);
+    }
+
+    private boolean isSparseCollectionValue(MemberShape member) {
+        Shape container = model.expectShape(member.getContainer());
+        if (!container.hasTrait(SparseTrait.class)) {
+            return false;
+        }
+
+        return container.isListShape() || (container.isMapShape() && member.getMemberName().equals("value"));
     }
 
     private boolean isShapeDereferencable(Shape shape) {

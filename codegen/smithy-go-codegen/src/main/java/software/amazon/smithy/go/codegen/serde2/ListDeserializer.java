@@ -134,8 +134,8 @@ public class ListDeserializer implements Writable {
         return switch (member.getType()) {
             case STRING, ENUM, INT_ENUM -> ShapeUtil.isEnum(member)
                     ? goTemplate("""
-                    func() $T {
-                        ev := $T(vv)
+                    func() *$1T {
+                        ev := $1T(vv)
                         return &ev
                     }()""", ctx.symbolProvider().toSymbol(member))
                     : goTemplate("&vv");

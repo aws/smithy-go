@@ -26,6 +26,7 @@ import software.amazon.smithy.codegen.core.CodegenException;
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.BooleanNode;
@@ -223,7 +224,7 @@ public final class ShapeValueGenerator {
 
                 // Union member types are always pointers
                 writer.writeInline("&$T{Value: ", memberSymbol);
-                if (unionTarget instanceof SimpleShape) {
+                if (unionTarget instanceof SimpleShape && !unionTarget.isDocumentShape()) {
                     writeScalarValueInline(writer, unionMember, entry.getValue());
                 } else {
                     writeMemberValueInline(writer, unionMember, entry.getValue());
@@ -289,6 +290,13 @@ public final class ShapeValueGenerator {
      */
     protected void writeScalarPointerInline(GoWriter writer, MemberShape member, Node params) {
         Shape target = model.expectShape(member.getTarget());
+
+        if (ShapeUtil.isEnum(target) && pointableIndex.isPointable(member)) {
+            writer.addUseImports(SmithyGoDependency.SMITHY_PTR);
+            writer.writeInline("(*$T)(ptr.String($S))", symbolProvider.toSymbol(target),
+                    params.expectStringNode().getValue());
+            return;
+        }
 
         String funcName = "";
         switch (target.getType()) {
