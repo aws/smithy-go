@@ -603,6 +603,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         return goTemplate("""
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $output:W
+                    schemas.Init()
                     proto := $protoNew:T($service:L)
                     opSchema := $newOpSchema:T($op:L, $out:L, $out:L)
                     req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
@@ -698,6 +699,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         return goTemplate("""
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $want:W
+                    schemas.Init()
                     proto := $protoNew:T($service:L)
                     opSchema := $newOpSchema:T($op:L, $err:L, $err:L)
                     req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
