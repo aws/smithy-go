@@ -254,11 +254,7 @@ public class EventStreamProtocolTestGenerator {
                 .filter(tc -> !SKIP_TESTS.contains(tc.getId()))
                 .anyMatch(tc ->
                         tc.getEvents().stream().anyMatch(e -> e.getType() == EventType.RESPONSE));
-        boolean hasRequestEvents = testCases.stream()
-                .filter(tc -> !SKIP_TESTS.contains(tc.getId()))
-                .anyMatch(tc ->
-                        tc.getEvents().stream().anyMatch(e -> e.getType() == EventType.REQUEST));
-        if (hasResponseEvents || hasRequestEvents) {
+        if (hasResponseEvents) {
             writer.addUseImports(AWS_EVENTSTREAM);
         }
 
@@ -476,9 +472,6 @@ public class EventStreamProtocolTestGenerator {
         UnionShape eventUnion = inputInfo.getEventStreamTarget().asUnionShape().get();
         Symbol unionSymbol = symbolProvider.toSymbol(eventUnion);
 
-        writer.addImport("bytes", "bytes");
-        writer.addImport("encoding/base64", "base64");
-
         // Send each event (skip error events — they aren't sendable union members)
         for (Event event : requestEvents) {
             if (event.getParams().isEmpty()) {
@@ -502,6 +495,9 @@ public class EventStreamProtocolTestGenerator {
                     .name(wrapperName)
                     .build();
 
+            // each event goes in its own scope since the wrapper types differ
+            writer.write("{");
+            writer.indent();
             writer.writeInline("sendEvent := &$T{Value: ", wrapperSymbol);
             new ShapeValueGenerator(settings, model, symbolProvider,
                     ShapeValueGenerator.Config.builder().build())
@@ -509,6 +505,8 @@ public class EventStreamProtocolTestGenerator {
             writer.write("}");
             writer.openBlock("if err := resp.GetStream().Send(context.Background(), sendEvent); err != nil {", "}", () ->
                     writer.write("t.Fatalf(\"failed to send event: %v\", err)"));
+            writer.dedent();
+            writer.write("}");
         }
 
         // Close the stream to flush
@@ -547,6 +545,9 @@ public class EventStreamProtocolTestGenerator {
             if (event.getBytes().isPresent()) {
                 // Compare full message bytes
                 byte[] raw = event.getBytes().get();
+                writer.addImport("bytes", "bytes");
+                writer.addImport("encoding/base64", "base64");
+                writer.addUseImports(AWS_EVENTSTREAM);
                 writer.openBlock("{", "}", () -> {
                     writer.write("expectRaw, _ := base64.StdEncoding.DecodeString($S)",
                             Base64.getEncoder().encodeToString(raw));
@@ -580,6 +581,7 @@ public class EventStreamProtocolTestGenerator {
                     });
                 }
                 event.getBody().ifPresent(body -> {
+                    writer.addImport("bytes", "bytes");
                     writer.openBlock("if !bytes.Equal(requestMsgs[$L].Payload, []byte($S)) {", "}", eventIdx, body, () ->
                             writer.write("t.Errorf(\"request event %d: payload mismatch\", $L)", eventIdx));
                 });
