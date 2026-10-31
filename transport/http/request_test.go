@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -57,6 +59,18 @@ func TestRequestRewindable(t *testing.T) {
 	}
 }
 
+// pipeReader is a stream whose length cannot be determined from the reader
+// itself, so only a caller-supplied ContentLength can frame the request.
+func pipeReader(t *testing.T) *io.PipeReader {
+	t.Helper()
+	r, w := io.Pipe()
+	t.Cleanup(func() {
+		r.Close()
+		w.Close()
+	})
+	return r
+}
+
 func TestRequestBuild_contentLength(t *testing.T) {
 	cases := []struct {
 		Request  *Request
@@ -96,6 +110,33 @@ func TestRequestBuild_contentLength(t *testing.T) {
 			},
 			Expected: 100,
 		},
+		{
+			Request: &Request{
+				Request: &http.Request{
+					ContentLength: 100,
+				},
+				stream: pipeReader(t),
+			},
+			Expected: 100,
+		},
+		{
+			Request: &Request{
+				Request: &http.Request{
+					ContentLength: 0,
+				},
+				stream: pipeReader(t),
+			},
+			Expected: -1,
+		},
+		{
+			Request: &Request{
+				Request: &http.Request{
+					ContentLength: -1,
+				},
+				stream: pipeReader(t),
+			},
+			Expected: -1,
+		},
 	}
 
 	for i, tt := range cases {
@@ -104,6 +145,81 @@ func TestRequestBuild_contentLength(t *testing.T) {
 
 			if build.ContentLength != tt.Expected {
 				t.Errorf("expect %v, got %v", tt.Expected, build.ContentLength)
+			}
+		})
+	}
+}
+
+// TestRequestBuild_pipeReaderFraming covers what the ContentLength on a built
+// request means once it reaches a server. A pipe cannot report its own length,
+// so an unknown one must still fall back to chunked encoding, but a length the
+// caller supplied has to survive as a Content-Length header: signing runs
+// before Build and has already signed that header in.
+func TestRequestBuild_pipeReaderFraming(t *testing.T) {
+	const body = "hello world"
+
+	cases := map[string]struct {
+		ContentLength  int64
+		ExpectedHeader string
+		ExpectChunked  bool
+	}{
+		"caller supplied length": {
+			ContentLength:  int64(len(body)),
+			ExpectedHeader: strconv.Itoa(len(body)),
+		},
+		"unknown length": {
+			ContentLength: -1,
+			ExpectChunked: true,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			type framing struct {
+				header           string
+				transferEncoding []string
+			}
+			received := make(chan framing, 1)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				io.Copy(io.Discard, r.Body)
+				received <- framing{
+					header:           r.Header.Get("Content-Length"),
+					transferEncoding: r.TransferEncoding,
+				}
+			}))
+			defer server.Close()
+
+			pr, pw := io.Pipe()
+			go func() {
+				io.WriteString(pw, body)
+				pw.Close()
+			}()
+
+			req := NewStackRequest().(*Request)
+			req, err := req.SetStream(pr)
+			if err != nil {
+				t.Fatalf("expect no error setting stream, got %v", err)
+			}
+			req.Method = http.MethodPut
+			if req.URL, err = url.Parse(server.URL); err != nil {
+				t.Fatalf("expect no error parsing server URL, got %v", err)
+			}
+			req.ContentLength = c.ContentLength
+
+			resp, err := server.Client().Do(req.Build(context.Background()))
+			if err != nil {
+				t.Fatalf("expect no error sending request, got %v", err)
+			}
+			resp.Body.Close()
+
+			got := <-received
+			if e, a := c.ExpectedHeader, got.header; e != a {
+				t.Errorf("expect Content-Length %q, got %q", e, a)
+			}
+			chunked := len(got.transferEncoding) == 1 && got.transferEncoding[0] == "chunked"
+			if e, a := c.ExpectChunked, chunked; e != a {
+				t.Errorf("expect chunked %v, got %v from %v", e, a, got.transferEncoding)
 			}
 		})
 	}
