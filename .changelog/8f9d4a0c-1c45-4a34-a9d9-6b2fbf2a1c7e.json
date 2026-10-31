@@ -1,0 +1,9 @@
+{
+    "id": "8f9d4a0c-1c45-4a34-a9d9-6b2fbf2a1c7e",
+    "type": "bugfix",
+    "description": "Prevent closed HTTP request bodies from reporting io.EOF through WriteTo after the body has already been sent.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
