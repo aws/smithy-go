@@ -31,7 +31,7 @@ func (r *safeWriteToReadCloser) WriteTo(w io.Writer) (int64, error) {
 	defer r.safeReadCloser.mtx.Unlock()
 
 	if r.safeReadCloser.closed {
-		return 0, io.EOF
+		return 0, nil
 	}
 
 	return r.safeReadCloser.readCloser.(io.WriterTo).WriteTo(w)
