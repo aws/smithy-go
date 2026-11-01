@@ -1,0 +1,9 @@
+{
+    "id": "5fd8a650-b517-4ea8-9ae6-ecf627771589",
+    "type": "bugfix",
+    "collapse": false,
+    "description": "Preserve numeric precision when deserializing and forwarding schema-based JSON documents.",
+    "modules": [
+        "."
+    ]
+}

@@ -1,6 +1,7 @@
 package json_test
 
 import (
+	stdlibjson "encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -126,6 +127,67 @@ func TestDocumentNumberEncodesAsNumber(t *testing.T) {
 			}
 			if string(b) != tc.expected {
 				t.Errorf("Encode() = %s, want %s", b, tc.expected)
+			}
+		})
+	}
+}
+
+func TestJSONNumberEncodesAsNumber(t *testing.T) {
+	encoder := json.NewEncoder()
+	t.Run("empty number retains zero-value behavior", func(t *testing.T) {
+		actual, err := encoder.Encode(stdlibjson.Number(""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(actual) != `""` {
+			t.Errorf("Encode() = %s, want an empty JSON string", actual)
+		}
+	})
+	for _, number := range []string{
+		"0", "-0", "7", "9007199254740993", "9223372036854775807",
+		"-9007199254740993", "-9223372036854775808", "0.1234567890123456789",
+		"-0.0", "1.5e+10", "1E-400", "1e400",
+	} {
+		t.Run(number, func(t *testing.T) {
+			actual, err := encoder.Encode(stdlibjson.Number(number))
+			if err != nil {
+				t.Fatalf("Encode() error: %v", err)
+			}
+			if string(actual) != number {
+				t.Errorf("Encode() = %s, want %s", actual, number)
+			}
+		})
+	}
+
+	t.Run("nested numbers and ordinary strings", func(t *testing.T) {
+		type numericString string
+		input := map[string]interface{}{
+			"values": []interface{}{
+				stdlibjson.Number("9007199254740993"),
+				map[string]interface{}{"number": stdlibjson.Number("-0.0")},
+				"9007199254740993", numericString("1e400"),
+			},
+		}
+		expected := `{"values":[9007199254740993,{"number":-0.0},"9007199254740993","1e400"]}`
+		actual, err := encoder.Encode(input)
+		if err != nil {
+			t.Fatalf("Encode() error: %v", err)
+		}
+		if string(actual) != expected {
+			t.Errorf("Encode() = %s, want %s", actual, expected)
+		}
+	})
+}
+
+func TestJSONNumberRejectsInvalidLiterals(t *testing.T) {
+	encoder := json.NewEncoder()
+	for _, number := range []string{
+		"01", "+1", "NaN", "Infinity", "-Infinity", "1e", "1.", "1 2", "true", `"1"`,
+	} {
+		t.Run(number, func(t *testing.T) {
+			_, err := encoder.Encode(stdlibjson.Number(number))
+			if err == nil {
+				t.Fatal("expected an invalid-number error")
 			}
 		})
 	}

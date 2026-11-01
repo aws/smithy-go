@@ -29,14 +29,6 @@ var skipTests = map[string]bool{
 	"n_structure_object_followed_by_closing_object.json":   true,
 	"n_structure_object_with_trailing_garbage.json":        true,
 	"n_structure_trailing_#.json":                          true,
-
-	// These numbers have valid JSON grammar but overflow float64, stdlib
-	// rejects them at tokenize, we reject in the ShapeDeserializer.
-	"i_number_huge_exp.json":            true,
-	"i_number_neg_int_huge_exp.json":    true,
-	"i_number_pos_double_huge_exp.json": true,
-	"i_number_real_neg_overflow.json":   true,
-	"i_number_real_pos_overflow.json":   true,
 }
 
 // Run test cases from https://github.com/nst/JSONTestSuite.
@@ -73,7 +65,9 @@ func TestJSONTestSuite(t *testing.T) {
 				}
 			case strings.HasPrefix(ent.Name(), "i_"): // implementation-specific, ensure we match stdlib
 				var v any
-				theirs := json.NewDecoder(bytes.NewReader(data)).Decode(&v)
+				decoder := json.NewDecoder(bytes.NewReader(data))
+				decoder.UseNumber()
+				theirs := decoder.Decode(&v)
 				if (ours == nil) != (theirs == nil) {
 					t.Errorf("stdlib mismatch: us=%v stdlib=%v", errstr(ours), errstr(theirs))
 				}

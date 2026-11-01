@@ -1,10 +1,10 @@
 package json
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"unsafe"
 
 	"github.com/aws/smithy-go/internal/serde"
@@ -275,7 +275,8 @@ func (p *parser) value(tok []byte) (any, error) {
 			list = append(list, val)
 		}
 	default:
-		return strconv.ParseFloat(string(tok), 64)
+		// Keep the validated numeric token intact; converting to float64 here loses precision.
+		return json.Number(string(tok)), nil
 	}
 }
 

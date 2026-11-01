@@ -1,6 +1,7 @@
 package json
 
 import (
+	stdlibjson "encoding/json"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -226,9 +227,9 @@ func (e *Encoder) encodeSlice(value valueProvider, rv reflect.Value) error {
 }
 
 func (e *Encoder) encodeScalar(vp valueProvider, rv reflect.Value) error {
-	if rv.Type() == serde.ReflectTypeOf.DocumentNumber {
-		number := rv.Interface().(document.Number)
-		if !isValidJSONNumber(number.String()) {
+	if rv.Type() == serde.ReflectTypeOf.DocumentNumber || rv.Type() == reflect.TypeFor[stdlibjson.Number]() {
+		number := rv.String()
+		if !isValidJSONNumber(number) {
 			return &document.InvalidMarshalError{Message: fmt.Sprintf("invalid number literal: %s", number)}
 		}
 		vp.GetValue().Write([]byte(number))

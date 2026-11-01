@@ -1,6 +1,7 @@
 package json
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -44,7 +45,15 @@ func FuzzParserDifferential(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		var stdVal any
-		stdErr := json.Unmarshal(b, &stdVal)
+		decoder := json.NewDecoder(bytes.NewReader(b))
+		decoder.UseNumber()
+		stdErr := decoder.Decode(&stdVal)
+		if stdErr == nil {
+			var extra any
+			if err := decoder.Decode(&extra); err != io.EOF {
+				stdErr = fmt.Errorf("trailing content")
+			}
+		}
 
 		p := parser{
 			p:     b,
@@ -83,7 +92,7 @@ func FuzzParserDifferential(f *testing.F) {
 }
 
 // normalize recursively walks a parsed value tree. Both parsers produce the
-// same types (float64 for numbers, string, bool, nil, []any, map[string]any)
+// same types (json.Number for numbers, string, bool, nil, []any, map[string]any)
 // so this is mainly defensive.
 func normalize(v any) any {
 	switch vv := v.(type) {
@@ -138,6 +147,11 @@ var fuzzSeeds = [][]byte{
 	[]byte(`1e308`),
 	[]byte(`-1e308`),
 	[]byte(`5e-324`),
+	[]byte(`9007199254740993`),
+	[]byte(`9223372036854775807`),
+	[]byte(`-9223372036854775808`),
+	[]byte(`1e400`),
+	[]byte(`1e-400`),
 }
 
 // FuzzSerializer builds a random value DOM from fuzz bytes, serializes it with
