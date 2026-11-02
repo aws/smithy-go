@@ -2,6 +2,7 @@ package smithy
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"sync/atomic"
 	"unsafe"
@@ -62,7 +63,20 @@ func stoid(s string) ShapeID {
 //
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
+//
+// A Schema is in one of two forms. Schemas built with [NewSchema] and
+// [Schema.AddMember] are mutable and heap allocated. Schemas that generated
+// code lays out as package-level tables (see [SchemaSet]) are frozen handles
+// into those tables, which the linker places in the binary's data segment
+// instead of the heap.
 type Schema struct {
+	set *SchemaSet // frozen schemas: the set this schema belongs to
+	ord uint32     // frozen schemas: index of the schema's record in set
+
+	m *mutableSchema // non-nil for mutable schemas
+}
+
+type mutableSchema struct {
 	id         ShapeID
 	typ        ShapeType
 	members    map[string]*Schema // member name -> schema
@@ -78,36 +92,47 @@ type Schema struct {
 	ext [numExtensionSlots]unsafe.Pointer // lazily-computed codec extensions, accessed atomically
 }
 
+// mutSchema lets a mutable schema and its state share one allocation.
+type mutSchema struct {
+	Schema
+	mutableSchema
+}
+
+func newMutable() *Schema {
+	ms := &mutSchema{}
+	ms.Schema.m = &ms.mutableSchema
+	return &ms.Schema
+}
+
 // NewSchema creates a new Schema with the given shape ID and traits.
 func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
-	s := &Schema{
-		id:      id,
-		typ:     typ,
-		members: make(map[string]*Schema, numMembers),
-	}
+	s := newMutable()
+	s.m.id = id
+	s.m.typ = typ
+	s.m.members = make(map[string]*Schema, numMembers)
 	for _, t := range ts {
-		s.addTrait(t, true)
+		s.m.addTrait(t, true)
 	}
 	return s
 }
 
-func (s *Schema) addTrait(t Trait, direct bool) {
+func (m *mutableSchema) addTrait(t Trait, direct bool) {
 	if it, ok := t.(IndexableTrait); ok {
 		idx := it.TraitIndex()
-		if idx >= len(s.indexed) {
-			s.indexed = append(s.indexed, make([]Trait, idx-len(s.indexed)+1)...)
+		if idx >= len(m.indexed) {
+			m.indexed = append(m.indexed, make([]Trait, idx-len(m.indexed)+1)...)
 		}
-		s.indexed[idx] = t
+		m.indexed[idx] = t
 		if direct {
-			s.directMask |= 1 << uint(idx)
+			m.directMask |= 1 << uint(idx)
 		}
 		return
 	}
 
-	if s.traits == nil {
-		s.traits = map[ShapeID]Trait{}
+	if m.traits == nil {
+		m.traits = map[ShapeID]Trait{}
 	}
-	s.traits[t.TraitID()] = t
+	m.traits[t.TraitID()] = t
 }
 
 // AddMember adds a member to the schema derived from the target, with
@@ -118,30 +143,59 @@ func (s *Schema) addTrait(t Trait, direct bool) {
 // inherits all of the target's traits, then applies the overrides. The
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
+//
+// The target may be a mutable or a frozen schema, but AddMember panics if s
+// itself is frozen.
 func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
-	m := &Schema{
-		id:         ShapeID{Member: name},
-		typ:        target.typ,
-		members:    target.members,
-		indexed:    cloneIndexed(target.indexed),
-		traits:     cloneTraits(target.traits),
-		directMask: 0, // inherited traits are not direct
-		targetID:   target.id,
+	if s.m == nil {
+		panic("smithy: AddMember on a frozen schema")
 	}
+
+	typ, members, indexed, other, targetID := target.inherit()
+
+	m := newMutable()
+	m.m.id = ShapeID{Member: name}
+	m.m.typ = typ
+	m.m.members = members
+	m.m.indexed = indexed
+	m.m.traits = other
+	m.m.targetID = targetID // inherited traits are not direct
 
 	// member-declared traits override and are direct
 	for _, t := range ts {
-		m.addTrait(t, true)
+		m.m.addTrait(t, true)
 	}
 
-	s.members[name] = m
+	s.m.members[name] = m
 
 	// Invalidate cached extensions, schema structure changed.
-	for i := range s.ext {
-		atomic.StorePointer(&s.ext[i], nil)
+	for i := range s.m.ext {
+		atomic.StorePointer(&s.m.ext[i], nil)
 	}
 
 	return m
+}
+
+// inherit returns the state a member schema derives from its target.
+//
+// A mutable target shares its members with the member, since members may
+// still be added to the target. A frozen target cannot change, so the member
+// gets a snapshot.
+func (t *Schema) inherit() (typ ShapeType, members map[string]*Schema, indexed []Trait, other map[ShapeID]Trait, id ShapeID) {
+	if m := t.m; m != nil {
+		return m.typ, m.members, cloneIndexed(m.indexed), cloneTraits(m.traits), m.id
+	}
+
+	members = maps.Clone(t.staticMembersMap())
+
+	ts := &t.set.Traits[t.rec().Traits]
+	if len(ts.Other) > 0 {
+		other = make(map[ShapeID]Trait, len(ts.Other))
+		for _, o := range ts.Other {
+			other[o.TraitID()] = o
+		}
+	}
+	return ShapeType(t.rec().Type), members, cloneIndexed(ts.Indexed), other, t.staticID()
 }
 
 func cloneIndexed(src []Trait) []Trait {
@@ -166,61 +220,89 @@ func cloneTraits(src map[ShapeID]Trait) map[ShapeID]Trait {
 
 // ListMember returns the "member" schema for list types.
 func (s *Schema) ListMember() *Schema {
-	return s.lookup(&s.listMember, "member")
+	if s.m == nil {
+		return s.staticMember("member")
+	}
+	return s.m.lookup(s, &s.m.listMember, "member")
 }
 
 // MapKey returns the "key" schema for map types.
 func (s *Schema) MapKey() *Schema {
-	return s.lookup(&s.mapKey, "key")
+	if s.m == nil {
+		return s.staticMember("key")
+	}
+	return s.m.lookup(s, &s.m.mapKey, "key")
 }
 
 // MapValue returns the "value" schema for map types.
 func (s *Schema) MapValue() *Schema {
-	return s.lookup(&s.mapValue, "value")
+	if s.m == nil {
+		return s.staticMember("value")
+	}
+	return s.m.lookup(s, &s.m.mapValue, "value")
 }
 
-func (s *Schema) lookup(cached *atomic.Pointer[Schema], name string) *Schema {
+func (m *mutableSchema) lookup(s *Schema, cached *atomic.Pointer[Schema], name string) *Schema {
 	if v := cached.Load(); v != nil {
 		return v
 	}
 
-	m, ok := s.members[name]
+	v, ok := m.members[name]
 	if !ok {
 		return nil
 	}
 
-	cached.Store(m)
-	return m
+	cached.Store(v)
+	return v
 }
 
 // MemberName returns the member component of the schema's shape ID.
 func (s *Schema) MemberName() string {
-	return s.id.Member
+	if s.m == nil {
+		return s.staticMemberName()
+	}
+	return s.m.id.Member
 }
 
 // ID returns the shape ID of the schema.
 func (s *Schema) ID() ShapeID {
-	return s.id
+	if s.m == nil {
+		return s.staticID()
+	}
+	return s.m.id
 }
 
 // TargetID returns the shape ID of the member's target shape.
 func (s *Schema) TargetID() ShapeID {
-	return s.targetID
+	if s.m == nil {
+		return s.staticTargetID()
+	}
+	return s.m.targetID
 }
 
 // Type returns the shape type of the schema.
 func (s *Schema) Type() ShapeType {
-	return s.typ
+	if s.m == nil {
+		return ShapeType(s.rec().Type)
+	}
+	return s.m.typ
 }
 
 // Member returns the member schema for the given name, or nil.
 func (s *Schema) Member(name string) *Schema {
-	return s.members[name]
+	if s.m == nil {
+		return s.staticMember(name)
+	}
+	return s.m.members[name]
 }
 
-// Members returns the schema's members as a map of name to schema.
+// Members returns the schema's members as a map of name to schema. The
+// returned map must not be modified.
 func (s *Schema) Members() map[string]*Schema {
-	return s.members
+	if s.m == nil {
+		return s.staticMembersMap()
+	}
+	return s.m.members
 }
 
 // OperationSchema describes an operation, which is essentially its own schema
@@ -291,24 +373,54 @@ func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
 	}
 
 	if it, ok := Trait(zero).(IndexableTrait); ok {
-		idx := it.TraitIndex()
-		if idx >= len(s.indexed) {
+		t := s.indexedTrait(it.TraitIndex(), directOnly)
+		if t == nil {
 			return zero, false
 		}
-		if directOnly && s.directMask&(1<<uint(idx)) == 0 {
-			return zero, false
-		}
-		tt, ok := s.indexed[idx].(T)
+		tt, ok := t.(T)
 		return tt, ok
 	}
 
-	opaque, ok := s.traits[zero.TraitID()]
+	opaque, ok := s.otherTrait(zero.TraitID())
 	if !ok {
 		return zero, false
 	}
 
 	tt, ok := opaque.(T)
 	return tt, ok
+}
+
+func (s *Schema) indexedTrait(idx int, directOnly bool) Trait {
+	var indexed []Trait
+	var directMask uint64
+	if m := s.m; m != nil {
+		indexed, directMask = m.indexed, m.directMask
+	} else {
+		ts := &s.set.Traits[s.rec().Traits]
+		indexed, directMask = ts.Indexed, ts.DirectMask
+	}
+
+	if idx >= len(indexed) {
+		return nil
+	}
+	if directOnly && directMask&(1<<uint(idx)) == 0 {
+		return nil
+	}
+	return indexed[idx]
+}
+
+func (s *Schema) otherTrait(id ShapeID) (Trait, bool) {
+	if m := s.m; m != nil {
+		t, ok := m.traits[id]
+		return t, ok
+	}
+
+	for _, t := range s.set.Traits[s.rec().Traits].Other {
+		if t.TraitID() == id {
+			return t, true
+		}
+	}
+	return nil, false
 }
 
 // indexStreaming is the indexed trait slot for @streaming, mirrored from
@@ -320,11 +432,11 @@ func isEventStream(s *Schema) bool {
 	if s == nil {
 		return false
 	}
-	for _, m := range s.members {
-		if m.typ != ShapeTypeUnion {
+	for _, m := range s.Members() {
+		if m.Type() != ShapeTypeUnion {
 			continue
 		}
-		if len(m.indexed) > indexStreaming && m.indexed[indexStreaming] != nil {
+		if m.indexedTrait(indexStreaming, false) != nil {
 			return true
 		}
 	}

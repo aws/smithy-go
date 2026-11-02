@@ -36,6 +36,37 @@ import software.amazon.smithy.rulesengine.traits.ContextParamTrait;
 public class DefaultTraitGenerators {
     private static final Map<ShapeId, TraitGenerator> GENERATORS = new HashMap<>();
 
+    // Reserved slots of the traits that smithy.Schema indexes for fast lookup.
+    // MUST match the constants in traits/index.go of the Go runtime. Traits
+    // that are not listed here are looked up by shape ID.
+    private static final Map<ShapeId, Integer> TRAIT_INDEXES = Map.ofEntries(
+            Map.entry(JsonNameTrait.ID, 0),
+            Map.entry(HttpTrait.ID, 1),
+            Map.entry(HttpLabelTrait.ID, 2),
+            Map.entry(XmlNameTrait.ID, 3),
+            Map.entry(HttpQueryTrait.ID, 4),
+            Map.entry(Ec2QueryNameTrait.ID, 5),
+            Map.entry(HttpErrorTrait.ID, 6),
+            Map.entry(HttpHeaderTrait.ID, 7),
+            Map.entry(SensitiveTrait.ID, 8),
+            Map.entry(AwsQueryErrorTrait.ID, 9),
+            Map.entry(TimestampFormatTrait.ID, 10),
+            Map.entry(HttpPayloadTrait.ID, 11),
+            Map.entry(ContextParamTrait.ID, 12),
+            Map.entry(HttpResponseCodeTrait.ID, 13),
+            Map.entry(HostLabelTrait.ID, 14),
+            Map.entry(XmlNamespaceTrait.ID, 15),
+            Map.entry(XmlFlattenedTrait.ID, 16),
+            Map.entry(StreamingTrait.ID, 17),
+            Map.entry(MediaTypeTrait.ID, 18),
+            Map.entry(HttpQueryParamsTrait.ID, 19),
+            Map.entry(EventPayloadTrait.ID, 20),
+            Map.entry(HttpPrefixHeadersTrait.ID, 21),
+            Map.entry(EventHeaderTrait.ID, 22),
+            Map.entry(XmlAttributeTrait.ID, 23),
+            Map.entry(BackfilledInputOutputTrait.ID, 24)
+    );
+
     static {
         // Documentation traits
         GENERATORS.put(SensitiveTrait.ID, new SimpleTraitGenerator<SensitiveTrait>(SMITHY_TRAITS.struct("Sensitive")));
@@ -98,6 +129,13 @@ public class DefaultTraitGenerators {
 
     public static TraitGenerator forTrait(ShapeId id) {
         return GENERATORS.get(id);
+    }
+
+    /**
+     * Returns the reserved slot of the trait in a schema's indexed traits, or -1 if the trait has none.
+     */
+    public static int traitIndex(ShapeId id) {
+        return TRAIT_INDEXES.getOrDefault(id, -1);
     }
 
     private DefaultTraitGenerators() {
