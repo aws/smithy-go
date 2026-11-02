@@ -249,3 +249,48 @@ func TestMutableMemberOfFrozenTarget(t *testing.T) {
 		t.Errorf("root members = %v", got)
 	}
 }
+
+func TestFrozenMapAndListMembers(t *testing.T) {
+	shapes := []testShape{
+		{name: "String", typ: ShapeTypeString},
+		{name: "KV", typ: ShapeTypeMap, members: []testMember{{"key", 0, 0}, {"value", 0, 0}}},
+		{name: "VK", typ: ShapeTypeMap, members: []testMember{{"value", 0, 0}, {"key", 0, 0}}},
+		{name: "L", typ: ShapeTypeList, members: []testMember{{"member", 0, 0}}},
+		{name: "S", typ: ShapeTypeSet, members: []testMember{{"member", 0, 0}}},
+	}
+	_, h := buildTestSet(shapes, []TraitSet{{}})
+	// rows: String=0, KV=1 (key=2, value=3), VK=4 (value=5, key=6), L=7 (member=8), S=9 (member=10)
+	for _, c := range []struct {
+		s          int
+		key, value int
+	}{{1, 2, 3}, {4, 6, 5}} {
+		s := &h[c.s]
+		if s.MapKey() != &h[c.key] || s.MapValue() != &h[c.value] {
+			t.Errorf("map %d: key %p value %p", c.s, s.MapKey(), s.MapValue())
+		}
+		if s.MapKey().MemberName() != "key" || s.MapValue().MemberName() != "value" {
+			t.Errorf("map %d: member names %q %q", c.s, s.MapKey().MemberName(), s.MapValue().MemberName())
+		}
+		if s.ListMember() != nil {
+			t.Errorf("map %d: ListMember should be nil", c.s)
+		}
+	}
+	for _, c := range []struct{ s, member int }{{7, 8}, {9, 10}} {
+		s := &h[c.s]
+		if s.ListMember() != &h[c.member] || s.MapKey() != nil || s.MapValue() != nil {
+			t.Errorf("list %d: member %p key %p value %p", c.s, s.ListMember(), s.MapKey(), s.MapValue())
+		}
+	}
+
+	// a member that targets a map or list resolves through its target
+	_, h2 := buildTestSet([]testShape{
+		{name: "String", typ: ShapeTypeString},
+		{name: "KV", typ: ShapeTypeMap, members: []testMember{{"key", 0, 0}, {"value", 0, 0}}},
+		{name: "Holder", typ: ShapeTypeStructure, members: []testMember{{"m", 1, 0}}},
+	}, []TraitSet{{}})
+	// rows: String=0, KV=1 (key=2, value=3), Holder=4 (m=5)
+	m := &h2[5]
+	if m.MapKey() != &h2[2] || m.MapValue() != &h2[3] {
+		t.Errorf("member of map: key %p value %p", m.MapKey(), m.MapValue())
+	}
+}

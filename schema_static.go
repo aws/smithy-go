@@ -77,7 +77,13 @@ func (set *SchemaSet) table(i int) *slotTable {
 	if t := set.tables[i].Load(); t != nil {
 		return t
 	}
+	return set.newTable(i)
+}
 
+// newTable is the slow path of table, kept separate so that table can be inlined.
+//
+//go:noinline
+func (set *SchemaSet) newTable(i int) *slotTable {
 	t := &slotTable{slots: make([]unsafe.Pointer, len(set.Records))}
 	if set.tables[i].CompareAndSwap(nil, t) {
 		return t
@@ -150,6 +156,39 @@ func (s *Schema) staticMembersMap() map[string]*Schema {
 	}
 	atomic.StorePointer(&t.slots[r.Target], unsafe.Pointer(&byName))
 	return byName
+}
+
+// staticListMember returns the "member" of a list or set. A list has exactly
+// that one member, which sits right after the shape's record.
+func (s *Schema) staticListMember() *Schema {
+	r := s.rec()
+	switch ShapeType(r.Type) {
+	case ShapeTypeList, ShapeTypeSet:
+		if r.Count == 1 {
+			return s.at(r.Target + 1)
+		}
+	}
+	return s.staticMember("member")
+}
+
+// staticMapMember returns the "key" or "value" of a map. A map has exactly
+// those two members; "key" is three bytes long and "value" five, so the length
+// tells them apart regardless of their order.
+func (s *Schema) staticMapMember(key bool) *Schema {
+	r := s.rec()
+	if ShapeType(r.Type) != ShapeTypeMap || r.Count != 2 {
+		if key {
+			return s.staticMember("key")
+		}
+		return s.staticMember("value")
+	}
+
+	first := s.at(r.Target + 1)
+	keyFirst := s.set.Records[r.Target+1].StrLen == 3
+	if keyFirst == key {
+		return first
+	}
+	return s.at(r.Target + 2)
 }
 
 func (s *Schema) staticMember(name string) *Schema {

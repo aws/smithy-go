@@ -221,7 +221,7 @@ func cloneTraits(src map[ShapeID]Trait) map[ShapeID]Trait {
 // ListMember returns the "member" schema for list types.
 func (s *Schema) ListMember() *Schema {
 	if s.m == nil {
-		return s.staticMember("member")
+		return s.staticListMember()
 	}
 	return s.m.lookup(s, &s.m.listMember, "member")
 }
@@ -229,7 +229,7 @@ func (s *Schema) ListMember() *Schema {
 // MapKey returns the "key" schema for map types.
 func (s *Schema) MapKey() *Schema {
 	if s.m == nil {
-		return s.staticMember("key")
+		return s.staticMapMember(true)
 	}
 	return s.m.lookup(s, &s.m.mapKey, "key")
 }
@@ -237,7 +237,7 @@ func (s *Schema) MapKey() *Schema {
 // MapValue returns the "value" schema for map types.
 func (s *Schema) MapValue() *Schema {
 	if s.m == nil {
-		return s.staticMember("value")
+		return s.staticMapMember(false)
 	}
 	return s.m.lookup(s, &s.m.mapValue, "value")
 }
