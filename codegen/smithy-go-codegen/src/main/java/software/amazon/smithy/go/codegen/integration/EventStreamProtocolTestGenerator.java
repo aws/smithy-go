@@ -12,6 +12,7 @@ import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoDelegator;
+import software.amazon.smithy.go.codegen.EventStreamGenerator;
 import software.amazon.smithy.go.codegen.GoDependency;
 import software.amazon.smithy.go.codegen.GoSettings;
 import software.amazon.smithy.go.codegen.GoWriter;
@@ -25,6 +26,7 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.protocoltests.traits.AppliesTo;
@@ -290,6 +292,16 @@ public class EventStreamProtocolTestGenerator {
                 .filter(e -> e.getType() == EventType.REQUEST)
                 .collect(Collectors.toList());
 
+        // RPC protocols carry the non-stream members in-band, as initial-request and initial-response events. The
+        // response one is consumed by the client rather than surfaced through Events().
+        boolean hasInitialRequestEvent = requestEvents.stream().anyMatch(e -> isInitialEvent(e, "initial-request"));
+        List<Event> initialResponseEvents = responseEvents.stream()
+                .filter(e -> isInitialEvent(e, "initial-response"))
+                .collect(Collectors.toList());
+        List<Event> streamResponseEvents = responseEvents.stream()
+                .filter(e -> !isInitialEvent(e, "initial-response"))
+                .collect(Collectors.toList());
+
         boolean expectFailure = testCase.getExpectation().isFailure();
         Optional<Integer> responseCode = testCase.getInitialResponse()
                 .flatMap(r -> r.getNumberMember("code"))
@@ -350,12 +362,17 @@ public class EventStreamProtocolTestGenerator {
 
             // Invoke operation
             Symbol opSymbol = symbolProvider.toSymbol(operation);
-            if (needsResp) {
-                writer.write("resp, err := client.$L(context.Background(), &$LInput{})",
-                        opSymbol.getName(), opSymbol.getName());
+            writer.writeInline(needsResp ? "resp, err := client.$L(context.Background(), " : "_, err := client.$L(context.Background(), ",
+                    opSymbol.getName());
+            if (hasInitialRequestEvent && testCase.getInitialRequestParams().isPresent()) {
+                new ShapeValueGenerator(settings, model, symbolProvider,
+                        ShapeValueGenerator.Config.builder().build())
+                        .writePointableStructureShapeValueInline(writer,
+                                model.expectShape(operation.getInputShape(), StructureShape.class),
+                                testCase.getInitialRequestParams().get());
+                writer.write(")");
             } else {
-                writer.write("_, err := client.$L(context.Background(), &$LInput{})",
-                        opSymbol.getName(), opSymbol.getName());
+                writer.write("&$LInput{})", opSymbol.getName());
             }
 
             if (expectsOperationError) {
@@ -376,6 +393,20 @@ public class EventStreamProtocolTestGenerator {
                 return;
             }
 
+            // A duplex stream ends as soon as its response ends, so the request events have to be sent before the
+            // response is drained.
+            boolean isDuplex = hasOutputStream && !responseEvents.isEmpty()
+                    && hasInputStream && !requestEvents.isEmpty();
+
+            // The initial-response is consumed by the client, so its members are only visible through the initial reply.
+            if (hasOutputStream && !initialResponseEvents.isEmpty() && testCase.getInitialResponseParams().isPresent()) {
+                generateInitialReplyAssertion(writer, operation, testCase.getInitialResponseParams().get());
+            }
+
+            if (isDuplex) {
+                generateInputEventSend(writer, operation, requestEvents);
+            }
+
             // For output streams: read and assert events
             if (hasOutputStream && !responseEvents.isEmpty()) {
                 writer.write("defer resp.GetStream().Close()");
@@ -383,13 +414,13 @@ public class EventStreamProtocolTestGenerator {
                 writer.write("");
 
                 // Collect events with params for assertion
-                List<Event> assertableEvents = responseEvents.stream()
+                List<Event> assertableEvents = streamResponseEvents.stream()
                         .filter(e -> e.getParams().isPresent())
                         .collect(Collectors.toList());
 
                 writer.write("var receivedEvents int");
                 if (!expectFailure && !assertableEvents.isEmpty()) {
-                    generateEventAssertions(writer, operation, responseEvents);
+                    generateEventAssertions(writer, operation, streamResponseEvents);
                 } else {
                     writer.openBlock("for event := range resp.GetStream().Events() {", "}", () -> {
                         writer.write("_ = event");
@@ -404,17 +435,60 @@ public class EventStreamProtocolTestGenerator {
                 } else {
                     writer.openBlock("if err := resp.GetStream().Err(); err != nil {", "}", () ->
                             writer.write("t.Fatalf(\"expect no stream error, got %v\", err)"));
-                    writer.openBlock("if receivedEvents != $L {", "}", responseEvents.size(), () ->
-                            writer.write("t.Fatalf(\"expected $L events, got %d\", receivedEvents)", responseEvents.size()));
+                    writer.openBlock("if receivedEvents != $L {", "}", streamResponseEvents.size(), () ->
+                            writer.write("t.Fatalf(\"expected $L events, got %d\", receivedEvents)", streamResponseEvents.size()));
                 }
             }
 
             // For input streams: send events, close, and assert serialized messages.
             if (hasInputStream && !requestEvents.isEmpty()) {
-                generateInputEventSendAndAssert(writer, operation, requestEvents);
+                if (!isDuplex) {
+                    generateInputEventSend(writer, operation, requestEvents);
+                }
+                generateInputEventAssert(writer, operation, requestEvents);
             }
         });
         writer.write("");
+    }
+
+    private static boolean isInitialEvent(Event event, String eventType) {
+        if (event.getBytes().isPresent()) {
+            return false;
+        }
+        EventHeaderValue<?> header = event.getHeaders().get(":event-type");
+        return header != null && header.getType() == EventHeaderValue.Type.STRING
+                && eventType.equals(header.asString());
+    }
+
+    private void generateInitialReplyAssertion(GoWriter writer, OperationShape operation, ObjectNode params) {
+        StructureShape output = model.expectShape(operation.getOutputShape(), StructureShape.class);
+
+        // The reply members have the output's members, but the reply is its own Go type.
+        SymbolProvider replySymbols = new SymbolProvider() {
+            @Override
+            public Symbol toSymbol(Shape shape) {
+                if (shape.getId().equals(output.getId())) {
+                    return EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation);
+                }
+
+                return symbolProvider.toSymbol(shape);
+            }
+
+            @Override
+            public String toMemberName(MemberShape shape) {
+                return symbolProvider.toMemberName(shape);
+            }
+        };
+
+        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+        writer.write("reply := <-resp.GetInitialReply()");
+        writer.write("reply.ResultMetadata = middleware.Metadata{}");
+        writer.writeInline("expectReply := ");
+        new ShapeValueGenerator(settings, model, replySymbols, ShapeValueGenerator.Config.builder().build())
+                .writeStructureShapeValueInline(writer, output, params);
+        writer.write("");
+        writer.openBlock("if err := smithytesting.CompareValues(expectReply, reply); err != nil {", "}", () ->
+                writer.write("t.Errorf(\"initial reply mismatch: %v\", err)"));
     }
 
     private void generateEventAssertions(GoWriter writer, OperationShape operation, List<Event> responseEvents) {
@@ -465,7 +539,7 @@ public class EventStreamProtocolTestGenerator {
         });
     }
 
-    private void generateInputEventSendAndAssert(
+    private void generateInputEventSend(
             GoWriter writer, OperationShape operation, List<Event> requestEvents
     ) {
         EventStreamInfo inputInfo = eventStreamIndex.getInputInfo(operation).get();
@@ -508,16 +582,26 @@ public class EventStreamProtocolTestGenerator {
             writer.dedent();
             writer.write("}");
         }
+    }
+
+    private void generateInputEventAssert(
+            GoWriter writer, OperationShape operation, List<Event> requestEvents
+    ) {
+        EventStreamInfo inputInfo = eventStreamIndex.getInputInfo(operation).get();
+        UnionShape eventUnion = inputInfo.getEventStreamTarget().asUnionShape().get();
 
         // Close the stream to flush
         writer.write("mock.CloseResponse()");
         writer.write("resp.GetStream().Close()");
         writer.write("");
 
-        // Filter to only sendable (non-error) events for assertion
+        // The messages that must have reached the wire: every sendable (non-error) event, preceded by the
+        // initial-request event for protocols that send one in-band.
         List<Event> sendableEvents = requestEvents.stream()
-                .filter(e -> e.getParams().isPresent())
                 .filter(e -> {
+                    if (e.getParams().isEmpty()) {
+                        return isInitialEvent(e, "initial-request");
+                    }
                     String mn = e.getParams().get().getMembers().keySet().iterator().next().getValue();
                     MemberShape um = eventUnion.getMember(mn).get();
                     StructureShape ts = model.expectShape(um.getTarget(), StructureShape.class);
@@ -576,11 +660,24 @@ public class EventStreamProtocolTestGenerator {
                         for (Map.Entry<String, EventHeaderValue<?>> entry : headers.entrySet()) {
                             writer.write("if h := actualMsg.Headers.Get($S); h == nil {", entry.getKey());
                             writer.write("    t.Errorf(\"request event %d: missing header %q\", $L, $S)", eventIdx, entry.getKey());
+                            if (entry.getValue().getType() == EventHeaderValue.Type.STRING) {
+                                writer.write("} else if h.String() != $S {", entry.getValue().asString());
+                                writer.write("    t.Errorf(\"request event %d: header %q = %q, want %q\", $L, $S, h.String(), $S)",
+                                        eventIdx, entry.getKey(), entry.getValue().asString());
+                            }
                             writer.write("}");
                         }
                     });
                 }
                 event.getBody().ifPresent(body -> {
+                    if (event.getBodyMediaType().map("application/json"::equals).orElse(false)) {
+                        // member order in a JSON document is not significant
+                        writer.addImport("bytes", "bytes");
+                        writer.addUseImports(SmithyGoDependency.SMITHY_TESTING);
+                        writer.openBlock("if err := smithytesting.CompareJSONReaderBytes(bytes.NewReader(requestMsgs[$L].Payload), []byte($S)); err != nil {", "}", eventIdx, body, () ->
+                                writer.write("t.Errorf(\"request event %d: payload mismatch: %v\", $L, err)", eventIdx));
+                        return;
+                    }
                     writer.addImport("bytes", "bytes");
                     writer.openBlock("if !bytes.Equal(requestMsgs[$L].Payload, []byte($S)) {", "}", eventIdx, body, () ->
                             writer.write("t.Errorf(\"request event %d: payload mismatch\", $L)", eventIdx));

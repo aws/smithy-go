@@ -51,6 +51,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
             fields.put("existingResult", pointerTo(outputSymbol));
             fields.put("asyncResult", software.amazon.smithy.go.codegen.SymbolUtils
                     .createValueSymbolBuilder("chan deserializeResult").build());
+            fields.put("initialResponse", pointerTo(buildPackageSymbol("initialResponseReader")));
         }
 
         return fields;
@@ -155,6 +156,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         var schemaName = SchemaGenerator.getSchemaRef(inputEventStream, service);
         var adapterName = EventStreamGenerator.getEventStreamWriterAdapterName(service, inputEventStream);
 
+        var inputSchemaName = SchemaGenerator.getSchemaRef(
+                ctx.model().expectShape(operation.getInputShape()), service);
+
         return goTemplate("""
                 inputStreamWriter := $getInputStreamWriter:T(ctx)
                 if inputStreamWriter == nil {
@@ -170,6 +174,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                         inputStreamWriter = $newSigningWriter:T(inputStreamWriter, msgSigner)
                     }
                 }
+                $initialRequest:W
                 eventWriter := &$adapter:L{
                     writer: $newWriter:T(m.options.Protocol, $schema:L, inputStreamWriter),
                 }
@@ -191,6 +196,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                         "newSigningWriter",
                             SmithyGoDependency.SMITHY_EVENTSTREAM.func("NewSigningWriter"),
                         "schema", schemaName,
+                        "initialRequest", guardFirstAttempt
+                                ? initialRequestWriter(inputSchemaName)
+                                : (Writable) w -> {},
                         "closeGuard", guardFirstAttempt
                                 ? (Writable) w -> w.write("""
                                         if err != nil && !isFirstAttempt {
@@ -341,6 +349,7 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                 }
 
                 $asyncPipe:W
+                $awaitInitialResponse:W
                 $addToMetadata:T(&md, output)
                 return out, md, nil
                 """,
@@ -382,6 +391,9 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
                         Map.entry("asyncPipe", outputInfo.isPresent()
                                 ? (Writable) w -> w.write("asyncResult <- deserializeResult{reader: resp.Body}")
                                 : (Writable) w -> {}),
+                        Map.entry("awaitInitialResponse", outputInfo.isPresent()
+                                ? awaitInitialResponse()
+                                : (Writable) w -> {}),
                         Map.entry("asyncResultDecl", outputInfo.isPresent()
                                 ? (Writable) w -> w.write("asyncResult := m.asyncResult")
                                 : (Writable) w -> {}),
@@ -396,19 +408,74 @@ public class Serde2EventStreamMiddleware extends DeserializeStepMiddleware {
         var schemaName = SchemaGenerator.getSchemaRef(outputEventStream, service);
         var adapterConstructor = EventStreamGenerator
                 .getEventStreamReaderAdapterConstructor(service, outputEventStream);
+        var outputSchemaName = SchemaGenerator.getSchemaRef(
+                ctx.model().expectShape(operation.getOutputShape()), service);
 
         return goTemplate("""
                 asyncResult = make(chan deserializeResult, 1)
                 asyncReader := newAsyncEventStreamReader(asyncResult)
+                var eventStreamBody $readCloser:T = asyncReader.pipeReader
+                if m.options.Protocol.HasInitialEventMessage() {
+                    m.initialResponse = newInitialResponseReader(eventStreamBody, &$initialReply:T{}, func(r $reader:T, out $deserializable:T) error {
+                        return m.options.Protocol.DeserializeInitialResponse($outputSchema:L, r, out)
+                    })
+                    eventStreamBody = m.initialResponse
+                }
                 eventReader := $newAdapter:L(
-                    $newReader:T(m.options.Protocol, $schema:L, TypeRegistry, asyncReader.pipeReader),
+                    $newReader:T(m.options.Protocol, $schema:L, TypeRegistry, eventStreamBody),
                 )
                 """,
                 MapUtils.of(
                         "newAdapter", adapterConstructor,
                         "newReader",
                             SmithyGoDependency.SMITHY_HTTP_TRANSPORT.func("NewEventStreamReader"),
+                        "readCloser", SmithyGoDependency.IO.valueSymbol("ReadCloser"),
+                        "reader", SmithyGoDependency.IO.valueSymbol("Reader"),
+                        "deserializable", SmithyGoDependency.SMITHY.valueSymbol("Deserializable"),
+                        "initialReply",
+                            EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation),
+                        "outputSchema", outputSchemaName,
                         "schema", schemaName
+                ));
+    }
+
+    private Writable initialRequestWriter(String inputSchemaName) {
+        return goTemplate("""
+                if m.options.Protocol.HasInitialEventMessage() {
+                    opInput, ok := getOperationInput(ctx).($serializable:T)
+                    if !ok {
+                        return out, md, $fmtErrorf:T("operation input is not serializable")
+                    }
+                    var initial $buffer:T
+                    if err = m.options.Protocol.SerializeInitialRequest($inputSchema:L, opInput, &initial); err != nil {
+                        return out, md, $fmtErrorf:T("serialize initial request: %w", err)
+                    }
+                    inputStreamWriter = newInitialRequestWriter(inputStreamWriter, initial.Bytes())
+                }
+                """,
+                MapUtils.of(
+                        "serializable", SmithyGoDependency.SMITHY.valueSymbol("Serializable"),
+                        "fmtErrorf", SmithyGoDependency.FMT.func("Errorf"),
+                        "buffer", SmithyGoDependency.BYTES.valueSymbol("Buffer"),
+                        "inputSchema", inputSchemaName
+                ));
+    }
+
+    private Writable awaitInitialResponse() {
+        return goTemplate("""
+                if m.options.Protocol.HasInitialEventMessage() {
+                    ir, irErr := m.initialResponse.wait(ctx)
+                    if irErr != nil {
+                        _ = resp.Body.Close()
+                        $addToMetadata:T(&md, output)
+                        return out, md, $fmtErrorf:T("deserialize initial response: %w", irErr)
+                    }
+                    out.Result = ir
+                }
+                """,
+                MapUtils.of(
+                        "addToMetadata", SmithyGoDependency.SMITHY_MIDDLEWARE.func("AddEventStreamOutputToMetadata"),
+                        "fmtErrorf", SmithyGoDependency.FMT.func("Errorf")
                 ));
     }
 }

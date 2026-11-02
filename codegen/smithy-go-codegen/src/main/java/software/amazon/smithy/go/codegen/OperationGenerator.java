@@ -26,6 +26,7 @@ import software.amazon.smithy.go.codegen.endpoints.EndpointParameterOperationBin
 import software.amazon.smithy.go.codegen.integration.MiddlewareRegistrar;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.RuntimeClientPlugin;
+import software.amazon.smithy.go.codegen.serde2.StructureDeserializer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.EventStreamIndex;
 import software.amazon.smithy.model.knowledge.OperationIndex;
@@ -200,6 +201,11 @@ public final class OperationGenerator implements Runnable {
                             return o.initialReply
                         }
                     """, outputSymbol, EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation));
+
+                // The initial reply is what an initial-response message is deserialized into.
+                if (!ctx.settings().useLegacySerde()) {
+                    writer.write(new StructureDeserializer(ctx, initialReplyStruct, initialReply));
+                }
 
             }
         }
