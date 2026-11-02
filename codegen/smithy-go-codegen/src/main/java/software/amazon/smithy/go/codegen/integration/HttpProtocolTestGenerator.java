@@ -101,7 +101,7 @@ public class HttpProtocolTestGenerator {
                                     .symbolProvider(symbolProvider)
                                     .service(service)
                                     .operation(operation)
-                                    .testCases(trait.getTestCases())
+                                    .testCases(testCases)
                                     .build()
                                     .generateTestFunction(writer);
                         });
@@ -137,7 +137,7 @@ public class HttpProtocolTestGenerator {
                                     .symbolProvider(symbolProvider)
                                     .service(service)
                                     .operation(operation)
-                                    .testCases(trait.getTestCases())
+                                    .testCases(testCases)
                                     .shapeValueGeneratorConfig(ShapeValueGenerator.Config.builder()
                                             .normalizeHttpPrefixHeaderKeys(true).build())
                                     .build()
@@ -182,7 +182,7 @@ public class HttpProtocolTestGenerator {
                                 .service(service)
                                 .operation(operation)
                                 .error(error)
-                                .testCases(trait.getTestCases())
+                                .testCases(testCases)
                                 .build()
                                 .generateTestFunction(writer);
                     });

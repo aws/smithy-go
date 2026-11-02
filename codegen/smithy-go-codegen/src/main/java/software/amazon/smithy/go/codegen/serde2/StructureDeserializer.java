@@ -1,6 +1,7 @@
 package software.amazon.smithy.go.codegen.serde2;
 
 import java.util.Comparator;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.GoCodegenContext;
 import software.amazon.smithy.go.codegen.GoWriter;
 import software.amazon.smithy.go.codegen.ProtocolDocumentGenerator;
@@ -19,11 +20,21 @@ import software.amazon.smithy.model.traits.StreamingTrait;
 public class StructureDeserializer implements Writable {
     private final GoCodegenContext ctx;
     private final StructureShape shape;
+    private final Symbol receiver;
     private final GoPointableIndex nilIndex;
 
     public StructureDeserializer(GoCodegenContext ctx, StructureShape shape) {
+        this(ctx, shape, ctx.symbolProvider().toSymbol(shape));
+    }
+
+    /**
+     * Deserializes shape into the struct named by receiver, which may differ from the shape's own symbol (e.g. the
+     * synthetic initial reply of an event stream operation).
+     */
+    public StructureDeserializer(GoCodegenContext ctx, StructureShape shape, Symbol receiver) {
         this.ctx = ctx;
         this.shape = shape;
+        this.receiver = receiver;
 
         this.nilIndex = GoPointableIndex.of(ctx.model());
     }
@@ -36,7 +47,7 @@ public class StructureDeserializer implements Writable {
         }
         writer.addUseImports(SmithyGoDependency.SMITHY);
 
-        var symbol = ctx.symbolProvider().toSymbol(shape);
+        var symbol = receiver;
         var members = shape.members().stream()
                 .filter(m -> !StreamingTrait.isEventStream(ctx.model(), m))
                 .filter(m -> !ctx.model().expectShape(m.getTarget()).hasTrait(StreamingTrait.class))
