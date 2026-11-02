@@ -715,28 +715,28 @@ final class ServiceGenerator implements Runnable {
 				}
 
 				func newInitialRequestWriter(w io.WriteCloser, initial []byte) *initialRequestWriter {
-				       iw := &initialRequestWriter{w: w, initial: initial}
-				       go iw.writeInitial()
-				       return iw
+				       irw := &initialRequestWriter{w: w, initial: initial}
+				       go irw.writeInitial()
+				       return irw
 				}
 
-				func (w *initialRequestWriter) writeInitial() error {
-				       w.once.Do(func() {
-				               _, w.err = w.w.Write(w.initial)
+				func (irw *initialRequestWriter) writeInitial() error {
+				       irw.once.Do(func() {
+				               _, irw.err = irw.w.Write(irw.initial)
 				       })
-				       return w.err
+				       return irw.err
 				}
 
-				func (w *initialRequestWriter) Write(p []byte) (int, error) {
-				       if err := w.writeInitial(); err != nil {
+				func (irw *initialRequestWriter) Write(p []byte) (int, error) {
+				       if err := irw.writeInitial(); err != nil {
 				               return 0, err
 				       }
-				       return w.w.Write(p)
+				       return irw.w.Write(p)
 				}
 
-				func (w *initialRequestWriter) Close() error {
-				       err := w.writeInitial()
-				       if cerr := w.w.Close(); err == nil {
+				func (irw *initialRequestWriter) Close() error {
+				       err := irw.writeInitial()
+				       if cerr := irw.w.Close(); err == nil {
 				               err = cerr
 				       }
 				       return err

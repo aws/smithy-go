@@ -462,13 +462,16 @@ public class EventStreamProtocolTestGenerator {
 
     private void generateInitialReplyAssertion(GoWriter writer, OperationShape operation, ObjectNode params) {
         StructureShape output = model.expectShape(operation.getOutputShape(), StructureShape.class);
-        Symbol replySymbol = EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation);
 
         // The reply members have the output's members, but the reply is its own Go type.
         SymbolProvider replySymbols = new SymbolProvider() {
             @Override
             public Symbol toSymbol(Shape shape) {
-                return shape.getId().equals(output.getId()) ? replySymbol : symbolProvider.toSymbol(shape);
+                if (shape.getId().equals(output.getId())) {
+                    return EventStreamGenerator.getEventStreamInitialReplyStructureSymbol(service, operation);
+                }
+
+                return symbolProvider.toSymbol(shape);
             }
 
             @Override
