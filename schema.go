@@ -72,6 +72,7 @@ func stoid(s string) ShapeID {
 type Schema struct {
 	set *SchemaSet // frozen schemas: the set this schema belongs to
 	ord uint32     // frozen schemas: index of the schema's record in set
+	aux uint32     // frozen schemas: list/map shortcut, see staticAuxShift
 
 	m *mutableSchema // non-nil for mutable schemas
 }

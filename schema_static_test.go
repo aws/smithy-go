@@ -3,6 +3,7 @@ package smithy
 import (
 	"fmt"
 	"testing"
+	"unsafe"
 )
 
 type testIndexed struct{ V string }
@@ -55,9 +56,27 @@ func buildTestSet(shapes []testShape, traitSets []TraitSet) (*SchemaSet, []Schem
 		}
 	}
 
+	// aux the way the code generator computes it: only a list/set with its
+	// "member", or a map with "key" then "value", gets a shortcut.
+	auxOf := func(row int) uint32 {
+		target := int(set.Records[row].Target)
+		first := set.str(&set.Records[target+1])
+		switch ShapeType(set.Records[row].Type) {
+		case ShapeTypeList, ShapeTypeSet:
+			if set.Records[target].Count == 1 && first == "member" {
+				return staticKindList<<staticAuxShift | uint32(target)
+			}
+		case ShapeTypeMap:
+			if set.Records[target].Count == 2 && first == "key" && set.str(&set.Records[target+2]) == "value" {
+				return staticKindMap<<staticAuxShift | uint32(target)
+			}
+		}
+		return 0
+	}
+
 	handles := make([]Schema, len(set.Records))
 	for i := range handles {
-		handles[i] = NewStaticSchema(set, uint32(i))
+		handles[i] = NewStaticSchema(set, uint32(i), auxOf(i))
 	}
 	return set, handles
 }
@@ -292,5 +311,15 @@ func TestFrozenMapAndListMembers(t *testing.T) {
 	m := &h2[5]
 	if m.MapKey() != &h2[2] || m.MapValue() != &h2[3] {
 		t.Errorf("member of map: key %p value %p", m.MapKey(), m.MapValue())
+	}
+}
+
+func TestSchemaHandleSize(t *testing.T) {
+	// aux is carried in what would otherwise be padding, so frozen handles stay
+	// 24 bytes on 64-bit platforms.
+	if unsafe.Sizeof(uintptr(0)) == 8 {
+		if got := unsafe.Sizeof(Schema{}); got != 24 {
+			t.Errorf("unsafe.Sizeof(Schema{}) = %d, want 24", got)
+		}
 	}
 }

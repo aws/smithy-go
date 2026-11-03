@@ -158,37 +158,42 @@ func (s *Schema) staticMembersMap() map[string]*Schema {
 	return byName
 }
 
-// staticListMember returns the "member" of a list or set. A list has exactly
-// that one member, which sits right after the shape's record.
+// A frozen schema's aux field lets ListMember, MapKey and MapValue find their
+// result without reading the schema's record. Bits staticAuxShift and above
+// hold the kind of the shape the schema exposes, and the bits below hold the
+// row of that shape. Generated code only sets a kind when the shape is a list
+// or set whose single member is "member", or a map whose members are "key"
+// followed by "value". Every other schema has aux 0.
+const (
+	staticAuxShift = 30
+	staticAuxMask  = 1<<staticAuxShift - 1
+
+	staticKindList = 1
+	staticKindMap  = 2
+)
+
+// staticListMember returns the "member" of a list or set.
 func (s *Schema) staticListMember() *Schema {
-	r := s.rec()
-	switch ShapeType(r.Type) {
-	case ShapeTypeList, ShapeTypeSet:
-		if r.Count == 1 {
-			return s.at(r.Target + 1)
-		}
+	if s.aux>>staticAuxShift == staticKindList {
+		return s.at(s.aux&staticAuxMask + 1)
 	}
 	return s.staticMember("member")
 }
 
-// staticMapMember returns the "key" or "value" of a map. A map has exactly
-// those two members; "key" is three bytes long and "value" five, so the length
-// tells them apart regardless of their order.
+// staticMapMember returns the "key" or "value" of a map.
 func (s *Schema) staticMapMember(key bool) *Schema {
-	r := s.rec()
-	if ShapeType(r.Type) != ShapeTypeMap || r.Count != 2 {
+	if s.aux>>staticAuxShift == staticKindMap {
+		row := s.aux & staticAuxMask
 		if key {
-			return s.staticMember("key")
+			return s.at(row + 1)
 		}
-		return s.staticMember("value")
+		return s.at(row + 2)
 	}
 
-	first := s.at(r.Target + 1)
-	keyFirst := s.set.Records[r.Target+1].StrLen == 3
-	if keyFirst == key {
-		return first
+	if key {
+		return s.staticMember("key")
 	}
-	return s.at(r.Target + 2)
+	return s.staticMember("value")
 }
 
 func (s *Schema) staticMember(name string) *Schema {
@@ -211,11 +216,12 @@ func (s *Schema) staticMember(name string) *Schema {
 }
 
 // NewStaticSchema returns the frozen schema described by record ord of set.
+// aux is the list/map shortcut that the code generator computes for the record.
 //
 // Generated code calls this to declare an array with one handle per record of
 // its [SchemaSet]. The function is small enough to be inlined, which lets the
 // compiler initialize that array statically. It is exported for use by
 // generated code only.
-func NewStaticSchema(set *SchemaSet, ord uint32) Schema {
-	return Schema{set: set, ord: ord}
+func NewStaticSchema(set *SchemaSet, ord, aux uint32) Schema {
+	return Schema{set: set, ord: ord, aux: aux}
 }

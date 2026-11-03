@@ -14,6 +14,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
@@ -39,6 +40,12 @@ public class StaticSchemasGenerator implements Writable {
     private static final int FLAG_MEMBER = 1;
     private static final int NAMESPACE_SHIFT = 1;
     private static final int BLOB_CHUNK = 100;
+
+    // Layout of a handle's aux value, mirrored from schema_static.go in the Go runtime: the kind of the
+    // exposed shape in the bits from AUX_SHIFT up, and the row of that shape below them.
+    private static final int AUX_SHIFT = 30;
+    private static final int KIND_LIST = 1;
+    private static final int KIND_MAP = 2;
 
     private final GoCodegenContext ctx;
     private final List<Shape> shapes;
@@ -107,6 +114,7 @@ public class StaticSchemasGenerator implements Writable {
     private static final class Record {
         private String str;
         private int target;
+        private long aux;
         private int traits;
         private int count;
         private String type;
@@ -129,6 +137,7 @@ public class StaticSchemasGenerator implements Writable {
             shapeRecord.type = entry.type;
             shapeRecord.flags = namespaceIndex(entry.namespace) << NAMESPACE_SHIFT;
             shapeRecord.traits = internTraitSet(shapeTraits(entry));
+            shapeRecord.aux = aux(entry, entry.ord);
             records.add(shapeRecord);
 
             for (var member : entry.members) {
@@ -142,6 +151,7 @@ public class StaticSchemasGenerator implements Writable {
                 r.type = typeName(target);
                 r.flags = FLAG_MEMBER;
                 r.traits = internTraitSet(memberTraits(targetEntry, member));
+                r.aux = aux(targetEntry, targetEntry.ord);
                 records.add(r);
             }
         }
@@ -180,6 +190,10 @@ public class StaticSchemasGenerator implements Writable {
             entry.name = modelId.getName();
             entry.type = typeName(shape);
             entry.members = new ArrayList<>(shape.members());
+            if (shape.getType() == ShapeType.MAP) {
+                // The runtime finds a map's key and value by position, so the key must come first.
+                entry.members.sort(Comparator.comparingInt(m -> m.getMemberName().equals("key") ? 0 : 1));
+            }
             entry.traits = traitRefs(shape.getAllTraits().values());
             if (entry.members.size() > MAX_MEMBERS) {
                 throw new IllegalStateException("too many members in " + shape.getId());
@@ -225,6 +239,27 @@ public class StaticSchemasGenerator implements Writable {
                 foreign.put(key, f);
             }
         }
+    }
+
+    // The shortcut for ListMember, MapKey and MapValue. Only shapes that have exactly the members the runtime
+    // expects get one; anything else falls back to a lookup by name.
+    private static long aux(Entry exposed, int row) {
+        if (exposed.shape == null) {
+            return 0;
+        }
+        if (row >= (1 << AUX_SHIFT)) {
+            throw new IllegalStateException("too many schemas");
+        }
+
+        var names = exposed.members.stream().map(MemberShape::getMemberName).toList();
+        var type = exposed.shape.getType();
+        if ((type == ShapeType.LIST || type == ShapeType.SET) && names.equals(List.of("member"))) {
+            return (long) KIND_LIST << AUX_SHIFT | row;
+        }
+        if (type == ShapeType.MAP && names.equals(List.of("key", "value"))) {
+            return (long) KIND_MAP << AUX_SHIFT | row;
+        }
+        return 0;
     }
 
     private Entry targetEntry(Shape target, ServiceShape service) {
@@ -377,7 +412,7 @@ public class StaticSchemasGenerator implements Writable {
 
         writer.write("var handles = [$L]smithy.Schema{", records.size());
         for (int i = 0; i < records.size(); i++) {
-            writer.write("smithy.NewStaticSchema(&set, $L),", i);
+            writer.write("smithy.NewStaticSchema(&set, $L, $L),", i, records.get(i).aux);
         }
         writer.write("}");
         writer.write("");
