@@ -1,8 +1,0 @@
-{
-    "id": "9e1d948c-fe10-46cb-ab27-ad9c63f4edc1",
-    "type": "bugfix",
-    "description": "Preserve the exact value of numbers in JSON codec instead of automatically parsing to float64.",
-    "modules": [
-        "."
-    ]
-}
