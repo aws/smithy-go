@@ -56,6 +56,31 @@ func buildTestSet(shapes []testShape, traitSets []TraitSet) (*SchemaSet, []Schem
 		}
 	}
 
+	// name lookup tables the way the code generator emits them: one per shape
+	// with more members than the linear scan limit
+	for i, sh := range shapes {
+		if len(sh.members) <= staticLinearMemberLimit {
+			continue
+		}
+		var names []string
+		for _, m := range sh.members {
+			names = append(names, m.name)
+		}
+		seed, size, slots := buildTestHash(names)
+		set.Hashes = append(set.Hashes, StaticHash{Tab: uint32(len(set.Slots)), Mask: uint32(size - 1), Seed: seed})
+		set.Slots = append(set.Slots, slots...)
+		id := uint16(len(set.Hashes))
+		set.Records[ords[i]].Hash = id
+		for k := range sh.members {
+			set.Records[ords[i]+1+k].Hash = 0 // member records of this shape are not shapes
+		}
+		for row := range set.Records {
+			if set.Records[row].Flags&StaticFlagMember != 0 && int(set.Records[row].Target) == ords[i] {
+				set.Records[row].Hash = id
+			}
+		}
+	}
+
 	// aux the way the code generator computes it: only a list/set with its
 	// "member", or a map with "key" then "value", gets a shortcut.
 	auxOf := func(row int) uint32 {
@@ -187,21 +212,34 @@ func TestFrozenSchemaManyMembers(t *testing.T) {
 	shapes := []testShape{
 		{name: "String", typ: ShapeTypeString},
 		{name: "Big", typ: ShapeTypeStructure, members: members},
+		{name: "Holder", typ: ShapeTypeStructure, members: []testMember{{"ref", 1, 0}}},
 	}
 	_, h := buildTestSet(shapes, []TraitSet{{}})
-	big := &h[1]
+	// rows: String=0, Big=1 (m0..m39 = 2..41), Holder=42 (ref=43)
+	big, ref := &h[1], &h[43]
 
-	for i := 0; i < 40; i++ {
-		name := fmt.Sprintf("m%d", i)
-		if big.Member(name) != &h[2+i] {
-			t.Fatalf("lookup of %s", name)
+	if big.rec().Hash == 0 || ref.rec().Hash != big.rec().Hash {
+		t.Fatalf("a lookup table is expected on the shape and on members that target it: %d %d", big.rec().Hash, ref.rec().Hash)
+	}
+	if h[2].rec().Hash != 0 {
+		t.Errorf("a member of Big that targets String has no lookup table, got %d", h[2].rec().Hash)
+	}
+
+	for _, s := range []*Schema{big, ref} {
+		for i := 0; i < 40; i++ {
+			name := fmt.Sprintf("m%d", i)
+			if s.Member(name) != &h[2+i] {
+				t.Fatalf("lookup of %s", name)
+			}
 		}
-	}
-	if big.Member("m40") != nil {
-		t.Error("missing member found")
-	}
-	if len(big.Members()) != 40 {
-		t.Errorf("Members has %d entries", len(big.Members()))
+		for _, miss := range []string{"m40", "m400", "M0", "", "m", "m00", "member", "m1x"} {
+			if s.Member(miss) != nil {
+				t.Errorf("Member(%q) found a member", miss)
+			}
+		}
+		if len(s.Members()) != 40 {
+			t.Errorf("Members has %d entries", len(s.Members()))
+		}
 	}
 }
 
@@ -321,5 +359,87 @@ func TestSchemaHandleSize(t *testing.T) {
 		if got := unsafe.Sizeof(Schema{}); got != 24 {
 			t.Errorf("unsafe.Sizeof(Schema{}) = %d, want 24", got)
 		}
+	}
+}
+
+// buildTestHash searches for a collision-free seed, like the code generator.
+func buildTestHash(names []string) (seed uint64, size int, slots []uint16) {
+	size = 1
+	for size < 2*len(names) {
+		size <<= 1
+	}
+	for ; ; size <<= 1 {
+		for seed = 1; seed < 1<<17; seed++ {
+			slots = make([]uint16, size)
+			ok := true
+			for i, n := range names {
+				idx := uint32(staticNameHash(n, seed)) & uint32(size-1)
+				if slots[idx] != 0 {
+					ok = false
+					break
+				}
+				slots[idx] = uint16(i + 1)
+			}
+			if ok {
+				return seed, size, slots
+			}
+		}
+	}
+}
+
+// These values are shared with the code generator's test, which checks that its
+// implementation of the hash produces the same results.
+func TestStaticNameHashGolden(t *testing.T) {
+	for _, c := range []struct {
+		s    string
+		seed uint64
+		want uint64
+	}{
+		{"", 1, 0xa0761d6478bd642f},
+		{"S", 1, 0xe5a866bb0f16611f},
+		{"NULL", 7, 0x1d9396f36fff6906},
+		{"abc", 3, 0x855c74105557a50c},
+		{"BOOL", 0, 0x2698ed598a319299},
+		{"12345678", 5, 0x66b834422ed040f4},
+		{"DataSourceParameters", 12345, 0xc005316efcfc62e9},
+		{"AmazonElasticsearchParameters", 99, 0x44587801b867f97f},
+		{"0123456789abcdef", 42, 0x0f121383a229acfa},
+		{"0123456789abcdefg", 42, 0x2ee0d19534d235d3},
+		{"The quick brown fox jumps over the lazy dog, 40B", 0xDEADBEEFCAFEF00D, 0x286ba7241c5f194e},
+	} {
+		if got := staticNameHash(c.s, c.seed); got != c.want {
+			t.Errorf("staticNameHash(%q, %#x) = %#016x, want %#016x", c.s, c.seed, got, c.want)
+		}
+	}
+}
+
+// A set without lookup tables, such as one written by hand, still resolves
+// members by name.
+func TestFrozenSchemaLargeShapeWithoutHash(t *testing.T) {
+	var members []testMember
+	for i := 0; i < 20; i++ {
+		members = append(members, testMember{name: fmt.Sprintf("member%d", i), target: 0})
+	}
+	set, h := buildTestSet([]testShape{
+		{name: "String", typ: ShapeTypeString},
+		{name: "Big", typ: ShapeTypeStructure, members: members},
+	}, []TraitSet{{}})
+	if set.Records[1].Hash == 0 {
+		t.Fatal("expected the builder to emit a lookup table")
+	}
+
+	for i := range set.Records {
+		set.Records[i].Hash = 0
+	}
+	set.Hashes, set.Slots = nil, nil
+
+	big := &h[1]
+	for i := 0; i < 20; i++ {
+		if got := big.Member(fmt.Sprintf("member%d", i)); got != &h[2+i] {
+			t.Fatalf("member%d resolved to %p, want %p", i, got, &h[2+i])
+		}
+	}
+	if big.Member("member20") != nil || big.Member("") != nil {
+		t.Error("missing member found")
 	}
 }

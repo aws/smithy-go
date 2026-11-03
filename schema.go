@@ -433,7 +433,18 @@ func isEventStream(s *Schema) bool {
 	if s == nil {
 		return false
 	}
-	for _, m := range s.Members() {
+
+	if s.m == nil {
+		r := s.rec()
+		for i := uint32(1); i <= uint32(r.Count); i++ {
+			if m := s.at(r.Target + i); m.Type() == ShapeTypeUnion && m.indexedTrait(indexStreaming, false) != nil {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, m := range s.m.members {
 		if m.Type() != ShapeTypeUnion {
 			continue
 		}

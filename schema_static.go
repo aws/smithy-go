@@ -1,6 +1,7 @@
 package smithy
 
 import (
+	"math/bits"
 	"sync/atomic"
 	"unsafe"
 )
@@ -31,9 +32,10 @@ type StaticRecord struct {
 	Target uint32
 	Traits uint32 // index into SchemaSet.Traits
 	StrLen uint16 // shape or member name
-	Count  uint16 // number of members, same as the target shape's count
+	Count  uint16 // number of members, same as the target shape's count (Hash is copied from the target too)
 	Type   uint8
-	Flags  uint8 // StaticFlagMember, namespace index << StaticNamespaceShift
+	Flags  uint8  // StaticFlagMember, namespace index << StaticNamespaceShift
+	Hash   uint16 // 1 + index into SchemaSet.Hashes of the shape's name lookup table, or 0
 }
 
 // TraitSet is a deduplicated set of traits shared by frozen schemas.
@@ -43,6 +45,17 @@ type TraitSet struct {
 	Indexed    []Trait // by trait index, as in a mutable schema
 	Other      []Trait // traits without an index
 	DirectMask uint64
+}
+
+// StaticHash locates the name lookup table of one shape that has many members.
+// The table is a perfect hash: the generator picks Seed so that no two member
+// names share a slot, so a lookup reads exactly one slot.
+//
+// StaticHash is exported for use by generated code only.
+type StaticHash struct {
+	Tab  uint32 // offset of the shape's first slot in SchemaSet.Slots
+	Mask uint32 // number of slots minus one, always a power of two minus one
+	Seed uint64
 }
 
 // SchemaSet holds the frozen schemas of one package. Generated code declares
@@ -56,6 +69,8 @@ type SchemaSet struct {
 	Namespaces []string
 	Records    []StaticRecord
 	Traits     []TraitSet
+	Hashes     []StaticHash
+	Slots      []uint16
 
 	tables [numTables]atomic.Pointer[slotTable]
 }
@@ -198,6 +213,10 @@ func (s *Schema) staticMapMember(key bool) *Schema {
 
 func (s *Schema) staticMember(name string) *Schema {
 	r := s.rec()
+	if r.Hash != 0 {
+		return s.staticHashedMember(r, name)
+	}
+
 	if r.Count == 0 {
 		return nil
 	}
@@ -213,6 +232,66 @@ func (s *Schema) staticMember(name string) *Schema {
 		}
 	}
 	return nil
+}
+
+// staticHashedMember looks a member up through the shape's perfect hash table.
+func (s *Schema) staticHashedMember(r *StaticRecord, name string) *Schema {
+	h := &s.set.Hashes[r.Hash-1]
+	slot := s.set.Slots[h.Tab+uint32(staticNameHash(name, h.Seed))&h.Mask]
+	if slot == 0 {
+		return nil
+	}
+
+	// member i of the shape is the record i+1 rows after it, and slot is i+1
+	row := r.Target + uint32(slot)
+	if s.set.str(&s.set.Records[row]) != name {
+		return nil
+	}
+	return s.at(row)
+}
+
+const (
+	hashK0 = 0x9E3779B97F4A7C15
+	hashK1 = 0xA0761D6478BD642F
+)
+
+// staticNameHash is the hash that the generated name lookup tables are built
+// with. The code generator implements the same function, and both are checked
+// against the same golden values. Names are ASCII.
+func staticNameHash(s string, seed uint64) uint64 {
+	n := len(s)
+	h := seed ^ uint64(n)*hashK0
+
+	var a, b uint64
+	switch {
+	case n > 16:
+		i := 0
+		for ; n-i > 16; i += 16 {
+			h = mix64(le64(s, i)^hashK1, le64(s, i+8)^h)
+		}
+		a, b = le64(s, n-16), le64(s, n-8)
+	case n >= 8:
+		a, b = le64(s, 0), le64(s, n-8)
+	case n >= 4:
+		a, b = uint64(le32(s, 0)), uint64(le32(s, n-4))
+	case n > 0:
+		a = uint64(s[0])<<16 | uint64(s[n>>1])<<8 | uint64(s[n-1])
+	}
+	return mix64(a^hashK1, b^h)
+}
+
+func mix64(a, b uint64) uint64 {
+	hi, lo := bits.Mul64(a, b)
+	return hi ^ lo
+}
+
+func le32(s string, i int) uint32 {
+	return uint32(s[i]) | uint32(s[i+1])<<8 | uint32(s[i+2])<<16 | uint32(s[i+3])<<24
+}
+
+func le64(s string, i int) uint64 {
+	return uint64(s[i]) | uint64(s[i+1])<<8 | uint64(s[i+2])<<16 | uint64(s[i+3])<<24 |
+		uint64(s[i+4])<<32 | uint64(s[i+5])<<40 | uint64(s[i+6])<<48 | uint64(s[i+7])<<56
 }
 
 // NewStaticSchema returns the frozen schema described by record ord of set.

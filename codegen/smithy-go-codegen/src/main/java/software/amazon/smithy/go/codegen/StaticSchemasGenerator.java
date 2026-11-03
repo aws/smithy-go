@@ -44,6 +44,12 @@ public class StaticSchemasGenerator implements Writable {
     // Layout of a handle's aux value, mirrored from schema_static.go in the Go runtime: the kind of the
     // exposed shape in the bits from AUX_SHIFT up, and the row of that shape below them.
     private static final int AUX_SHIFT = 30;
+
+    // Shapes with more members than this get a lookup table; the runtime scans the others (staticLinearMemberLimit).
+    private static final int LINEAR_MEMBER_LIMIT = 8;
+    private static final int MAX_SEED = 1 << 17;
+    private static final int MAX_SLOTS = 1 << 16;
+    private static final int SLOTS_PER_LINE = 24;
     private static final int KIND_LIST = 1;
     private static final int KIND_MAP = 2;
 
@@ -59,6 +65,8 @@ public class StaticSchemasGenerator implements Writable {
     private final Map<String, Integer> traitSetIds = new HashMap<>();
     private final List<TraitSet> traitSets = new ArrayList<>();
     private final Map<String, Integer> stringOffsets = new HashMap<>();
+    private final List<NameHash> nameHashes = new ArrayList<>();
+    private final List<Integer> slots = new ArrayList<>();
     private String blob;
 
     /**
@@ -100,7 +108,15 @@ public class StaticSchemasGenerator implements Writable {
         }
     }
 
+    // The name lookup table of one shape: a perfect hash over its member names.
+    private static final class NameHash {
+        private int tab;
+        private int mask;
+        private long seed;
+    }
+
     private static final class Entry {
+        private int hash; // 1 + index into nameHashes, or 0
         private Shape shape; // null for foreign entries
         private String varName;
         private String namespace;
@@ -114,6 +130,7 @@ public class StaticSchemasGenerator implements Writable {
     private static final class Record {
         private String str;
         private int target;
+        private int hash;
         private long aux;
         private int traits;
         private int count;
@@ -128,6 +145,7 @@ public class StaticSchemasGenerator implements Writable {
 
         collectEntries(service);
         assignOrdinals();
+        buildNameHashes();
 
         for (var entry : entries) {
             var shapeRecord = new Record();
@@ -138,6 +156,7 @@ public class StaticSchemasGenerator implements Writable {
             shapeRecord.flags = namespaceIndex(entry.namespace) << NAMESPACE_SHIFT;
             shapeRecord.traits = internTraitSet(shapeTraits(entry));
             shapeRecord.aux = aux(entry, entry.ord);
+            shapeRecord.hash = entry.hash;
             records.add(shapeRecord);
 
             for (var member : entry.members) {
@@ -152,6 +171,7 @@ public class StaticSchemasGenerator implements Writable {
                 r.flags = FLAG_MEMBER;
                 r.traits = internTraitSet(memberTraits(targetEntry, member));
                 r.aux = aux(targetEntry, targetEntry.ord);
+                r.hash = targetEntry.hash;
                 records.add(r);
             }
         }
@@ -239,6 +259,62 @@ public class StaticSchemasGenerator implements Writable {
                 foreign.put(key, f);
             }
         }
+    }
+
+    private void buildNameHashes() {
+        for (var entry : entries) {
+            if (entry.members.size() <= LINEAR_MEMBER_LIMIT) {
+                continue;
+            }
+
+            var names = entry.members.stream().map(MemberShape::getMemberName).toList();
+            var table = findPerfectHash(names, entry.varName);
+            table.hash.tab = slots.size();
+            // slot value is the member's position + 1, so that 0 can mean empty
+            slots.addAll(table.slotValues);
+            nameHashes.add(table.hash);
+            entry.hash = nameHashes.size();
+        }
+        if (nameHashes.size() > 0xFFFF) {
+            throw new IllegalStateException("too many shapes with name lookup tables");
+        }
+    }
+
+    private static final class PerfectHash {
+        private final NameHash hash = new NameHash();
+        private List<Integer> slotValues;
+    }
+
+    // Searches for a seed under which no two names share a slot, growing the table when none is found. The result
+    // depends only on the names, so generation is deterministic.
+    private static PerfectHash findPerfectHash(List<String> names, String shape) {
+        int size = 1;
+        while (size < 2 * names.size()) {
+            size <<= 1;
+        }
+
+        for (; size <= MAX_SLOTS; size <<= 1) {
+            for (long seed = 1; seed < MAX_SEED; seed++) {
+                var table = new int[size];
+                boolean ok = true;
+                for (int i = 0; i < names.size(); i++) {
+                    int slot = (int) (StaticNameHash.hash(names.get(i), seed) & (size - 1));
+                    if (table[slot] != 0) {
+                        ok = false;
+                        break;
+                    }
+                    table[slot] = i + 1;
+                }
+                if (ok) {
+                    var result = new PerfectHash();
+                    result.hash.mask = size - 1;
+                    result.hash.seed = seed;
+                    result.slotValues = java.util.Arrays.stream(table).boxed().toList();
+                    return result;
+                }
+            }
+        }
+        throw new IllegalStateException("no perfect hash found for " + shape + " with " + names.size() + " members");
     }
 
     // The shortcut for ListMember, MapKey and MapValue. Only shapes that have exactly the members the runtime
@@ -397,8 +473,9 @@ public class StaticSchemasGenerator implements Writable {
         writer.write("Records: []smithy.StaticRecord{");
         for (var r : records) {
             writer.write("{StrOff: $L, Target: $L, Traits: $L, StrLen: $L, Count: $L, "
-                            + "Type: uint8(smithy.ShapeType$L), Flags: $L},",
-                    stringOffsets.get(r.str), r.target, r.traits, r.str.length(), r.count, r.type, r.flags);
+                            + "Type: uint8(smithy.ShapeType$L), Flags: $L$L},",
+                    stringOffsets.get(r.str), r.target, r.traits, r.str.length(), r.count, r.type, r.flags,
+                    r.hash == 0 ? "" : ", Hash: " + r.hash);
         }
         writer.write("},");
 
@@ -407,6 +484,24 @@ public class StaticSchemasGenerator implements Writable {
             renderTraitSet(writer, set);
         }
         writer.write("},");
+
+        if (!nameHashes.isEmpty()) {
+            writer.write("Hashes: []smithy.StaticHash{");
+            for (var h : nameHashes) {
+                writer.write("{Tab: $L, Mask: $L, Seed: $L},", h.tab, h.mask, h.seed);
+            }
+            writer.write("},");
+
+            writer.write("Slots: []uint16{");
+            for (int i = 0; i < slots.size(); i += SLOTS_PER_LINE) {
+                var line = new StringBuilder();
+                for (int j = i; j < Math.min(slots.size(), i + SLOTS_PER_LINE); j++) {
+                    line.append(slots.get(j)).append(", ");
+                }
+                writer.write("$L", line.toString().trim());
+            }
+            writer.write("},");
+        }
         writer.write("}");
         writer.write("");
 
