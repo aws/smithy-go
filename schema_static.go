@@ -6,36 +6,56 @@ import (
 	"unsafe"
 )
 
-// StaticFlagMember marks a [StaticRecord] as a member schema.
+// StaticFlagMember is set in [StaticRecord.Flags] for member schemas.
 const StaticFlagMember = 1
 
-// StaticNamespaceShift is the position in [StaticRecord.Flags] of the index of
-// a shape's namespace in [SchemaSet.Namespaces].
-const StaticNamespaceShift = 1
+// Bits of [StaticRecord.Flags]: bit 0 is StaticFlagMember, the next two hold
+// the list/map kind (see staticKindList), and the rest hold the index of a
+// shape's namespace in [SchemaSet.Namespaces].
+const (
+	staticKindShift = 1
+	staticKindMask  = 3
+
+	// StaticNamespaceShift is the position of the namespace index in
+	// [StaticRecord.Flags].
+	StaticNamespaceShift = 3
+)
+
+// Kinds that let ListMember, MapKey and MapValue find their result without a
+// lookup. Generated code only sets a kind when the shape is a list or set whose
+// single member is "member", or a map whose members are "key" followed by
+// "value". Every other schema has kind 0.
+const (
+	staticKindList = 1
+	staticKindMap  = 2
+)
 
 // staticLinearMemberLimit is the member count at or below which name lookups
-// scan the member records instead of using a map.
+// scan the members instead of using a lookup table.
 const staticLinearMemberLimit = 8
 
 // StaticRecord describes one frozen schema, either a shape or a member of a
-// shape. It contains no pointers, so a table of records is not scanned by the
-// garbage collector.
+// shape. [NewStaticSchema] stores it in the schema.
 //
-// Records are laid out so that the members of a shape immediately follow the
-// shape's record, in definition order. Target is the ordinal of the shape
-// record whose members this schema exposes: the schema's own ordinal for a
-// shape, or the target shape's ordinal for a member.
+// The schemas of a package are laid out in one array so that the members of a
+// shape immediately follow the shape, in definition order. Ord is the schema's
+// position in that array. Target is the position of the shape whose members
+// this schema exposes: its own position for a shape, or the target shape's
+// position for a member.
 //
 // StaticRecord is exported for use by generated code only.
-type StaticRecord struct {
+type StaticRecord = staticRecord
+
+type staticRecord struct {
 	StrOff uint32 // offset into SchemaSet.Blob
+	Ord    uint32
 	Target uint32
 	Traits uint32 // index into SchemaSet.Traits
 	StrLen uint16 // shape or member name
-	Count  uint16 // number of members, same as the target shape's count (Hash is copied from the target too)
-	Type   uint8
-	Flags  uint8  // StaticFlagMember, namespace index << StaticNamespaceShift
+	Count  uint16 // number of members, same as the target shape's count (Hash and the kind are copied from it too)
 	Hash   uint16 // 1 + index into SchemaSet.Hashes of the shape's name lookup table, or 0
+	Shape  uint8  // the ShapeType
+	Flags  uint8
 }
 
 // TraitSet is a deduplicated set of traits shared by frozen schemas.
@@ -67,7 +87,7 @@ type StaticHash struct {
 type SchemaSet struct {
 	Blob       string
 	Namespaces []string
-	Records    []StaticRecord
+	Len        uint32 // number of schemas in the package's table
 	Traits     []TraitSet
 	Hashes     []StaticHash
 	Slots      []uint16
@@ -99,110 +119,88 @@ func (set *SchemaSet) table(i int) *slotTable {
 //
 //go:noinline
 func (set *SchemaSet) newTable(i int) *slotTable {
-	t := &slotTable{slots: make([]unsafe.Pointer, len(set.Records))}
+	t := &slotTable{slots: make([]unsafe.Pointer, set.Len)}
 	if set.tables[i].CompareAndSwap(nil, t) {
 		return t
 	}
 	return set.tables[i].Load()
 }
 
-func (set *SchemaSet) str(r *StaticRecord) string {
-	return set.Blob[r.StrOff : r.StrOff+uint32(r.StrLen)]
+func (s *Schema) staticName() string {
+	return s.set.Blob[s.StrOff : s.StrOff+uint32(s.StrLen)]
 }
 
-func (set *SchemaSet) id(r *StaticRecord) ShapeID {
-	str := set.str(r)
-	if r.Flags&StaticFlagMember != 0 {
-		return ShapeID{Member: str}
-	}
-
-	return ShapeID{Namespace: set.Namespaces[r.Flags>>StaticNamespaceShift], Name: str}
-}
-
-func (s *Schema) rec() *StaticRecord {
-	return &s.set.Records[s.ord]
-}
-
-// at returns the frozen handle with the given ordinal. Handles of a set are
-// laid out contiguously by ordinal.
+// at returns the frozen schema in the given position of the table. The schemas
+// of a package are one contiguous array.
 func (s *Schema) at(ord uint32) *Schema {
-	delta := (int64(ord) - int64(s.ord)) * int64(unsafe.Sizeof(Schema{}))
+	delta := (int64(ord) - int64(s.Ord)) * int64(unsafe.Sizeof(Schema{}))
 	return (*Schema)(unsafe.Add(unsafe.Pointer(s), delta))
 }
 
 func (s *Schema) staticID() ShapeID {
-	return s.set.id(s.rec())
+	name := s.staticName()
+	if s.Flags&StaticFlagMember != 0 {
+		return ShapeID{Member: name}
+	}
+
+	return ShapeID{Namespace: s.set.Namespaces[s.Flags>>StaticNamespaceShift], Name: name}
 }
 
 func (s *Schema) staticTargetID() ShapeID {
-	r := s.rec()
-	if r.Flags&StaticFlagMember == 0 {
+	if s.Flags&StaticFlagMember == 0 {
 		return ShapeID{}
 	}
-	return s.set.id(&s.set.Records[r.Target])
+	return s.at(s.Target).staticID()
 }
 
 func (s *Schema) staticMemberName() string {
-	r := s.rec()
-	if r.Flags&StaticFlagMember == 0 {
+	if s.Flags&StaticFlagMember == 0 {
 		return ""
 	}
-	return s.set.str(r)
+	return s.staticName()
 }
 
 // staticMembersMap returns the members by name. The map is built on first use
 // and cached per target shape, so all members that target a shape share it.
 func (s *Schema) staticMembersMap() map[string]*Schema {
-	r := s.rec()
-	if r.Count == 0 {
+	if s.Count == 0 {
 		return nil
 	}
 
 	t := s.set.table(tableMap)
-	if p := atomic.LoadPointer(&t.slots[r.Target]); p != nil {
+	if p := atomic.LoadPointer(&t.slots[s.Target]); p != nil {
 		return *(*map[string]*Schema)(p)
 	}
 
-	first := s.at(r.Target + 1)
-	byName := make(map[string]*Schema, r.Count)
-	for i := 0; i < int(r.Count); i++ {
+	first := s.at(s.Target + 1)
+	byName := make(map[string]*Schema, s.Count)
+	for i := 0; i < int(s.Count); i++ {
 		m := (*Schema)(unsafe.Add(unsafe.Pointer(first), i*int(unsafe.Sizeof(Schema{}))))
 		byName[m.staticMemberName()] = m
 	}
-	atomic.StorePointer(&t.slots[r.Target], unsafe.Pointer(&byName))
+	atomic.StorePointer(&t.slots[s.Target], unsafe.Pointer(&byName))
 	return byName
 }
 
-// A frozen schema's aux field lets ListMember, MapKey and MapValue find their
-// result without reading the schema's record. Bits staticAuxShift and above
-// hold the kind of the shape the schema exposes, and the bits below hold the
-// row of that shape. Generated code only sets a kind when the shape is a list
-// or set whose single member is "member", or a map whose members are "key"
-// followed by "value". Every other schema has aux 0.
-const (
-	staticAuxShift = 30
-	staticAuxMask  = 1<<staticAuxShift - 1
-
-	staticKindList = 1
-	staticKindMap  = 2
-)
+func (s *Schema) staticKind() uint8 {
+	return s.Flags >> staticKindShift & staticKindMask
+}
 
 // staticListMember returns the "member" of a list or set.
 func (s *Schema) staticListMember() *Schema {
-	if s.aux>>staticAuxShift == staticKindList {
-		return s.at(s.aux&staticAuxMask + 1)
+	if s.staticKind() == staticKindList {
+		return s.at(s.Target + 1)
 	}
 	return s.staticMember("member")
 }
 
 // staticMapMember returns the "key" or "value" of a map.
 func (s *Schema) staticMapMember(key bool) *Schema {
-	if s.aux>>staticAuxShift == staticKindMap {
-		row := s.aux & staticAuxMask
+	if s.staticKind() == staticKindMap {
 		if key {
-			return s.at(row + 1)
+			return s.at(s.Target + 1)
 		}
-		return s.at(row + 2)
+		return s.at(s.Target + 2)
 	}
 
 	if key {
@@ -212,42 +210,41 @@ func (s *Schema) staticMapMember(key bool) *Schema {
 }
 
 func (s *Schema) staticMember(name string) *Schema {
-	r := s.rec()
-	if r.Hash != 0 {
-		return s.staticHashedMember(r, name)
+	if s.Hash != 0 {
+		return s.staticHashedMember(name)
 	}
 
-	if r.Count == 0 {
+	if s.Count == 0 {
 		return nil
 	}
 
-	if r.Count > staticLinearMemberLimit {
+	if s.Count > staticLinearMemberLimit {
 		return s.staticMembersMap()[name]
 	}
 
-	recs := s.set.Records[r.Target+1 : r.Target+1+uint32(r.Count)]
-	for i := range recs {
-		if s.set.str(&recs[i]) == name {
-			return s.at(r.Target + 1 + uint32(i))
+	for i := uint32(1); i <= uint32(s.Count); i++ {
+		m := s.at(s.Target + i)
+		if s.set.Blob[m.StrOff:m.StrOff+uint32(m.StrLen)] == name {
+			return m
 		}
 	}
 	return nil
 }
 
 // staticHashedMember looks a member up through the shape's perfect hash table.
-func (s *Schema) staticHashedMember(r *StaticRecord, name string) *Schema {
-	h := &s.set.Hashes[r.Hash-1]
+func (s *Schema) staticHashedMember(name string) *Schema {
+	h := &s.set.Hashes[s.Hash-1]
 	slot := s.set.Slots[h.Tab+uint32(staticNameHash(name, h.Seed))&h.Mask]
 	if slot == 0 {
 		return nil
 	}
 
-	// member i of the shape is the record i+1 rows after it, and slot is i+1
-	row := r.Target + uint32(slot)
-	if s.set.str(&s.set.Records[row]) != name {
+	// member i of the shape is i+1 positions after it, and slot is i+1
+	m := s.at(s.Target + uint32(slot))
+	if s.set.Blob[m.StrOff:m.StrOff+uint32(m.StrLen)] != name {
 		return nil
 	}
-	return s.at(row)
+	return m
 }
 
 const (
@@ -294,13 +291,12 @@ func le64(s string, i int) uint64 {
 		uint64(s[i+4])<<32 | uint64(s[i+5])<<40 | uint64(s[i+6])<<48 | uint64(s[i+7])<<56
 }
 
-// NewStaticSchema returns the frozen schema described by record ord of set.
-// aux is the list/map shortcut that the code generator computes for the record.
+// NewStaticSchema returns the frozen schema described by r.
 //
-// Generated code calls this to declare an array with one handle per record of
-// its [SchemaSet]. The function is small enough to be inlined, which lets the
-// compiler initialize that array statically. It is exported for use by
-// generated code only.
-func NewStaticSchema(set *SchemaSet, ord, aux uint32) Schema {
-	return Schema{set: set, ord: ord, aux: aux}
+// Generated code calls this to declare the array of all of a package's schemas.
+// The function is small enough to be inlined, which lets the compiler
+// initialize that array statically. It is exported for use by generated code
+// only.
+func NewStaticSchema(set *SchemaSet, r StaticRecord) Schema {
+	return Schema{set: set, staticRecord: r}
 }

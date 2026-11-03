@@ -26,7 +26,7 @@ import software.amazon.smithy.utils.StringUtils;
  * it out statically in the binary instead of building it with code at startup.
  * Every schema (shape or member) is one fixed-size record in a table. Members
  * immediately follow their shape's record, in definition order. The exported
- * schema variables point at an array of small handles, one per record, which
+ * schema variables point into an array of schemas, one per record, which
  * keeps the pointer identity that generated serde code relies on.
  *
  * <p>The runtime side of this layout is {@code smithy.SchemaSet}.
@@ -34,24 +34,24 @@ import software.amazon.smithy.utils.StringUtils;
 @SmithyInternalApi
 public class StaticSchemasGenerator implements Writable {
     private static final String PRELUDE_NAMESPACE = "smithy.api";
-    private static final int MAX_NAMESPACES = 127;
+    private static final int MAX_NAMESPACES = 32;
     private static final int MAX_STRING_LEN = 0xFFFF;
     private static final int MAX_MEMBERS = 0xFFFF;
     private static final int FLAG_MEMBER = 1;
-    private static final int NAMESPACE_SHIFT = 1;
+    private static final int KIND_SHIFT = 1;
+    private static final int NAMESPACE_SHIFT = 3;
     private static final int BLOB_CHUNK = 100;
 
-    // Layout of a handle's aux value, mirrored from schema_static.go in the Go runtime: the kind of the
-    // exposed shape in the bits from AUX_SHIFT up, and the row of that shape below them.
-    private static final int AUX_SHIFT = 30;
+    // The kind of exposed shape, which lets the runtime find a list's member and a map's key and value without a
+    // lookup. Mirrored from staticKindList and staticKindMap in schema_static.go of the Go runtime.
+    private static final int KIND_LIST = 1;
+    private static final int KIND_MAP = 2;
 
     // Shapes with more members than this get a lookup table; the runtime scans the others (staticLinearMemberLimit).
     private static final int LINEAR_MEMBER_LIMIT = 8;
     private static final int MAX_SEED = 1 << 17;
     private static final int MAX_SLOTS = 1 << 16;
     private static final int SLOTS_PER_LINE = 24;
-    private static final int KIND_LIST = 1;
-    private static final int KIND_MAP = 2;
 
     private final GoCodegenContext ctx;
     private final List<Shape> shapes;
@@ -131,7 +131,7 @@ public class StaticSchemasGenerator implements Writable {
         private String str;
         private int target;
         private int hash;
-        private long aux;
+        private int kind;
         private int traits;
         private int count;
         private String type;
@@ -155,7 +155,7 @@ public class StaticSchemasGenerator implements Writable {
             shapeRecord.type = entry.type;
             shapeRecord.flags = namespaceIndex(entry.namespace) << NAMESPACE_SHIFT;
             shapeRecord.traits = internTraitSet(shapeTraits(entry));
-            shapeRecord.aux = aux(entry, entry.ord);
+            shapeRecord.kind = kind(entry);
             shapeRecord.hash = entry.hash;
             records.add(shapeRecord);
 
@@ -170,7 +170,7 @@ public class StaticSchemasGenerator implements Writable {
                 r.type = typeName(target);
                 r.flags = FLAG_MEMBER;
                 r.traits = internTraitSet(memberTraits(targetEntry, member));
-                r.aux = aux(targetEntry, targetEntry.ord);
+                r.kind = kind(targetEntry);
                 r.hash = targetEntry.hash;
                 records.add(r);
             }
@@ -317,23 +317,20 @@ public class StaticSchemasGenerator implements Writable {
         throw new IllegalStateException("no perfect hash found for " + shape + " with " + names.size() + " members");
     }
 
-    // The shortcut for ListMember, MapKey and MapValue. Only shapes that have exactly the members the runtime
-    // expects get one; anything else falls back to a lookup by name.
-    private static long aux(Entry exposed, int row) {
+    // The kind of the shape a schema exposes. Only shapes that have exactly the members the runtime expects get
+    // one; anything else falls back to a lookup by name.
+    private static int kind(Entry exposed) {
         if (exposed.shape == null) {
             return 0;
-        }
-        if (row >= (1 << AUX_SHIFT)) {
-            throw new IllegalStateException("too many schemas");
         }
 
         var names = exposed.members.stream().map(MemberShape::getMemberName).toList();
         var type = exposed.shape.getType();
         if ((type == ShapeType.LIST || type == ShapeType.SET) && names.equals(List.of("member"))) {
-            return (long) KIND_LIST << AUX_SHIFT | row;
+            return KIND_LIST;
         }
         if (type == ShapeType.MAP && names.equals(List.of("key", "value"))) {
-            return (long) KIND_MAP << AUX_SHIFT | row;
+            return KIND_MAP;
         }
         return 0;
     }
@@ -470,14 +467,7 @@ public class StaticSchemasGenerator implements Writable {
         }
         writer.write("$L},", ns.toString());
 
-        writer.write("Records: []smithy.StaticRecord{");
-        for (var r : records) {
-            writer.write("{StrOff: $L, Target: $L, Traits: $L, StrLen: $L, Count: $L, "
-                            + "Type: uint8(smithy.ShapeType$L), Flags: $L$L},",
-                    stringOffsets.get(r.str), r.target, r.traits, r.str.length(), r.count, r.type, r.flags,
-                    r.hash == 0 ? "" : ", Hash: " + r.hash);
-        }
-        writer.write("},");
+        writer.write("Len: $L,", records.size());
 
         writer.write("Traits: []smithy.TraitSet{");
         for (var set : traitSets) {
@@ -505,17 +495,21 @@ public class StaticSchemasGenerator implements Writable {
         writer.write("}");
         writer.write("");
 
-        writer.write("var handles = [$L]smithy.Schema{", records.size());
+        writer.write("var all = [$L]smithy.Schema{", records.size());
         for (int i = 0; i < records.size(); i++) {
-            writer.write("smithy.NewStaticSchema(&set, $L, $L),", i, records.get(i).aux);
+            var r = records.get(i);
+            writer.write("smithy.NewStaticSchema(&set, smithy.StaticRecord{StrOff: $L, Ord: $L, Target: $L, "
+                            + "Traits: $L, StrLen: $L, Count: $L, Shape: uint8(smithy.ShapeType$L), Flags: $L$L}),",
+                    stringOffsets.get(r.str), i, r.target, r.traits, r.str.length(), r.count, r.type,
+                    r.flags | r.kind << KIND_SHIFT, r.hash == 0 ? "" : ", Hash: " + r.hash);
         }
         writer.write("}");
         writer.write("");
 
         for (var entry : entries) {
-            writer.write("var $L = &handles[$L]", entry.varName, entry.ord);
+            writer.write("var $L = &all[$L]", entry.varName, entry.ord);
             for (int i = 0; i < entry.members.size(); i++) {
-                writer.write("var $L = &handles[$L]",
+                writer.write("var $L = &all[$L]",
                         SchemaGenerator.getMemberSchemaName(entry.shape, entry.members.get(i), service),
                         entry.ord + 1 + i);
             }
@@ -523,7 +517,7 @@ public class StaticSchemasGenerator implements Writable {
         }
 
         var serviceEntry = entryByVar.get(SchemaGenerator.getSchemaName(service, service));
-        writer.write("var $L = &smithy.ServiceSchema{Schema: &handles[$L], Version: $S}",
+        writer.write("var $L = &smithy.ServiceSchema{Schema: &all[$L], Version: $S}",
                 StringUtils.capitalize(service.getId().getName(service)), serviceEntry.ord, service.getVersion());
     }
 

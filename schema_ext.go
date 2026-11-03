@@ -27,7 +27,7 @@ func SchemaExtension[T any](s *Schema, id ExtensionID, build func(*Schema) *T) *
 	if m := s.m; m != nil {
 		slot = &m.ext[id]
 	} else {
-		slot = &s.set.table(int(id)).slots[s.ord]
+		slot = &s.set.table(int(id)).slots[s.Ord]
 	}
 
 	p := atomic.LoadPointer(slot)

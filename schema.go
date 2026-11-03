@@ -70,11 +70,14 @@ func stoid(s string) ShapeID {
 // into those tables, which the linker places in the binary's data segment
 // instead of the heap.
 type Schema struct {
-	set *SchemaSet // frozen schemas: the set this schema belongs to
-	ord uint32     // frozen schemas: index of the schema's record in set
-	aux uint32     // frozen schemas: list/map shortcut, see staticAuxShift
+	set *SchemaSet     // frozen schemas: the set this schema belongs to
+	m   *mutableSchema // non-nil for mutable schemas
 
-	m *mutableSchema // non-nil for mutable schemas
+	// A frozen schema is its record. The record is one embedded value, copied
+	// whole by [NewStaticSchema], so that the constructor stays cheap enough
+	// for the compiler to inline it in packages with tens of thousands of
+	// schemas, which is what lets it initialize them statically.
+	staticRecord
 }
 
 type mutableSchema struct {
@@ -189,14 +192,14 @@ func (t *Schema) inherit() (typ ShapeType, members map[string]*Schema, indexed [
 
 	members = maps.Clone(t.staticMembersMap())
 
-	ts := &t.set.Traits[t.rec().Traits]
+	ts := &t.set.Traits[t.Traits]
 	if len(ts.Other) > 0 {
 		other = make(map[ShapeID]Trait, len(ts.Other))
 		for _, o := range ts.Other {
 			other[o.TraitID()] = o
 		}
 	}
-	return ShapeType(t.rec().Type), members, cloneIndexed(ts.Indexed), other, t.staticID()
+	return ShapeType(t.Shape), members, cloneIndexed(ts.Indexed), other, t.staticID()
 }
 
 func cloneIndexed(src []Trait) []Trait {
@@ -284,7 +287,7 @@ func (s *Schema) TargetID() ShapeID {
 // Type returns the shape type of the schema.
 func (s *Schema) Type() ShapeType {
 	if s.m == nil {
-		return ShapeType(s.rec().Type)
+		return ShapeType(s.Shape)
 	}
 	return s.m.typ
 }
@@ -398,7 +401,7 @@ func (s *Schema) indexedTrait(idx int, directOnly bool) Trait {
 	if m := s.m; m != nil {
 		indexed, directMask = m.indexed, m.directMask
 	} else {
-		ts := &s.set.Traits[s.rec().Traits]
+		ts := &s.set.Traits[s.Traits]
 		indexed, directMask = ts.Indexed, ts.DirectMask
 	}
 
@@ -417,7 +420,7 @@ func (s *Schema) otherTrait(id ShapeID) (Trait, bool) {
 		return t, ok
 	}
 
-	for _, t := range s.set.Traits[s.rec().Traits].Other {
+	for _, t := range s.set.Traits[s.Traits].Other {
 		if t.TraitID() == id {
 			return t, true
 		}
@@ -436,9 +439,8 @@ func isEventStream(s *Schema) bool {
 	}
 
 	if s.m == nil {
-		r := s.rec()
-		for i := uint32(1); i <= uint32(r.Count); i++ {
-			if m := s.at(r.Target + i); m.Type() == ShapeTypeUnion && m.indexedTrait(indexStreaming, false) != nil {
+		for i := uint32(1); i <= uint32(s.Count); i++ {
+			if m := s.at(s.Target + i); m.Type() == ShapeTypeUnion && m.indexedTrait(indexStreaming, false) != nil {
 				return true
 			}
 		}

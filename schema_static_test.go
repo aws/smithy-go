@@ -40,12 +40,15 @@ func buildTestSet(shapes []testShape, traitSets []TraitSet) (*SchemaSet, []Schem
 		n += 1 + len(sh.members)
 	}
 
+	var recs []StaticRecord
+	var names []string
 	add := func(str string, target, traits int, count int, typ ShapeType, flags uint8) {
 		off := len(set.Blob)
 		set.Blob += str
-		set.Records = append(set.Records, StaticRecord{
-			StrOff: uint32(off), Target: uint32(target), Traits: uint32(traits),
-			StrLen: uint16(len(str)), Count: uint16(count), Type: uint8(typ), Flags: flags,
+		names = append(names, str)
+		recs = append(recs, StaticRecord{
+			StrOff: uint32(off), Ord: uint32(len(recs)), Target: uint32(target), Traits: uint32(traits),
+			StrLen: uint16(len(str)), Count: uint16(count), Shape: uint8(typ), Flags: flags,
 		})
 	}
 	for i, sh := range shapes {
@@ -62,46 +65,44 @@ func buildTestSet(shapes []testShape, traitSets []TraitSet) (*SchemaSet, []Schem
 		if len(sh.members) <= staticLinearMemberLimit {
 			continue
 		}
-		var names []string
+		var memberNames []string
 		for _, m := range sh.members {
-			names = append(names, m.name)
+			memberNames = append(memberNames, m.name)
 		}
-		seed, size, slots := buildTestHash(names)
+		seed, size, slots := buildTestHash(memberNames)
 		set.Hashes = append(set.Hashes, StaticHash{Tab: uint32(len(set.Slots)), Mask: uint32(size - 1), Seed: seed})
 		set.Slots = append(set.Slots, slots...)
 		id := uint16(len(set.Hashes))
-		set.Records[ords[i]].Hash = id
-		for k := range sh.members {
-			set.Records[ords[i]+1+k].Hash = 0 // member records of this shape are not shapes
-		}
-		for row := range set.Records {
-			if set.Records[row].Flags&StaticFlagMember != 0 && int(set.Records[row].Target) == ords[i] {
-				set.Records[row].Hash = id
+		recs[ords[i]].Hash = id
+		for row := range recs {
+			// members that target the shape expose its members, so they share its table
+			if recs[row].Flags&StaticFlagMember != 0 && int(recs[row].Target) == ords[i] {
+				recs[row].Hash = id
 			}
 		}
 	}
 
-	// aux the way the code generator computes it: only a list/set with its
-	// "member", or a map with "key" then "value", gets a shortcut.
-	auxOf := func(row int) uint32 {
-		target := int(set.Records[row].Target)
-		first := set.str(&set.Records[target+1])
-		switch ShapeType(set.Records[row].Type) {
+	// the kind the code generator computes: only a list/set with its "member",
+	// or a map with "key" then "value", gets a shortcut
+	for row := range recs {
+		target := int(recs[row].Target)
+		switch ShapeType(recs[row].Shape) {
 		case ShapeTypeList, ShapeTypeSet:
-			if set.Records[target].Count == 1 && first == "member" {
-				return staticKindList<<staticAuxShift | uint32(target)
+			if recs[target].Count == 1 && names[target+1] == "member" {
+				recs[row].Flags |= staticKindList << staticKindShift
 			}
 		case ShapeTypeMap:
-			if set.Records[target].Count == 2 && first == "key" && set.str(&set.Records[target+2]) == "value" {
-				return staticKindMap<<staticAuxShift | uint32(target)
+			if recs[target].Count == 2 && names[target+1] == "key" && names[target+2] == "value" {
+				recs[row].Flags |= staticKindMap << staticKindShift
 			}
 		}
-		return 0
 	}
 
-	handles := make([]Schema, len(set.Records))
+	// namespace index 0 is the only one in use
+	set.Len = uint32(len(recs))
+	handles := make([]Schema, len(recs))
 	for i := range handles {
-		handles[i] = NewStaticSchema(set, uint32(i), auxOf(i))
+		handles[i] = NewStaticSchema(set, recs[i])
 	}
 	return set, handles
 }
@@ -218,11 +219,11 @@ func TestFrozenSchemaManyMembers(t *testing.T) {
 	// rows: String=0, Big=1 (m0..m39 = 2..41), Holder=42 (ref=43)
 	big, ref := &h[1], &h[43]
 
-	if big.rec().Hash == 0 || ref.rec().Hash != big.rec().Hash {
-		t.Fatalf("a lookup table is expected on the shape and on members that target it: %d %d", big.rec().Hash, ref.rec().Hash)
+	if big.Hash == 0 || ref.Hash != big.Hash {
+		t.Fatalf("a lookup table is expected on the shape and on members that target it: %d %d", big.Hash, ref.Hash)
 	}
-	if h[2].rec().Hash != 0 {
-		t.Errorf("a member of Big that targets String has no lookup table, got %d", h[2].rec().Hash)
+	if h[2].Hash != 0 {
+		t.Errorf("a member of Big that targets String has no lookup table, got %d", h[2].Hash)
 	}
 
 	for _, s := range []*Schema{big, ref} {
@@ -353,11 +354,12 @@ func TestFrozenMapAndListMembers(t *testing.T) {
 }
 
 func TestSchemaHandleSize(t *testing.T) {
-	// aux is carried in what would otherwise be padding, so frozen handles stay
-	// 24 bytes on 64-bit platforms.
+	// A frozen schema carries all of its record, so the size is the budget for
+	// what generated packages hold per schema. Fields should be added to it
+	// deliberately.
 	if unsafe.Sizeof(uintptr(0)) == 8 {
-		if got := unsafe.Sizeof(Schema{}); got != 24 {
-			t.Errorf("unsafe.Sizeof(Schema{}) = %d, want 24", got)
+		if got := unsafe.Sizeof(Schema{}); got != 40 {
+			t.Errorf("unsafe.Sizeof(Schema{}) = %d, want 40", got)
 		}
 	}
 }
@@ -424,12 +426,12 @@ func TestFrozenSchemaLargeShapeWithoutHash(t *testing.T) {
 		{name: "String", typ: ShapeTypeString},
 		{name: "Big", typ: ShapeTypeStructure, members: members},
 	}, []TraitSet{{}})
-	if set.Records[1].Hash == 0 {
+	if h[1].Hash == 0 {
 		t.Fatal("expected the builder to emit a lookup table")
 	}
 
-	for i := range set.Records {
-		set.Records[i].Hash = 0
+	for i := range h {
+		h[i].Hash = 0
 	}
 	set.Hashes, set.Slots = nil, nil
 

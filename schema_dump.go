@@ -29,7 +29,7 @@ func (s *Schema) Dump() SchemaDump {
 			d.Other = append(d.Other, t)
 		}
 	} else {
-		ts := &s.set.Traits[s.rec().Traits]
+		ts := &s.set.Traits[s.Traits]
 		d.Indexed = ts.Indexed
 		d.DirectMask = ts.DirectMask
 		d.Other = append(d.Other, ts.Other...)
