@@ -64,3 +64,10 @@ func (a *StringArena) String(b []byte) string {
 	a.buf = append(a.buf, b...)
 	return unsafe.String(&a.buf[off], len(b))
 }
+
+// UnsafeString returns b as a string without copying it. The result aliases b,
+// so it must not be retained or used after b changes. It exists for lookups,
+// such as Schema.Member, that only read their argument.
+func UnsafeString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}

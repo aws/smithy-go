@@ -289,7 +289,8 @@ func (s *Schema) Type() ShapeType {
 	return s.m.typ
 }
 
-// Member returns the member schema for the given name, or nil.
+// Member returns the member schema for the given name, or nil. It does not
+// retain name.
 func (s *Schema) Member(name string) *Schema {
 	if s.m == nil {
 		return s.staticMember(name)
