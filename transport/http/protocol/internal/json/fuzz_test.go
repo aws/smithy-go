@@ -1,6 +1,7 @@
 package json
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -43,8 +44,7 @@ func FuzzParserDifferential(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, b []byte) {
-		var stdVal any
-		stdErr := json.Unmarshal(b, &stdVal)
+		stdVal, stdErr := stdlibUnmarshalUseNumber(b)
 
 		p := parser{
 			p:     b,
@@ -82,9 +82,23 @@ func FuzzParserDifferential(f *testing.F) {
 	})
 }
 
+// stdlibUnmarshalUseNumber is json.Unmarshal into any, but with numbers
+// decoded as json.Number, which is what the parser produces.
+func stdlibUnmarshalUseNumber(b []byte) (any, error) {
+	if err := json.Unmarshal(b, new(json.RawMessage)); err != nil {
+		return nil, err
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var v any
+	err := dec.Decode(&v)
+	return v, err
+}
+
 // normalize recursively walks a parsed value tree. Both parsers produce the
-// same types (float64 for numbers, string, bool, nil, []any, map[string]any)
-// so this is mainly defensive.
+// same types (json.Number for numbers, string, bool, nil, []any,
+// map[string]any) so this is mainly defensive.
 func normalize(v any) any {
 	switch vv := v.(type) {
 	case map[string]any:

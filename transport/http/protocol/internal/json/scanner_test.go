@@ -6,6 +6,7 @@
 package json
 
 import (
+	"encoding/json"
 	"io"
 	"math"
 	"reflect"
@@ -195,8 +196,8 @@ func TestTokenStream(t *testing.T) {
 // From: src/encoding/json/decode_test.go — unmarshalTests
 //
 // Tests that parser.Value() decodes JSON into Go values matching the behavior
-// of encoding/json.Decoder.Decode into any (numbers become float64, objects
-// become map[string]any, arrays become []any).
+// of encoding/json.Decoder.Decode into any with UseNumber (numbers become
+// json.Number, objects become map[string]any, arrays become []any).
 // ---------------------------------------------------------------------------
 
 func TestValue(t *testing.T) {
@@ -210,16 +211,16 @@ func TestValue(t *testing.T) {
 		{`true`, true},
 		{`false`, false},
 		{`null`, nil},
-		{`1`, float64(1)},
-		{`1.2`, float64(1.2)},
-		{`-5`, float64(-5)},
-		{`2`, float64(2)},
-		{`0`, float64(0)},
-		{`-0`, float64(0)},
-		{`1e2`, float64(100)},
-		{`1.5e1`, float64(15)},
-		{`-5e+2`, float64(-500)},
-		{`3e-3`, float64(0.003)},
+		{`1`, json.Number("1")},
+		{`1.2`, json.Number("1.2")},
+		{`-5`, json.Number("-5")},
+		{`2`, json.Number("2")},
+		{`0`, json.Number("0")},
+		{`-0`, json.Number("-0")},
+		{`1e2`, json.Number("1e2")},
+		{`1.5e1`, json.Number("1.5e1")},
+		{`-5e+2`, json.Number("-5e+2")},
+		{`3e-3`, json.Number("3e-3")},
 
 		// String escapes — from unmarshalTests.
 		{`"a\u1234"`, "a\u1234"},
@@ -229,18 +230,18 @@ func TestValue(t *testing.T) {
 
 		// Whitespace — from unmarshalTests "raw values with whitespace" section.
 		{"\n true ", true},
-		{"\t 1 ", float64(1)},
-		{"\r 1.2 ", float64(1.2)},
-		{"\t -5 \n", float64(-5)},
+		{"\t 1 ", json.Number("1")},
+		{"\r 1.2 ", json.Number("1.2")},
+		{"\t -5 \n", json.Number("-5")},
 		{"\t \"a\\u1234\" \n", "a\u1234"},
 
-		// Complex nested — from unmarshalTests ifaceNumAsFloat64 case.
+		// Complex nested — from unmarshalTests ifaceNumAsNumber case.
 		{`{"k1":1,"k2":"s","k3":[1,2.0,3e-3],"k4":{"kk1":"s","kk2":2}}`,
 			map[string]any{
-				"k1": float64(1),
+				"k1": json.Number("1"),
 				"k2": "s",
-				"k3": []any{float64(1), float64(2.0), float64(0.003)},
-				"k4": map[string]any{"kk1": "s", "kk2": float64(2)},
+				"k3": []any{json.Number("1"), json.Number("2.0"), json.Number("3e-3")},
+				"k4": map[string]any{"kk1": "s", "kk2": json.Number("2")},
 			}},
 	}
 
@@ -260,13 +261,13 @@ func TestValue(t *testing.T) {
 		{`"formfeed:\f"`, "formfeed:\f"},
 		{`"backspace:\b"`, "backspace:\b"},
 		{`[]`, []any{}},
-		{`[1,2,3]`, []any{float64(1), float64(2), float64(3)}},
+		{`[1,2,3]`, []any{json.Number("1"), json.Number("2"), json.Number("3")}},
 		{`[true, false, null]`, []any{true, false, nil}},
 		{`["a", "b"]`, []any{"a", "b"}},
-		{`[[1],[2]]`, []any{[]any{float64(1)}, []any{float64(2)}}},
+		{`[[1],[2]]`, []any{[]any{json.Number("1")}, []any{json.Number("2")}}},
 		{`{}`, map[string]any{}},
-		{`{"a":1}`, map[string]any{"a": float64(1)}},
-		{`{"a":1,"b":"two"}`, map[string]any{"a": float64(1), "b": "two"}},
+		{`{"a":1}`, map[string]any{"a": json.Number("1")}},
+		{`{"a":1,"b":"two"}`, map[string]any{"a": json.Number("1"), "b": "two"}},
 		{`{"nested":{"x":true}}`, map[string]any{"nested": map[string]any{"x": true}}},
 	}
 	tests = append(tests, additional...)
@@ -462,9 +463,13 @@ func TestFloatSpecialValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Value(%q) error: %v", tt.in, err)
 			}
-			got, ok := v.(float64)
+			n, ok := v.(json.Number)
 			if !ok {
-				t.Fatalf("Value(%q) = %T, want float64", tt.in, v)
+				t.Fatalf("Value(%q) = %T, want json.Number", tt.in, v)
+			}
+			got, err := n.Float64()
+			if err != nil {
+				t.Fatalf("Value(%q) Float64() error: %v", tt.in, err)
 			}
 			if got != tt.out {
 				t.Errorf("Value(%q) = %v, want %v", tt.in, got, tt.out)
