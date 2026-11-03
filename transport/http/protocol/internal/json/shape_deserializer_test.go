@@ -1,9 +1,12 @@
 package json
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/document"
 	"github.com/aws/smithy-go/prelude"
 )
 
@@ -82,5 +85,33 @@ func TestReadListDenseNullElement(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReadDocumentPreservesNumbers(t *testing.T) {
+	payload := `{"i32":7,"big":9007199254740993,"max":9223372036854775807,"f":1.5e-3,"l":[-0,1e400]}`
+
+	d := NewShapeDeserializer([]byte(payload))
+	defer d.Close()
+
+	var v document.Value
+	if err := d.ReadDocument(prelude.Document, &v); err != nil {
+		t.Fatalf("read document: %v", err)
+	}
+
+	ov, ok := v.(document.Opaque)
+	if !ok {
+		t.Fatalf("expect document.Opaque, got %T", v)
+	}
+
+	expect := map[string]any{
+		"i32": json.Number("7"),
+		"big": json.Number("9007199254740993"),
+		"max": json.Number("9223372036854775807"),
+		"f":   json.Number("1.5e-3"),
+		"l":   []any{json.Number("-0"), json.Number("1e400")},
+	}
+	if !reflect.DeepEqual(expect, ov.Value) {
+		t.Errorf("expect %#v, got %#v", expect, ov.Value)
 	}
 }
