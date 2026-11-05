@@ -146,8 +146,8 @@ func TestNewSafeReadCloser_WriteTo(t *testing.T) {
 		}
 
 		_, err = writeToReadCloser.WriteTo(nil)
-		if err != io.EOF {
-			t.Errorf("expect %T, got %T", io.EOF, err)
+		if err != nil {
+			t.Errorf("expect no error after close, got %v", err)
 		}
 	}
 	{
