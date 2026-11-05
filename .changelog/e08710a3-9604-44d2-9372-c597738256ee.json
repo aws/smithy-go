@@ -1,0 +1,9 @@
+{
+    "id": "e08710a3-9604-44d2-9372-c597738256ee",
+    "type": "bugfix",
+    "collapse": false,
+    "description": "Sort canonical query parameters after URI-encoding them, as required by SigV4.",
+    "modules": [
+        "aws-http-auth"
+    ]
+}
