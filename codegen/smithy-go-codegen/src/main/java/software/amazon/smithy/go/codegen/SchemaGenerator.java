@@ -16,7 +16,7 @@ import software.amazon.smithy.utils.SmithyInternalApi;
 import software.amazon.smithy.utils.StringUtils;
 
 @SmithyInternalApi
-public class SchemaGenerator implements Writable {
+public class SchemaGenerator {
     private final GoCodegenContext ctx;
     private final Shape shape;
 
@@ -72,20 +72,52 @@ public class SchemaGenerator implements Writable {
         return "schemas." + getMemberSchemaName(shape, member, service);
     }
 
-    @Override
-    public void accept(GoWriter writer) {
+    /**
+     * Declares the package-level variables for the shape and its members without assigning them.
+     */
+    public void acceptDecl(GoWriter writer) {
+        if (Prelude.isPublicPreludeShape(shape)) {
+            return;
+        }
+        writer.addUseImports(SmithyGoDependency.SMITHY);
+        writer.writeGoTemplate("""
+                        var $ident:L *smithy.Schema
+                        $memberVarDecls:W
+                        """,
+                Map.of(
+                        "ident", getSchemaName(shape, ctx.service()),
+                        "memberVarDecls", Writable.map(shape.members(), this::renderMemberVarDecl, true)
+                ));
+    }
+
+    /**
+     * Assigns the shape's schema variable. Member schemas are assigned separately by
+     * {@link #acceptMembersInit(GoWriter)}.
+     */
+    public void acceptInit(GoWriter writer) {
+        writeNewSchema(writer, "$ident:L = smithy.NewSchema(");
+    }
+
+    /**
+     * Declares and assigns the shape's schema in a single package-level var, so that it exists at package
+     * initialization. Only suitable for shapes whose schema references no other schema.
+     */
+    public void acceptEager(GoWriter writer) {
+        writeNewSchema(writer, "var $ident:L = smithy.NewSchema(");
+    }
+
+    private void writeNewSchema(GoWriter writer, String prefix) {
         if (Prelude.isPublicPreludeShape(shape)) {
             return;
         }
         var service = ctx.service();
         var modelID = modelShapeID(shape);
         writer.addUseImports(SmithyGoDependency.SMITHY);
-        writer.writeGoTemplate("""
-                        var $ident:L = smithy.NewSchema(smithy.ShapeID{
+        writer.writeGoTemplate(prefix + """
+                        smithy.ShapeID{
                             Namespace: $namespace:S,
                             Name: $name:S,
                         }, smithy.ShapeType$type:L, $numMembers:L$traits:W)
-                        $memberVarDecls:W
                         """,
                 Map.of(
                         "ident", getSchemaName(shape, service),
@@ -93,8 +125,7 @@ public class SchemaGenerator implements Writable {
                         "name", modelID.getName(),
                         "type", StringUtils.capitalize(shape.getType().toString()),
                         "numMembers", shape.members().size(),
-                        "traits", renderVariadicTraits(shape.getAllTraits().values()),
-                        "memberVarDecls", Writable.map(shape.members(), this::renderMemberVarDecl, true)
+                        "traits", renderVariadicTraits(shape.getAllTraits().values())
                 ));
     }
 

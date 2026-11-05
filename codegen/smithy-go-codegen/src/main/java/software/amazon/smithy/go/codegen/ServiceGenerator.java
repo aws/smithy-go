@@ -269,6 +269,7 @@ final class ServiceGenerator implements Runnable {
         ensureSupportedProtocol();
         return writer -> {
             writer.addImport(settings.getModuleName() + "/schemas", "schemas");
+            writer.write("schemas.Init()");
             writer.write("options.Protocol = $W", resolveDefaultProtocol());
         };
     }
