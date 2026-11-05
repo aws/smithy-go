@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/document"
+	"github.com/aws/smithy-go/internal/bignum"
 	"github.com/aws/smithy-go/internal/serde"
 	smithytime "github.com/aws/smithy-go/time"
 	"github.com/aws/smithy-go/traits"
@@ -459,14 +460,31 @@ func (s *ShapeSerializer) CloseMap() {
 	s.currPrefix = ctx.prefix
 }
 
-// WriteBigInt is unimplemented.
-func (s *ShapeSerializer) WriteBigInt(_ *smithy.Schema, _ *big.Int) {
-	panic("query: BigInteger not supported")
+// WriteBigInt implements [smithy.ShapeSerializer].
+//
+// Query protocols carry a bigInteger as its decimal text representation, the
+// same as integer and long.
+func (s *ShapeSerializer) WriteBigInt(schema *smithy.Schema, v *big.Int) {
+	if v == nil {
+		return
+	}
+	s.writeValue(s.resolveKey(schema), v.Text(10))
 }
 
-// WriteBigFloat is unimplemented.
-func (s *ShapeSerializer) WriteBigFloat(_ *smithy.Schema, _ *big.Float) {
-	panic("query: BigDecimal not supported")
+// WriteBigDecimal implements [smithy.ShapeSerializer].
+//
+// Query protocols carry a bigDecimal as its decimal text representation, the
+// same as float and double. Plain decimal notation is used rather than exponent
+// notation.
+func (s *ShapeSerializer) WriteBigDecimal(schema *smithy.Schema, v smithy.BigDecimal) {
+	if v.Mantissa == nil {
+		return
+	}
+	text, err := bignum.FormatDecimal(v)
+	if err != nil {
+		return
+	}
+	s.writeValue(s.resolveKey(schema), string(text))
 }
 
 // WriteDocument is unimplemented.

@@ -43,7 +43,7 @@ type ShapeSerializer interface {
 	WriteBool(*Schema, bool)
 	WriteString(*Schema, string)
 	WriteBigInt(*Schema, *big.Int)
-	WriteBigFloat(*Schema, *big.Float)
+	WriteBigDecimal(*Schema, BigDecimal)
 	WriteBlob(*Schema, []byte)
 	WriteTime(*Schema, time.Time)
 
@@ -77,8 +77,8 @@ type ShapeDeserializer interface {
 	ReadString(*Schema, *string) error
 	ReadBlob(*Schema, *[]byte) error
 	ReadTime(*Schema, *time.Time) error
-	ReadBigInt(*Schema, *big.Int) error
-	ReadBigFloat(*Schema, *big.Float) error
+	ReadBigInt(*Schema, **big.Int) error
+	ReadBigDecimal(*Schema, *BigDecimal) error
 	ReadNil(*Schema) (bool, error)
 
 	ReadStruct(*Schema) error
