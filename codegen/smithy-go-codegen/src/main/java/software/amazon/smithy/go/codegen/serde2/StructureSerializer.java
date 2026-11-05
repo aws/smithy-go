@@ -9,6 +9,7 @@ import software.amazon.smithy.go.codegen.SmithyGoDependency;
 import software.amazon.smithy.go.codegen.UnsupportedShapeException;
 import software.amazon.smithy.go.codegen.Writable;
 import software.amazon.smithy.go.codegen.knowledge.GoPointableIndex;
+import software.amazon.smithy.go.codegen.trait.NoSerializeTrait;
 import software.amazon.smithy.go.codegen.util.ShapeUtil;
 import software.amazon.smithy.model.loader.Prelude;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -42,6 +43,7 @@ public final class StructureSerializer implements Writable {
         var members = shape.members().stream()
                 .filter(m -> !StreamingTrait.isEventStream(ctx.model(), m))
                 .filter(m -> !ctx.model().expectShape(m.getTarget()).hasTrait(StreamingTrait.class))
+                .filter(NoSerializeTrait.excludeNoSerializeMembers())
                 .sorted(Comparator.comparing(MemberShape::getMemberName))
                 .toList();
         writer.addUseImports(SmithyGoDependency.SMITHY);
