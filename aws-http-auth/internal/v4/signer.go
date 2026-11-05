@@ -164,11 +164,7 @@ func (s *Signer) buildCanonicalRequestWithHeaders(canonHeaders, signedHeaders st
 		canonPath = uriEncode(canonPath)
 	}
 
-	query := s.Request.URL.Query()
-	for key := range query {
-		sort.Strings(query[key])
-	}
-	canonQuery := strings.Replace(query.Encode(), "+", "%20", -1)
+	canonQuery := encodeQuery(s.Request.URL.Query())
 
 	req := strings.Join([]string{
 		s.Request.Method,
@@ -247,7 +243,7 @@ func (s *Signer) addSignatureParametersToQuery(signedHeaders string) {
 		query.Set("X-Amz-Security-Token", s.Credentials.SessionToken)
 	}
 
-	s.Request.URL.RawQuery = query.Encode()
+	s.Request.URL.RawQuery = encodeQuery(query)
 }
 
 func (s *Signer) addSignatureToQuery(signature, signedHeaders string) {
@@ -255,7 +251,7 @@ func (s *Signer) addSignatureToQuery(signature, signedHeaders string) {
 	query.Set("X-Amz-SignedHeaders", signedHeaders)
 	query.Set("X-Amz-Signature", signature)
 
-	s.Request.URL.RawQuery = query.Encode()
+	s.Request.URL.RawQuery = encodeQuery(query)
 }
 
 func payloadHashString(p []byte) string {
