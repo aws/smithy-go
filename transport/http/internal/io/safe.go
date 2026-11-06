@@ -31,7 +31,10 @@ func (r *safeWriteToReadCloser) WriteTo(w io.Writer) (int64, error) {
 	defer r.safeReadCloser.mtx.Unlock()
 
 	if r.safeReadCloser.closed {
-		return 0, io.EOF
+		// WriterTo reports a finished write with a nil error. io.EOF here is
+		// a write failure: net/http drains the body with io.Copy, which calls
+		// WriteTo, and then closes the connection.
+		return 0, nil
 	}
 
 	return r.safeReadCloser.readCloser.(io.WriterTo).WriteTo(w)

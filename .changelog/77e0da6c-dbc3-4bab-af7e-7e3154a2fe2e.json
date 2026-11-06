@@ -1,0 +1,9 @@
+{
+    "id": "77e0da6c-dbc3-4bab-af7e-7e3154a2fe2e",
+    "type": "bugfix",
+    "collapse": true,
+    "description": "Return nil from WriteTo after the request body is closed",
+    "modules": [
+        "."
+    ]
+}
