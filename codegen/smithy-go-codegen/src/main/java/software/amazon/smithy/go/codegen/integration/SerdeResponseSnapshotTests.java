@@ -49,6 +49,7 @@ import software.amazon.smithy.model.traits.HttpLabelTrait;
 import software.amazon.smithy.model.traits.HttpPrefixHeadersTrait;
 import software.amazon.smithy.model.traits.HttpQueryParamsTrait;
 import software.amazon.smithy.model.traits.HttpQueryTrait;
+import software.amazon.smithy.model.traits.XmlNameTrait;
 import software.amazon.smithy.protocol.traits.Rpcv2CborTrait;
 import software.amazon.smithy.utils.StringUtils;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
@@ -118,7 +119,9 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         } else if (RestXmlTrait.ID.equals(protocol)) {
             return SmithyGoDependency.SMITHY_PROTOCOL_RESTXML.func("New");
         } else if (AwsQueryTrait.ID.equals(protocol)) {
-            return SmithyGoDependency.SMITHY_PROTOCOL_AWSQUERY.func("New");
+            // awsQuery requests are form-encoded but its responses are XML, so the XML-speaking restXml protocol
+            // stands in as the response writer.
+            return SmithyGoDependency.SMITHY_PROTOCOL_RESTXML.func("New");
         } else if (Ec2QueryTrait.ID.equals(protocol)) {
             return SmithyGoDependency.SMITHY_PROTOCOL_EC2QUERY.func("New");
         }
@@ -374,6 +377,30 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         return []byte("<ErrorResponse><Error><Code>" + code + "</Code>" + inner + "</Error></ErrorResponse>")
                     }
                     """);
+            if (AwsQueryTrait.ID.equals(protocol)) {
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.addUseImports(SmithyGoDependency.SMITHY_TRAITS);
+                writer.write("""
+
+                        func serdeRespQueryOpSchema(op, in, out *smithy.Schema) *smithy.OperationSchema {
+                            withHTTP := smithy.NewSchema(op.ID(), smithy.ShapeTypeOperation, 0,
+                                &smithytraits.HTTP{Method: "POST", URI: "/", Code: 200})
+                            return smithy.NewOperationSchema(withHTTP, in, out)
+                        }
+
+                        // awsQuery wraps the output in <Op>Response><Op>Result>, unlike restXml's bare output element
+                        func serdeRespQueryResultEnvelope(body []byte, op string) []byte {
+                            inner := ""
+                            s := strings.TrimSpace(string(body))
+                            if start := strings.Index(s, ">"); start >= 0 {
+                                if end := strings.LastIndex(s, "<"); end > start {
+                                    inner = s[start+1 : end]
+                                }
+                            }
+                            return []byte("<" + op + "Response><" + op + "Result>" + inner + "</" + op + "Result></" + op + "Response>")
+                        }
+                        """);
+            }
         };
     }
 
@@ -410,6 +437,11 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             if (isAsymmetric(errorShape)) {
                 writables.add(writeSkip(
                         "TestCheckResponseSnapshot_Error_" + errorSymbol.getName(), "asymmetric"));
+                continue;
+            }
+            if (AwsQueryTrait.ID.equals(settings.getProtocol()) && hasCodeMember(errorShape)) {
+                writables.add(writeSkip(
+                        "TestCheckResponseSnapshot_Error_" + errorSymbol.getName(), "member collides with error code"));
                 continue;
             }
             for (var errorCase : generator.generateCasesForError(errorShape)) {
@@ -489,7 +521,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
             var outSchemaRef = SchemaGenerator.getSchemaRef(outputShape, service);
             for (var testCase : generator.generateCases(operation)) {
                 writables.add(writeUpdate(operation, testCase, symbolProvider, serviceSchemaRef, protoNew,
-                        opSchemaRef, outSchemaRef));
+                        opSchemaRef, outSchemaRef, protocol));
             }
         }
         for (var entry : errorRepOps(model, operations).entrySet()) {
@@ -531,6 +563,18 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
 
     // since we are basically just flipping our serializer around to make responses, there are a number of things that
     // don't translate symmetrically and result in broken snapshots, so we have to just not cover those for now
+    // The fixture envelope injects its own <Code> element, so a modeled member that is also named Code ends up
+    // with two on the wire, which no real service sends.
+    private boolean hasCodeMember(StructureShape shape) {
+        for (var member : shape.getAllMembers().values()) {
+            var name = member.getTrait(XmlNameTrait.class).map(XmlNameTrait::getValue).orElse(member.getMemberName());
+            if (name.equals("Code")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isAsymmetric(StructureShape shape) {
         for (var member : shape.getAllMembers().values()) {
             // an actual response serializer would ignore these
@@ -597,14 +641,18 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
 
     private Writable writeUpdate(
             OperationShape operation, SnapshotInputGenerator.TestCase testCase, SymbolProvider symbolProvider,
-            String serviceSchemaRef, Symbol protoNew, String opSchemaRef, String outSchemaRef
+            String serviceSchemaRef, Symbol protoNew, String opSchemaRef, String outSchemaRef, ShapeId protocol
     ) {
         var opName = symbolProvider.toSymbol(operation).getName();
+        var wrap = AwsQueryTrait.ID.equals(protocol)
+                ? "    body = serdeRespQueryResultEnvelope(body, \"" + operation.getId().getName() + "\")\n"
+                : "";
         return goTemplate("""
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $output:W
                     proto := $protoNew:T($service:L)
-                    opSchema := $newOpSchema:T($op:L, $out:L, $out:L)
+                    opSchema := """ + opSchemaCtor(protocol) + """
+
                     req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
                     if err := proto.SerializeRequest($ctx:T(), opSchema, want, req); err != nil {
                         t.Fatal(err)
@@ -618,6 +666,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         }
                         body = b
                     }
+                """ + wrap + """
                     if err := serdeRespWriteSnapshot($fixture:S, 200, built.Header, body); err != nil {
                         t.Fatal(err)
                     }
@@ -699,7 +748,8 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $want:W
                     proto := $protoNew:T($service:L)
-                    opSchema := $newOpSchema:T($op:L, $err:L, $err:L)
+                    opSchema := """ + opSchemaCtor(protocol, "$err:L") + """
+
                     req := smithyhttp.NewStackRequest().(*smithyhttp.Request)
                     if err := proto.SerializeRequest($ctx:T(), opSchema, want, req); err != nil {
                         t.Fatal(err)
@@ -733,6 +783,18 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
                         Map.entry("testingT", GoStdlibTypes.Testing.T),
                         Map.entry("ctx", GoStdlibTypes.Context.Background)
                 ));
+    }
+
+    // The throwaway restXml protocol used for awsQuery needs an @http trait on the op schema, which awsQuery ops lack.
+    private String opSchemaCtor(ShapeId protocol) {
+        return opSchemaCtor(protocol, "$out:L");
+    }
+
+    private String opSchemaCtor(ShapeId protocol, String shape) {
+        if (AwsQueryTrait.ID.equals(protocol)) {
+            return "serdeRespQueryOpSchema($op:L, " + shape + ", " + shape + ")";
+        }
+        return "$newOpSchema:T($op:L, " + shape + ", " + shape + ")";
     }
 
     private Writable errorFrameWritable(ShapeId protocol) {
