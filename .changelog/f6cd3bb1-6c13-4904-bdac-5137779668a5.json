@@ -1,8 +1,0 @@
-{
-    "id": "f6cd3bb1-6c13-4904-bdac-5137779668a5",
-    "type": "bugfix",
-    "description": "Fix schema serde serializing struct members marked with the SDK-internal NoSerialize trait.",
-    "modules": [
-        "."
-    ]
-}

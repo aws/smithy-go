@@ -1,3 +1,7 @@
+# v1.2.2 (2026-11-09)
+
+* **Bug Fix**: Sort canonical query parameters after URI-encoding them, as required by SigV4.
+
 # v1.2.1 (2026-07-16)
 
 * **Bug Fix**: Use r.URL.Host when r.Host is unset.
