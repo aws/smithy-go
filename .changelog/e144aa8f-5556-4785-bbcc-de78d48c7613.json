@@ -1,0 +1,8 @@
+{
+    "id": "e144aa8f-5556-4785-bbcc-de78d48c7613",
+    "type": "bugfix",
+    "description": "Fix unions inside lists and maps being serialized with the wrong element names or keys under schema serde for awsQuery and XML protocols.",
+    "modules": [
+        "."
+    ]
+}

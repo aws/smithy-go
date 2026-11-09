@@ -24,6 +24,7 @@ const (
 	ctxKindStruct ctxKind = iota
 	ctxKindList
 	ctxKindMap
+	ctxKindUnion
 )
 
 type deserCtx struct {

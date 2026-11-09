@@ -37,8 +37,6 @@ type ShapeSerializer struct {
 
 	stack serde.Stack[serCtx]
 
-	unionNames []string
-
 	opts ShapeSerializerOptions
 }
 
@@ -193,14 +191,20 @@ func (s *ShapeSerializer) CloseStruct() {
 func (s *ShapeSerializer) WriteUnion(schema, variant *smithy.Schema) {
 	name := s.ctxEname(schema)
 	s.w.writeStart(name, s.xmlns(schema), nil)
-	s.unionNames = append(s.unionNames, name)
+
+	// the variant must not resolve its element name from an enclosing list or
+	// map, which would name it as another item
+	s.stack.Push(serCtx{
+		kind:        ctxKindUnion,
+		wrapperName: name,
+		schema:      schema,
+	})
 }
 
 // CloseUnion implements [smithy.ShapeSerializer].
 func (s *ShapeSerializer) CloseUnion() {
-	name := s.unionNames[len(s.unionNames)-1]
-	s.unionNames = s.unionNames[:len(s.unionNames)-1]
-	s.w.writeEnd(name)
+	ctx := s.stack.Pop()
+	s.w.writeEnd(ctx.wrapperName)
 }
 
 // WriteNil implements [smithy.ShapeSerializer].
