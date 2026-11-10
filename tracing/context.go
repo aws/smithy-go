@@ -29,7 +29,10 @@ func WithSpan(parent context.Context, span Span) context.Context {
 		return context.WithValue(parent, spanLineageKey{}, []Span{span})
 	}
 
-	lineage = append(lineage, span)
+	// Cap the capacity at the length so the append always copies: the parent's
+	// backing array can be shared with other contexts derived from it, and
+	// appending into its spare capacity would overwrite their spans.
+	lineage = append(lineage[:len(lineage):len(lineage)], span)
 	return context.WithValue(parent, spanLineageKey{}, lineage)
 }
 
