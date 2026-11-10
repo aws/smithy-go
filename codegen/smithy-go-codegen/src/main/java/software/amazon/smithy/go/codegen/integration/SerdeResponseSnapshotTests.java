@@ -650,6 +650,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         return goTemplate("""
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $output:W
+                    schemas.Init()
                     proto := $protoNew:T($service:L)
                     opSchema := """ + opSchemaCtor(protocol) + """
 
@@ -747,6 +748,7 @@ public class SerdeResponseSnapshotTests implements GoIntegration {
         return goTemplate("""
                 func TestUpdateResponseSnapshot_$name:L(t $testingT:P) {
                     want := $want:W
+                    schemas.Init()
                     proto := $protoNew:T($service:L)
                     opSchema := """ + opSchemaCtor(protocol, "$err:L") + """
 

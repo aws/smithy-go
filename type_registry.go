@@ -2,6 +2,7 @@ package smithy
 
 import (
 	"strings"
+	"sync"
 )
 
 // TypeRegistry creates an instance of a type based on its Smithy IDL shape ID.
@@ -9,7 +10,27 @@ import (
 // Generated clients have an exported package-level registry (named
 // TypeRegistry) that holds all structure types for the service.
 type TypeRegistry struct {
+	// For a registry created with [NewLazyTypeRegistry] this is nil until the
+	// first lookup, so use [TypeRegistry.LookupEntry] to read entries.
 	Entries map[string]*TypeRegistryEntry
+
+	lazy func() map[string]*TypeRegistryEntry
+	once sync.Once
+}
+
+// NewLazyTypeRegistry creates a TypeRegistry whose entries are produced by
+// calling fn the first time the registry is used. fn is called at most once.
+func NewLazyTypeRegistry(fn func() map[string]*TypeRegistryEntry) *TypeRegistry {
+	return &TypeRegistry{lazy: fn}
+}
+
+func (t *TypeRegistry) entries() map[string]*TypeRegistryEntry {
+	if t.lazy == nil {
+		return t.Entries
+	}
+
+	t.once.Do(func() { t.Entries = t.lazy() })
+	return t.Entries
 }
 
 // RegistryEntry creates a type registry entry.
@@ -33,7 +54,7 @@ func (t *TypeRegistry) DeserializableError(id string) (DeserializableError, bool
 
 // LookupEntry returns the registry entry for the given shape ID.
 func (t *TypeRegistry) LookupEntry(id string) (*TypeRegistryEntry, bool) {
-	entry, ok := t.Entries[id]
+	entry, ok := t.entries()[id]
 	if !ok {
 		entry, ok = t.lookupShortName(id)
 	}
@@ -47,7 +68,7 @@ type TypeRegistryEntry struct {
 }
 
 func (t *TypeRegistry) lookupShortName(id string) (*TypeRegistryEntry, bool) {
-	for key, e := range t.Entries {
+	for key, e := range t.entries() {
 		if idx := strings.Index(key, "#"); idx != -1 && key[idx+1:] == id {
 			return e, true
 		}
@@ -56,10 +77,7 @@ func (t *TypeRegistry) lookupShortName(id string) (*TypeRegistryEntry, bool) {
 }
 
 func typeRegistryLookup[T any](t *TypeRegistry, id string) (T, bool) {
-	entry, ok := t.Entries[id]
-	if !ok {
-		entry, ok = t.lookupShortName(id)
-	}
+	entry, ok := t.LookupEntry(id)
 	if !ok {
 		var v T
 		return v, false
