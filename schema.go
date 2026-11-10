@@ -62,52 +62,46 @@ func stoid(s string) ShapeID {
 //
 // Generated clients use schemas at runtime to dynamically (de)serialize
 // request/responses.
+//
+// Generated code declares its schemas as package-level variables built with
+// [NewStaticSchema], which the compiler lays out in the binary's data segment
+// instead of allocating them at startup. Schemas built with [NewSchema] and
+// [Schema.AddMember] are allocated on the heap. Both behave the same.
 type Schema struct {
-	id         ShapeID
-	typ        ShapeType
-	members    map[string]*Schema // member name -> schema
-	traits     map[ShapeID]Trait  // trait ID -> non-indexed traits only
-	indexed    []Trait            // indexed trait slots, sized to max index present
-	directMask uint64             // bitmask: bit i set means indexed[i] was declared directly on this schema
-	targetID   ShapeID            // for member schemas, the target's shape ID
-
-	// resolved on the fly and cached
-	listMember       atomic.Pointer[Schema]
-	mapKey, mapValue atomic.Pointer[Schema]
+	d StaticSchema
 
 	ext [numExtensionSlots]unsafe.Pointer // lazily-computed codec extensions, accessed atomically
 }
 
-// NewSchema creates a new Schema with the given shape ID and traits.
-func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
-	s := &Schema{
-		id:      id,
-		typ:     typ,
-		members: make(map[string]*Schema, numMembers),
-	}
-	for _, t := range ts {
-		s.addTrait(t, true)
-	}
-	return s
+// heapSchema lets a schema built with NewSchema share one allocation with the
+// state it points to.
+type heapSchema struct {
+	Schema
+	id      ShapeID
+	members SchemaMembers
+	traits  TraitSet
 }
 
-func (s *Schema) addTrait(t Trait, direct bool) {
-	if it, ok := t.(IndexableTrait); ok {
-		idx := it.TraitIndex()
-		if idx >= len(s.indexed) {
-			s.indexed = append(s.indexed, make([]Trait, idx-len(s.indexed)+1)...)
-		}
-		s.indexed[idx] = t
-		if direct {
-			s.directMask |= 1 << uint(idx)
-		}
-		return
-	}
+// heapMember is the allocation behind a schema built with AddMember.
+type heapMember struct {
+	Schema
+	traits TraitSet
+}
 
-	if s.traits == nil {
-		s.traits = map[ShapeID]Trait{}
+// NewSchema creates a new Schema with the given shape ID and traits.
+func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
+	h := &heapSchema{id: id}
+	h.members.byName = make(map[string]*Schema, numMembers)
+	h.d = StaticSchema{
+		ID:      &h.id,
+		Members: &h.members,
+		Traits:  &h.traits,
+		Type:    typ,
 	}
-	s.traits[t.TraitID()] = t
+	for _, t := range ts {
+		h.traits.add(t, true)
+	}
+	return &h.Schema
 }
 
 // AddMember adds a member to the schema derived from the target, with
@@ -118,33 +112,44 @@ func (s *Schema) addTrait(t Trait, direct bool) {
 // inherits all of the target's traits, then applies the overrides. The
 // member's direct trait view (accessed via [SchemaDirectTrait]) contains
 // only the overrides, i.e. the traits declared directly on the member.
+//
+// The target may be any schema, but AddMember panics if s was declared with
+// [NewStaticSchema].
 func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
-	m := &Schema{
-		id:         ShapeID{Member: name},
-		typ:        target.typ,
-		members:    target.members,
-		indexed:    cloneIndexed(target.indexed),
-		traits:     cloneTraits(target.traits),
-		directMask: 0, // inherited traits are not direct
-		targetID:   target.id,
+	ms := s.d.Members
+	if ms == nil || ms.byName == nil {
+		panic("smithy: AddMember on a static schema")
+	}
+
+	m := &heapMember{}
+	if t := target.d.Traits; t != nil {
+		m.traits.Indexed = cloneTraits(t.Indexed)
+		m.traits.Other = cloneTraits(t.Other)
+	}
+	m.d = StaticSchema{
+		Member:  name,
+		ID:      target.d.ID,
+		Members: target.d.Members,
+		Traits:  &m.traits,
+		Type:    target.d.Type,
 	}
 
 	// member-declared traits override and are direct
 	for _, t := range ts {
-		m.addTrait(t, true)
+		m.traits.add(t, true)
 	}
 
-	s.members[name] = m
+	ms.add(s.d.Type, &m.Schema)
 
 	// Invalidate cached extensions, schema structure changed.
 	for i := range s.ext {
 		atomic.StorePointer(&s.ext[i], nil)
 	}
 
-	return m
+	return &m.Schema
 }
 
-func cloneIndexed(src []Trait) []Trait {
+func cloneTraits(src []Trait) []Trait {
 	if src == nil {
 		return nil
 	}
@@ -153,74 +158,83 @@ func cloneIndexed(src []Trait) []Trait {
 	return dst
 }
 
-func cloneTraits(src map[ShapeID]Trait) map[ShapeID]Trait {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[ShapeID]Trait, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
 // ListMember returns the "member" schema for list types.
 func (s *Schema) ListMember() *Schema {
-	return s.lookup(&s.listMember, "member")
+	if t := s.d.Type; t != ShapeTypeList && t != ShapeTypeSet {
+		return nil
+	}
+	return s.d.Members.at(0)
 }
 
 // MapKey returns the "key" schema for map types.
 func (s *Schema) MapKey() *Schema {
-	return s.lookup(&s.mapKey, "key")
+	if s.d.Type != ShapeTypeMap {
+		return nil
+	}
+	return s.d.Members.at(0)
 }
 
 // MapValue returns the "value" schema for map types.
 func (s *Schema) MapValue() *Schema {
-	return s.lookup(&s.mapValue, "value")
-}
-
-func (s *Schema) lookup(cached *atomic.Pointer[Schema], name string) *Schema {
-	if v := cached.Load(); v != nil {
-		return v
-	}
-
-	m, ok := s.members[name]
-	if !ok {
+	if s.d.Type != ShapeTypeMap {
 		return nil
 	}
-
-	cached.Store(m)
-	return m
+	return s.d.Members.at(1)
 }
 
 // MemberName returns the member component of the schema's shape ID.
 func (s *Schema) MemberName() string {
-	return s.id.Member
+	return s.d.Member
 }
 
 // ID returns the shape ID of the schema.
 func (s *Schema) ID() ShapeID {
-	return s.id
+	if s.d.Member != "" {
+		return ShapeID{Member: s.d.Member}
+	}
+	if s.d.ID == nil {
+		return ShapeID{}
+	}
+	return *s.d.ID
 }
 
 // TargetID returns the shape ID of the member's target shape.
 func (s *Schema) TargetID() ShapeID {
-	return s.targetID
+	if s.d.Member == "" || s.d.ID == nil {
+		return ShapeID{}
+	}
+	return *s.d.ID
 }
 
 // Type returns the shape type of the schema.
 func (s *Schema) Type() ShapeType {
-	return s.typ
+	return s.d.Type
 }
 
-// Member returns the member schema for the given name, or nil.
+// Member returns the member schema for the given name, or nil. It does not
+// retain name.
 func (s *Schema) Member(name string) *Schema {
-	return s.members[name]
+	if ms := s.d.Members; ms != nil {
+		return ms.lookup(name)
+	}
+	return nil
 }
 
-// Members returns the schema's members as a map of name to schema.
+// Members returns the schema's members as a map of name to schema. The
+// returned map must not be modified.
 func (s *Schema) Members() map[string]*Schema {
-	return s.members
+	ms := s.d.Members
+	if ms == nil {
+		return nil
+	}
+
+	if ms.byName != nil {
+		return ms.byName
+	}
+	if p := ms.cache.Load(); p != nil {
+		return *p
+	}
+	return ms.buildMap()
 }
 
 // OperationSchema describes an operation, which is essentially its own schema
@@ -291,24 +305,32 @@ func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
 	}
 
 	if it, ok := Trait(zero).(IndexableTrait); ok {
-		idx := it.TraitIndex()
-		if idx >= len(s.indexed) {
+		t := s.indexedTrait(it.TraitIndex(), directOnly)
+		if t == nil {
 			return zero, false
 		}
-		if directOnly && s.directMask&(1<<uint(idx)) == 0 {
-			return zero, false
-		}
-		tt, ok := s.indexed[idx].(T)
+		tt, ok := t.(T)
 		return tt, ok
 	}
 
-	opaque, ok := s.traits[zero.TraitID()]
-	if !ok {
+	opaque := s.d.Traits.other(zero.TraitID())
+	if opaque == nil {
 		return zero, false
 	}
 
 	tt, ok := opaque.(T)
 	return tt, ok
+}
+
+func (s *Schema) indexedTrait(idx int, directOnly bool) Trait {
+	ts := s.d.Traits
+	if ts == nil || idx >= len(ts.Indexed) {
+		return nil
+	}
+	if directOnly && ts.DirectMask&(1<<uint(idx)) == 0 {
+		return nil
+	}
+	return ts.Indexed[idx]
 }
 
 // indexStreaming is the indexed trait slot for @streaming, mirrored from
@@ -317,14 +339,11 @@ func schemaTrait[T Trait](s *Schema, directOnly bool) (T, bool) {
 const indexStreaming = 17
 
 func isEventStream(s *Schema) bool {
-	if s == nil {
+	if s == nil || s.d.Members == nil {
 		return false
 	}
-	for _, m := range s.members {
-		if m.typ != ShapeTypeUnion {
-			continue
-		}
-		if len(m.indexed) > indexStreaming && m.indexed[indexStreaming] != nil {
+	for _, m := range s.d.Members.List {
+		if m.Type() == ShapeTypeUnion && m.indexedTrait(indexStreaming, false) != nil {
 			return true
 		}
 	}

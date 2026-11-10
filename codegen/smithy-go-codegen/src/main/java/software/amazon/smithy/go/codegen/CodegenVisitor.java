@@ -300,28 +300,15 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
-                var operations = TopDownIndex.of(model).getContainedOperations(service);
-                for (OperationShape op : operations) {
-                    new SchemaGenerator(ctx, op).accept(writer);
-                }
+                // Operations and the service come first, then all shape
+                // schemas. For synthetic shapes (input/output), pass the
+                // synthetic itself so that any members added by
+                // preprocessModel (e.g. presign URL members) are included.
+                // SchemaGenerator.modelShapeID() resolves the archetype for
+                // naming.
+                var ordered = new ArrayList<Shape>(TopDownIndex.of(model).getContainedOperations(service));
+                ordered.add(service);
 
-                // Generate the service schema: first the underlying *Schema
-                // (which carries traits like xmlNamespace), then wrap it in
-                // NewServiceSchema with the service version.
-                new SchemaGenerator(ctx, service).accept(writer);
-                writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.write("var $L = smithy.NewServiceSchema($L, $S)",
-                        StringUtils.capitalize(service.getId().getName(service)),
-                        SchemaGenerator.getSchemaName(service, service),
-                        service.getVersion());
-                writer.write("");
-
-                // Generate all shape schemas upfront. For synthetic shapes
-                // (input/output), pass the synthetic itself so that any
-                // members added by preprocessModel (e.g. presign URL members)
-                // are included. SchemaGenerator.modelShapeID() resolves the
-                // archetype for naming.
-                var resolved = new ArrayList<Shape>();
                 var seen = new HashSet<ShapeId>();
                 for (Shape s : shapes) {
                     if (CodegenUtils.isStubSynthetic(s)) {
@@ -332,29 +319,11 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                         id = s.getTrait(Synthetic.class).get().getArchetype().get();
                     }
                     if (seen.add(id)) {
-                        new SchemaGenerator(ctx, s).accept(writer);
-                        resolved.add(s);
+                        ordered.add(s);
                     }
                 }
 
-                writer.write("");
-                writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
-                writer.openBlock("func init() {", "}", () -> {
-                    var shapeIds = new HashSet<ShapeId>();
-                    for (Shape s : resolved) {
-                        shapeIds.add(s.getId());
-                    }
-
-                    var sorted = new ArrayList<Shape>();
-                    var visited = new HashSet<ShapeId>();
-                    for (Shape s : resolved) {
-                        topoVisit(s, model, shapeIds, visited, sorted);
-                    }
-
-                    for (Shape shape : sorted) {
-                        new SchemaGenerator(ctx, shape).acceptMembersInit(writer);
-                    }
-                });
+                new StaticSchemasGenerator(ctx, ordered).accept(writer);
             });
             var lists = ctx.serdeShapes(ListShape.class);
             var maps = ctx.serdeShapes(MapShape.class);
@@ -534,25 +503,5 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     public Void intEnumShape(IntEnumShape shape) {
         writers.useShapeWriter(shape, writer -> new IntEnumGenerator(symbolProvider, writer, shape).run());
         return null;
-    }
-
-    private static void topoVisit(
-            Shape shape,
-            Model model,
-            Set<ShapeId> inSet,
-            Set<ShapeId> visited,
-            List<Shape> result
-    ) {
-        if (visited.contains(shape.getId())) {
-            return;
-        }
-        visited.add(shape.getId());
-        for (var member : shape.members()) {
-            var targetId = member.getTarget();
-            if (inSet.contains(targetId)) {
-                topoVisit(model.expectShape(targetId), model, inSet, visited, result);
-            }
-        }
-        result.add(shape);
     }
 }
