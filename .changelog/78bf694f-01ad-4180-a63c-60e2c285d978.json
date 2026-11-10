@@ -1,0 +1,8 @@
+{
+    "id": "78bf694f-01ad-4180-a63c-60e2c285d978",
+    "type": "feature",
+    "description": "Generate schemas as statically initialized package-level variables, so schema packages no longer build or allocate anything at init. Adds NewStaticSchema, StaticSchema, SchemaMembers, MemberHash, ShapeName, SchemaExtensions, TraitSet, Schema.Dump and SchemaDump, for use by generated code only.",
+    "modules": [
+        "."
+    ]
+}

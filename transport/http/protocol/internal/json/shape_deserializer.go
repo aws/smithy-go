@@ -633,7 +633,7 @@ func errorMessageMember(s *smithy.Schema, name []byte) *smithy.Schema {
 	if _, ok := smithy.SchemaTrait[*traits.Error](s); !ok {
 		return nil
 	}
-	return s.Members()[alt]
+	return s.Member(alt)
 }
 
 func isN(tok []byte) bool   { return tok[0] == 'n' }
