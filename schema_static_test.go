@@ -23,11 +23,11 @@ var (
 	tsString       = TraitSet{Indexed: []Trait{tIdx}, Other: []Trait{tOther}, DirectMask: 1}
 	tsStringMember = TraitSet{Indexed: []Trait{tIdx}, Other: []Trait{tOther}}
 
-	idString = ShapeID{Namespace: "test", Name: "String"}
-	idList   = ShapeID{Namespace: "test", Name: "List"}
-	idMap    = ShapeID{Namespace: "test", Name: "Map"}
-	idStruct = ShapeID{Namespace: "test", Name: "Struct"}
-	idTree   = ShapeID{Namespace: "test", Name: "Tree"}
+	idString = ShapeName{Namespace: "test", Name: "String"}
+	idList   = ShapeName{Namespace: "test", Name: "List"}
+	idMap    = ShapeName{Namespace: "test", Name: "Map"}
+	idStruct = ShapeName{Namespace: "test", Name: "Struct"}
+	idTree   = ShapeName{Namespace: "test", Name: "Tree"}
 
 	tString = NewStaticSchema(StaticSchema{ID: &idString, Traits: &tsString, Type: ShapeTypeString, Ext: &tExt[0]})
 
@@ -59,7 +59,7 @@ func init() {
 func TestStaticSchema(t *testing.T) {
 	S, L, T := &tString, &tList, &tStruct
 
-	if got := T.ID(); got != idStruct {
+	if got := T.ID(); got != (ShapeID{Namespace: "test", Name: "Struct"}) {
 		t.Errorf("ID = %v", got)
 	}
 	if T.Type() != ShapeTypeStructure || L.Type() != ShapeTypeList {
@@ -106,7 +106,7 @@ func TestStaticSchemaRecursive(t *testing.T) {
 	if c != &tTreeChild || c.Member("child") != c || c.Member("child").Member("child") != c {
 		t.Error("recursive member")
 	}
-	if c.TargetID() != idTree {
+	if c.TargetID() != (ShapeID{Namespace: "test", Name: "Tree"}) {
 		t.Errorf("TargetID = %v", c.TargetID())
 	}
 }
@@ -164,7 +164,7 @@ func TestHeapMemberOfStaticTarget(t *testing.T) {
 	s := NewSchema(ShapeID{Namespace: "test", Name: "Outer"}, ShapeTypeStructure, 1)
 	m := s.AddMember("inner", &tStruct, &testIndexed{V: "override"})
 
-	if m.ID() != (ShapeID{Member: "inner"}) || m.TargetID() != idStruct || m.Type() != ShapeTypeStructure {
+	if m.ID() != (ShapeID{Member: "inner"}) || m.TargetID() != (ShapeID{Namespace: "test", Name: "Struct"}) || m.Type() != ShapeTypeStructure {
 		t.Errorf("member: %v %v %v", m.ID(), m.TargetID(), m.Type())
 	}
 	if m.Member("a") != &tStructA || len(m.Members()) != 2 {
@@ -235,7 +235,7 @@ func TestStaticSchemaManyMembers(t *testing.T) {
 	}
 
 	seed, _, slots := buildTestHash(names)
-	hashed := &SchemaMembers{List: list, Slots: slots, Seed: seed}
+	hashed := &SchemaMembers{List: list, Hash: &MemberHash{Slots: slots, Seed: seed}}
 	linear := &SchemaMembers{List: list}
 	for _, ms := range []*SchemaMembers{hashed, linear} {
 		shape := NewStaticSchema(StaticSchema{ID: &idStruct, Members: ms, Type: ShapeTypeStructure, Ext: &tExt[13]})

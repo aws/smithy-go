@@ -75,7 +75,7 @@ type Schema struct {
 type heapSchema struct {
 	Schema
 	ext     SchemaExtensions
-	id      ShapeID
+	id      ShapeName
 	members SchemaMembers
 	traits  TraitSet
 }
@@ -89,7 +89,7 @@ type heapMember struct {
 
 // NewSchema creates a new Schema with the given shape ID and traits.
 func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
-	h := &heapSchema{id: id}
+	h := &heapSchema{id: ShapeName{Namespace: id.Namespace, Name: id.Name}}
 	h.members.byName = make(map[string]*Schema, numMembers)
 	h.d = StaticSchema{
 		ID:      &h.id,
@@ -196,7 +196,7 @@ func (s *Schema) ID() ShapeID {
 	if s.d.ID == nil {
 		return ShapeID{}
 	}
-	return *s.d.ID
+	return ShapeID{Namespace: s.d.ID.Namespace, Name: s.d.ID.Name}
 }
 
 // TargetID returns the shape ID of the member's target shape.
@@ -204,7 +204,7 @@ func (s *Schema) TargetID() ShapeID {
 	if s.d.Member == "" || s.d.ID == nil {
 		return ShapeID{}
 	}
-	return *s.d.ID
+	return ShapeID{Namespace: s.d.ID.Namespace, Name: s.d.ID.Name}
 }
 
 // Type returns the shape type of the schema.

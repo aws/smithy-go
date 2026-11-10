@@ -331,6 +331,10 @@ public class StaticSchemasGenerator implements Writable {
         return "e" + schemaName;
     }
 
+    private static String hashVar(Entry entry) {
+        return "h" + entry.varName;
+    }
+
     private static String membersVar(Entry entry) {
         return "m" + entry.varName;
     }
@@ -346,13 +350,14 @@ public class StaticSchemasGenerator implements Writable {
     private void render(GoWriter writer, ServiceShape service) {
         writer.addUseImports(SmithyGoDependency.SMITHY);
 
-        var shapeLines = new ArrayList<String>();
-        var memberLines = new ArrayList<String>();
+        // A shape is declared right before its members. The linker keeps variables of one size in declaration order,
+        // so this places the schemas of a shape next to each other.
+        var schemaLines = new ArrayList<String>();
         var patches = new ArrayList<String>();
         var extVars = new ArrayList<String>();
         for (var entry : entries) {
             extVars.add(extVar(entry.varName));
-            shapeLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", valueVar(entry.varName),
+            schemaLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", valueVar(entry.varName),
                     staticSchema(null, idVar(entry), entry.hasMembers() ? membersVar(entry) : null,
                             internTraitSet(shapeTraits(entry)), entry.type, extVar(entry.varName))));
 
@@ -365,12 +370,12 @@ public class StaticSchemasGenerator implements Writable {
                 var ext = extVar(memberVar(entry, member));
                 extVars.add(ext);
                 if (entry.backEdges.contains(i)) {
-                    memberLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
+                    schemaLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
                             staticSchema(member.getMemberName(), idVar(target), null, traits, target.type, ext)));
                     patches.add(String.format("%s = smithy.NewStaticSchema(%s)", name,
                             staticSchema(member.getMemberName(), idVar(target), members, traits, target.type, ext)));
                 } else {
-                    memberLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
+                    schemaLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
                             staticSchema(member.getMemberName(), idVar(target), members, traits, target.type, ext)));
                 }
             }
@@ -387,10 +392,10 @@ public class StaticSchemasGenerator implements Writable {
 
         writer.write("var (");
         for (var entry : entries) {
-            writer.write("$L = smithy.ShapeID{Namespace: $S, Name: $S}", idVar(entry), entry.namespace, entry.name);
+            writer.write("$L = smithy.ShapeName{Namespace: $S, Name: $S}", idVar(entry), entry.namespace, entry.name);
         }
         for (var entry : prelude.values()) {
-            writer.write("$L = smithy.ShapeID{Namespace: $S, Name: $S}", idVar(entry), entry.namespace, entry.name);
+            writer.write("$L = smithy.ShapeName{Namespace: $S, Name: $S}", idVar(entry), entry.namespace, entry.name);
         }
         writer.write(")");
         writer.write("");
@@ -411,26 +416,30 @@ public class StaticSchemasGenerator implements Writable {
             }
             writer.writeInline("}");
             if (entry.slots != null) {
-                writer.write(", Seed: $L, Slots: []uint16{", entry.seed);
-                for (int i = 0; i < entry.slots.length; i += SLOTS_PER_LINE) {
-                    var line = Arrays.stream(entry.slots, i, Math.min(entry.slots.length, i + SLOTS_PER_LINE))
-                            .mapToObj(Integer::toString)
-                            .reduce((a, b) -> a + ", " + b)
-                            .orElse("");
-                    writer.write("$L,", line);
-                }
-                writer.write("}}");
+                writer.write(", Hash: &$L}", hashVar(entry));
             } else {
                 writer.write("}");
             }
         }
         writer.write("");
 
-        for (var line : shapeLines) {
-            writer.write("$L", line);
+        for (var entry : entries) {
+            if (entry.slots == null) {
+                continue;
+            }
+            writer.write("var $L = smithy.MemberHash{Seed: $L, Slots: []uint16{", hashVar(entry), entry.seed);
+            for (int i = 0; i < entry.slots.length; i += SLOTS_PER_LINE) {
+                var line = Arrays.stream(entry.slots, i, Math.min(entry.slots.length, i + SLOTS_PER_LINE))
+                        .mapToObj(Integer::toString)
+                        .reduce((a, b) -> a + ", " + b)
+                        .orElse("");
+                writer.write("$L,", line);
+            }
+            writer.write("}}");
         }
         writer.write("");
-        for (var line : memberLines) {
+
+        for (var line : schemaLines) {
             writer.write("$L", line);
         }
         writer.write("");

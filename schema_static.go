@@ -10,7 +10,7 @@ import (
 // StaticSchema is exported for use by generated code only.
 type StaticSchema struct {
 	Member  string         // the member name, empty for shapes
-	ID      *ShapeID       // the shape's ID, or for a member, its target's ID
+	ID      *ShapeName     // the shape's name, or for a member, its target's
 	Members *SchemaMembers // the shape's members, or for a member, its target's
 	Traits  *TraitSet      // effective traits, nil if there are none
 	Type    ShapeType
@@ -36,15 +36,29 @@ type SchemaMembers struct {
 	// always comes before its value.
 	List []*Schema
 
-	// Slots is an optional perfect hash table over the member names: slot
-	// staticNameHash(name, Seed) & (len(Slots)-1) holds 1 + the member's
-	// position in List, or 0. Its length is a power of two.
-	Slots []uint16
-	Seed  uint64
+	// Hash is an optional lookup table over the member names.
+	Hash *MemberHash
 
 	byName map[string]*Schema // schemas built with NewSchema only
 
 	cache atomic.Pointer[map[string]*Schema] // Members() of static schemas
+}
+
+// ShapeName is the namespace and name of a shape.
+//
+// ShapeName is exported for use by generated code only.
+type ShapeName struct {
+	Namespace, Name string
+}
+
+// MemberHash is a perfect hash table over the member names of a shape: slot
+// staticNameHash(name, Seed) & (len(Slots)-1) holds 1 + the member's position
+// in [SchemaMembers.List], or 0. The length of Slots is a power of two.
+//
+// MemberHash is exported for use by generated code only.
+type MemberHash struct {
+	Slots []uint16
+	Seed  uint64
 }
 
 // staticLinearMemberLimit is the member count at or below which generated
@@ -59,9 +73,9 @@ func (ms *SchemaMembers) at(i int) *Schema {
 }
 
 func (ms *SchemaMembers) lookup(name string) *Schema {
-	if ms.Slots != nil {
-		mask := uint64(len(ms.Slots) - 1)
-		i := ms.Slots[staticNameHash(name, ms.Seed)&mask]
+	if h := ms.Hash; h != nil {
+		mask := uint64(len(h.Slots) - 1)
+		i := h.Slots[staticNameHash(name, h.Seed)&mask]
 		if i == 0 || int(i) > len(ms.List) {
 			return nil
 		}
