@@ -39,7 +39,7 @@ func computeSchemaExtension[T any](slot *unsafe.Pointer, s *Schema, build func(*
 }
 
 // SchemaExtensions holds the codec extensions of one schema. Generated code
-// declares them in an array of its own, apart from the schemas, so that they
+// declares them in variables of their own, apart from the schemas, so that they
 // take no space in the binary.
 //
 // SchemaExtensions is exported for use by generated code only.
