@@ -1,0 +1,9 @@
+{
+    "id": "904178f7-335f-40e6-a43c-0a3e63535f8d",
+    "type": "feature",
+    "description": "Add traits.Retryable, returned by the RetryableTrait method now generated on every modeled error type to expose the smithy.api#retryable trait.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}

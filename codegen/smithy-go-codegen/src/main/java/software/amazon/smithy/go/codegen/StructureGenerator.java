@@ -15,6 +15,8 @@
 
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -31,6 +33,7 @@ import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.HttpPayloadTrait;
 import software.amazon.smithy.model.traits.InputTrait;
+import software.amazon.smithy.model.traits.RetryableTrait;
 import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.utils.MapUtils;
 import software.amazon.smithy.utils.SetUtils;
@@ -246,6 +249,8 @@ public final class StructureGenerator implements Runnable {
         }
         writer.write("func (e *$L) ErrorFault() smithy.ErrorFault { return $L }", structureSymbol.getName(), fault);
 
+        renderRetryableTrait(structureSymbol);
+
         if (!useLegacySerde) {
             // Error shapes also get a serializer (in addition to the
             // deserializer) so modeled-error response wire fixtures can be
@@ -253,5 +258,39 @@ public final class StructureGenerator implements Runnable {
             writer.write(new StructureSerializer(ctx, shape));
             writer.write(new StructureDeserializer(ctx, shape));
         }
+    }
+
+    /**
+     * Renders {@code RetryableTrait() (smithytraits.Retryable, bool)} on every
+     * error shape.
+     *
+     * <p>The bool reports whether the shape is targeted by the
+     * {@code smithy.api#retryable} trait; when it is false the model expresses
+     * no retry behavior for the error. The method is rendered on every error
+     * shape, regardless of serde mode, so that adding or removing the trait in
+     * a model changes only the returned values, never the method set. New
+     * trait properties are added as fields of {@code smithytraits.Retryable},
+     * keeping the signature stable.
+     *
+     * <p>The trait is generated into the type rather than the shape's schema,
+     * since it does not affect (de)serialization.
+     */
+    private void renderRetryableTrait(Symbol structureSymbol) {
+        var retryable = SmithyGoDependency.SMITHY_TRAITS.struct("Retryable");
+        var trait = shape.getTrait(RetryableTrait.class);
+        Writable value = trait.isPresent()
+                ? goTemplate("$retryable:T{Throttling: $throttling:L}, true", Map.of(
+                        "retryable", retryable,
+                        "throttling", trait.get().getThrottling()))
+                : goTemplate("$retryable:T{}, false", Map.of("retryable", retryable));
+
+        writer.writeGoTemplate("""
+                // RetryableTrait returns the error's smithy.api#retryable trait, and
+                // whether the error is modeled with the trait.
+                func (e *$name:L) RetryableTrait() ($retryable:T, bool) { return $value:W }
+                """, Map.of(
+                "name", structureSymbol.getName(),
+                "retryable", retryable,
+                "value", value));
     }
 }

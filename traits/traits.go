@@ -1,5 +1,5 @@
 // Package traits defines representations of Smithy IDL traits that appear in
-// code-generated schemas.
+// code-generated schemas or are returned by methods on code-generated types.
 package traits
 
 import smithy "github.com/aws/smithy-go"
@@ -17,6 +17,17 @@ type Error struct {
 
 // TraitID identifies the trait.
 func (*Error) TraitID() smithy.ShapeID { return smithy.ShapeID{Namespace: "smithy.api", Name: "error"} }
+
+// Retryable represents smithy.api#retryable. It is returned by the
+// RetryableTrait method generated on modeled error types rather than included
+// in schemas, since the trait does not affect (de)serialization.
+//
+// Fields are added as the trait gains properties, so construct values with
+// keyed fields.
+type Retryable struct {
+	// Throttling indicates that the error is a throttling error.
+	Throttling bool
+}
 
 // EventHeader represents smithy.api#eventHeader.
 type EventHeader struct{}
