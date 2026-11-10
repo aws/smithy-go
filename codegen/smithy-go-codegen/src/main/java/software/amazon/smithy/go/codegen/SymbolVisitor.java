@@ -128,6 +128,8 @@ public final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol>
                 .put("Unwrap", "Unwrap_")
                 .put("Error", "Error_")
                 .put("ErrorCodeOverride", "ErrorCodeOverride_")
+                // Method rendered on every error for the smithy.api#retryable trait.
+                .put("RetryableTrait", "RetryableTrait_")
                 .build();
 
         errorMemberEscaper = ReservedWordSymbolProvider.builder()
