@@ -345,10 +345,11 @@ public class StaticSchemasGenerator implements Writable {
         var shapeLines = new ArrayList<String>();
         var memberLines = new ArrayList<String>();
         var patches = new ArrayList<String>();
+        var ext = 0;
         for (var entry : entries) {
             shapeLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", valueVar(entry.varName),
                     staticSchema(null, idVar(entry), entry.hasMembers() ? membersVar(entry) : null,
-                            internTraitSet(shapeTraits(entry)), entry.type)));
+                            internTraitSet(shapeTraits(entry)), entry.type, ext++)));
 
             for (int i = 0; i < entry.members.size(); i++) {
                 var member = entry.members.get(i);
@@ -358,15 +359,20 @@ public class StaticSchemasGenerator implements Writable {
                 var name = valueVar(memberVar(entry, member));
                 if (entry.backEdges.contains(i)) {
                     memberLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
-                            staticSchema(member.getMemberName(), idVar(target), null, traits, target.type)));
+                            staticSchema(member.getMemberName(), idVar(target), null, traits, target.type, ext)));
                     patches.add(String.format("%s = smithy.NewStaticSchema(%s)", name,
-                            staticSchema(member.getMemberName(), idVar(target), members, traits, target.type)));
+                            staticSchema(member.getMemberName(), idVar(target), members, traits, target.type, ext)));
                 } else {
                     memberLines.add(String.format("var %s = smithy.NewStaticSchema(%s)", name,
-                            staticSchema(member.getMemberName(), idVar(target), members, traits, target.type)));
+                            staticSchema(member.getMemberName(), idVar(target), members, traits, target.type, ext)));
                 }
+                ext++;
             }
         }
+
+        writer.writeDocs("Codec extensions of the schemas. The array is zero, so it takes no space in the binary.");
+        writer.write("var ext [$L]smithy.SchemaExtensions", ext);
+        writer.write("");
 
         writer.write("var (");
         for (var entry : entries) {
@@ -443,7 +449,8 @@ public class StaticSchemasGenerator implements Writable {
                 valueVar(SchemaGenerator.getSchemaName(service, service)), service.getVersion());
     }
 
-    private static String staticSchema(String member, String id, String members, String traits, String type) {
+    private static String staticSchema(String member, String id, String members, String traits, String type,
+            int ext) {
         var sb = new StringBuilder("smithy.StaticSchema{");
         if (member != null) {
             sb.append("Member: ").append(quote(member)).append(", ");
@@ -455,7 +462,8 @@ public class StaticSchemasGenerator implements Writable {
         if (traits != null) {
             sb.append(", Traits: &").append(traits);
         }
-        return sb.append(", Type: smithy.ShapeType").append(type).append("}").toString();
+        sb.append(", Type: smithy.ShapeType").append(type);
+        return sb.append(", Ext: &ext[").append(ext).append("]}").toString();
     }
 
     private void renderTraitSet(GoWriter writer, TraitSet set) {

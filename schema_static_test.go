@@ -29,29 +29,31 @@ var (
 	idStruct = ShapeID{Namespace: "test", Name: "Struct"}
 	idTree   = ShapeID{Namespace: "test", Name: "Tree"}
 
-	tString = NewStaticSchema(StaticSchema{ID: &idString, Traits: &tsString, Type: ShapeTypeString})
+	tString = NewStaticSchema(StaticSchema{ID: &idString, Traits: &tsString, Type: ShapeTypeString, Ext: &tExt[0]})
 
-	tList        = NewStaticSchema(StaticSchema{ID: &idList, Members: &tListMembers, Type: ShapeTypeList})
-	tListMember  = NewStaticSchema(StaticSchema{Member: "member", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString})
+	tList        = NewStaticSchema(StaticSchema{ID: &idList, Members: &tListMembers, Type: ShapeTypeList, Ext: &tExt[1]})
+	tListMember  = NewStaticSchema(StaticSchema{Member: "member", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString, Ext: &tExt[2]})
 	tListMembers = SchemaMembers{List: []*Schema{&tListMember}}
 
-	tMap        = NewStaticSchema(StaticSchema{ID: &idMap, Members: &tMapMembers, Type: ShapeTypeMap})
-	tMapKey     = NewStaticSchema(StaticSchema{Member: "key", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString})
-	tMapValue   = NewStaticSchema(StaticSchema{Member: "value", ID: &idList, Members: &tListMembers, Type: ShapeTypeList})
+	tMap        = NewStaticSchema(StaticSchema{ID: &idMap, Members: &tMapMembers, Type: ShapeTypeMap, Ext: &tExt[3]})
+	tMapKey     = NewStaticSchema(StaticSchema{Member: "key", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString, Ext: &tExt[4]})
+	tMapValue   = NewStaticSchema(StaticSchema{Member: "value", ID: &idList, Members: &tListMembers, Type: ShapeTypeList, Ext: &tExt[5]})
 	tMapMembers = SchemaMembers{List: []*Schema{&tMapKey, &tMapValue}}
 
-	tStruct        = NewStaticSchema(StaticSchema{ID: &idStruct, Members: &tStructMembers, Type: ShapeTypeStructure})
-	tStructA       = NewStaticSchema(StaticSchema{Member: "a", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString})
-	tStructB       = NewStaticSchema(StaticSchema{Member: "b", ID: &idList, Members: &tListMembers, Type: ShapeTypeList})
+	tStruct        = NewStaticSchema(StaticSchema{ID: &idStruct, Members: &tStructMembers, Type: ShapeTypeStructure, Ext: &tExt[6]})
+	tStructA       = NewStaticSchema(StaticSchema{Member: "a", ID: &idString, Traits: &tsStringMember, Type: ShapeTypeString, Ext: &tExt[7]})
+	tStructB       = NewStaticSchema(StaticSchema{Member: "b", ID: &idList, Members: &tListMembers, Type: ShapeTypeList, Ext: &tExt[8]})
 	tStructMembers = SchemaMembers{List: []*Schema{&tStructA, &tStructB}}
 
-	tTree        = NewStaticSchema(StaticSchema{ID: &idTree, Members: &tTreeMembers, Type: ShapeTypeStructure})
-	tTreeChild   = NewStaticSchema(StaticSchema{Member: "child", ID: &idTree, Type: ShapeTypeStructure})
+	tTree        = NewStaticSchema(StaticSchema{ID: &idTree, Members: &tTreeMembers, Type: ShapeTypeStructure, Ext: &tExt[9]})
+	tTreeChild   = NewStaticSchema(StaticSchema{Member: "child", ID: &idTree, Type: ShapeTypeStructure, Ext: &tExt[10]})
 	tTreeMembers = SchemaMembers{List: []*Schema{&tTreeChild}}
 )
 
+var tExt [64]SchemaExtensions
+
 func init() {
-	tTreeChild = NewStaticSchema(StaticSchema{Member: "child", ID: &idTree, Members: &tTreeMembers, Type: ShapeTypeStructure})
+	tTreeChild = NewStaticSchema(StaticSchema{Member: "child", ID: &idTree, Members: &tTreeMembers, Type: ShapeTypeStructure, Ext: &tExt[10]})
 }
 
 func TestStaticSchema(t *testing.T) {
@@ -228,7 +230,7 @@ func TestStaticSchemaManyMembers(t *testing.T) {
 	list := make([]*Schema, n)
 	for i := 0; i < n; i++ {
 		names = append(names, fmt.Sprintf("Member%dName", i))
-		s := NewStaticSchema(StaticSchema{Member: names[i], ID: &idString, Type: ShapeTypeString})
+		s := NewStaticSchema(StaticSchema{Member: names[i], ID: &idString, Type: ShapeTypeString, Ext: new(SchemaExtensions)})
 		list[i] = &s
 	}
 
@@ -236,7 +238,7 @@ func TestStaticSchemaManyMembers(t *testing.T) {
 	hashed := &SchemaMembers{List: list, Slots: slots, Seed: seed}
 	linear := &SchemaMembers{List: list}
 	for _, ms := range []*SchemaMembers{hashed, linear} {
-		shape := NewStaticSchema(StaticSchema{ID: &idStruct, Members: ms, Type: ShapeTypeStructure})
+		shape := NewStaticSchema(StaticSchema{ID: &idStruct, Members: ms, Type: ShapeTypeStructure, Ext: &tExt[13]})
 		for i, name := range names {
 			if got := shape.Member(name); got != list[i] {
 				t.Fatalf("Member(%q) = %p, want %p", name, got, list[i])

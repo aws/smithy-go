@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
-	"unsafe"
 )
 
 // ShapeType is a type of Smithy shape.
@@ -69,14 +68,13 @@ func stoid(s string) ShapeID {
 // [Schema.AddMember] are allocated on the heap. Both behave the same.
 type Schema struct {
 	d StaticSchema
-
-	ext [numExtensionSlots]unsafe.Pointer // lazily-computed codec extensions, accessed atomically
 }
 
 // heapSchema lets a schema built with NewSchema share one allocation with the
 // state it points to.
 type heapSchema struct {
 	Schema
+	ext     SchemaExtensions
 	id      ShapeID
 	members SchemaMembers
 	traits  TraitSet
@@ -85,6 +83,7 @@ type heapSchema struct {
 // heapMember is the allocation behind a schema built with AddMember.
 type heapMember struct {
 	Schema
+	ext    SchemaExtensions
 	traits TraitSet
 }
 
@@ -97,6 +96,7 @@ func NewSchema(id ShapeID, typ ShapeType, numMembers int, ts ...Trait) *Schema {
 		Members: &h.members,
 		Traits:  &h.traits,
 		Type:    typ,
+		Ext:     &h.ext,
 	}
 	for _, t := range ts {
 		h.traits.add(t, true)
@@ -132,6 +132,7 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 		Members: target.d.Members,
 		Traits:  &m.traits,
 		Type:    target.d.Type,
+		Ext:     &m.ext,
 	}
 
 	// member-declared traits override and are direct
@@ -142,8 +143,8 @@ func (s *Schema) AddMember(name string, target *Schema, ts ...Trait) *Schema {
 	ms.add(s.d.Type, &m.Schema)
 
 	// Invalidate cached extensions, schema structure changed.
-	for i := range s.ext {
-		atomic.StorePointer(&s.ext[i], nil)
+	for i := range s.d.Ext {
+		atomic.StorePointer(&s.d.Ext[i], nil)
 	}
 
 	return &m.Schema

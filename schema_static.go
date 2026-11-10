@@ -14,6 +14,7 @@ type StaticSchema struct {
 	Members *SchemaMembers // the shape's members, or for a member, its target's
 	Traits  *TraitSet      // effective traits, nil if there are none
 	Type    ShapeType
+	Ext     *SchemaExtensions // required
 }
 
 // NewStaticSchema returns the schema described by d.

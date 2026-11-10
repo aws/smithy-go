@@ -23,16 +23,24 @@ const (
 // slot. build is called on first access for a schema and the result is cached.
 // The build function must return a pointer to an immutable value.
 func SchemaExtension[T any](s *Schema, id ExtensionID, build func(*Schema) *T) *T {
-	p := atomic.LoadPointer(&s.ext[id])
+	slot := &s.d.Ext[id]
+	p := atomic.LoadPointer(slot)
 	if p != nil {
 		return (*T)(p)
 	}
-	return computeSchemaExtension(s, id, build)
+	return computeSchemaExtension(slot, s, build)
 }
 
 //go:noinline
-func computeSchemaExtension[T any](s *Schema, id ExtensionID, build func(*Schema) *T) *T {
+func computeSchemaExtension[T any](slot *unsafe.Pointer, s *Schema, build func(*Schema) *T) *T {
 	v := build(s)
-	atomic.StorePointer(&s.ext[id], unsafe.Pointer(v))
+	atomic.StorePointer(slot, unsafe.Pointer(v))
 	return v
 }
+
+// SchemaExtensions holds the codec extensions of one schema. Generated code
+// declares them in an array of its own, apart from the schemas, so that they
+// take no space in the binary.
+//
+// SchemaExtensions is exported for use by generated code only.
+type SchemaExtensions [numExtensionSlots]unsafe.Pointer
