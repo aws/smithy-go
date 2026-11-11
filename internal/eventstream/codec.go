@@ -11,6 +11,8 @@ import (
 
 // Codec orchestrates event stream message serde for protocols that use the
 // standard event stream binary framing.
+// Framing encoders and decoding buffers are local to each call because a codec
+// is shared by concurrent event streams on the same client.
 type Codec struct {
 	Serializer   func() smithy.ShapeSerializer
 	Deserializer func([]byte) smithy.ShapeDeserializer
@@ -18,24 +20,6 @@ type Codec struct {
 
 	// Protocol-specific hook to retrieve error information from some payload.
 	ErrorInfo func(payload []byte) (code, message string, err error)
-
-	encoder    *eventstream.Encoder
-	decoder    *eventstream.Decoder
-	payloadBuf []byte
-}
-
-func (c *Codec) enc() *eventstream.Encoder {
-	if c.encoder == nil {
-		c.encoder = eventstream.NewEncoder()
-	}
-	return c.encoder
-}
-
-func (c *Codec) dec() *eventstream.Decoder {
-	if c.decoder == nil {
-		c.decoder = eventstream.NewDecoder()
-	}
-	return c.decoder
 }
 
 // SerializeEventMessage serializes an event to the input stream.
@@ -59,14 +43,13 @@ func (c *Codec) SerializeEventMessage(schema, variant *smithy.Schema, v smithy.S
 		msg.Headers.Set(eventstream.ContentTypeHeader, eventstream.StringValue(c.ContentType))
 	}
 
-	return c.enc().Encode(w, msg)
+	return eventstream.NewEncoder().Encode(w, msg)
 }
 
 // DeserializeEventMessage reads an event from the output stream.
 func (c *Codec) DeserializeEventMessage(schema *smithy.Schema, types *smithy.TypeRegistry, r io.Reader) (smithy.Deserializable, error) {
 	for {
-		c.payloadBuf = c.payloadBuf[0:0]
-		msg, err := c.dec().Decode(r, c.payloadBuf)
+		msg, err := eventstream.NewDecoder().Decode(r, nil)
 		if err != nil {
 			if isEOF(err) {
 				return nil, io.EOF
@@ -132,7 +115,7 @@ func (c *Codec) deserializeEvent(schema *smithy.Schema, types *smithy.TypeRegist
 
 func (c *Codec) unknownEvent(tag string, msg *eventstream.Message) (*eventstream.UnknownUnionMember, error) {
 	var buf bytes.Buffer
-	c.enc().Encode(&buf, *msg)
+	eventstream.NewEncoder().Encode(&buf, *msg)
 	return &eventstream.UnknownUnionMember{Tag: tag, Value: buf.Bytes()}, nil
 }
 
@@ -197,14 +180,13 @@ func (c *Codec) SerializeInitialRequest(schema *smithy.Schema, v smithy.Serializ
 		msg.Headers.Set(eventstream.ContentTypeHeader, eventstream.StringValue(c.ContentType))
 	}
 
-	return c.enc().Encode(w, msg)
+	return eventstream.NewEncoder().Encode(w, msg)
 }
 
 // DeserializeInitialResponse reads the first event stream message and
 // deserializes it as the operation output.
 func (c *Codec) DeserializeInitialResponse(schema *smithy.Schema, r io.Reader, out smithy.Deserializable) error {
-	c.payloadBuf = c.payloadBuf[0:0]
-	msg, err := c.dec().Decode(r, c.payloadBuf)
+	msg, err := eventstream.NewDecoder().Decode(r, nil)
 	if err != nil {
 		return fmt.Errorf("decode initial response: %w", err)
 	}
