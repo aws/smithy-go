@@ -145,9 +145,28 @@ func TestNewSafeReadCloser_WriteTo(t *testing.T) {
 			t.Errorf("expect no error, got %v", err)
 		}
 
-		_, err = writeToReadCloser.WriteTo(nil)
-		if err != io.EOF {
-			t.Errorf("expect %T, got %T", io.EOF, err)
+		n, err := writeToReadCloser.WriteTo(nil)
+		if err != nil {
+			t.Errorf("expect no error after Close, got %v", err)
+		}
+		if n != 0 {
+			t.Errorf("expect 0 bytes after Close, got %d", n)
+		}
+	}
+	{
+		// net/http checks a request body for extra bytes with
+		// io.Copy(io.Discard, body), which may run after the body is closed.
+		rc := &mockWriteTo{}
+		body := NewSafeReadCloser(rc)
+		if err := body.Close(); err != nil {
+			t.Fatalf("expect no error, got %v", err)
+		}
+		n, err := io.Copy(io.Discard, body)
+		if err != nil {
+			t.Errorf("expect io.Copy of a closed body to succeed, got %v", err)
+		}
+		if n != 0 {
+			t.Errorf("expect 0 bytes copied, got %d", n)
 		}
 	}
 	{
