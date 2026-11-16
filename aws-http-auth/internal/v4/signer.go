@@ -204,7 +204,7 @@ func (s *Signer) buildCanonicalHeaders() (canon, signed string) {
 		// headers can have multiple values
 		values := signedHeaders[canonHeaders[i]]
 		for j, value := range values {
-			ch.WriteString(strings.TrimSpace(value))
+			writeTrimAll(&ch, value)
 			if j < len(values)-1 {
 				ch.WriteRune(',')
 			}

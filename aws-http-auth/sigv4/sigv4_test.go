@@ -381,3 +381,40 @@ func TestBackwardsCompatibility(t *testing.T) {
 		t.Error("expected no X-Amz-Algorithm in query string for backwards compatibility")
 	}
 }
+
+// get-header-value-trim from the AWS SigV4 test suite: sequential spaces inside
+// a signed header value are collapsed to a single space in the canonical
+// request, while the value sent on the wire is left as is.
+func TestSignRequest_HeaderValueSequentialSpaces(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://example.amazonaws.com/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("My-Header1", "value1")
+	req.Header.Set("My-Header2", `"a   b   c"`)
+
+	signer := New(func(o *v4.SignerOptions) {
+		o.HeaderRules = signAll{}
+	})
+	err = signer.SignRequest(&SignRequestInput{
+		Request:     req,
+		PayloadHash: v4internal.Stosha(""),
+		Credentials: credentials.Credentials{
+			AccessKeyID:     "AKIDEXAMPLE",
+			SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+		},
+		Service: "service",
+		Region:  "us-east-1",
+		Time:    time.Date(2015, 8, 30, 12, 36, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectSignature(t, req,
+		"AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, SignedHeaders=host;my-header1;my-header2;x-amz-date, Signature=acc3ed3afb60bb290fc8d2dd0098b9911fcaa05412b367055dee359757a9c736",
+		"20150830T123600Z", "")
+	if actual := req.Header.Get("My-Header2"); actual != `"a   b   c"` {
+		t.Errorf("expect header value to be sent unchanged, got %q", actual)
+	}
+}
