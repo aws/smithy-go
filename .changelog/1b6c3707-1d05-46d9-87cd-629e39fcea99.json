@@ -1,0 +1,9 @@
+{
+    "id": "1b6c3707-1d05-46d9-87cd-629e39fcea99",
+    "type": "bugfix",
+    "collapse": false,
+    "description": "Collapse sequential spaces in signed header values when building the SigV4 canonical request.",
+    "modules": [
+        "aws-http-auth"
+    ]
+}
