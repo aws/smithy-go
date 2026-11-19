@@ -401,17 +401,45 @@ public final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol>
 
     @Override
     public Symbol bigIntegerShape(BigIntegerShape shape) {
-        return createBigSymbol(shape, "Int");
+        // bigInteger maps directly to *big.Int: Go's standard library already
+        // provides an arbitrary-precision signed integer, so there's no gap
+        // for a smithy-go type to fill.
+        //
+        // *big.Int is unconditionally a pointer in Go -- there's no separate
+        // "value vs pointer" choice the way there is for every other shape
+        // type here, since big.Int is only ever used through a pointer.
+        // Codegen's $T/$P split assumes the opposite (a value-typed base
+        // symbol that $P/POINTABLE decorates with a pointer per member/use),
+        // which doesn't fit: $T never adds a pointer, no matter what
+        // POINTABLE says, and $P's pointer decision gets overridden per
+        // member by GoPointableIndex regardless of what this shape wants.
+        //
+        // So the pointer is baked directly into the symbol's name ("*big.Int")
+        // rather than left to POINTABLE, and GO_UNIVERSE_TYPE is set to
+        // bypass namespace-qualified rendering (which would otherwise
+        // produce the invalid "big.*Int"). The math/big import is registered
+        // directly via addDependency since the normal
+        // namespace()-triggers-the-import path is bypassed too.
+        return Symbol.builder()
+                .name("*big.Int")
+                .namespace(SmithyGoDependency.BIG.getImportPath(), ".")
+                .putProperty("shape", shape)
+                .putProperty(SymbolUtils.GO_UNIVERSE_TYPE, true)
+                .addDependency(SmithyGoDependency.BIG)
+                .build();
     }
 
     @Override
     public Symbol bigDecimalShape(BigDecimalShape shape) {
-
-        return createBigSymbol(shape, "Float");
-    }
-
-    private Symbol createBigSymbol(Shape shape, String symbolName) {
-        return symbolBuilderFor(shape, symbolName, SmithyGoDependency.BIG)
+        // bigDecimal maps to smithy.BigDecimal, a mantissa (*big.Int) +
+        // exponent (int64) struct: no binary floating point type can
+        // represent a decimal fraction exactly at any precision, and neither
+        // big.Float nor big.Rat carries a decimal scale.
+        //
+        // Unlike bigInteger this is an ordinary struct, so it goes through
+        // the normal pointable-index-driven builder and gets *smithy.BigDecimal
+        // treatment like any other structure-shaped member.
+        return symbolBuilderFor(shape, "BigDecimal", SmithyGoDependency.SMITHY)
                 .build();
     }
 

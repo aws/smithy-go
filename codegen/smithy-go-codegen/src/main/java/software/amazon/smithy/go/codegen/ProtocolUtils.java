@@ -168,6 +168,14 @@ public final class ProtocolUtils {
                         .addTestName("RpcV2CborClientIgnoresNonTopLevelDefaultsOnMembersWithClientOptional")
                         .build(),
 
+                // RPCv2 JSON default value serialization (SHOULD), same gap as CBOR above
+                HttpProtocolUnitTestGenerator.SkipTest.builder()
+                        .service(ShapeId.from("smithy.protocoltests.rpcv2Json#RpcV2JsonProtocol"))
+                        .operation(ShapeId.from("smithy.protocoltests.rpcv2Json#OperationWithDefaults"))
+                        .addTestName("RpcV2JsonRequestClientPopulatesDefaultValuesInInput")
+                        .addTestName("RpcV2JsonRequestClientUsesExplicitlyProvidedValuesInTopLevel")
+                        .build(),
+
                 HttpProtocolUnitTestGenerator.SkipTest.builder()
                         .service(ShapeId.from("aws.protocoltests.restxml#RestXml"))
                         .operation(ShapeId.from("aws.protocoltests.restxml#HttpPayloadWithUnion"))
@@ -234,6 +242,13 @@ public final class ProtocolUtils {
                         .operation(ShapeId.from("smithy.protocoltests.rpcv2Cbor#OperationWithDefaults"))
                         .addTestName("RpcV2CborClientPopulatesDefaultsValuesWhenMissingInResponse")
                         .addTestName("RpcV2CborClientIgnoresDefaultValuesIfMemberValuesArePresentInResponse")
+                        .build(),
+
+                // RPCv2 JSON default value deserialization (SHOULD), same gap as CBOR above
+                HttpProtocolUnitTestGenerator.SkipTest.builder()
+                        .service(ShapeId.from("smithy.protocoltests.rpcv2Json#RpcV2JsonProtocol"))
+                        .operation(ShapeId.from("smithy.protocoltests.rpcv2Json#OperationWithDefaults"))
+                        .addTestName("RpcV2JsonResponseClientPopulatesDefaultsValuesWhenMissingInResponse")
                         .build(),
                 HttpProtocolUnitTestGenerator.SkipTest.builder()
                         .service(ShapeId.from("smithy.protocoltests.rpcv2Cbor#RpcV2Protocol"))

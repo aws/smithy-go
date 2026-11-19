@@ -58,12 +58,14 @@ public class GoPointableIndex implements KnowledgeIndex {
             ShapeType.SET,
             ShapeType.MAP,
             ShapeType.UNION,
-            ShapeType.DOCUMENT
-    );
+            ShapeType.DOCUMENT,
 
-    // All types that are Go pointer types
-    private static final Set<ShapeType> INHERENTLY_POINTABLE = SetUtils.of(
-            ShapeType.BIG_DECIMAL,
+            // bigInteger maps directly to *big.Int, which is already a
+            // nil-able pointer type -- like blob, it needs no additional
+            // pointer indirection from codegen: nil already means unset.
+            //
+            // bigDecimal maps to smithy.BigDecimal, a plain struct, so it is
+            // NOT here: it gets ordinary struct-member pointer treatment.
             ShapeType.BIG_INTEGER
     );
 
@@ -79,8 +81,7 @@ public class GoPointableIndex implements KnowledgeIndex {
             ShapeType.UNION,
             ShapeType.DOCUMENT,
 
-            // known pointer types.
-            ShapeType.BIG_DECIMAL,
+            // known pointer type; see INHERENTLY_VALUE above
             ShapeType.BIG_INTEGER
     );
 
@@ -96,8 +97,7 @@ public class GoPointableIndex implements KnowledgeIndex {
             ShapeType.UNION,
             ShapeType.DOCUMENT,
 
-            // known pointer types.
-            ShapeType.BIG_DECIMAL,
+            // known pointer type; see INHERENTLY_VALUE above
             ShapeType.BIG_INTEGER
     );
 
@@ -217,10 +217,6 @@ public class GoPointableIndex implements KnowledgeIndex {
         // This is odd because its not a go type but a function with receiver
         if (shape.isOperationShape()) {
             return false;
-        }
-
-        if (INHERENTLY_POINTABLE.contains(shape.getType())) {
-            return true;
         }
 
         if (INHERENTLY_VALUE.contains(shape.getType()) || isShapeEnum(shape)) {
