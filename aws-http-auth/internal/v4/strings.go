@@ -109,6 +109,27 @@ func encodeQueryComponent(s string) string {
 	return strings.Replace(url.QueryEscape(s), "+", "%20", -1)
 }
 
+// writeTrimAll writes a header value to the SigV4 canonical headers: leading
+// and trailing whitespace is removed, and each run of sequential spaces inside
+// the value is collapsed into a single space.
+//
+// The value sent on the wire is left untouched; the service applies the same
+// normalization when it computes the canonical request. See the
+// get-header-value-trim case of the AWS SigV4 test suite, where the header
+// value `"a   b   c"` is signed as `"a b c"`.
+func writeTrimAll(b *strings.Builder, v string) {
+	v = strings.TrimSpace(v)
+	for {
+		i := strings.Index(v, "  ")
+		if i < 0 {
+			b.WriteString(v)
+			return
+		}
+		b.WriteString(v[:i+1])
+		v = strings.TrimLeft(v[i+1:], " ")
+	}
+}
+
 // rtosha computes the sha256 hash of the input Reader and rewinds it before
 // returning.
 func rtosha(r io.ReadSeeker) ([]byte, error) {

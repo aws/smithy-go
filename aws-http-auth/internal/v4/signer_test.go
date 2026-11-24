@@ -251,6 +251,43 @@ host;x-amz-foo
 	}
 }
 
+func TestBuildCanonicalRequest_HeaderValueSequentialSpaces(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost,
+		"https://service.region.amazonaws.com",
+		seekable("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.URL.Path = "/"
+	req.Header.Set("Host", "service.region.amazonaws.com")
+	req.Header.Set("X-Amz-Meta-Title", "  Hello   big  world  ")
+	s := &Signer{
+		Request:     req,
+		PayloadHash: Stosha("{}"),
+		Options: v4.SignerOptions{
+			HeaderRules: defaultHeaderRules{},
+		},
+	}
+
+	expect := `POST
+/
+
+host:service.region.amazonaws.com
+x-amz-meta-title:Hello big world
+
+host;x-amz-meta-title
+44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a`
+
+	actual, _ := s.buildCanonicalRequest()
+	if expect != actual {
+		t.Errorf("canonical request\n%s\n!=\n%s", expect, actual)
+	}
+	if actual := req.Header.Get("X-Amz-Meta-Title"); actual != "  Hello   big  world  " {
+		t.Errorf("expect header value to be left unchanged, got %q", actual)
+	}
+}
+
 func TestBuildCanonicalRequest_SortQuery(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost,
 		"https://service.region.amazonaws.com",
