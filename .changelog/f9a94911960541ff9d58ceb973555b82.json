@@ -1,8 +1,0 @@
-{
-    "id": "f9a94911-9605-41ff-9d58-ceb973555b82",
-    "type": "bugfix",
-    "description": "Validate event stream message prelude lengths when decoding.",
-    "modules": [
-        "."
-    ]
-}
