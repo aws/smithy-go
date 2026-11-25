@@ -145,9 +145,16 @@ func TestNewSafeReadCloser_WriteTo(t *testing.T) {
 			t.Errorf("expect no error, got %v", err)
 		}
 
-		_, err = writeToReadCloser.WriteTo(nil)
+		n, err := io.Copy(io.Discard, writeToReadCloser)
+		if err != nil {
+			t.Fatalf("drain after close: %v", err)
+		}
+		if n != 0 {
+			t.Fatalf("wrote %d bytes after close", n)
+		}
+		_, err = writeToReadCloser.Read(make([]byte, 1))
 		if err != io.EOF {
-			t.Errorf("expect %T, got %T", io.EOF, err)
+			t.Fatalf("Read after close: %v", err)
 		}
 	}
 	{
