@@ -60,7 +60,9 @@ func checkReadBlob(t *testing.T, input []byte) {
 		if !errors.As(gotErr, &gotCorrupt) || gotCorrupt != wantCorrupt {
 			t.Fatalf("input %q: got error %v, want corrupt input at %d", input, gotErr, wantCorrupt)
 		}
-		if gotErr.Error() != "decode base64 blob: "+wantErr.Error() {
+		// Compare against the base64 error rather than the encoding/json error: the
+		// standard library's wrapping of it varies between Go versions.
+		if gotErr.Error() != "decode base64 blob: "+wantCorrupt.Error() {
 			t.Errorf("unexpected error context: %v", gotErr)
 		}
 		if string(got) != "unchanged" {
