@@ -1,0 +1,8 @@
+{
+    "id": "5ce3c897-1527-404e-9520-b5297f144f43",
+    "type": "bugfix",
+    "description": "Lazy-load schemas at client instantiation. Callers may also use Init() in the client's schemas/ package to load them directly.",
+    "modules": [
+        "."
+    ]
+}

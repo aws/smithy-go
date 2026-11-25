@@ -300,21 +300,24 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             ctx.writerDelegator().useFileWriter("type_registry.go", settings.getModuleName(), new TypeRegistry(ctx));
 
             ctx.writerDelegator().useFileWriter("schemas/schemas.go", settings.getModuleName() + "/schemas", writer -> {
-                var operations = TopDownIndex.of(model).getContainedOperations(service);
-                for (OperationShape op : operations) {
-                    new SchemaGenerator(ctx, op).accept(writer);
-                }
-
-                // Generate the service schema: first the underlying *Schema
-                // (which carries traits like xmlNamespace), then wrap it in
-                // NewServiceSchema with the service version.
-                new SchemaGenerator(ctx, service).accept(writer);
-                writer.addUseImports(SmithyGoDependency.SMITHY);
-                writer.write("var $L = smithy.NewServiceSchema($L, $S)",
-                        StringUtils.capitalize(service.getId().getName(service)),
-                        SchemaGenerator.getSchemaName(service, service),
-                        service.getVersion());
-                writer.write("");
+                writer.writePackageDocs(String.format(
+                        "Package schemas contains the Smithy schemas for %s.",
+                        CodegenUtils.getServiceTitle(service, "the API")));
+                writer.writePackageDocs("");
+                writer.writePackageDocs("""
+                        The service schema is created at package initialization. The operation and shape schemas are \
+                        created lazily by [Init] instead, so that programs which import many services only pay for \
+                        the ones they use. Until Init has run, those schema variables are nil.""");
+                writer.writePackageDocs("");
+                writer.writePackageDocs("""
+                        Init is called by the API client's New function, and by the first lookup in the client \
+                        package's type registry. The first call creates the schemas. Init is safe for concurrent \
+                        use, and every later call is a no-op.""");
+                writer.writePackageDocs("");
+                writer.writePackageDocs("""
+                        Code that uses these schemas without going through a client, such as passing an operation or \
+                        shape schema to a protocol codec directly, must call Init first.""");
+                var operations = new ArrayList<>(TopDownIndex.of(model).getContainedOperations(service));
 
                 // Generate all shape schemas upfront. For synthetic shapes
                 // (input/output), pass the synthetic itself so that any
@@ -332,14 +335,47 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                         id = s.getTrait(Synthetic.class).get().getArchetype().get();
                     }
                     if (seen.add(id)) {
-                        new SchemaGenerator(ctx, s).accept(writer);
                         resolved.add(s);
                     }
                 }
 
+                var serviceName = StringUtils.capitalize(service.getId().getName(service));
+                writer.addUseImports(SmithyGoDependency.SMITHY);
+                writer.addUseImports(SmithyGoDependency.SYNC);
+
+                // The service schema has no members and references no other schema, so it is created eagerly. This
+                // keeps it safe to hand to a protocol constructor without calling Init first.
+                new SchemaGenerator(ctx, service).acceptEager(writer);
+                writer.write("var $L = smithy.NewServiceSchema($L, $S)",
+                        serviceName,
+                        SchemaGenerator.getSchemaName(service, service),
+                        service.getVersion());
+
+                for (OperationShape op : operations) {
+                    new SchemaGenerator(ctx, op).acceptDecl(writer);
+                }
+                for (Shape s : resolved) {
+                    new SchemaGenerator(ctx, s).acceptDecl(writer);
+                }
+
                 writer.write("");
-                writer.writeDocs("Initialize schema members after all schemas are declared to avoid initialization cycles");
-                writer.openBlock("func init() {", "}", () -> {
+                writer.write("var initOnce sync.Once");
+                writer.write("");
+                writer.writeDocs("""
+                        Init creates the operation and shape schemas for this service. See the package documentation \
+                        for when it is called.""");
+                writer.write("func Init() { initOnce.Do(initSchemas) }");
+                writer.write("");
+                writer.writeDocs("Schema members are initialized after all schemas are declared to avoid initialization cycles");
+                writer.openBlock("func initSchemas() {", "}", () -> {
+                    for (OperationShape op : operations) {
+                        new SchemaGenerator(ctx, op).acceptInit(writer);
+                    }
+
+                    for (Shape s : resolved) {
+                        new SchemaGenerator(ctx, s).acceptInit(writer);
+                    }
+
                     var shapeIds = new HashSet<ShapeId>();
                     for (Shape s : resolved) {
                         shapeIds.add(s.getId());

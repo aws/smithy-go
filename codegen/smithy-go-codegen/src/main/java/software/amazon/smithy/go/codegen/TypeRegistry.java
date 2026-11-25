@@ -1,5 +1,6 @@
 package software.amazon.smithy.go.codegen;
 
+import static software.amazon.smithy.go.codegen.GoWriter.emptyGoTemplate;
 import static software.amazon.smithy.go.codegen.GoWriter.goTemplate;
 
 import java.util.HashSet;
@@ -48,17 +49,23 @@ public class TypeRegistry implements Writable {
         if (sorted.stream().anyMatch(Prelude::isPublicPreludeShape)) {
             writer.addUseImports(SmithyGoDependency.SMITHY_PRELUDE);
         }
-        if (sorted.stream().anyMatch(s -> !Prelude.isPublicPreludeShape(s))) {
+        var needsSchemas = sorted.stream().anyMatch(s -> !Prelude.isPublicPreludeShape(s));
+        if (needsSchemas) {
             writer.addImport(ctx.settings().getModuleName() + "/schemas", "schemas");
         }
         writer.writeGoTemplate("""
                 // TypeRegistry is the type registry for this service.
-                var TypeRegistry = &smithy.TypeRegistry{
-                    Entries: map[string]*smithy.TypeRegistryEntry{
+                //
+                // Entries are created on first lookup.
+                var TypeRegistry = smithy.NewLazyTypeRegistry(func() map[string]*smithy.TypeRegistryEntry {
+                    $init:W
+                    return map[string]*smithy.TypeRegistryEntry{
                         $entries:W
-                    },
-                }
-                """, Map.of("entries", Writable.map(sorted, this::renderEntry)));
+                    }
+                })
+                """, Map.of(
+                        "init", needsSchemas ? goTemplate("schemas.Init()") : emptyGoTemplate(),
+                        "entries", Writable.map(sorted, this::renderEntry)));
     }
 
     private Writable renderEntry(StructureShape shape) {
