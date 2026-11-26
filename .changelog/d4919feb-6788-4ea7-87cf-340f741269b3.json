@@ -1,0 +1,9 @@
+{
+    "id": "d4919feb-6788-4ea7-87cf-340f741269b3",
+    "type": "bugfix",
+    "description": "Fix a closed request body's WriteTo returning io.EOF, which made net/http close the connection while a response was still being read.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}

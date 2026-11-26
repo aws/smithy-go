@@ -25,13 +25,16 @@ type safeWriteToReadCloser struct {
 	*safeReadCloser
 }
 
-// WriteTo implements the io.WriteTo interface.
+// WriteTo implements the io.WriterTo interface. Once the reader is closed it
+// writes nothing and returns a nil error: io.WriterTo has no end-of-stream
+// error, and io.Copy (which net/http uses to check a request body for extra
+// bytes) passes WriteTo's error straight back to its caller.
 func (r *safeWriteToReadCloser) WriteTo(w io.Writer) (int64, error) {
 	r.safeReadCloser.mtx.Lock()
 	defer r.safeReadCloser.mtx.Unlock()
 
 	if r.safeReadCloser.closed {
-		return 0, io.EOF
+		return 0, nil
 	}
 
 	return r.safeReadCloser.readCloser.(io.WriterTo).WriteTo(w)
