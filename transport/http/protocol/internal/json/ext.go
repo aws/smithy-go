@@ -2,6 +2,7 @@ package json
 
 import (
 	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/internal/serde"
 	"github.com/aws/smithy-go/traits"
 )
 
@@ -27,10 +28,10 @@ func buildJSONExt(s *smithy.Schema) *jsonExt {
 	return ext
 }
 
-// memberByBytes looks a member up without allocating a string for its name: the
-// conversion in a map index expression is optimized away.
+// memberByBytes looks a member up without allocating a string for its name.
+// Member does not retain its argument.
 func memberByBytes(s *smithy.Schema, name []byte) *smithy.Schema {
-	return s.Members()[string(name)]
+	return s.Member(serde.UnsafeString(name))
 }
 
 func encodeJSONKey(name string) []byte {
