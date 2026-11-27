@@ -1,0 +1,9 @@
+{
+    "id": "dd9b2f7f-8087-4a3c-97bc-d24ff84f79ec",
+    "type": "bugfix",
+    "description": "Fix a data race, and spans overwriting each other, when two tracing spans are started from the same context.",
+    "collapse": false,
+    "modules": [
+        "."
+    ]
+}
