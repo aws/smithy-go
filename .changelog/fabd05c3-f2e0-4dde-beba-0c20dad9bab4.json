@@ -1,9 +1,0 @@
-{
-    "id": "fabd05c3-f2e0-4dde-beba-0c20dad9bab4",
-    "type": "bugfix",
-    "description": "Fix JSON blob test error comparison on Go 1.27.",
-    "collapse": false,
-    "modules": [
-        "."
-    ]
-}
